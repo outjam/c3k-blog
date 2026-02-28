@@ -11,7 +11,29 @@ export interface TelegramThemeParams {
   button_text_color?: string;
   secondary_bg_color?: string;
   header_bg_color?: string;
+  bottom_bar_bg_color?: string;
+  section_bg_color?: string;
+  section_header_text_color?: string;
+  subtitle_text_color?: string;
+  destructive_text_color?: string;
+  section_separator_color?: string;
   accent_text_color?: string;
+}
+
+export interface TelegramUser {
+  id: number;
+  is_bot?: boolean;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+  is_premium?: boolean;
+  allows_write_to_pm?: boolean;
+  photo_url?: string;
+}
+
+export interface TelegramInitDataUnsafe {
+  user?: TelegramUser;
 }
 
 export interface TelegramMainButton {
@@ -52,6 +74,7 @@ export interface TelegramWebApp {
   viewportHeight: number;
   viewportStableHeight: number;
   version: string;
+  initDataUnsafe?: TelegramInitDataUnsafe;
   MainButton: TelegramMainButton;
   BackButton: TelegramBackButton;
   HapticFeedback: TelegramHapticFeedback;
@@ -61,8 +84,11 @@ export interface TelegramWebApp {
   enableClosingConfirmation(): void;
   disableClosingConfirmation(): void;
   disableVerticalSwipes?: () => void;
+  lockOrientation?: () => void;
+  unlockOrientation?: () => void;
   setHeaderColor(color: string): void;
   setBackgroundColor(color: string): void;
+  setBottomBarColor?: (color: string) => void;
   onEvent?(eventType: "themeChanged", eventHandler: () => void): void;
   offEvent?(eventType: "themeChanged", eventHandler: () => void): void;
 }

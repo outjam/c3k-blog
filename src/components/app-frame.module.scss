@@ -1,0 +1,71 @@
+.frame {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--tg-bg);
+}
+
+.header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 40;
+  padding-top: calc(0.65rem + var(--safe-area-top));
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-bottom: 0.65rem;
+  padding-left: calc(1rem + var(--safe-area-left));
+  background: var(--tg-header-bg);
+  border-bottom: 1px solid var(--tg-section-separator);
+}
+
+.brand {
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  color: var(--tg-section-header-text);
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+
+.content {
+  padding-top: calc(var(--app-header-height) + var(--safe-area-top));
+  padding-bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom));
+}
+
+.tabBar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  padding-top: 0.5rem;
+  padding-right: calc(0.8rem + var(--safe-area-right));
+  padding-bottom: calc(0.5rem + var(--safe-area-bottom));
+  padding-left: calc(0.8rem + var(--safe-area-left));
+  background: var(--tg-bottom-bar-bg);
+  border-top: 1px solid var(--tg-section-separator);
+}
+
+.tab {
+  border: 1px solid var(--tg-section-separator);
+  border-radius: 0.8rem;
+  text-align: center;
+  padding: 0.55rem 0.65rem;
+  color: var(--tg-subtitle-text);
+  background: var(--tg-section-bg);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.tabActive {
+  color: var(--tg-btn-text);
+  background: var(--tg-btn);
+  border-color: var(--tg-btn);
+}

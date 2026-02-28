@@ -1,9 +1,12 @@
 .page {
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--surface);
   display: grid;
   justify-items: center;
-  padding: 1.2rem;
+  padding-top: 1.2rem;
+  padding-right: calc(1.2rem + var(--safe-area-right));
+  padding-bottom: 1.2rem;
+  padding-left: calc(1.2rem + var(--safe-area-left));
 }
 
 .container {
@@ -17,12 +20,16 @@
 .hero {
   padding: 1.15rem;
   border-radius: 1.25rem;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--tg-section-bg);
+  border: 1px solid var(--tg-section-separator);
+}
+
+.hero h1 {
+  color: var(--tg-section-header-text);
 }
 
 .subtitle {
-  color: var(--muted-text);
+  color: var(--tg-subtitle-text);
   margin-top: 0.4rem;
   line-height: 1.45;
 }

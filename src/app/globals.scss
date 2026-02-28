@@ -7,6 +7,12 @@
   --tg-btn-text: #03110a;
   --tg-secondary-bg: #151a23;
   --tg-header-bg: #0d0f14;
+  --tg-bottom-bar-bg: #0d0f14;
+  --tg-section-bg: #151a23;
+  --tg-section-header-text: #f0f3fa;
+  --tg-subtitle-text: #9aa3b2;
+  --tg-destructive-text: #ff5f59;
+  --tg-section-separator: #2a3548;
   --tg-accent: #6bd0ff;
 
   --surface: linear-gradient(160deg, #151a23 0%, #0d0f14 100%);
@@ -16,7 +22,15 @@
   --tag-border: rgba(107, 208, 255, 0.38);
   --muted-text: #c2cada;
   --subtle-text: #95a2ba;
+  --section-heading-text: #f0f3fa;
   --max-width: 780px;
+  --app-header-height: 64px;
+  --app-tabbar-height: 64px;
+
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
 }
 
 :root[data-tg-scheme="light"] {
@@ -40,6 +54,7 @@ body {
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--tg-bg);
   color: var(--tg-text);
   font-family: var(--font-manrope), "Segoe UI", sans-serif;
@@ -48,6 +63,6 @@ body {
 }
 
 a {
-  color: inherit;
+  color: var(--tg-link);
   text-decoration: none;
 }

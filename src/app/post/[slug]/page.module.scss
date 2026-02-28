@@ -1,9 +1,12 @@
 .page {
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--surface);
   display: grid;
   justify-items: center;
-  padding: 1.1rem;
+  padding-top: 1.1rem;
+  padding-right: calc(1.1rem + var(--safe-area-right));
+  padding-bottom: 1.1rem;
+  padding-left: calc(1.1rem + var(--safe-area-left));
 }
 
 .article {
@@ -19,8 +22,12 @@
   gap: 0.65rem;
   padding: 1rem;
   border-radius: 1.1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--tg-section-bg);
+  border: 1px solid var(--tg-section-separator);
+}
+
+.header h1 {
+  color: var(--tg-section-header-text);
 }
 
 .cover {
@@ -47,8 +54,8 @@
   gap: 1rem;
   padding: 1rem;
   border-radius: 1.1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--tg-section-bg);
+  border: 1px solid var(--tg-section-separator);
 }
 
 .actionRow {

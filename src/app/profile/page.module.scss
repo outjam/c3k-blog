@@ -1,0 +1,68 @@
+.page {
+  min-height: 100%;
+  padding: 1.1rem;
+  padding-right: calc(1.1rem + var(--safe-area-right));
+  padding-left: calc(1.1rem + var(--safe-area-left));
+}
+
+.card {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--tg-section-bg);
+  border: 1px solid var(--tg-section-separator);
+}
+
+.title {
+  color: var(--tg-section-header-text);
+  font-size: 1.15rem;
+}
+
+.subtitle {
+  color: var(--tg-subtitle-text);
+  line-height: 1.45;
+}
+
+.avatar {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+}
+
+.list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.7rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+.row dt {
+  color: var(--tg-subtitle-text);
+}
+
+.row dd {
+  color: var(--tg-text);
+  font-weight: 600;
+}
+
+.warning {
+  color: var(--tg-destructive-text);
+  line-height: 1.45;
+}

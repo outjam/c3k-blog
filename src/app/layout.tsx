@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import Script from "next/script";
 
+import { AppFrame } from "@/components/app-frame";
 import { TelegramMiniAppProvider } from "@/components/telegram-mini-app-provider";
 
 import "./globals.scss";
@@ -25,7 +26,9 @@ export default function RootLayout({
     <html lang="ru">
       <body className={manrope.variable}>
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
-        <TelegramMiniAppProvider>{children}</TelegramMiniAppProvider>
+        <TelegramMiniAppProvider>
+          <AppFrame>{children}</AppFrame>
+        </TelegramMiniAppProvider>
       </body>
     </html>
   );

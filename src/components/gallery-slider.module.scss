@@ -38,9 +38,9 @@
 }
 
 .button {
-  border: 1px solid var(--tag-border);
-  background: var(--tag-bg);
-  color: var(--tg-accent);
+  border: 1px solid var(--tg-btn);
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
   border-radius: 0.65rem;
   padding: 0.4rem 0.7rem;
   font-size: 0.8rem;

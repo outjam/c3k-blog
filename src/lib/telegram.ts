@@ -42,6 +42,12 @@ export const applyTelegramThemeToCssVars = (webApp: TelegramWebApp): void => {
     ["--tg-btn-text", params.button_text_color],
     ["--tg-secondary-bg", params.secondary_bg_color],
     ["--tg-header-bg", params.header_bg_color],
+    ["--tg-bottom-bar-bg", params.bottom_bar_bg_color],
+    ["--tg-section-bg", params.section_bg_color],
+    ["--tg-section-header-text", params.section_header_text_color],
+    ["--tg-subtitle-text", params.subtitle_text_color],
+    ["--tg-destructive-text", params.destructive_text_color],
+    ["--tg-section-separator", params.section_separator_color],
     ["--tg-accent", params.accent_text_color],
   ];
 
@@ -52,17 +58,20 @@ export const applyTelegramThemeToCssVars = (webApp: TelegramWebApp): void => {
   });
 
   const baseBg = params.bg_color;
-  const secondaryBg = params.secondary_bg_color ?? params.bg_color;
+  const secondaryBg = params.section_bg_color ?? params.secondary_bg_color ?? params.bg_color;
   const accent = params.accent_text_color ?? params.link_color;
-  const hint = params.hint_color;
+  const subtitle = params.subtitle_text_color ?? params.hint_color;
+  const sectionSeparator = params.section_separator_color ?? params.hint_color;
+  const sectionHeader = params.section_header_text_color ?? params.text_color;
 
   root.style.setProperty("--surface", `linear-gradient(160deg, ${secondaryBg ?? "#151a23"} 0%, ${baseBg ?? "#0d0f14"} 100%)`);
   root.style.setProperty("--card-bg", toRgba(secondaryBg, 0.66, "rgba(255, 255, 255, 0.04)"));
-  root.style.setProperty("--card-border", toRgba(hint, 0.34, "rgba(255, 255, 255, 0.08)"));
+  root.style.setProperty("--card-border", toRgba(sectionSeparator, 0.34, "rgba(255, 255, 255, 0.08)"));
   root.style.setProperty("--tag-bg", toRgba(accent, 0.18, "rgba(107, 208, 255, 0.1)"));
   root.style.setProperty("--tag-border", toRgba(accent, 0.38, "rgba(107, 208, 255, 0.38)"));
-  root.style.setProperty("--muted-text", params.hint_color ?? "#c2cada");
-  root.style.setProperty("--subtle-text", toRgba(params.hint_color, 0.82, "#95a2ba"));
+  root.style.setProperty("--muted-text", subtitle ?? "#c2cada");
+  root.style.setProperty("--subtle-text", toRgba(subtitle, 0.82, "#95a2ba"));
+  root.style.setProperty("--section-heading-text", sectionHeader ?? "#f0f3fa");
   root.setAttribute("data-tg-scheme", webApp.colorScheme);
 };
 
