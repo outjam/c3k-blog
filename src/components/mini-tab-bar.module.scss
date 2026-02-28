@@ -16,6 +16,7 @@
 
   &:active {
     scale: 1.025;
+    -webkit-backdrop-filter: saturate(1.5);
   }
 }
 
@@ -26,6 +27,10 @@
   border-radius: inherit;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tg-section-separator) 15%, transparent);
   pointer-events: none;
+
+  &:active {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  }
 }
 
 .tabLayer {
@@ -70,7 +75,7 @@
 
 
   &:active {
-    box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--tg-section-separator) 50%, transparent);
+    box-shadow: inset 0 0 4px 4px color-mix(in srgb, var(--tg-section-separator) 50%, transparent);
   }
 }
 
