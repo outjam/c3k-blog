@@ -47,7 +47,7 @@
   z-index: 40;
   margin-bottom: calc(0.35rem + var(--safe-area-bottom));
   padding: 0.25rem;
-  border-radius: 1.15rem;
+  border-radius: 62px;
   background: color-mix(in srgb, var(--tg-bottom-bar-bg) 82%, transparent);
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
@@ -86,7 +86,7 @@
   bottom: 0.25rem;
   left: 0.25rem;
   z-index: 2;
-  border-radius: 0.95rem;
+  border-radius: 52px;
   overflow: hidden;
   pointer-events: auto;
   touch-action: pan-y;
@@ -95,7 +95,7 @@
 .capsuleBg {
   position: absolute;
   inset: 0;
-  border-radius: 0.95rem;
+  border-radius: 52px;
   background: color-mix(in srgb, var(--tg-section-bg) 86%, transparent);
 }
 
@@ -112,8 +112,9 @@
   display: grid;
   justify-items: center;
   gap: 0.2rem;
-  border-radius: 0.95rem;
+  border-radius: 62px;
   text-align: center;
+  height: 62px;
   padding: 0.5rem 0.65rem;
   color: var(--tg-subtitle-text);
   font-weight: 600;
@@ -132,8 +133,8 @@
 }
 
 .tabIcon svg {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 24px;
+  height: 24px;
   fill: currentColor;
   transition: transform 0.18s ease;
 }
@@ -149,5 +150,6 @@
 }
 
 .tabAccent {
+  height: 54px;
   color: var(--tg-accent);
 }
