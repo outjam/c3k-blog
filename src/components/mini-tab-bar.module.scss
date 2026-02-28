@@ -10,8 +10,13 @@
   background: color-mix(in srgb, var(--tg-bottom-bar-bg) 84%, transparent);
   backdrop-filter: blur(12px) saturate(1.25);
   -webkit-backdrop-filter: blur(12px) saturate(1.25);
-  overflow: hidden;
+  // overflow: hidden;
   contain: paint;
+  transition: .3s;
+
+  &:active {
+    scale: 1.025;
+  }
 }
 
 .tabBar::before {
