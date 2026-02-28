@@ -82,6 +82,10 @@
   backdrop-filter: blur(6px) saturate(0.25);
   -webkit-backdrop-filter: blur(6px) saturate(0.25);
   overflow: hidden;
+
+  &:active {
+    backdrop-filter: saturate(0.5);
+  }
 }
 
 .capsuleShine {
@@ -101,7 +105,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-   overflow: hidden;
+  overflow: hidden;
 }
 
 .tab {
