@@ -76,10 +76,8 @@ export function AppFrame({ children }: AppFrameProps) {
   return (
     <div className={styles.frame}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.brand}>C3K Mini App</p>
-          <h2 className={styles.title}>{sectionTitle}</h2>
-        </div>
+          <p className={styles.brand}>Culture3k</p>
+          {/* <h2 className={styles.title}>{sectionTitle}</h2> */}
       </header>
 
       <main className={`${styles.content} ${showTabBar ? styles.contentWithTabBar : ""}`}>{children}</main>
