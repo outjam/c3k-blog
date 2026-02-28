@@ -1,0 +1,53 @@
+:root {
+  --tg-bg: #0d0f14;
+  --tg-text: #f0f3fa;
+  --tg-hint: #9aa3b2;
+  --tg-link: #9ad1ff;
+  --tg-btn: #28c76f;
+  --tg-btn-text: #03110a;
+  --tg-secondary-bg: #151a23;
+  --tg-header-bg: #0d0f14;
+  --tg-accent: #6bd0ff;
+
+  --surface: linear-gradient(160deg, #151a23 0%, #0d0f14 100%);
+  --card-bg: rgba(255, 255, 255, 0.04);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --tag-bg: rgba(107, 208, 255, 0.1);
+  --tag-border: rgba(107, 208, 255, 0.38);
+  --muted-text: #c2cada;
+  --subtle-text: #95a2ba;
+  --max-width: 780px;
+}
+
+:root[data-tg-scheme="light"] {
+  --surface: linear-gradient(160deg, #edf2f7 0%, #ffffff 100%);
+  --card-bg: rgba(255, 255, 255, 0.86);
+  --card-border: rgba(12, 28, 48, 0.14);
+  --tag-bg: rgba(40, 132, 238, 0.1);
+  --tag-border: rgba(40, 132, 238, 0.32);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-family: var(--font-manrope), "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

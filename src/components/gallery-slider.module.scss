@@ -1,0 +1,66 @@
+.slider {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.95rem;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+}
+
+.track {
+  display: flex;
+  transition: transform 0.28s ease;
+}
+
+.slide {
+  min-width: 100%;
+}
+
+.image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.buttons {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.button {
+  border: 1px solid var(--tag-border);
+  background: var(--tag-bg);
+  color: var(--tg-accent);
+  border-radius: 0.65rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.dots {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-border);
+}
+
+.dotActive {
+  background: var(--tg-accent);
+}

@@ -1,0 +1,9 @@
+<svg width="1200" height="700" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="700" fill="#121826"/>
+  <rect x="60" y="60" width="1080" height="580" rx="24" fill="#1D2A3E"/>
+  <circle cx="220" cy="180" r="92" fill="#2B8DFB" fill-opacity="0.4"/>
+  <circle cx="930" cy="520" r="140" fill="#2BD689" fill-opacity="0.28"/>
+  <rect x="170" y="260" width="860" height="300" rx="18" fill="#0E1624"/>
+  <text x="200" y="370" fill="#DDE7F7" font-family="Arial, sans-serif" font-size="52" font-weight="700">Telegram Mini App Studio</text>
+  <text x="200" y="430" fill="#8EA2C6" font-family="Arial, sans-serif" font-size="30">Content-first blog with native Telegram colors</text>
+</svg>

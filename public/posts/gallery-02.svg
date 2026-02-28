@@ -1,0 +1,8 @@
+<svg width="900" height="520" viewBox="0 0 900 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="520" rx="24" fill="#202028"/>
+  <rect x="60" y="70" width="780" height="380" rx="14" fill="#373249"/>
+  <rect x="130" y="140" width="180" height="230" rx="12" fill="#8DA6FF" fill-opacity="0.35"/>
+  <rect x="360" y="140" width="180" height="230" rx="12" fill="#86FFD8" fill-opacity="0.35"/>
+  <rect x="590" y="140" width="180" height="230" rx="12" fill="#FFE9A0" fill-opacity="0.4"/>
+  <text x="84" y="438" fill="#F2ECFF" font-family="Arial, sans-serif" font-size="34" font-weight="700">Gallery 02</text>
+</svg>

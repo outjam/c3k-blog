@@ -1,0 +1,13 @@
+<svg width="1200" height="700" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="700" fill="#0F1218"/>
+  <rect x="80" y="80" width="1040" height="540" rx="20" fill="#1C212B"/>
+  <rect x="130" y="150" width="280" height="390" rx="14" fill="#252D3B"/>
+  <rect x="460" y="150" width="280" height="390" rx="14" fill="#2A3447"/>
+  <rect x="790" y="150" width="280" height="390" rx="14" fill="#233346"/>
+  <text x="160" y="210" fill="#D7E2F4" font-family="Arial, sans-serif" font-size="28" font-weight="700">Draft</text>
+  <text x="490" y="210" fill="#D7E2F4" font-family="Arial, sans-serif" font-size="28" font-weight="700">Review</text>
+  <text x="820" y="210" fill="#D7E2F4" font-family="Arial, sans-serif" font-size="28" font-weight="700">Published</text>
+  <rect x="160" y="250" width="220" height="76" rx="12" fill="#89D1FF" fill-opacity="0.24"/>
+  <rect x="490" y="250" width="220" height="76" rx="12" fill="#87F0B9" fill-opacity="0.24"/>
+  <rect x="820" y="250" width="220" height="76" rx="12" fill="#F4CD75" fill-opacity="0.24"/>
+</svg>

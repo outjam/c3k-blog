@@ -1,0 +1,72 @@
+.content {
+  display: grid;
+  gap: 1rem;
+}
+
+.paragraph {
+  line-height: 1.65;
+  font-size: 1rem;
+  color: var(--muted-text);
+}
+
+.heading {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--tg-text);
+}
+
+.quote {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+  border-left: 3px solid var(--tg-accent);
+  border-radius: 0.75rem;
+  background: var(--tag-bg);
+}
+
+.quoteText {
+  color: var(--tg-text);
+  line-height: 1.55;
+  font-size: 1rem;
+}
+
+.quoteAuthor {
+  color: var(--subtle-text);
+  font-size: 0.82rem;
+}
+
+.figure {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.image {
+  width: 100%;
+  height: auto;
+  border-radius: 0.95rem;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+}
+
+.caption {
+  color: var(--subtle-text);
+  font-size: 0.82rem;
+}
+
+.list {
+  display: grid;
+  gap: 0.5rem;
+  color: var(--muted-text);
+  padding-left: 1.1rem;
+}
+
+.gallery {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.galleryTitle {
+  color: var(--tg-text);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
