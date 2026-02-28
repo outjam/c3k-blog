@@ -64,7 +64,7 @@ export function AppFrame({ children }: AppFrameProps) {
   const railRef = useRef<HTMLElement | null>(null);
   const [railInnerWidth, setRailInnerWidth] = useState(0);
   const capsuleX = useMotionValue(0);
-  const maskX = useTransform(capsuleX, (value) => -value);
+  const accentOffsetX = useTransform(capsuleX, (value) => -value);
 
   const tabs = useMemo<TabItem[]>(() => ([
     { id: "blog", label: "Блог", href: "/", icon: <BlogIcon /> },
@@ -72,6 +72,7 @@ export function AppFrame({ children }: AppFrameProps) {
   ]), []);
 
   const itemWidth = railInnerWidth / TAB_COUNT;
+  const isTabMetricsReady = itemWidth > 0;
 
   useEffect(() => {
     const node = railRef.current;
@@ -160,39 +161,48 @@ export function AppFrame({ children }: AppFrameProps) {
 
       {showTabBar ? (
         <nav className={styles.tabBar} aria-label="Основная навигация" ref={railRef}>
-          <motion.div
-            className={styles.capsule}
-            style={{ x: capsuleX, width: itemWidth || undefined }}
-            drag="x"
-            dragConstraints={{ left: 0, right: itemWidth || 0 }}
-            dragElastic={0.08}
-            dragMomentum={false}
-            onDragEnd={handleCapsuleDragEnd}
-          />
-
-          <motion.div className={styles.maskLayer} style={{ x: capsuleX, width: itemWidth || undefined }}>
-            <motion.div className={styles.maskTrack} style={{ x: maskX, width: railInnerWidth || undefined }}>
-              {tabs.map((tab) => (
-                <div className={`${styles.tab} ${styles.tabInverted}`} key={`mask-${tab.id}`} aria-hidden>
-                  <span className={styles.tabIcon}>{tab.icon}</span>
-                  <span className={styles.tabLabel}>{tab.label}</span>
-                </div>
-              ))}
+          {isTabMetricsReady ? (
+            <motion.div
+              className={styles.capsuleWindow}
+              style={{ x: capsuleX, width: itemWidth }}
+              drag="x"
+              dragConstraints={{ left: 0, right: itemWidth }}
+              dragElastic={0}
+              dragMomentum={false}
+              dragTransition={{ bounceStiffness: 1000, bounceDamping: 120 }}
+              onDragEnd={handleCapsuleDragEnd}
+              whileTap={{ scale: 1.015 }}
+              whileDrag={{ scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 520, damping: 36, mass: 0.52 }}
+            >
+              <div className={styles.capsuleBg} />
+              <motion.div className={styles.accentTrack} style={{ x: accentOffsetX, width: railInnerWidth }}>
+                {tabs.map((tab) => (
+                  <div className={`${styles.tab} ${styles.tabAccent}`} key={`accent-${tab.id}`} aria-hidden>
+                    <span className={styles.tabIcon}>{tab.icon}</span>
+                    <span className={styles.tabLabel}>{tab.label}</span>
+                  </div>
+                ))}
+              </motion.div>
             </motion.div>
-          </motion.div>
+          ) : null}
 
           <div className={styles.tabLayer}>
             {tabs.map((tab, index) => (
-              <button
+              <motion.button
                 key={tab.id}
                 type="button"
-                className={styles.tab}
+                className={styles.tabButton}
                 aria-current={activeIndex === index ? "page" : undefined}
                 onClick={() => navigateTo(index)}
+                whileTap={{ scale: 1.025 }}
+                transition={{ type: "spring", stiffness: 560, damping: 38, mass: 0.52 }}
               >
-                <span className={styles.tabIcon}>{tab.icon}</span>
-                <span className={styles.tabLabel}>{tab.label}</span>
-              </button>
+                <div className={styles.tab}>
+                  <span className={styles.tabIcon}>{tab.icon}</span>
+                  <span className={styles.tabLabel}>{tab.label}</span>
+                </div>
+              </motion.button>
             ))}
           </div>
         </nav>
