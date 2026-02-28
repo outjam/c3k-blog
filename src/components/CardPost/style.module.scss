@@ -1,0 +1,41 @@
+.cardPost {
+    aspect-ratio: 4 / 3;
+    background-color: var(--tg-secondary-bg);
+    max-width: 800px;
+    border-radius: 24px;
+    overflow: hidden;
+    position: relative;
+    transition: .3s;
+
+    &__image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    &__top {
+        position: absolute;
+        top: 0;
+        width: 100%;
+        height: 48px;
+    }
+    &__bottom {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        height: 128px;
+    }
+    &__border {
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        width: 100%;
+        height: 100%;
+        border: 1px solid #ffffff50;
+        mix-blend-mode: overlay;
+        border-radius: 24px;
+        z-index: 10;
+    }
+}
