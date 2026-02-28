@@ -59,9 +59,7 @@ export const applyTelegramThemeToCssVars = (webApp: TelegramWebApp): void => {
 
   const baseBg = params.bg_color;
   const secondaryBg = params.section_bg_color ?? params.secondary_bg_color ?? params.bg_color;
-  const accent = params.accent_text_color ?? params.link_color;
   const subtitle = params.subtitle_text_color ?? params.hint_color;
-  const sectionSeparator = params.section_separator_color ?? params.hint_color;
   const sectionHeader = params.section_header_text_color ?? params.text_color;
 
   root.style.setProperty("--surface", baseBg ?? "#0d0f14");

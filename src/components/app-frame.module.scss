@@ -45,15 +45,49 @@
   bottom: 0;
   left: calc(0.75rem + var(--safe-area-left));
   z-index: 40;
+  margin-bottom: calc(0.35rem + var(--safe-area-bottom));
+  padding: 0.25rem;
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--tg-bottom-bar-bg) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  overflow: hidden;
+}
+
+.tabLayer {
+  position: relative;
+  z-index: 3;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.35rem;
-  margin-bottom: calc(0.35rem + var(--safe-area-bottom));
-  padding: 0.35rem;
-  border-radius: 1.15rem;
-  background: color-mix(in srgb, var(--tg-bottom-bar-bg) 76%, transparent);
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  gap: 0;
+}
+
+.capsule {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0.25rem;
+  z-index: 1;
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 74%, transparent);
+}
+
+.maskLayer {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0.25rem;
+  z-index: 2;
+  border-radius: 0.95rem;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.maskTrack {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
 }
 
 .tab {
@@ -67,7 +101,10 @@
   font-weight: 600;
   font-size: 0.85rem;
   line-height: 1;
-  transition: background 0.18s ease, color 0.18s ease;
+  background: transparent;
+  border: 0;
+  transition: color 0.18s ease;
+  cursor: pointer;
 }
 
 .tabIcon {
@@ -87,7 +124,7 @@
   font-size: 0.95rem;
 }
 
-.tabActive {
-  color: var(--tg-accent);
-  background: color-mix(in srgb, var(--tg-section-bg) 68%, transparent);
+.tabInverted {
+  color: var(--tg-text);
+  mix-blend-mode: difference;
 }
