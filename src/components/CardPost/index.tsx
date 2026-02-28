@@ -5,11 +5,17 @@ import BlurEffect from 'react-progressive-blur';
 function CardPost() {
   return (
     <div className={styles.cardPost}>
-      <BlurEffect
+      <div className={styles.cardPost__topBar}>
+        <BlurEffect
         className={styles.cardPost__top}
-        intensity={200}
+        intensity={100}
         position="top"
       />
+      <div className={styles.cardPost__topBar__detail}>
+        <p className={styles.cardPost__topBar__detail__category}>Разработка</p>
+        <p className={styles.cardPost__topBar__detail__readTime}>5 мин</p>
+      </div>
+      </div>
       <BlurEffect
         className={styles.cardPost__bottom}
         intensity={200}
