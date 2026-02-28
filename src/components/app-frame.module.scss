@@ -15,7 +15,6 @@
   padding-bottom: 0.65rem;
   padding-left: calc(1rem + var(--safe-area-left));
   background: var(--tg-header-bg);
-  border-bottom: 1px solid var(--tg-section-separator);
 }
 
 .brand {
@@ -33,39 +32,62 @@
 
 .content {
   padding-top: calc(var(--app-header-height) + var(--safe-area-top));
+  padding-bottom: var(--safe-area-bottom);
+}
+
+.contentWithTabBar {
   padding-bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom));
 }
 
 .tabBar {
   position: fixed;
-  right: 0;
+  right: calc(0.75rem + var(--safe-area-right));
   bottom: 0;
-  left: 0;
+  left: calc(0.75rem + var(--safe-area-left));
   z-index: 40;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
-  padding-top: 0.5rem;
-  padding-right: calc(0.8rem + var(--safe-area-right));
-  padding-bottom: calc(0.5rem + var(--safe-area-bottom));
-  padding-left: calc(0.8rem + var(--safe-area-left));
-  background: var(--tg-bottom-bar-bg);
-  border-top: 1px solid var(--tg-section-separator);
+  gap: 0.35rem;
+  margin-bottom: calc(0.35rem + var(--safe-area-bottom));
+  padding: 0.35rem;
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--tg-bottom-bar-bg) 76%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
 }
 
 .tab {
-  border: 1px solid var(--tg-section-separator);
-  border-radius: 0.8rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  border-radius: 0.95rem;
   text-align: center;
-  padding: 0.55rem 0.65rem;
+  padding: 0.5rem 0.65rem;
   color: var(--tg-subtitle-text);
-  background: var(--tg-section-bg);
-  font-weight: 700;
-  font-size: 0.9rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.tabIcon {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: grid;
+  place-items: center;
+}
+
+.tabIcon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+
+.tabLabel {
+  font-size: 0.95rem;
 }
 
 .tabActive {
-  color: var(--tg-btn-text);
-  background: var(--tg-btn);
-  border-color: var(--tg-btn);
+  color: var(--tg-accent);
+  background: color-mix(in srgb, var(--tg-section-bg) 68%, transparent);
 }

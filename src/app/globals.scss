@@ -15,30 +15,22 @@
   --tg-section-separator: #2a3548;
   --tg-accent: #6bd0ff;
 
-  --surface: linear-gradient(160deg, #151a23 0%, #0d0f14 100%);
-  --card-bg: rgba(255, 255, 255, 0.04);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --tag-bg: rgba(107, 208, 255, 0.1);
-  --tag-border: rgba(107, 208, 255, 0.38);
+  --surface: var(--tg-bg);
+  --card-bg: var(--tg-section-bg);
+  --card-border: transparent;
+  --tag-bg: transparent;
+  --tag-border: transparent;
   --muted-text: #c2cada;
   --subtle-text: #95a2ba;
   --section-heading-text: #f0f3fa;
   --max-width: 780px;
   --app-header-height: 64px;
-  --app-tabbar-height: 64px;
+  --app-tabbar-height: 82px;
 
-  --safe-area-top: env(safe-area-inset-top, 0px);
-  --safe-area-right: env(safe-area-inset-right, 0px);
-  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-area-left: env(safe-area-inset-left, 0px);
-}
-
-:root[data-tg-scheme="light"] {
-  --surface: linear-gradient(160deg, #edf2f7 0%, #ffffff 100%);
-  --card-bg: rgba(255, 255, 255, 0.86);
-  --card-border: rgba(12, 28, 48, 0.14);
-  --tag-bg: rgba(40, 132, 238, 0.1);
-  --tag-border: rgba(40, 132, 238, 0.32);
+  --safe-area-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px));
+  --safe-area-right: max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px));
+  --safe-area-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  --safe-area-left: max(env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
 }
 
 * {

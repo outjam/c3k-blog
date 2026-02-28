@@ -3,7 +3,6 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-import { MainActionButton } from "@/components/main-action-button";
 import { PostCard } from "@/components/post-card";
 import { posts } from "@/data/posts";
 import { hapticImpact } from "@/lib/telegram";
@@ -22,8 +21,6 @@ export default function Home() {
 
   return (
     <div className={styles.page}>
-      <MainActionButton text="Открыть свежий пост" onClick={openLatestPost} visible />
-
       <main className={styles.container}>
         <section className={styles.hero}>
           <h1>C3K Blog</h1>

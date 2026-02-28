@@ -2,22 +2,15 @@
   display: grid;
   gap: 0.8rem;
   padding: 1rem;
-  border-radius: 1rem;
+  border-radius: 0.9rem;
   background: var(--tg-section-bg);
-  border: 1px solid var(--tg-section-separator);
   color: inherit;
-  transition: transform 0.18s ease, border-color 0.2s ease;
-}
-
-.card:active {
-  transform: scale(0.985);
 }
 
 .cover {
   width: 100%;
   height: auto;
-  border-radius: 0.85rem;
-  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
 }
 
 .title {
@@ -49,6 +42,5 @@
   font-size: 0.76rem;
   border-radius: 999px;
   padding: 0.22rem 0.55rem;
-  border: 1px solid var(--tag-border);
-  background: var(--tag-bg);
+  background: var(--tg-bg);
 }

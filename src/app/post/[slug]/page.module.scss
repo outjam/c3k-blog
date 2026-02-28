@@ -1,6 +1,6 @@
 .page {
   min-height: 100%;
-  background: var(--surface);
+  background: var(--tg-bg);
   display: grid;
   justify-items: center;
   padding-top: 1.1rem;
@@ -21,9 +21,8 @@
   display: grid;
   gap: 0.65rem;
   padding: 1rem;
-  border-radius: 1.1rem;
+  border-radius: 0.9rem;
   background: var(--tg-section-bg);
-  border: 1px solid var(--tg-section-separator);
 }
 
 .header h1 {
@@ -33,8 +32,7 @@
 .cover {
   width: 100%;
   height: auto;
-  border-radius: 0.95rem;
-  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
 }
 
 .meta {
@@ -53,9 +51,8 @@
   display: grid;
   gap: 1rem;
   padding: 1rem;
-  border-radius: 1.1rem;
+  border-radius: 0.9rem;
   background: var(--tg-section-bg);
-  border: 1px solid var(--tg-section-separator);
 }
 
 .actionRow {
@@ -65,9 +62,9 @@
 }
 
 .action {
-  border: 1px solid var(--tag-border);
-  color: var(--tg-accent);
-  background: var(--tag-bg);
+  border: 0;
+  color: var(--tg-btn-text);
+  background: var(--tg-btn);
   border-radius: 0.75rem;
   padding: 0.55rem 0.75rem;
   font-weight: 600;

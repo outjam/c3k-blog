@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import Script from "next/script";
 
@@ -15,6 +15,10 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "C3K Blog Mini App",
   description: "Персональный блог в формате Telegram Mini App на Next.js",
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

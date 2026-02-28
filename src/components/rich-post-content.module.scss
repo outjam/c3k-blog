@@ -18,10 +18,9 @@
 .quote {
   display: grid;
   gap: 0.45rem;
-  padding: 0.9rem;
-  border-left: 3px solid var(--tg-accent);
-  border-radius: 0.75rem;
-  background: var(--tag-bg);
+  padding: 0.85rem;
+  border-radius: 0.7rem;
+  background: var(--tg-section-bg);
 }
 
 .quoteText {
@@ -43,9 +42,7 @@
 .image {
   width: 100%;
   height: auto;
-  border-radius: 0.95rem;
-  border: 1px solid var(--card-border);
-  background: var(--card-bg);
+  border-radius: 0.75rem;
 }
 
 .caption {

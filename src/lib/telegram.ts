@@ -64,11 +64,11 @@ export const applyTelegramThemeToCssVars = (webApp: TelegramWebApp): void => {
   const sectionSeparator = params.section_separator_color ?? params.hint_color;
   const sectionHeader = params.section_header_text_color ?? params.text_color;
 
-  root.style.setProperty("--surface", `linear-gradient(160deg, ${secondaryBg ?? "#151a23"} 0%, ${baseBg ?? "#0d0f14"} 100%)`);
-  root.style.setProperty("--card-bg", toRgba(secondaryBg, 0.66, "rgba(255, 255, 255, 0.04)"));
-  root.style.setProperty("--card-border", toRgba(sectionSeparator, 0.34, "rgba(255, 255, 255, 0.08)"));
-  root.style.setProperty("--tag-bg", toRgba(accent, 0.18, "rgba(107, 208, 255, 0.1)"));
-  root.style.setProperty("--tag-border", toRgba(accent, 0.38, "rgba(107, 208, 255, 0.38)"));
+  root.style.setProperty("--surface", baseBg ?? "#0d0f14");
+  root.style.setProperty("--card-bg", secondaryBg ?? "#151a23");
+  root.style.setProperty("--card-border", "transparent");
+  root.style.setProperty("--tag-bg", "transparent");
+  root.style.setProperty("--tag-border", "transparent");
   root.style.setProperty("--muted-text", subtitle ?? "#c2cada");
   root.style.setProperty("--subtle-text", toRgba(subtitle, 0.82, "#95a2ba"));
   root.style.setProperty("--section-heading-text", sectionHeader ?? "#f0f3fa");
