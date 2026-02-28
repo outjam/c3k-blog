@@ -77,10 +77,10 @@
 .capsuleBg {
   position: absolute;
   inset: 0;
-  border-radius: 0.95rem;
+  border-radius: 52px;
   background: color-mix(in srgb, var(--tg-section-bg) 90%, transparent);
-  backdrop-filter: blur(8px) saturate(1.25);
-  -webkit-backdrop-filter: blur(8px) saturate(1.25);
+  backdrop-filter: blur(2px) saturate(0.25);
+  -webkit-backdrop-filter: blur(2px) saturate(0.25);
 }
 
 .capsuleShine {
