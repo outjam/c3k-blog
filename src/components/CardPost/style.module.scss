@@ -7,10 +7,6 @@
     position: relative;
     transition: .3s;
 
-    &:active {
-        scale: .98;
-    }
-
     &__image {
         position: absolute;
            object-fit: cover;
