@@ -7,6 +7,10 @@
     position: relative;
     transition: .3s;
 
+    &:active {
+        scale: .98;
+    }
+
     &__image {
         position: absolute;
            object-fit: cover;
@@ -25,15 +29,25 @@
         top: 0;
         z-index: 10;
 
+        &__blur {
+            position: absolute;
+            width: 100%;
+            height: 75%;
+        }
+
         &__detail {
             display: flex;
             align-items: baseline;
-            gap: 4px;
+            gap: 8px;
             z-index: 20;
+
+            &__category {
+                color: #fff;
+            }
 
             &__readTime {
                 mix-blend-mode: overlay;
-                color: #ffffff;
+                color: #ffffff75;
             }
         }
     }
@@ -60,5 +74,6 @@
         mix-blend-mode: overlay;
         border-radius: 24px;
         z-index: 10;
+        pointer-events: none;
     }
 }
