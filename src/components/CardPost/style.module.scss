@@ -13,6 +13,7 @@
     width: 120%;
     height: 120%;
     inset: -20%;
+    object-position: center;
     }
 
     &__topBar {
@@ -27,7 +28,8 @@
 
         &__blur {
             position: absolute;
-            width: 100%;
+            width: 120%;
+            left: -10%;
             height: 75%;
         }
 
