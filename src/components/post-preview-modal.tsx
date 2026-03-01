@@ -3,7 +3,15 @@
 import { useEffect } from "react";
 import Image from "next/image";
 import BlurEffect from "react-progressive-blur";
-import { AnimatePresence, animate, motion, useMotionTemplate, useMotionValue, useTransform } from "motion/react";
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useDragControls,
+  useMotionTemplate,
+  useMotionValue,
+  useTransform,
+} from "motion/react";
 
 import { RichPostContent } from "@/components/rich-post-content";
 import type { BlogPost } from "@/data/posts";
@@ -21,6 +29,7 @@ const SHEET_CLOSE_OFFSET = 160;
 const SHEET_CLOSE_VELOCITY = 980;
 
 export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps) {
+  const dragControls = useDragControls();
   const y = useMotionValue(0);
   const backdropOpacity = useTransform(y, [0, 260], [1, 0.12]);
   const sheetScale = useTransform(y, [0, 420], [1, 0.94]);
@@ -86,6 +95,8 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
             layoutId={shellId}
             transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.82 }}
             drag="y"
+            dragControls={dragControls}
+            dragListener={false}
             dragDirectionLock
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.18 }}
@@ -106,7 +117,12 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
               animate(y, 0, { type: "spring", stiffness: 460, damping: 38, mass: 0.66, velocity: info.velocity.y });
             }}
           >
-            <div className={styles.handleWrap}>
+            <div
+              className={styles.handleWrap}
+              onPointerDown={(event) => {
+                dragControls.start(event);
+              }}
+            >
               <div className={styles.handle} />
               <button
                 type="button"

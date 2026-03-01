@@ -43,6 +43,14 @@
   padding-top: 10px;
   padding-bottom: 6px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--tg-bg) 96%, transparent) 0%, transparent 100%);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.handleWrap:active {
+  cursor: grabbing;
 }
 
 .handle {
