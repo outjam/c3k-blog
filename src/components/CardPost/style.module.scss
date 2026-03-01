@@ -8,11 +8,11 @@
     transition: .3s;
 
     &__image {
-        position: absolute;
-           object-fit: cover;
-    width: 110%;
-    height: 110%;
-    inset: -10%;
+    position: absolute;
+    object-fit: cover;
+    width: 120%;
+    height: 120%;
+    inset: -20%;
     }
 
     &__topBar {
