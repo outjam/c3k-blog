@@ -8,7 +8,7 @@ function CardPost() {
       <div className={styles.cardPost__topBar}>
         <BlurEffect
         className={styles.cardPost__topBar__blur}
-        intensity={50}
+        intensity={25}
         position="top"
       />
       <div className={styles.cardPost__topBar__detail}>
