@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import BlurEffect from "react-progressive-blur";
-import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";
+import { AnimatePresence, animate, motion, useMotionTemplate, useMotionValue, useTransform } from "motion/react";
 
 import { RichPostContent } from "@/components/rich-post-content";
 import type { BlogPost } from "@/data/posts";
@@ -19,10 +19,16 @@ interface PostPreviewModalProps {
 
 const SHEET_CLOSE_OFFSET = 160;
 const SHEET_CLOSE_VELOCITY = 980;
+const SHEET_CLOSE_PROJECTION = 210;
 
 export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps) {
   const y = useMotionValue(0);
+  const isClosingRef = useRef(false);
   const backdropOpacity = useTransform(y, [0, 260], [1, 0.12]);
+  const sheetScale = useTransform(y, [0, 420], [1, 0.94]);
+  const sheetRadius = useTransform(y, [0, 320], [28, 40]);
+  const sheetShadowOpacity = useTransform(y, [0, 320], [0.26, 0.06]);
+  const sheetShadow = useMotionTemplate`0 -8px 34px rgba(0, 0, 0, ${sheetShadowOpacity})`;
 
   useEffect(() => {
     if (!open) {
@@ -39,6 +45,7 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
 
   useEffect(() => {
     if (open) {
+      isClosingRef.current = false;
       y.set(0);
     }
   }, [open, y]);
@@ -50,6 +57,27 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
   const shellId = `post-shell-${post.slug}`;
   const imageId = `post-image-${post.slug}`;
   const titleId = `post-title-${post.slug}`;
+
+  const closeWithMomentum = (velocity = 0) => {
+    if (isClosingRef.current) {
+      return;
+    }
+
+    isClosingRef.current = true;
+    const target = Math.max(window.innerHeight + 40, y.get() + SHEET_CLOSE_PROJECTION);
+
+    animate(y, target, {
+      type: "spring",
+      stiffness: 300,
+      damping: 32,
+      mass: 0.92,
+      velocity,
+      onComplete: () => {
+        onClose();
+        isClosingRef.current = false;
+      },
+    });
+  };
 
   return (
     <AnimatePresence>
@@ -67,30 +95,41 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
             style={{ opacity: backdropOpacity }}
             onClick={() => {
               hapticImpact("soft");
-              onClose();
+              closeWithMomentum(460);
             }}
             aria-label="Закрыть предпросмотр"
           />
 
           <motion.article
             className={styles.sheet}
-            style={{ y }}
+            style={{
+              y,
+              scale: sheetScale,
+              borderTopLeftRadius: sheetRadius,
+              borderTopRightRadius: sheetRadius,
+              boxShadow: sheetShadow,
+            }}
             layoutId={shellId}
             transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.82 }}
             drag="y"
+            dragDirectionLock
             dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.26 }}
+            dragElastic={{ top: 0, bottom: 0.18 }}
             dragMomentum={false}
             onDragEnd={(_event, info) => {
-              const shouldClose = info.offset.y > SHEET_CLOSE_OFFSET || info.velocity.y > SHEET_CLOSE_VELOCITY;
+              const projected = info.offset.y + info.velocity.y * 0.22;
+              const shouldClose =
+                projected > SHEET_CLOSE_OFFSET ||
+                info.offset.y > SHEET_CLOSE_OFFSET ||
+                info.velocity.y > SHEET_CLOSE_VELOCITY;
 
               if (shouldClose) {
                 hapticImpact("medium");
-                onClose();
+                closeWithMomentum(info.velocity.y);
                 return;
               }
 
-              animate(y, 0, { type: "spring", stiffness: 410, damping: 36, mass: 0.68 });
+              animate(y, 0, { type: "spring", stiffness: 460, damping: 38, mass: 0.66, velocity: info.velocity.y });
             }}
           >
             <div className={styles.handleWrap}>
@@ -100,7 +139,7 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
                 className={styles.closeButton}
                 onClick={() => {
                   hapticImpact("soft");
-                  onClose();
+                  closeWithMomentum(560);
                 }}
                 aria-label="Закрыть"
               >

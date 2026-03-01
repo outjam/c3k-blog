@@ -29,6 +29,9 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-bottom: var(--safe-area-bottom);
+  transform-origin: center top;
+  will-change: transform;
+  touch-action: pan-y;
 }
 
 .handleWrap {
