@@ -67,3 +67,106 @@
   font-weight: 700;
   font-size: 0.95rem;
 }
+
+.mediaFigure {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.video {
+  width: 100%;
+  border-radius: 0.75rem;
+  background: #000;
+}
+
+.audioTitle {
+  color: var(--tg-text);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.audio {
+  width: 100%;
+}
+
+.modelWrap {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.tsxBlock {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.code {
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 86%, transparent);
+  color: var(--tg-text);
+  font-size: 0.82rem;
+  overflow: auto;
+}
+
+.tsxDemo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.demoChip,
+.demoAction {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-weight: 600;
+}
+
+.animationParallax {
+  position: relative;
+  height: 72px;
+  border-radius: 0.8rem;
+  overflow: hidden;
+  background: var(--tg-section-bg);
+}
+
+.layerOne,
+.layerTwo {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.layerOne {
+  background: radial-gradient(circle at 20% 50%, color-mix(in srgb, var(--tg-accent) 42%, transparent) 0%, transparent 64%);
+}
+
+.layerTwo {
+  background: radial-gradient(circle at 78% 52%, color-mix(in srgb, var(--tg-btn) 34%, transparent) 0%, transparent 64%);
+}
+
+.animationGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.gridCell {
+  height: 28px;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--tg-accent) 55%, transparent);
+}
+
+.animationProgress {
+  border-radius: 0.75rem;
+  padding: 0.35rem;
+  background: var(--tg-section-bg);
+}
+
+.progressLine {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--tg-btn);
+}

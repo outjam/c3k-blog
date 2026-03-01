@@ -9,25 +9,69 @@ export const isAppTheme = (value: string | null | undefined): value is AppTheme 
   return value === "light" || value === "dark";
 };
 
+const parseVersion = (value: string | undefined): number[] => {
+  if (!value) {
+    return [0];
+  }
+
+  return value
+    .split(".")
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isNaN(part) ? 0 : part));
+};
+
+const isVersionGte = (value: string | undefined, target: string): boolean => {
+  const left = parseVersion(value);
+  const right = parseVersion(target);
+  const max = Math.max(left.length, right.length);
+
+  for (let index = 0; index < max; index += 1) {
+    const l = left[index] ?? 0;
+    const r = right[index] ?? 0;
+
+    if (l > r) {
+      return true;
+    }
+
+    if (l < r) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const canUseCloudStorage = (webApp: TelegramWebApp | null): boolean => {
+  return Boolean(webApp?.CloudStorage) && isVersionGte(webApp?.version, "6.9");
+};
+
 const readFromTelegramStorage = (webApp: TelegramWebApp | null): Promise<AppTheme | null> => {
-  if (!webApp?.CloudStorage) {
+  if (!canUseCloudStorage(webApp)) {
     return Promise.resolve(null);
   }
 
   return new Promise((resolve) => {
-    webApp.CloudStorage?.getItem(APP_THEME_STORAGE_KEY, (_error, value) => {
-      resolve(isAppTheme(value ?? null) ? value : null);
-    });
+    try {
+      webApp.CloudStorage?.getItem(APP_THEME_STORAGE_KEY, (_error, value) => {
+        resolve(isAppTheme(value ?? null) ? value : null);
+      });
+    } catch {
+      resolve(null);
+    }
   });
 };
 
 const writeToTelegramStorage = (webApp: TelegramWebApp | null, theme: AppTheme): Promise<void> => {
-  if (!webApp?.CloudStorage) {
+  if (!canUseCloudStorage(webApp)) {
     return Promise.resolve();
   }
 
   return new Promise((resolve) => {
-    webApp.CloudStorage?.setItem(APP_THEME_STORAGE_KEY, theme, () => resolve());
+    try {
+      webApp.CloudStorage?.setItem(APP_THEME_STORAGE_KEY, theme, () => resolve());
+    } catch {
+      resolve();
+    }
   });
 };
 

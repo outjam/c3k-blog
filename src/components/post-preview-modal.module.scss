@@ -25,7 +25,9 @@
   max-height: calc(100dvh - var(--safe-area-top));
   border-radius: 28px 28px 0 0;
   background: var(--tg-bg);
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: var(--safe-area-bottom);
 }
 
@@ -124,8 +126,5 @@
 }
 
 .content {
-  max-height: calc(100dvh - 320px - var(--safe-area-top) - var(--safe-area-bottom));
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
   padding: 0 14px 18px;
 }
