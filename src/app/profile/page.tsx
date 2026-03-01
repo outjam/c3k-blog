@@ -11,14 +11,7 @@ export default function ProfilePage() {
   const webApp = useTelegramWebApp();
   const user = webApp?.initDataUnsafe?.user;
   const formatBool = (value: boolean | undefined): string => (value ? "да" : "нет");
-  const [theme, setTheme] = useState<AppTheme>(() => {
-    if (typeof document === "undefined") {
-      return "dark";
-    }
-
-    const currentTheme = document.documentElement.getAttribute("data-app-theme");
-    return currentTheme === "light" || currentTheme === "dark" ? currentTheme : resolveAutoTheme();
-  });
+  const [theme, setTheme] = useState<AppTheme | null>(null);
 
   const fullName = useMemo(() => {
     if (!user) {
@@ -29,11 +22,20 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => {
+    const rafId = window.requestAnimationFrame(() => {
+      const currentTheme = document.documentElement.getAttribute("data-app-theme");
+      setTheme(currentTheme === "light" || currentTheme === "dark" ? currentTheme : resolveAutoTheme());
+    });
+
     void readThemePreference().then((savedTheme) => {
       if (savedTheme) {
         setTheme(savedTheme);
       }
     });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const handleThemeChange = async (nextTheme: AppTheme) => {

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Image from "next/image";
+import BlurEffect from "react-progressive-blur";
 import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";
 
 import { RichPostContent } from "@/components/rich-post-content";
@@ -16,12 +17,12 @@ interface PostPreviewModalProps {
   onClose: () => void;
 }
 
-const SHEET_CLOSE_OFFSET = 140;
-const SHEET_CLOSE_VELOCITY = 900;
+const SHEET_CLOSE_OFFSET = 160;
+const SHEET_CLOSE_VELOCITY = 980;
 
 export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps) {
   const y = useMotionValue(0);
-  const backdropOpacity = useTransform(y, [0, 260], [1, 0.2]);
+  const backdropOpacity = useTransform(y, [0, 260], [1, 0.12]);
 
   useEffect(() => {
     if (!open) {
@@ -46,6 +47,10 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
     return null;
   }
 
+  const shellId = `post-shell-${post.slug}`;
+  const imageId = `post-image-${post.slug}`;
+  const titleId = `post-title-${post.slug}`;
+
   return (
     <AnimatePresence>
       {open ? (
@@ -54,7 +59,7 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.24, ease: "easeOut" }}
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
         >
           <motion.button
             type="button"
@@ -70,10 +75,8 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
           <motion.article
             className={styles.sheet}
             style={{ y }}
-            initial={{ y: "9%", scale: 0.975, opacity: 0.8 }}
-            animate={{ y: 0, scale: 1, opacity: 1 }}
-            exit={{ y: "10%", scale: 0.985, opacity: 0.86 }}
-            transition={{ type: "spring", stiffness: 320, damping: 30, mass: 0.8 }}
+            layoutId={shellId}
+            transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.82 }}
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.26 }}
@@ -87,15 +90,26 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
                 return;
               }
 
-              animate(y, 0, { type: "spring", stiffness: 430, damping: 36, mass: 0.62 });
+              animate(y, 0, { type: "spring", stiffness: 410, damping: 36, mass: 0.68 });
             }}
           >
             <div className={styles.handleWrap}>
               <div className={styles.handle} />
+              <button
+                type="button"
+                className={styles.closeButton}
+                onClick={() => {
+                  hapticImpact("soft");
+                  onClose();
+                }}
+                aria-label="Закрыть"
+              >
+                ✕
+              </button>
             </div>
 
             <header className={styles.hero}>
-              <div className={styles.imageWrap}>
+              <motion.div className={styles.imageWrap} layoutId={imageId}>
                 <Image
                   src={post.cover.src}
                   alt={post.cover.alt}
@@ -104,13 +118,14 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
                   className={styles.cover}
                   priority
                 />
-                <div className={styles.heroOverlay} />
+                <BlurEffect className={styles.heroTopBlur} intensity={24} position="top" />
+                <BlurEffect className={styles.heroBottomBlur} intensity={56} position="bottom" />
                 <div className={styles.heroMeta}>
-                  <span>{post.tags[0] ?? "Статья"}</span>
+                  <span>{post.tags[0] ?? "Разработка"}</span>
                   <span>{post.readTime}</span>
                 </div>
-              </div>
-              <h2>{post.title}</h2>
+              </motion.div>
+              <motion.h2 layoutId={titleId}>{post.title}</motion.h2>
               <p>{post.excerpt}</p>
             </header>
 
