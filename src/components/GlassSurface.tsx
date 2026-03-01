@@ -66,7 +66,7 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
   className = '',
   style = {}
 }) => {
-  const id = useId();
+  const id = useId().replace(/:/g, '-');
   const filterId = `glass-filter-${id}`;
   const redGradId = `red-grad-${id}`;
   const blueGradId = `blue-grad-${id}`;
@@ -172,24 +172,25 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
       return false;
     }
 
-    if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') {
+    const ua = window.navigator.userAgent;
+    const isFirefox = /firefox/i.test(ua);
+    const isWebKit = /applewebkit/i.test(ua) && !/chrom|crios|edg|opr|android/i.test(ua);
+
+    if (isFirefox) {
       return false;
     }
 
-    const supportsBackdrop = CSS.supports('backdrop-filter', 'blur(1px)')
-      || CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
-    const supportsBackdropUrl = CSS.supports('backdrop-filter', `url(#${filterId})`)
-      || CSS.supports('-webkit-backdrop-filter', `url(#${filterId})`);
-
-    if (!supportsBackdrop || !supportsBackdropUrl) {
+    // Safari/WebKit keeps URL filters unstable for this use-case, keep fallback there.
+    if (isWebKit) {
       return false;
     }
 
     const div = document.createElement('div');
-    div.style.backdropFilter = `url(#${filterId})`;
-    div.style.setProperty('-webkit-backdrop-filter', `url(#${filterId})`);
+    div.style.backdropFilter = `url(#${filterId}) blur(1px)`;
+    div.style.setProperty('-webkit-backdrop-filter', `url(#${filterId}) blur(1px)`);
+    const webkitValue = div.style.getPropertyValue('-webkit-backdrop-filter');
 
-    return div.style.backdropFilter !== '' || div.style.getPropertyValue('-webkit-backdrop-filter') !== '';
+    return div.style.backdropFilter.includes('url(') || webkitValue.includes('url(');
   };
 
   const containerStyle: React.CSSProperties = {

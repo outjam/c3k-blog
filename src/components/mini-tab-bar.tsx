@@ -133,6 +133,8 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
           width="100%"
           height="100%"
           borderRadius={62}
+          backgroundOpacity={0.16}
+          saturation={1.16}
           displace={0.5}
           distortionScale={-180}
           redOffset={0}
@@ -185,6 +187,8 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
               width="100%"
               height="100%"
               borderRadius={54}
+              backgroundOpacity={0.2}
+              saturation={1.22}
               displace={0.45}
               distortionScale={-140}
               redOffset={0}
