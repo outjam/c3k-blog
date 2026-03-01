@@ -35,6 +35,7 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
   const railRef = useRef<HTMLElement | null>(null);
   const [railInnerWidth, setRailInnerWidth] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isCapsulePressed, setIsCapsulePressed] = useState(false);
   const capsuleX = useMotionValue(0);
   const accentOffsetX = useTransform(capsuleX, (value) => -value);
 
@@ -62,6 +63,21 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
 
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!isCapsulePressed) {
+      return;
+    }
+
+    const release = () => setIsCapsulePressed(false);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, [isCapsulePressed]);
 
   useEffect(() => {
     if (!isReady) {
@@ -144,9 +160,38 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
           whileTap={{ scale: 1.012 }}
           whileDrag={{ scaleX: 1.03, scaleY: 0.97 }}
           transition={{ type: "spring", stiffness: 520, damping: 36, mass: 0.55 }}
-          onDragStart={() => setIsDragging(true)}
-          onDragEnd={handleCapsuleDragEnd}
+          onPointerDown={() => setIsCapsulePressed(true)}
+          onDragStart={() => {
+            setIsDragging(true);
+            setIsCapsulePressed(true);
+          }}
+          onDragEnd={(event, info) => {
+            setIsCapsulePressed(false);
+            handleCapsuleDragEnd(event, info);
+          }}
         >
+          <div className={styles.capsuleGlass} aria-hidden />
+          <motion.div
+            className={styles.capsulePressGlass}
+            aria-hidden
+            initial={false}
+            animate={{ opacity: isCapsulePressed ? 1 : 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <GlassSurface
+              width="100%"
+              height="100%"
+              borderRadius={54}
+              displace={0.45}
+              distortionScale={-140}
+              redOffset={0}
+              greenOffset={8}
+              blueOffset={16}
+              brightness={54}
+              opacity={0.94}
+              mixBlendMode="screen"
+            />
+          </motion.div>
           <div className={styles.capsuleBg} />
           <div className={styles.capsuleShine} />
           <motion.div className={styles.accentTrack} style={{ x: accentOffsetX, width: railInnerWidth }}>
