@@ -6,6 +6,7 @@ import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 
 import styles from "./page.module.scss";
+import { GlassSurface } from "@/components/ui/glass-surface";
 
 export default function ProfilePage() {
   const webApp = useTelegramWebApp();
@@ -47,6 +48,19 @@ export default function ProfilePage() {
   return (
     <div className={styles.page}>
       <section className={styles.card}>
+        <GlassSurface
+                  width="100%"
+                  height="100%"
+                  borderRadius={62}
+                  displace={0.5}
+                  distortionScale={-180}
+                  redOffset={0}
+                  greenOffset={10}
+                  blueOffset={20}
+                  brightness={52}
+                  opacity={0.9}
+                  mixBlendMode="screen"
+                />
         <h1 className={styles.title}>Профиль</h1>
         <p className={styles.subtitle}>Данные пользователя и окружения Telegram WebApp.</p>
 

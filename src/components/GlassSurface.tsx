@@ -1,8 +1,7 @@
 "use client";
 
-/* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useRef, useState, useId } from "react";
-import styles from "./glass-surface.module.scss";
+import React, { useEffect, useRef, useState, useId } from 'react';
+import './GlassSurface.css';
 
 export interface GlassSurfaceProps {
   children?: React.ReactNode;
@@ -20,32 +19,32 @@ export interface GlassSurfaceProps {
   redOffset?: number;
   greenOffset?: number;
   blueOffset?: number;
-  xChannel?: "R" | "G" | "B";
-  yChannel?: "R" | "G" | "B";
+  xChannel?: 'R' | 'G' | 'B';
+  yChannel?: 'R' | 'G' | 'B';
   mixBlendMode?:
-    | "normal"
-    | "multiply"
-    | "screen"
-    | "overlay"
-    | "darken"
-    | "lighten"
-    | "color-dodge"
-    | "color-burn"
-    | "hard-light"
-    | "soft-light"
-    | "difference"
-    | "exclusion"
-    | "hue"
-    | "saturation"
-    | "color"
-    | "luminosity"
-    | "plus-darker"
-    | "plus-lighter";
+    | 'normal'
+    | 'multiply'
+    | 'screen'
+    | 'overlay'
+    | 'darken'
+    | 'lighten'
+    | 'color-dodge'
+    | 'color-burn'
+    | 'hard-light'
+    | 'soft-light'
+    | 'difference'
+    | 'exclusion'
+    | 'hue'
+    | 'saturation'
+    | 'color'
+    | 'luminosity'
+    | 'plus-darker'
+    | 'plus-lighter';
   className?: string;
   style?: React.CSSProperties;
 }
 
-export const GlassSurface: React.FC<GlassSurfaceProps> = ({
+const GlassSurface: React.FC<GlassSurfaceProps> = ({
   children,
   width = 200,
   height = 80,
@@ -61,13 +60,13 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
   redOffset = 0,
   greenOffset = 10,
   blueOffset = 20,
-  xChannel = "R",
-  yChannel = "G",
-  mixBlendMode = "difference",
-  className = "",
-  style = {},
+  xChannel = 'R',
+  yChannel = 'G',
+  mixBlendMode = 'difference',
+  className = '',
+  style = {}
 }) => {
-  const id = useId().replace(/:/g, "-");
+  const id = useId();
   const filterId = `glass-filter-${id}`;
   const redGradId = `red-grad-${id}`;
   const blueGradId = `blue-grad-${id}`;
@@ -110,7 +109,7 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
   };
 
   const updateDisplacementMap = () => {
-    feImageRef.current?.setAttribute("href", generateDisplacementMap());
+    feImageRef.current?.setAttribute('href', generateDisplacementMap());
   };
 
   useEffect(() => {
@@ -118,16 +117,16 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
     [
       { ref: redChannelRef, offset: redOffset },
       { ref: greenChannelRef, offset: greenOffset },
-      { ref: blueChannelRef, offset: blueOffset },
+      { ref: blueChannelRef, offset: blueOffset }
     ].forEach(({ ref, offset }) => {
       if (ref.current) {
-        ref.current.setAttribute("scale", (distortionScale + offset).toString());
-        ref.current.setAttribute("xChannelSelector", xChannel);
-        ref.current.setAttribute("yChannelSelector", yChannel);
+        ref.current.setAttribute('scale', (distortionScale + offset).toString());
+        ref.current.setAttribute('xChannelSelector', xChannel);
+        ref.current.setAttribute('yChannelSelector', yChannel);
       }
     });
 
-    gaussianBlurRef.current?.setAttribute("stdDeviation", displace.toString());
+    gaussianBlurRef.current?.setAttribute('stdDeviation', displace.toString());
   }, [
     width,
     height,
@@ -143,8 +142,22 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
     blueOffset,
     xChannel,
     yChannel,
-    mixBlendMode,
+    mixBlendMode
   ]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      setTimeout(updateDisplacementMap, 0);
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -169,56 +182,40 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
   }, []);
 
   const supportsSVGFilters = () => {
-    if (typeof window === "undefined" || typeof document === "undefined") {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
       return false;
     }
 
-    if (typeof CSS === "undefined" || typeof CSS.supports !== "function") {
+    const isWebkit = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    const isFirefox = /Firefox/.test(navigator.userAgent);
+
+    if (isWebkit || isFirefox) {
       return false;
     }
 
-    const hasBackdropBlur = CSS.supports("backdrop-filter", "blur(1px)")
-      || CSS.supports("-webkit-backdrop-filter", "blur(1px)");
-    const hasBackdropUrl = CSS.supports("backdrop-filter", `url(#${filterId})`)
-      || CSS.supports("-webkit-backdrop-filter", `url(#${filterId})`);
-
-    if (!hasBackdropBlur || !hasBackdropUrl) {
-      return false;
-    }
-
-    const ua = window.navigator.userAgent;
-    const isFirefox = /firefox/i.test(ua);
-    // Safari/iOS WebKit does not reliably support backdrop-filter URL composition.
-    // Force fallback path for visual stability.
-    const isWebKit = /applewebkit/i.test(ua) && !/chrom|android/i.test(ua);
-    if (isFirefox || isWebKit) {
-      return false;
-    }
-
-    const div = document.createElement("div");
+    const div = document.createElement('div');
     div.style.backdropFilter = `url(#${filterId})`;
-    div.style.setProperty("-webkit-backdrop-filter", `url(#${filterId})`);
 
-    return div.style.backdropFilter !== "" || div.style.getPropertyValue("-webkit-backdrop-filter") !== "";
+    return div.style.backdropFilter !== '';
   };
 
   const containerStyle: React.CSSProperties = {
     ...style,
-    width: typeof width === "number" ? `${width}px` : width,
-    height: typeof height === "number" ? `${height}px` : height,
+    width: typeof width === 'number' ? `${width}px` : width,
+    height: typeof height === 'number' ? `${height}px` : height,
     borderRadius: `${borderRadius}px`,
-    "--glass-frost": backgroundOpacity,
-    "--glass-saturation": saturation,
-    "--filter-id": `url(#${filterId})`,
+    '--glass-frost': backgroundOpacity,
+    '--glass-saturation': saturation,
+    '--filter-id': `url(#${filterId})`
   } as React.CSSProperties;
 
   return (
     <div
       ref={containerRef}
-      className={`${styles.glassSurface} ${svgSupported ? styles.glassSurfaceSvg : styles.glassSurfaceFallback} ${className}`}
+      className={`glass-surface ${svgSupported ? 'glass-surface--svg' : 'glass-surface--fallback'} ${className}`}
       style={containerStyle}
     >
-      <svg className={styles.glassSurfaceFilter} xmlns="http://www.w3.org/2000/svg">
+      <svg className="glass-surface__filter" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <filter id={filterId} colorInterpolationFilters="sRGB" x="0%" y="0%" width="100%" height="100%">
             <feImage ref={feImageRef} x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map" />
@@ -234,7 +231,13 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
               result="red"
             />
 
-            <feDisplacementMap ref={greenChannelRef} in="SourceGraphic" in2="map" id="greenchannel" result="dispGreen" />
+            <feDisplacementMap
+              ref={greenChannelRef}
+              in="SourceGraphic"
+              in2="map"
+              id="greenchannel"
+              result="dispGreen"
+            />
             <feColorMatrix
               in="dispGreen"
               type="matrix"
@@ -263,7 +266,9 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
         </defs>
       </svg>
 
-      <div className={styles.glassSurfaceContent}>{children}</div>
+      <div className="glass-surface__content">{children}</div>
     </div>
   );
 };
+
+export default GlassSurface;

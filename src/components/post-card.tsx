@@ -10,6 +10,7 @@ import { hapticImpact, hapticSelection } from "@/lib/telegram";
 import type { BlogPost } from "@/data/posts";
 
 import styles from "./post-card.module.scss";
+import GlassSurface from "./GlassSurface";
 
 interface PostCardProps {
   post: BlogPost;

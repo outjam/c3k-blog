@@ -4,7 +4,12 @@
   text-decoration: none;
   outline: none;
 }
-
+.my-custom-class {
+  width: 200px;
+  height: 200px;
+  position: absolute;
+  border: 1px solid red;
+}
 .cardHidden {
   opacity: 0;
   pointer-events: none;

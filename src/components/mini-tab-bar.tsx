@@ -3,8 +3,8 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { animate, motion, useMotionValue, useTransform, type PanInfo } from "motion/react";
 
-import { GlassSurface } from "./ui/glass-surface";
 import styles from "./mini-tab-bar.module.scss";
+import GlassSurface from "./GlassSurface";
 
 interface MiniTabBarItem {
   id: string;
@@ -35,7 +35,6 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
   const railRef = useRef<HTMLElement | null>(null);
   const [railInnerWidth, setRailInnerWidth] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [isPressed, setIsPressed] = useState(false);
   const capsuleX = useMotionValue(0);
   const accentOffsetX = useTransform(capsuleX, (value) => -value);
 
@@ -108,22 +107,12 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
 
   return (
     <nav
-      className={`${styles.tabBar} ${isPressed ? styles.tabBarPressed : ""}`}
+      className={styles.tabBar}
       aria-label="Основная навигация"
       ref={railRef}
       style={{ "--tab-count": tabCount } as CSSProperties}
-      onPointerDown={() => setIsPressed(true)}
-      onPointerUp={() => setIsPressed(false)}
-      onPointerCancel={() => setIsPressed(false)}
-      onPointerLeave={() => setIsPressed(false)}
     >
-      <motion.div
-        className={styles.glassLayer}
-        aria-hidden
-        initial={false}
-        animate={{ opacity: isPressed ? 1 : 0 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-      >
+      <div className={styles.glassLayer} aria-hidden>
         <GlassSurface
           width="100%"
           height="100%"
@@ -135,9 +124,10 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
           blueOffset={20}
           brightness={52}
           opacity={0.9}
-          mixBlendMode="normal"
+          mixBlendMode="screen"
         />
-      </motion.div>
+      </div>
+      <div className={styles.tabBarTint} aria-hidden />
 
       <div className={styles.glowLeft} aria-hidden />
       <div className={styles.glowRight} aria-hidden />
