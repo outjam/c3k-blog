@@ -30,8 +30,6 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
   };
 
   const shellId = `post-shell-${post.slug}`;
-  const imageId = `post-image-${post.slug}`;
-  const titleId = `post-title-${post.slug}`;
 
   return (
     <Link
@@ -45,7 +43,7 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
       <motion.article className={styles.shell} layoutId={shellId} transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.82 }}>
         {layout === "large" ? (
           <>
-            <motion.div className={styles.largeImageWrap} layoutId={imageId}>
+            <div className={styles.largeImageWrap}>
               <Image
                 className={styles.largeImage}
                 src={post.cover.src}
@@ -63,18 +61,16 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
               <span className={styles.ribbon} aria-hidden>
                 ★
               </span>
-            </motion.div>
+            </div>
 
             <div className={styles.largeBottom}>
-              <motion.h3 className={styles.titleLarge} layoutId={titleId}>
-                {post.title}
-              </motion.h3>
+              <h3 className={styles.titleLarge}>{post.title}</h3>
               <p className={styles.excerptLarge}>{post.excerpt}</p>
             </div>
           </>
         ) : (
           <div className={styles.smallGrid}>
-            <motion.div className={styles.smallImageWrap} layoutId={imageId}>
+            <div className={styles.smallImageWrap}>
               <Image
                 className={styles.smallImage}
                 src={post.cover.src}
@@ -85,12 +81,10 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
               <span className={styles.ribbon} aria-hidden>
                 ★
               </span>
-            </motion.div>
+            </div>
 
             <div className={styles.smallContent}>
-              <motion.h3 className={styles.titleSmall} layoutId={titleId}>
-                {post.title}
-              </motion.h3>
+              <h3 className={styles.titleSmall}>{post.title}</h3>
               <p className={styles.excerptSmall}>{post.excerpt}</p>
               <div className={styles.meta}>
                 <span>{post.tags[0] ?? "Разработка"}</span>

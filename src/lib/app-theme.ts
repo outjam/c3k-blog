@@ -51,9 +51,17 @@ const readFromTelegramStorage = (webApp: TelegramWebApp | null): Promise<AppThem
   }
 
   return new Promise((resolve) => {
+    const storage = webApp?.CloudStorage;
+
+    if (!storage) {
+      resolve(null);
+      return;
+    }
+
     try {
-      webApp.CloudStorage?.getItem(APP_THEME_STORAGE_KEY, (_error, value) => {
-        resolve(isAppTheme(value ?? null) ? value : null);
+      storage.getItem(APP_THEME_STORAGE_KEY, (_error, value) => {
+        const normalizedValue = value ?? null;
+        resolve(isAppTheme(normalizedValue) ? normalizedValue : null);
       });
     } catch {
       resolve(null);
@@ -67,8 +75,15 @@ const writeToTelegramStorage = (webApp: TelegramWebApp | null, theme: AppTheme):
   }
 
   return new Promise((resolve) => {
+    const storage = webApp?.CloudStorage;
+
+    if (!storage) {
+      resolve();
+      return;
+    }
+
     try {
-      webApp.CloudStorage?.setItem(APP_THEME_STORAGE_KEY, theme, () => resolve());
+      storage.setItem(APP_THEME_STORAGE_KEY, theme, () => resolve());
     } catch {
       resolve();
     }

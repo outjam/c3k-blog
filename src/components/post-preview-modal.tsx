@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import Image from "next/image";
 import BlurEffect from "react-progressive-blur";
 import { AnimatePresence, animate, motion, useMotionTemplate, useMotionValue, useTransform } from "motion/react";
@@ -19,11 +19,9 @@ interface PostPreviewModalProps {
 
 const SHEET_CLOSE_OFFSET = 160;
 const SHEET_CLOSE_VELOCITY = 980;
-const SHEET_CLOSE_PROJECTION = 210;
 
 export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps) {
   const y = useMotionValue(0);
-  const isClosingRef = useRef(false);
   const backdropOpacity = useTransform(y, [0, 260], [1, 0.12]);
   const sheetScale = useTransform(y, [0, 420], [1, 0.94]);
   const sheetRadius = useTransform(y, [0, 320], [28, 40]);
@@ -45,7 +43,6 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
 
   useEffect(() => {
     if (open) {
-      isClosingRef.current = false;
       y.set(0);
     }
   }, [open, y]);
@@ -55,29 +52,6 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
   }
 
   const shellId = `post-shell-${post.slug}`;
-  const imageId = `post-image-${post.slug}`;
-  const titleId = `post-title-${post.slug}`;
-
-  const closeWithMomentum = (velocity = 0) => {
-    if (isClosingRef.current) {
-      return;
-    }
-
-    isClosingRef.current = true;
-    const target = Math.max(window.innerHeight + 40, y.get() + SHEET_CLOSE_PROJECTION);
-
-    animate(y, target, {
-      type: "spring",
-      stiffness: 300,
-      damping: 32,
-      mass: 0.92,
-      velocity,
-      onComplete: () => {
-        onClose();
-        isClosingRef.current = false;
-      },
-    });
-  };
 
   return (
     <AnimatePresence>
@@ -95,7 +69,7 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
             style={{ opacity: backdropOpacity }}
             onClick={() => {
               hapticImpact("soft");
-              closeWithMomentum(460);
+              onClose();
             }}
             aria-label="Закрыть предпросмотр"
           />
@@ -125,7 +99,7 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
 
               if (shouldClose) {
                 hapticImpact("medium");
-                closeWithMomentum(info.velocity.y);
+                onClose();
                 return;
               }
 
@@ -139,7 +113,7 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
                 className={styles.closeButton}
                 onClick={() => {
                   hapticImpact("soft");
-                  closeWithMomentum(560);
+                  onClose();
                 }}
                 aria-label="Закрыть"
               >
@@ -148,7 +122,7 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
             </div>
 
             <header className={styles.hero}>
-              <motion.div className={styles.imageWrap} layoutId={imageId}>
+              <div className={styles.imageWrap}>
                 <Image
                   src={post.cover.src}
                   alt={post.cover.alt}
@@ -163,8 +137,8 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
                   <span>{post.tags[0] ?? "Разработка"}</span>
                   <span>{post.readTime}</span>
                 </div>
-              </motion.div>
-              <motion.h2 layoutId={titleId}>{post.title}</motion.h2>
+              </div>
+              <h2>{post.title}</h2>
               <p>{post.excerpt}</p>
             </header>
 

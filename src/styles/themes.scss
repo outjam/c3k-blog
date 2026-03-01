@@ -10,62 +10,62 @@
 }
 
 :root[data-app-theme="dark"] {
-  --color-bg: #0f1115;
-  --color-surface: #171b23;
-  --color-text: #eef2f8;
-  --color-muted: #c3cddd;
-  --color-subtle: #99a7bf;
-  --color-link: #8ccfff;
-  --color-accent: #7fb8ff;
-  --color-button-bg: #57a5ff;
-  --color-button-text: #06101c;
-  --color-danger: #ff615b;
-  --color-divider: #2b3444;
+  --color-bg: #000000;
+  --color-surface: #1c1c1e;
+  --color-text: #f2f2f7;
+  --color-muted: #d1d1d6;
+  --color-subtle: #8e8e93;
+  --color-link: #0a84ff;
+  --color-accent: #5ac8fa;
+  --color-button-bg: #0a84ff;
+  --color-button-text: #ffffff;
+  --color-danger: #ff453a;
+  --color-divider: #3a3a3c;
 }
 
 :root[data-app-theme="light"] {
-  --color-bg: #f6f8fc;
+  --color-bg: #f2f2f7;
   --color-surface: #ffffff;
-  --color-text: #111a2a;
-  --color-muted: #344157;
-  --color-subtle: #6f7c92;
-  --color-link: #2166d2;
-  --color-accent: #2f6cf6;
-  --color-button-bg: #2f6cf6;
+  --color-text: #1c1c1e;
+  --color-muted: #3a3a3c;
+  --color-subtle: #8e8e93;
+  --color-link: #007aff;
+  --color-accent: #007aff;
+  --color-button-bg: #007aff;
   --color-button-text: #ffffff;
-  --color-danger: #d62c2c;
-  --color-divider: #d9e0ec;
+  --color-danger: #ff3b30;
+  --color-divider: #d1d1d6;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-app-theme]) {
-    --color-bg: #0f1115;
-    --color-surface: #171b23;
-    --color-text: #eef2f8;
-    --color-muted: #c3cddd;
-    --color-subtle: #99a7bf;
-    --color-link: #8ccfff;
-    --color-accent: #7fb8ff;
-    --color-button-bg: #57a5ff;
-    --color-button-text: #06101c;
-    --color-danger: #ff615b;
-    --color-divider: #2b3444;
+    --color-bg: #000000;
+    --color-surface: #1c1c1e;
+    --color-text: #f2f2f7;
+    --color-muted: #d1d1d6;
+    --color-subtle: #8e8e93;
+    --color-link: #0a84ff;
+    --color-accent: #5ac8fa;
+    --color-button-bg: #0a84ff;
+    --color-button-text: #ffffff;
+    --color-danger: #ff453a;
+    --color-divider: #3a3a3c;
   }
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-app-theme]) {
-    --color-bg: #f6f8fc;
+    --color-bg: #f2f2f7;
     --color-surface: #ffffff;
-    --color-text: #111a2a;
-    --color-muted: #344157;
-    --color-subtle: #6f7c92;
-    --color-link: #2166d2;
-    --color-accent: #2f6cf6;
-    --color-button-bg: #2f6cf6;
+    --color-text: #1c1c1e;
+    --color-muted: #3a3a3c;
+    --color-subtle: #8e8e93;
+    --color-link: #007aff;
+    --color-accent: #007aff;
+    --color-button-bg: #007aff;
     --color-button-text: #ffffff;
-    --color-danger: #d62c2c;
-    --color-divider: #d9e0ec;
+    --color-danger: #ff3b30;
+    --color-divider: #d1d1d6;
   }
 }
 
