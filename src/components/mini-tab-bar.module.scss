@@ -22,6 +22,21 @@
   }
 }
 
+.tabBarPressed {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.glassLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
 .tabBar::before {
   content: "";
   position: absolute;
@@ -29,6 +44,7 @@
   border-radius: inherit;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tg-section-separator) 15%, transparent);
   pointer-events: none;
+  z-index: 3;
 
   &:active {
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
@@ -37,7 +53,7 @@
 
 .tabLayer {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
   gap: 0;
@@ -67,7 +83,7 @@
   top: 0.25rem;
   bottom: 0.25rem;
   left: 0.25rem;
-  z-index: 2;
+  z-index: 3;
   border-radius: 54px;
   overflow: hidden;
   pointer-events: auto;

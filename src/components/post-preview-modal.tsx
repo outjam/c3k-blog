@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect } from "react";
 import Image from "next/image";
 import BlurEffect from "react-progressive-blur";
 import {
@@ -62,6 +62,10 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
 
   const shellId = `post-shell-${post.slug}`;
 
+  const startDragFromTopZone = (event: ReactPointerEvent<HTMLElement>) => {
+    dragControls.start(event);
+  };
+
   return (
     <AnimatePresence>
       {open ? (
@@ -119,14 +123,13 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
           >
             <div
               className={styles.handleWrap}
-              onPointerDown={(event) => {
-                dragControls.start(event);
-              }}
+              onPointerDown={startDragFromTopZone}
             >
               <div className={styles.handle} />
               <button
                 type="button"
                 className={styles.closeButton}
+                onPointerDown={(event) => event.stopPropagation()}
                 onClick={() => {
                   hapticImpact("soft");
                   onClose();
@@ -137,8 +140,8 @@ export function PostPreviewModal({ post, open, onClose }: PostPreviewModalProps)
               </button>
             </div>
 
-            <header className={styles.hero}>
-              <div className={styles.imageWrap}>
+            <header className={styles.hero} onPointerDown={startDragFromTopZone}>
+              <div className={styles.imageWrap} onPointerDown={startDragFromTopZone}>
                 <Image
                   src={post.cover.src}
                   alt={post.cover.alt}

@@ -1,0 +1,173 @@
+.glassSurface {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: opacity 0.26s ease-out;
+}
+
+.glassSurfaceFilter {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  z-index: -1;
+}
+
+.glassSurfaceContent {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: inherit;
+  position: relative;
+  z-index: 1;
+}
+
+.glassSurfaceSvg {
+  background: light-dark(hsl(0 0% 100% / var(--glass-frost, 0)), hsl(0 0% 0% / var(--glass-frost, 0)));
+  backdrop-filter: var(--filter-id, url(#glass-filter)) saturate(var(--glass-saturation, 1));
+  box-shadow:
+    0 0 2px 1px light-dark(color-mix(in oklch, black, transparent 85%), color-mix(in oklch, white, transparent 65%)) inset,
+    0 0 10px 4px light-dark(color-mix(in oklch, black, transparent 90%), color-mix(in oklch, white, transparent 85%)) inset,
+    0 4px 16px rgba(17, 17, 26, 0.05),
+    0 8px 24px rgba(17, 17, 26, 0.05),
+    0 16px 56px rgba(17, 17, 26, 0.05),
+    0 4px 16px rgba(17, 17, 26, 0.05) inset,
+    0 8px 24px rgba(17, 17, 26, 0.05) inset,
+    0 16px 56px rgba(17, 17, 26, 0.05) inset;
+}
+
+.glassSurfaceFallback {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(12px) saturate(1.8) brightness(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 8px 32px 0 rgba(31, 38, 135, 0.2),
+    0 2px 16px 0 rgba(31, 38, 135, 0.1),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.glassSurfaceFallback::before,
+.glassSurfaceFallback::after {
+  content: "";
+  position: absolute;
+  inset: -15%;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.glassSurfaceFallback::before {
+  background:
+    radial-gradient(48% 42% at 18% 30%, rgba(0, 174, 255, 0.2) 0%, transparent 70%),
+    radial-gradient(52% 48% at 78% 72%, rgba(255, 69, 214, 0.16) 0%, transparent 72%);
+  mix-blend-mode: screen;
+  filter: blur(12px);
+  animation: glassShimmer 3.8s ease-in-out infinite;
+}
+
+.glassSurfaceFallback::after {
+  background: linear-gradient(
+    108deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 36%,
+    rgba(255, 255, 255, 0.08) 52%,
+    transparent 76%
+  );
+  opacity: 0.65;
+  transform: translateX(-24%);
+  animation: glassSweep 2.6s ease-in-out infinite;
+}
+
+@media (prefers-color-scheme: dark) {
+  .glassSurfaceFallback {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px) saturate(1.8) brightness(1.2);
+    -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(1.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .glassSurfaceFallback::before {
+    background:
+      radial-gradient(48% 42% at 18% 30%, rgba(76, 201, 255, 0.28) 0%, transparent 72%),
+      radial-gradient(52% 48% at 78% 72%, rgba(153, 117, 255, 0.18) 0%, transparent 72%);
+  }
+}
+
+@supports not (backdrop-filter: blur(10px)) {
+  .glassSurfaceFallback {
+    background: rgba(255, 255, 255, 0.4);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .glassSurfaceFallback::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: inherit;
+    z-index: -1;
+  }
+}
+
+@supports not (backdrop-filter: blur(10px)) {
+  @media (prefers-color-scheme: dark) {
+    .glassSurfaceFallback {
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .glassSurfaceFallback::before {
+      background: rgba(255, 255, 255, 0.05);
+    }
+  }
+}
+
+.glassSurface:focus-visible {
+  outline: 2px solid light-dark(#007aff, #0a84ff);
+  outline-offset: 2px;
+}
+
+@keyframes glassSweep {
+  0% {
+    transform: translateX(-26%);
+    opacity: 0.38;
+  }
+
+  50% {
+    transform: translateX(8%);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: translateX(-26%);
+    opacity: 0.38;
+  }
+}
+
+@keyframes glassShimmer {
+  0% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: scale(1.05) translate3d(1.5%, -2%, 0);
+  }
+
+  100% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+}
