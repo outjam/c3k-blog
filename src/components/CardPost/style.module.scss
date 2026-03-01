@@ -3,17 +3,18 @@
     background-color: var(--tg-secondary-bg);
     max-width: 800px;
     border-radius: 24px;
-    overflow: hidden;
     position: relative;
     transition: .3s;
 
     &__image {
     position: absolute;
     object-fit: cover;
-    width: 120%;
-    height: 120%;
-    inset: -20%;
+    width: 100%;
+    height: 100%;
+    inset: 0;
     object-position: center;
+    border-radius: 24px;
+    overflow: hidden;
     }
 
     &__topBar {
@@ -25,6 +26,8 @@
         position: absolute;
         top: 0;
         z-index: 10;
+        border-radius: 24px;
+        overflow: hidden;
 
         &__blur {
             position: absolute;
