@@ -18,7 +18,7 @@ function CardPost() {
       </div>
       <BlurEffect
         className={styles.cardPost__bottom}
-        intensity={75}
+        intensity={50}
         position={'bottom'}
       />
       <img className={styles.cardPost__image} src="https://avatars.mds.yandex.net/i?id=7658c14856a4a7f770363b77d8fa3953_l-4600229-images-thumbs&n=13" alt="" />
