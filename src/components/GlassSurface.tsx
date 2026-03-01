@@ -160,20 +160,6 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      setTimeout(updateDisplacementMap, 0);
-    });
-
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
-
-  useEffect(() => {
     setTimeout(updateDisplacementMap, 0);
   }, [width, height]);
 
@@ -186,17 +172,24 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
       return false;
     }
 
-    const isWebkit = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-    const isFirefox = /Firefox/.test(navigator.userAgent);
+    if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') {
+      return false;
+    }
 
-    if (isWebkit || isFirefox) {
+    const supportsBackdrop = CSS.supports('backdrop-filter', 'blur(1px)')
+      || CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
+    const supportsBackdropUrl = CSS.supports('backdrop-filter', `url(#${filterId})`)
+      || CSS.supports('-webkit-backdrop-filter', `url(#${filterId})`);
+
+    if (!supportsBackdrop || !supportsBackdropUrl) {
       return false;
     }
 
     const div = document.createElement('div');
     div.style.backdropFilter = `url(#${filterId})`;
+    div.style.setProperty('-webkit-backdrop-filter', `url(#${filterId})`);
 
-    return div.style.backdropFilter !== '';
+    return div.style.backdropFilter !== '' || div.style.getPropertyValue('-webkit-backdrop-filter') !== '';
   };
 
   const containerStyle: React.CSSProperties = {

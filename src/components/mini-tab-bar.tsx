@@ -161,6 +161,9 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
           whileDrag={{ scaleX: 1.03, scaleY: 0.97 }}
           transition={{ type: "spring", stiffness: 520, damping: 36, mass: 0.55 }}
           onPointerDown={() => setIsCapsulePressed(true)}
+          onTouchStart={() => setIsCapsulePressed(true)}
+          onTouchEnd={() => setIsCapsulePressed(false)}
+          onTouchCancel={() => setIsCapsulePressed(false)}
           onDragStart={() => {
             setIsDragging(true);
             setIsCapsulePressed(true);
