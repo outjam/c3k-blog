@@ -2,34 +2,47 @@
 
 import { useEffect } from "react";
 
-import { applyTelegramThemeToCssVars, getTelegramWebApp } from "@/lib/telegram";
+import { applyTelegramChromeColorsFromCssVars, getTelegramWebApp } from "@/lib/telegram";
+import { applyAppTheme, readThemePreference, resolveAutoTheme } from "@/lib/app-theme";
 
 export function TelegramMiniAppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const webApp = getTelegramWebApp();
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    let hasManualTheme = false;
+
+    const syncAutoTheme = () => {
+      if (!hasManualTheme) {
+        applyAppTheme(resolveAutoTheme());
+      }
+    };
+
+    const syncTelegramChrome = () => {
+      if (webApp) {
+        applyTelegramChromeColorsFromCssVars(webApp);
+      }
+    };
+
+    applyAppTheme(resolveAutoTheme());
+
+    void readThemePreference().then((savedTheme) => {
+      if (savedTheme) {
+        hasManualTheme = true;
+        applyAppTheme(savedTheme);
+      }
+    });
+
+    mediaQuery.addEventListener("change", syncAutoTheme);
 
     if (!webApp) {
-      return;
+      return () => {
+        mediaQuery.removeEventListener("change", syncAutoTheme);
+      };
     }
 
     const syncTheme = () => {
-      applyTelegramThemeToCssVars(webApp);
-
-      const headerColor = webApp.themeParams.header_bg_color ?? webApp.themeParams.bg_color;
-      const bgColor = webApp.themeParams.bg_color;
-      const bottomBarColor = webApp.themeParams.bottom_bar_bg_color ?? webApp.themeParams.secondary_bg_color ?? bgColor;
-
-      if (headerColor) {
-        webApp.setHeaderColor(headerColor);
-      }
-
-      if (bgColor) {
-        webApp.setBackgroundColor(bgColor);
-      }
-
-      if (bottomBarColor) {
-        webApp.setBottomBarColor?.(bottomBarColor);
-      }
+      syncAutoTheme();
+      syncTelegramChrome();
     };
 
     webApp.ready();
@@ -41,6 +54,7 @@ export function TelegramMiniAppProvider({ children }: { children: React.ReactNod
     webApp.onEvent?.("themeChanged", syncTheme);
 
     return () => {
+      mediaQuery.removeEventListener("change", syncAutoTheme);
       webApp.offEvent?.("themeChanged", syncTheme);
     };
   }, []);

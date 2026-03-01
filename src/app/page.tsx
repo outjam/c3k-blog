@@ -1,23 +1,32 @@
 "use client";
 
-import { useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 
 import { PostCard } from "@/components/post-card";
+import { PostPreviewModal } from "@/components/post-preview-modal";
 import { posts } from "@/data/posts";
 import { hapticImpact } from "@/lib/telegram";
 
 import styles from "./page.module.scss";
 
 export default function Home() {
-  const router = useRouter();
+  const [activePostSlug, setActivePostSlug] = useState<string | null>(null);
 
   const latestPost = posts[0];
+  const activePost = posts.find((post) => post.slug === activePostSlug) ?? null;
 
   const openLatestPost = useCallback(() => {
     hapticImpact("medium");
-    router.push(`/post/${latestPost.slug}`);
-  }, [latestPost.slug, router]);
+    setActivePostSlug(latestPost.slug);
+  }, [latestPost.slug]);
+
+  const openPostPreview = useCallback((slug: string) => {
+    setActivePostSlug(slug);
+  }, []);
+
+  const closePostPreview = useCallback(() => {
+    setActivePostSlug(null);
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -35,10 +44,12 @@ export default function Home() {
 
         <section className={styles.feed}>
           {posts.map((post) => (
-            <PostCard key={post.slug} post={post} />
+            <PostCard key={post.slug} post={post} onOpen={() => openPostPreview(post.slug)} />
           ))}
         </section>
       </main>
+
+      <PostPreviewModal post={activePost} open={Boolean(activePost)} onClose={closePostPreview} />
     </div>
   );
 }

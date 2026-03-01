@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { animate, motion, useMotionValue, useTransform, type PanInfo } from "motion/react";
 
 import styles from "./mini-tab-bar.module.scss";
@@ -21,6 +21,13 @@ const RAIL_INSET = 4;
 
 const clamp = (value: number, min: number, max: number): number => {
   return Math.max(min, Math.min(value, max));
+};
+
+const snapSpring = {
+  type: "spring" as const,
+  stiffness: 520,
+  damping: 40,
+  mass: 0.62,
 };
 
 export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
@@ -61,12 +68,7 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
     }
 
     const target = clamp(activeIndex, 0, tabCount - 1) * itemWidth;
-    const controls = animate(capsuleX, target, {
-      type: "spring",
-      stiffness: 520,
-      damping: 40,
-      mass: 0.62,
-    });
+    const controls = animate(capsuleX, target, snapSpring);
 
     return () => controls.stop();
   }, [activeIndex, capsuleX, isReady, itemWidth, tabCount]);
@@ -85,9 +87,16 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
     const fastSwipe = Math.abs(info.velocity.x) > 320;
     const longSwipe = Math.abs(info.offset.x) > itemWidth * 0.26;
     const direction = info.velocity.x > 0 || info.offset.x > 0 ? 1 : -1;
-    const nextIndex = fastSwipe || longSwipe ? activeIndex + direction : liveIndex;
+    const nextIndex = clamp(fastSwipe || longSwipe ? activeIndex + direction : liveIndex, 0, tabCount - 1);
 
     setIsDragging(false);
+
+    if (nextIndex === activeIndex) {
+      animate(capsuleX, activeIndex * itemWidth, snapSpring);
+      return;
+    }
+
+    animate(capsuleX, nextIndex * itemWidth, snapSpring);
     handleNavigate(nextIndex);
   };
 
@@ -100,7 +109,7 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
       className={styles.tabBar}
       aria-label="Основная навигация"
       ref={railRef}
-      style={{ "--tab-count": tabCount } as React.CSSProperties}
+      style={{ "--tab-count": tabCount } as CSSProperties}
     >
       <div className={styles.glowLeft} aria-hidden />
       <div className={styles.glowRight} aria-hidden />

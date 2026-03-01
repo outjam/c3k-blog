@@ -1,0 +1,97 @@
+:root {
+  --max-width: 780px;
+  --app-header-height: 64px;
+  --app-tabbar-height: 82px;
+
+  --safe-area-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px));
+  --safe-area-right: max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px));
+  --safe-area-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  --safe-area-left: max(env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
+}
+
+:root[data-app-theme="dark"] {
+  --color-bg: #0f1115;
+  --color-surface: #171b23;
+  --color-text: #eef2f8;
+  --color-muted: #c3cddd;
+  --color-subtle: #99a7bf;
+  --color-link: #8ccfff;
+  --color-accent: #7fb8ff;
+  --color-button-bg: #57a5ff;
+  --color-button-text: #06101c;
+  --color-danger: #ff615b;
+  --color-divider: #2b3444;
+}
+
+:root[data-app-theme="light"] {
+  --color-bg: #f6f8fc;
+  --color-surface: #ffffff;
+  --color-text: #111a2a;
+  --color-muted: #344157;
+  --color-subtle: #6f7c92;
+  --color-link: #2166d2;
+  --color-accent: #2f6cf6;
+  --color-button-bg: #2f6cf6;
+  --color-button-text: #ffffff;
+  --color-danger: #d62c2c;
+  --color-divider: #d9e0ec;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-app-theme]) {
+    --color-bg: #0f1115;
+    --color-surface: #171b23;
+    --color-text: #eef2f8;
+    --color-muted: #c3cddd;
+    --color-subtle: #99a7bf;
+    --color-link: #8ccfff;
+    --color-accent: #7fb8ff;
+    --color-button-bg: #57a5ff;
+    --color-button-text: #06101c;
+    --color-danger: #ff615b;
+    --color-divider: #2b3444;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-app-theme]) {
+    --color-bg: #f6f8fc;
+    --color-surface: #ffffff;
+    --color-text: #111a2a;
+    --color-muted: #344157;
+    --color-subtle: #6f7c92;
+    --color-link: #2166d2;
+    --color-accent: #2f6cf6;
+    --color-button-bg: #2f6cf6;
+    --color-button-text: #ffffff;
+    --color-danger: #d62c2c;
+    --color-divider: #d9e0ec;
+  }
+}
+
+:root {
+  --tg-bg: var(--color-bg);
+  --tg-text: var(--color-text);
+  --tg-hint: var(--color-subtle);
+  --tg-link: var(--color-link);
+  --tg-btn: var(--color-button-bg);
+  --tg-btn-text: var(--color-button-text);
+  --tg-secondary-bg: var(--color-surface);
+  --tg-header-bg: var(--color-bg);
+  --tg-bottom-bar-bg: var(--color-bg);
+  --tg-section-bg: var(--color-surface);
+  --tg-section-header-text: var(--color-text);
+  --tg-subtitle-text: var(--color-subtle);
+  --tg-destructive-text: var(--color-danger);
+  --tg-section-separator: var(--color-divider);
+  --tg-accent: var(--color-accent);
+
+  --surface: var(--tg-bg);
+  --card-bg: var(--tg-section-bg);
+  --card-border: transparent;
+  --tag-bg: transparent;
+  --tag-border: transparent;
+  --muted-text: var(--color-muted);
+  --subtle-text: var(--color-subtle);
+  --section-heading-text: var(--tg-section-header-text);
+}

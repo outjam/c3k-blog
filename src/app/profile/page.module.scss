@@ -38,6 +38,40 @@
   color: var(--tg-btn-text);
 }
 
+.themeBox {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border-radius: 0.75rem;
+  background: var(--card-bg);
+}
+
+.themeTitle {
+  color: var(--tg-subtitle-text);
+  font-size: 0.9rem;
+}
+
+.themeActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.themeButton {
+  border: 0;
+  border-radius: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.themeButtonActive {
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+}
+
 .list {
   display: grid;
   gap: 0.55rem;

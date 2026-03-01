@@ -6,6 +6,29 @@ export interface PostImage {
   height: number;
 }
 
+export interface PostVideo {
+  src: string;
+  poster?: string;
+  caption?: string;
+}
+
+export interface PostAudio {
+  src: string;
+  title: string;
+  caption?: string;
+}
+
+export interface PostModel3D {
+  src: string;
+  iosSrc?: string;
+  poster?: string;
+  alt: string;
+  caption?: string;
+}
+
+export type TsxDemoId = "webapp-ready" | "theme-chip" | "haptic-actions";
+export type AnimationDemoId = "parallax-cards" | "reading-progress" | "pulse-grid";
+
 export type PostContentBlock =
   | {
       type: "paragraph";
@@ -30,6 +53,30 @@ export type PostContentBlock =
       images: PostImage[];
     }
   | {
+      type: "video";
+      video: PostVideo;
+    }
+  | {
+      type: "audio";
+      audio: PostAudio;
+    }
+  | {
+      type: "model3d";
+      model: PostModel3D;
+    }
+  | {
+      type: "tsx";
+      title: string;
+      code: string;
+      demoId: TsxDemoId;
+    }
+  | {
+      type: "animation";
+      title: string;
+      caption?: string;
+      demoId: AnimationDemoId;
+    }
+  | {
       type: "list";
       ordered?: boolean;
       items: string[];
@@ -40,172 +87,211 @@ export interface BlogPost {
   title: string;
   excerpt: string;
   tags: string[];
+  cardVariant: "feature" | "glass" | "minimal";
   publishedAt: string;
   readTime: string;
   cover: PostImage;
   content: PostContentBlock[];
 }
 
-export const posts: BlogPost[] = [
+const galleryImages: PostImage[] = [
+  { src: "/posts/gallery-01.svg", alt: "Экран выбора команды", width: 900, height: 520 },
+  { src: "/posts/gallery-02.svg", alt: "Экран каталога фич", width: 900, height: 520 },
+  { src: "/posts/gallery-03.svg", alt: "Экран настроек App", width: 900, height: 520 },
+];
+
+const covers: PostImage[] = [
   {
-    slug: "telegram-mini-app-architecture",
-    title: "Архитектура Telegram Mini App на Next.js 16",
-    excerpt:
-      "Как разложить Telegram WebApp интеграцию на provider, hooks и UI-слой без технического долга.",
-    tags: ["nextjs", "telegram", "architecture"],
-    publishedAt: "2026-02-26",
-    readTime: "6 мин",
-    cover: {
-      src: "/posts/studio-grid.svg",
-      alt: "Интерфейс Telegram Mini App",
-      caption: "Контент блога, адаптированный под формат Mini App.",
-      width: 1200,
-      height: 700,
-    },
-    content: [
-      {
-        type: "paragraph",
-        text: "Telegram Mini App удобно строить как отдельный адаптер между WebApp API и бизнес-логикой. В Next.js 16 хорошо работает связка App Router + Server Components для контента и Client Components для Telegram API.",
-      },
-      {
-        type: "quote",
-        text: "Контент не должен зависеть от платформы, а платформа не должна усложнять контент.",
-        author: "C3K Notes",
-      },
-      {
-        type: "image",
-        image: {
-          src: "/posts/workflow-board.svg",
-          alt: "Доска workflow блога",
-          caption: "Draft -> Review -> Published как отдельные этапы контент-пайплайна.",
-          width: 1200,
-          height: 700,
-        },
-      },
-      {
-        type: "heading",
-        text: "Какие части оставить платформенными",
-      },
-      {
-        type: "list",
-        items: [
-          "MainButton и BackButton должны жить в UI-контроллерах и не проникать в бизнес-логику.",
-          "HapticFeedback вызывать только на значимых событиях: переход, подтверждение, ошибка.",
-          "Токены темы Telegram держать в CSS-переменных и применять к UI на лету.",
-        ],
-      },
-      {
-        type: "gallery",
-        title: "Скетчи экранов",
-        images: [
-          {
-            src: "/posts/gallery-01.svg",
-            alt: "Первый макет экрана",
-            width: 900,
-            height: 520,
-          },
-          {
-            src: "/posts/gallery-02.svg",
-            alt: "Второй макет экрана",
-            width: 900,
-            height: 520,
-          },
-          {
-            src: "/posts/gallery-03.svg",
-            alt: "Третий макет экрана",
-            width: 900,
-            height: 520,
-          },
-        ],
-      },
-      {
-        type: "paragraph",
-        text: "BackButton стоит показывать только на внутренних экранах, а MainButton должен подсказывать следующий понятный шаг. Тогда приложение ощущается нативно внутри Telegram.",
-      },
-    ],
+    src: "/posts/studio-grid.svg",
+    alt: "Telegram WebApp системный экран",
+    width: 1200,
+    height: 700,
   },
   {
-    slug: "scss-design-system-mini-blog",
-    title: "SCSS дизайн-система для персонального блога",
-    excerpt:
-      "Переменные, модульные стили и живой визуальный язык без шаблонного UI.",
-    tags: ["scss", "ui", "design-system"],
-    publishedAt: "2026-02-24",
-    readTime: "5 мин",
-    cover: {
-      src: "/posts/cover-pattern.svg",
-      alt: "Обложка с визуальными блоками контента",
-      caption: "Один пост, несколько типов контента и единый стиль.",
-      width: 1200,
-      height: 700,
-    },
-    content: [
-      {
-        type: "paragraph",
-        text: "Если интерфейс блога живет в Telegram, он должен выглядеть нативно и при этом узнаваемо. SCSS помогает организовать токены, слои и повторно используемые элементы без лишней магии.",
-      },
-      {
-        type: "heading",
-        text: "Основа структуры",
-      },
-      {
-        type: "list",
-        ordered: true,
-        items: [
-          "Глобальные токены: цвета, радиусы, типографика.",
-          "Компонентные модули: карточки, галереи, цитаты, кнопки.",
-          "Локальные адаптивные правила только там, где реально нужно.",
-        ],
-      },
-      {
-        type: "quote",
-        text: "Хороший дизайн-системный SCSS не ограничивает креатив, а ускоряет его.",
-      },
-      {
-        type: "paragraph",
-        text: "Добавляй движения осмысленно: плавный вход карточек, легкий tap-scale на кнопках, четкие состояния фокуса. Это особенно заметно в мобильном WebView Telegram.",
-      },
-    ],
+    src: "/posts/workflow-board.svg",
+    alt: "Пайплайн разработки Mini App",
+    width: 1200,
+    height: 700,
   },
   {
-    slug: "haptic-feedback-patterns",
-    title: "Паттерны тактильного отклика в Telegram WebApp",
-    excerpt:
-      "Когда использовать impact, selection и notification, чтобы обратная связь работала на UX.",
-    tags: ["telegram", "haptic", "ux"],
-    publishedAt: "2026-02-20",
-    readTime: "4 мин",
-    cover: {
-      src: "/posts/gallery-03.svg",
-      alt: "Абстрактная иллюстрация haptic-паттернов",
-      caption: "Тактильный отклик должен быть дозированным.",
-      width: 900,
-      height: 520,
-    },
-    content: [
-      {
-        type: "paragraph",
-        text: "Тактильный отклик должен поддерживать действие, а не мешать ему. Impact подходит для явных кнопок и переходов между экранами.",
-      },
-      {
-        type: "paragraph",
-        text: "Selection полезен в фильтрах и переключателях. Notification стоит оставить для ошибок и успешных подтверждений.",
-      },
-      {
-        type: "quote",
-        text: "Если каждое нажатие вибрирует, пользователь перестает это замечать.",
-      },
-      {
-        type: "list",
-        items: [
-          "Используй impact для навигации и CTA-действий.",
-          "Используй selection в изменении выбора.",
-          "Используй notification для финального результата операции.",
-        ],
-      },
-    ],
+    src: "/posts/cover-pattern.svg",
+    alt: "Контентная карточка в ленте",
+    width: 1200,
+    height: 700,
   },
 ];
+
+const topics = [
+  "Архитектура Telegram WebApp без технического долга",
+  "Роутинг и deep links внутри Mini App",
+  "Паттерны безопасной авторизации initData",
+  "Кастомный splash-screen и prefetch данных",
+  "Оптимизация WebView под iOS",
+  "Работа с MainButton как state machine",
+  "BackButton и логика вложенных экранов",
+  "Безопасные платежные сценарии в WebApp",
+  "UX-правила для тактильных сценариев",
+  "Работа с безопасной зоной и notch",
+  "Мобильные анимации без jank",
+  "Модульная тема light/dark в Telegram App",
+  "Стриминг контента внутри длинных статей",
+  "Кастомный видеоплеер в постах",
+  "Аудио-секции и voice snippets",
+  "Галерея, оптимизированная под свайпы",
+  "3D модели в статье через model-viewer",
+  "Интерактивный TSX-контент внутри поста",
+  "Кэширование API и offline UX",
+  "Push-уведомления и реактивация сессий",
+  "Сбор метрик продукта в Mini App",
+  "Анти-фрод и ограничения платформы",
+  "Дизайн-система для мобильного WebApp",
+  "Миграция legacy mini app на Next.js",
+  "Production checklist перед релизом",
+];
+
+const toSlug = (value: string): string => {
+  return value
+    .toLowerCase()
+    .replace(/[^a-zа-я0-9\s-]/gi, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+};
+
+const buildTsxCode = (title: string): string => {
+  return `function ${title.replace(/[^a-zA-Z]/g, "") || "Demo"}Widget() {\n  return <button onClick={() => Telegram.WebApp.HapticFeedback.selectionChanged()}>Action</button>;\n}`;
+};
+
+const buildPostContent = (index: number, title: string): PostContentBlock[] => {
+  const blocks: PostContentBlock[] = [
+    {
+      type: "paragraph",
+      text: `${title}: разбор практических решений для мобильного Telegram WebApp с упором на плавность интерфейса, стабильность и быстрый отклик.`,
+    },
+    {
+      type: "quote",
+      text: "Если сценарий не удобен в одной руке, это не mobile-first.",
+      author: "C3K Mobile Lab",
+    },
+    {
+      type: "heading",
+      text: "Что важно на проде",
+    },
+    {
+      type: "list",
+      items: [
+        "Оптимизировать каждый экран под gesture-first взаимодействие.",
+        "Делать так, чтобы ключевые действия были доступны большим пальцем.",
+        "Поддерживать устойчивость интерфейса при любых системных темах.",
+      ],
+    },
+    {
+      type: "image",
+      image: covers[index % covers.length],
+    },
+  ];
+
+  if (index % 5 === 0) {
+    blocks.push({
+      type: "video",
+      video: {
+        src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+        poster: "/posts/cover-pattern.svg",
+        caption: "Видео с double-tap seek, как в YouTube.",
+      },
+    });
+  }
+
+  if (index % 5 === 1) {
+    blocks.push({
+      type: "gallery",
+      title: "Галерея экранов (swipe friendly)",
+      images: galleryImages,
+    });
+  }
+
+  if (index % 5 === 2) {
+    blocks.push({
+      type: "audio",
+      audio: {
+        src: "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3",
+        title: "Аудио-комментарий архитектора",
+        caption: "Кастомный мобильный плеер с прогрессом.",
+      },
+    });
+    blocks.push({
+      type: "animation",
+      title: "Демо анимации чтения",
+      caption: "Анимационный блок для сторителлинга внутри статьи.",
+      demoId: "reading-progress",
+    });
+  }
+
+  if (index % 5 === 3) {
+    blocks.push({
+      type: "model3d",
+      model: {
+        src: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
+        iosSrc: "https://modelviewer.dev/shared-assets/models/Astronaut.usdz",
+        poster: "/posts/studio-grid.svg",
+        alt: "3D модель для демонстрации продукта",
+        caption: "Поворачивайте модель жестом прямо в статье.",
+      },
+    });
+    blocks.push({
+      type: "tsx",
+      title: "TSX demo: интерактивный блок",
+      code: buildTsxCode(title),
+      demoId: "webapp-ready",
+    });
+  }
+
+  if (index % 5 === 4) {
+    blocks.push({
+      type: "video",
+      video: {
+        src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+        poster: "/posts/workflow-board.svg",
+        caption: "Шорт-демо UX сценария в реальном устройстве.",
+      },
+    });
+    blocks.push({
+      type: "gallery",
+      title: "UI детали и анимации",
+      images: galleryImages,
+    });
+    blocks.push({
+      type: "tsx",
+      title: "TSX demo: theme switcher chip",
+      code: "const ThemeChip = ({active}: {active:boolean}) => <button className={active ? 'on' : 'off'}>Theme</button>;",
+      demoId: "theme-chip",
+    });
+    blocks.push({
+      type: "animation",
+      title: "Параллакс-карточки",
+      caption: "Композиционный эффект для hero-секций.",
+      demoId: "parallax-cards",
+    });
+  }
+
+  return blocks;
+};
+
+export const posts: BlogPost[] = topics.map((title, index) => {
+  const day = 28 - index;
+  const cardVariant = (["feature", "glass", "minimal"] as const)[index % 3];
+
+  return {
+    slug: toSlug(`${title}-${index + 1}`),
+    title,
+    excerpt: `Практический гайд №${index + 1}: мобильные паттерны, жесты, мультимедиа и производительность для Telegram WebApp.`,
+    tags: ["telegram", "webapp", "mobile", `guide-${index + 1}`],
+    cardVariant,
+    publishedAt: `2026-02-${day.toString().padStart(2, "0")}`,
+    readTime: `${4 + (index % 5)} мин`,
+    cover: covers[index % covers.length],
+    content: buildPostContent(index, title),
+  };
+});
 
 export const getPostBySlug = (slug: string): BlogPost | undefined => {
   return posts.find((post) => post.slug === slug);

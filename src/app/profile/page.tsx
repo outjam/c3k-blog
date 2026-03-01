@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
+import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 
 import styles from "./page.module.scss";
 
@@ -10,6 +11,14 @@ export default function ProfilePage() {
   const webApp = useTelegramWebApp();
   const user = webApp?.initDataUnsafe?.user;
   const formatBool = (value: boolean | undefined): string => (value ? "да" : "нет");
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    if (typeof document === "undefined") {
+      return "dark";
+    }
+
+    const currentTheme = document.documentElement.getAttribute("data-app-theme");
+    return currentTheme === "light" || currentTheme === "dark" ? currentTheme : resolveAutoTheme();
+  });
 
   const fullName = useMemo(() => {
     if (!user) {
@@ -18,6 +27,20 @@ export default function ProfilePage() {
 
     return [user.first_name, user.last_name].filter(Boolean).join(" ") || "Без имени";
   }, [user]);
+
+  useEffect(() => {
+    void readThemePreference().then((savedTheme) => {
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+    });
+  }, []);
+
+  const handleThemeChange = async (nextTheme: AppTheme) => {
+    setTheme(nextTheme);
+    applyAppTheme(nextTheme);
+    await saveThemePreference(nextTheme);
+  };
 
   return (
     <div className={styles.page}>
@@ -32,6 +55,26 @@ export default function ProfilePage() {
             {fullName.slice(0, 2).toUpperCase()}
           </div>
         )}
+
+        <div className={styles.themeBox}>
+          <p className={styles.themeTitle}>Тема приложения</p>
+          <div className={styles.themeActions}>
+            <button
+              type="button"
+              className={`${styles.themeButton} ${theme === "light" ? styles.themeButtonActive : ""}`}
+              onClick={() => void handleThemeChange("light")}
+            >
+              Светлая
+            </button>
+            <button
+              type="button"
+              className={`${styles.themeButton} ${theme === "dark" ? styles.themeButtonActive : ""}`}
+              onClick={() => void handleThemeChange("dark")}
+            >
+              Тёмная
+            </button>
+          </div>
+        </div>
 
         <dl className={styles.list}>
           <div className={styles.row}>

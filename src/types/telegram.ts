@@ -66,6 +66,18 @@ export interface TelegramHapticFeedback {
   selectionChanged(): void;
 }
 
+export interface TelegramCloudStorage {
+  getItem(
+    key: string,
+    callback: (error: Error | null, value: string | null | undefined) => void,
+  ): void;
+  setItem(
+    key: string,
+    value: string,
+    callback?: (error: Error | null, storedValue: string) => void,
+  ): void;
+}
+
 export interface TelegramWebApp {
   platform: string;
   colorScheme: "light" | "dark";
@@ -78,6 +90,7 @@ export interface TelegramWebApp {
   MainButton: TelegramMainButton;
   BackButton: TelegramBackButton;
   HapticFeedback: TelegramHapticFeedback;
+  CloudStorage?: TelegramCloudStorage;
   ready(): void;
   expand(): void;
   close(): void;

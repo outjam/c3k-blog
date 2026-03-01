@@ -7,8 +7,6 @@ import { hapticSelection } from "@/lib/telegram";
 import { MiniTabBar } from "@/components/mini-tab-bar";
 
 import styles from "./app-frame.module.scss";
-import { PostCard } from "./post-card";
-import CardPost from "./CardPost";
 
 interface AppFrameProps {
   children: React.ReactNode;
@@ -37,22 +35,9 @@ function ProfileIcon() {
   );
 }
 
-const getSectionTitle = (pathname: string): string => {
-  if (pathname.startsWith("/profile")) {
-    return "Профиль";
-  }
-
-  if (pathname.startsWith("/post/")) {
-    return "Пост";
-  }
-
-  return "Блог";
-};
-
 export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const sectionTitle = getSectionTitle(pathname);
   const isProfile = pathname.startsWith("/profile");
   const activeIndex = isProfile ? 1 : 0;
   const showTabBar = pathname === "/" || pathname.startsWith("/profile");
@@ -84,8 +69,6 @@ export function AppFrame({ children }: AppFrameProps) {
 
       <main className={`${styles.content} ${showTabBar ? styles.contentWithTabBar : ""}`}>
         {children}
-
-        <CardPost />
       </main>
 
       {showTabBar ? <MiniTabBar activeIndex={activeIndex} items={tabs} onChange={navigateTo} /> : null}
