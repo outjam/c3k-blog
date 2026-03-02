@@ -12,7 +12,7 @@ import { SHOP_CATEGORY_LABELS, SHOP_PRODUCTS } from "@/data/shop-products";
 import { payWithTelegramStars } from "@/lib/shop-payment";
 import { findPromoRule, getCartSubtotalRub, getCartSubtotalStars, getDeliveryFee, getDiscountAmount } from "@/lib/shop-pricing";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
-import { hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
+import { getTelegramWebApp, hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { CartItem, CheckoutFormValues, ProductSort, ShopCategory } from "@/types/shop";
 
 import styles from "./page.module.scss";
@@ -73,6 +73,22 @@ export default function ShopPage() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const user = getTelegramWebApp()?.initDataUnsafe?.user;
+
+    if (!user) {
+      return;
+    }
+
+    setCheckout((prev) => ({
+      ...prev,
+      firstName: prev.firstName || user.first_name || "",
+      lastName: prev.lastName || user.last_name || "",
+      email: prev.email || (user.username ? `${user.username}@telegram.local` : ""),
+      comment: prev.comment || (user.username ? `Telegram: @${user.username}` : ""),
+    }));
   }, []);
 
   useEffect(() => {
@@ -181,8 +197,9 @@ export default function ShopPage() {
 
     const paid = await payWithTelegramStars({
       amountStars: totalStars,
-      amountRub: totalRub,
       orderId: `C3K-${Date.now()}`,
+      title: `Заказ C3K (${cartItems.length} шт.)`,
+      description: `Оплата заказа в магазине C3K. Доставка: ${checkout.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}.`,
     });
 
     setIsPaying(false);
