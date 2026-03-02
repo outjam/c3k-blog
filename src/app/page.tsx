@@ -20,6 +20,7 @@ interface ActivePostPreview {
 
 export default function Home() {
   const [activePreview, setActivePreview] = useState<ActivePostPreview | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,13 +61,19 @@ export default function Home() {
       layout: "large",
       reverse: false,
     });
+    setIsPreviewOpen(true);
   }, [latestPost.slug]);
 
   const openPostPreview = useCallback((slug: string, layout: "large" | "small", reverse: boolean) => {
     setActivePreview({ slug, layout, reverse });
+    setIsPreviewOpen(true);
   }, []);
 
   const closePostPreview = useCallback(() => {
+    setIsPreviewOpen(false);
+  }, []);
+
+  const handlePreviewExited = useCallback(() => {
     setActivePreview(null);
   }, []);
 
@@ -96,7 +103,7 @@ export default function Home() {
                   post={post}
                   layout={isLarge ? "large" : "small"}
                   reverse={reverse}
-                  isHidden={activePreview?.slug === post.slug}
+                  isHidden={activePreview?.slug === post.slug && isPreviewOpen}
                   onOpen={() => openPostPreview(post.slug, isLarge ? "large" : "small", reverse)}
                 />
               );
@@ -107,8 +114,9 @@ export default function Home() {
             post={activePost}
             sourceLayout={activePreview?.layout ?? "large"}
             sourceReverse={activePreview?.reverse ?? false}
-            open={Boolean(activePost)}
+            open={isPreviewOpen}
             onClose={closePostPreview}
+            onExited={handlePreviewExited}
           />
         </LayoutGroup>
 

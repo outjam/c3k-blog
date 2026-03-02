@@ -44,7 +44,7 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
         className={styles.shell}
         layoutId={shellId}
         layout
-        transition={{ type: "spring", stiffness: 280, damping: 34, mass: 0.86 }}
+        transition={{ type: "spring", stiffness: 210, damping: 32, mass: 1.02 }}
       >
         {layout === "large" ? (
           <>

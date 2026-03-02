@@ -17,15 +17,17 @@ interface PostPreviewModalProps {
   sourceReverse: boolean;
   open: boolean;
   onClose: () => void;
+  onExited?: () => void;
 }
 
 const SHEET_CLOSE_OFFSET = 160;
-const SHEET_CLOSE_VELOCITY = 980;
-const OPEN_SPRING = { type: "spring" as const, stiffness: 300, damping: 36, mass: 0.8 };
-const RETURN_SPRING = { type: "spring" as const, stiffness: 360, damping: 38, mass: 0.82 };
-const HERO_LAYOUT_SPRING = { type: "spring" as const, stiffness: 280, damping: 34, mass: 0.86 };
+const SHEET_CLOSE_VELOCITY = 820;
+const TOP_DRAG_ZONE_HEIGHT = 220;
+const OPEN_SPRING = { type: "spring" as const, stiffness: 220, damping: 34, mass: 0.96 };
+const RETURN_SPRING = { type: "spring" as const, stiffness: 260, damping: 36, mass: 0.94 };
+const HERO_LAYOUT_SPRING = { type: "spring" as const, stiffness: 210, damping: 32, mass: 1.02 };
 
-export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onClose }: PostPreviewModalProps) {
+export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onClose, onExited }: PostPreviewModalProps) {
   const dragControls = useDragControls();
   const y = useMotionValue(0);
   const isClosingRef = useRef(false);
@@ -38,7 +40,8 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
   const sheetRadius = useTransform(y, [0, 320], [28, 40]);
   const sheetShadowOpacity = useTransform(y, [0, 320], [0.26, 0.06]);
   const sheetShadow = useMotionTemplate`0 -8px 34px rgba(0, 0, 0, ${sheetShadowOpacity})`;
-  const bodyOpacity = useTransform(y, [0, 120], [1, 0.72]);
+  const uiOpacity = useTransform(y, [0, 260], [1, 0.16]);
+  const bodyOpacity = useTransform(y, [0, 220], [1, 0.12]);
   const bodyOffset = useTransform(y, [0, 180], [0, 16]);
 
   useEffect(() => {
@@ -88,6 +91,27 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
     sourceSnapOffsetRef.current = Math.max(SHEET_CLOSE_OFFSET, Math.min(deltaToOrigin, 640));
   }, [post]);
 
+  const closeWithMotion = useCallback(
+    (velocity = 280) => {
+      if (isClosingRef.current) {
+        return;
+      }
+
+      updateCloseMetrics();
+      const snapTarget = sourceSnapOffsetRef.current;
+
+      animate(y, snapTarget, {
+        type: "spring",
+        stiffness: 250,
+        damping: 34,
+        mass: 0.96,
+        velocity,
+        onComplete: closeToCard,
+      });
+    },
+    [closeToCard, updateCloseMetrics, y],
+  );
+
   useEffect(() => {
     if (open) {
       isClosingRef.current = false;
@@ -108,15 +132,29 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
     dragControls.start(event);
   };
 
+  const startDragFromSheetTopZone = (event: ReactPointerEvent<HTMLElement>) => {
+    const sheet = event.currentTarget;
+    const topZoneStart = sheet.getBoundingClientRect().top;
+    const pointerOffsetFromTop = event.clientY - topZoneStart;
+    const canStartDragFromTop = pointerOffsetFromTop <= TOP_DRAG_ZONE_HEIGHT;
+    const sheetAtTop = sheet.scrollTop <= 0;
+
+    if (!sheetAtTop || !canStartDragFromTop) {
+      return;
+    }
+
+    dragControls.start(event);
+  };
+
   return (
-    <AnimatePresence initial={false}>
+    <AnimatePresence initial={false} onExitComplete={onExited}>
       {open ? (
         <motion.div
           className={styles.root}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
         >
           <motion.button
             type="button"
@@ -124,7 +162,7 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
             style={{ opacity: backdropOpacity }}
             onClick={() => {
               hapticImpact("soft");
-              closeToCard();
+              closeWithMotion(260);
             }}
             aria-label="Закрыть предпросмотр"
           />
@@ -138,7 +176,7 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
               borderTopRightRadius: sheetRadius,
               boxShadow: sheetShadow,
             }}
-            transition={{ type: "spring", stiffness: 350, damping: 32, mass: 0.78 }}
+            transition={{ type: "spring", stiffness: 240, damping: 34, mass: 0.96 }}
             drag="y"
             dragControls={dragControls}
             dragListener={false}
@@ -146,6 +184,7 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
             dragElastic={{ top: 0.01, bottom: 0.12 }}
             dragMomentum={false}
             dragTransition={{ bounceStiffness: 620, bounceDamping: 48 }}
+            onPointerDown={startDragFromSheetTopZone}
             onDragStart={() => {
               didCrossCloseZoneRef.current = false;
               updateCloseMetrics();
@@ -174,31 +213,25 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
               }
 
               const closeThreshold = closeThresholdRef.current;
-              const projected = info.offset.y + info.velocity.y * 0.28;
+              const projected = info.offset.y + info.velocity.y * 0.26;
+              const progress = info.offset.y / closeThreshold;
               const shouldClose =
-                projected > closeThreshold ||
-                info.offset.y > closeThreshold ||
+                projected > closeThreshold * 0.92 ||
+                progress > 0.84 ||
                 info.velocity.y > SHEET_CLOSE_VELOCITY;
 
               if (shouldClose) {
                 hapticImpact("medium");
-                const snapTarget = sourceSnapOffsetRef.current;
-                animate(y, snapTarget, {
-                  type: "spring",
-                  stiffness: 420,
-                  damping: 42,
-                  mass: 0.74,
-                  velocity: Math.max(info.velocity.y, 240),
-                  onComplete: closeToCard,
-                });
+                closeWithMotion(Math.max(info.velocity.y, 240));
                 return;
               }
 
               animate(y, 0, { ...RETURN_SPRING, velocity: info.velocity.y });
             }}
           >
-            <div
+            <motion.div
               className={styles.handleWrap}
+              style={{ opacity: uiOpacity }}
               onPointerDown={startDragFromTopZone}
             >
               <div className={styles.handle} />
@@ -208,13 +241,13 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={() => {
                   hapticImpact("soft");
-                  closeToCard();
+                  closeWithMotion(240);
                 }}
                 aria-label="Закрыть"
               >
                 ✕
               </button>
-            </div>
+            </motion.div>
 
             <header className={styles.hero}>
               <div
@@ -240,18 +273,18 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
                           className={cardStyles.largeImage}
                           priority
                         />
-                        <div className={cardStyles.largeTopMeta}>
+                        <motion.div className={cardStyles.largeTopMeta} style={{ opacity: uiOpacity }}>
                           <span>{post.tags[0] ?? "Разработка"}</span>
                           <span>{post.readTime}</span>
-                        </div>
-                        <span className={cardStyles.ribbon} aria-hidden>
+                        </motion.div>
+                        <motion.span className={cardStyles.ribbon} style={{ opacity: uiOpacity }} aria-hidden>
                           ★
-                        </span>
+                        </motion.span>
                       </div>
-                      <div className={cardStyles.largeBottom}>
+                      <motion.div className={cardStyles.largeBottom} style={{ opacity: uiOpacity }}>
                         <h2 className={cardStyles.titleLarge}>{post.title}</h2>
                         <p className={cardStyles.excerptLarge}>{post.excerpt}</p>
-                      </div>
+                      </motion.div>
                     </div>
                   ) : (
                     <div className={cardStyles.smallGrid} onPointerDown={startDragFromTopZone}>
@@ -264,11 +297,11 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
                           className={cardStyles.smallImage}
                           priority
                         />
-                        <span className={cardStyles.ribbon} aria-hidden>
+                        <motion.span className={cardStyles.ribbon} style={{ opacity: uiOpacity }} aria-hidden>
                           ★
-                        </span>
+                        </motion.span>
                       </div>
-                      <div className={cardStyles.smallContent}>
+                      <motion.div className={cardStyles.smallContent} style={{ opacity: uiOpacity }}>
                         <h2 className={cardStyles.titleSmall}>{post.title}</h2>
                         <p className={cardStyles.excerptSmall}>{post.excerpt}</p>
                         <div className={cardStyles.meta}>
@@ -276,7 +309,7 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
                           <span>•</span>
                           <span>{post.readTime}</span>
                         </div>
-                      </div>
+                      </motion.div>
                     </div>
                   )}
                 </motion.article>
@@ -289,7 +322,7 @@ export function PostPreviewModal({ post, sourceLayout, sourceReverse, open, onCl
                 className={styles.contentInner}
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1], delay: 0.06 }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
               >
                 <RichPostContent blocks={post.content} />
               </motion.div>
