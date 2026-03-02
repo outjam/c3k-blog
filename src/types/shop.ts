@@ -22,8 +22,8 @@ export interface ShopProduct {
   description: string;
   category: ShopCategory;
   image: string;
-  priceStars: number;
-  oldPriceStars?: number;
+  priceStarsCents: number;
+  oldPriceStarsCents?: number;
   rating: number;
   reviewsCount: number;
   isNew: boolean;
@@ -46,16 +46,16 @@ export interface ShopOrderItem {
   productId: string;
   title: string;
   quantity: number;
-  priceStars: number;
+  priceStarsCents: number;
 }
 
 export interface ShopOrder {
   id: string;
   createdAt: string;
   status: ShopOrderStatus;
-  totalStars: number;
-  deliveryFeeStars: number;
-  discountStars: number;
+  totalStarsCents: number;
+  deliveryFeeStarsCents: number;
+  discountStarsCents: number;
   delivery: DeliveryMethod;
   address: string;
   customerName: string;

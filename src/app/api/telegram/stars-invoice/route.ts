@@ -5,6 +5,9 @@ interface CreateInvoiceLinkResponse {
   result?: string;
   description?: string;
 }
+interface TelegramWebhookInfo {
+  url?: string;
+}
 
 interface InvoicePayload {
   amountStars?: number;
@@ -16,6 +19,41 @@ interface InvoicePayload {
 const sanitize = (value: string, fallback: string): string => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed.slice(0, 255) : fallback;
+};
+
+const getPublicBaseUrl = (): string | null => {
+  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
+
+  if (explicit) {
+    return explicit.replace(/\/+$/, "");
+  }
+
+  const vercelUrl = process.env.VERCEL_URL;
+
+  if (vercelUrl) {
+    return `https://${vercelUrl}`;
+  }
+
+  return null;
+};
+
+const telegramRequest = async <T,>(
+  botToken: string,
+  method: string,
+  body?: Record<string, unknown>,
+): Promise<CreateInvoiceLinkResponse & { result?: T }> => {
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+    method: body ? "POST" : "GET",
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return { ok: false, description: `HTTP ${response.status}` };
+  }
+
+  return (await response.json()) as CreateInvoiceLinkResponse & { result?: T };
 };
 
 export async function POST(request: Request) {
@@ -43,7 +81,36 @@ export async function POST(request: Request) {
   const title = sanitize(String(payload.title ?? "Заказ"), "Заказ");
   const description = sanitize(String(payload.description ?? "Оплата заказа"), "Оплата заказа");
 
-  const apiUrl = `https://api.telegram.org/bot${botToken}/createInvoiceLink`;
+  const baseUrl = getPublicBaseUrl();
+  const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
+
+  if (!baseUrl) {
+    return NextResponse.json(
+      { error: "Missing TELEGRAM_WEBHOOK_BASE_URL or NEXT_PUBLIC_APP_URL (or VERCEL_URL)." },
+      { status: 500 },
+    );
+  }
+
+  const webhookUrl = `${baseUrl}/api/telegram/webhook`;
+
+  const webhookInfo = await telegramRequest<TelegramWebhookInfo>(botToken, "getWebhookInfo");
+
+  if (!webhookInfo.ok) {
+    return NextResponse.json({ error: webhookInfo.description ?? "Failed to read webhook info" }, { status: 502 });
+  }
+
+  if (webhookInfo.result?.url !== webhookUrl) {
+    const setWebhook = await telegramRequest<boolean>(botToken, "setWebhook", {
+      url: webhookUrl,
+      secret_token: secretToken,
+      allowed_updates: ["pre_checkout_query", "message"],
+      drop_pending_updates: false,
+    });
+
+    if (!setWebhook.ok) {
+      return NextResponse.json({ error: setWebhook.description ?? "Failed to set webhook" }, { status: 502 });
+    }
+  }
 
   const telegramBody = {
     title,
@@ -54,18 +121,7 @@ export async function POST(request: Request) {
   };
 
   try {
-    const telegramResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(telegramBody),
-      cache: "no-store",
-    });
-
-    if (!telegramResponse.ok) {
-      return NextResponse.json({ error: "Telegram API request failed" }, { status: 502 });
-    }
-
-    const telegramResult = (await telegramResponse.json()) as CreateInvoiceLinkResponse;
+    const telegramResult = await telegramRequest<string>(botToken, "createInvoiceLink", telegramBody);
 
     if (!telegramResult.ok || !telegramResult.result) {
       return NextResponse.json(

@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 
+import { formatStarsFromCents } from "@/lib/stars-format";
 import type { CartItem, ShopProduct } from "@/types/shop";
 
 import styles from "./shop-cart-sheet.module.scss";
@@ -69,7 +70,7 @@ export function ShopCartSheet({
                       <img src={product.image} alt={product.title} loading="lazy" />
                       <div className={styles.itemBody}>
                         <h4>{product.title}</h4>
-                        <p>{product.priceStars} ⭐</p>
+                        <p>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
                         <div className={styles.qtyRow}>
                           <button type="button" onClick={() => onDecrease(product.id)}>
                             −

@@ -1,0 +1,90 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  justify-items: center;
+  padding: 1rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-left: calc(1rem + var(--safe-area-left));
+}
+
+.card {
+  width: 100%;
+  max-width: 860px;
+  border-radius: 1rem;
+  background: var(--tg-section-bg);
+  border: 1px solid var(--tg-section-separator);
+  overflow: hidden;
+}
+
+.cover {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.body {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.subtitle {
+  color: var(--tg-subtitle-text);
+  font-size: 0.8rem;
+}
+
+.body h1 {
+  color: var(--tg-text);
+  font-size: 1.12rem;
+}
+
+.description {
+  color: var(--muted-text);
+  line-height: 1.45;
+}
+
+.price {
+  color: var(--tg-accent);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.meta div {
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
+  padding: 0.45rem 0.5rem;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.meta dt {
+  color: var(--tg-hint);
+  font-size: 0.7rem;
+}
+
+.meta dd {
+  color: var(--tg-text);
+  font-size: 0.8rem;
+}
+
+.addButton {
+  min-height: 2.6rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .meta {
+    grid-template-columns: 1fr;
+  }
+}

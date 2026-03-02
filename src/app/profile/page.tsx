@@ -8,6 +8,7 @@ import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 import { readBookmarkedPostSlugs } from "@/lib/post-bookmarks";
 import { readShopOrders } from "@/lib/shop-orders";
+import { formatStarsFromCents } from "@/lib/stars-format";
 import type { ShopOrder } from "@/types/shop";
 
 import styles from "./page.module.scss";
@@ -132,7 +133,7 @@ export default function ProfilePage() {
                   <p className={styles.orderId}>#{order.id}</p>
                   <p className={styles.orderStatus}>{ORDER_STATUS_LABELS[order.status]}</p>
                   <p className={styles.orderMeta}>{new Date(order.createdAt).toLocaleString("ru-RU")}</p>
-                  <p className={styles.orderMeta}>Итого: {order.totalStars} ⭐</p>
+                  <p className={styles.orderMeta}>Итого: {formatStarsFromCents(order.totalStarsCents)} ⭐</p>
                   <p className={styles.orderMeta}>Доставка: {order.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}</p>
                   <button type="button" className={styles.inlineButton} onClick={() => setSelectedOrder(order)}>
                     Открыть детали
@@ -224,8 +225,8 @@ export default function ProfilePage() {
                     <tr key={`${item.productId}-${item.title}`}>
                       <td>{item.title}</td>
                       <td>{item.quantity}</td>
-                      <td>{item.priceStars} ⭐</td>
-                      <td>{item.priceStars * item.quantity} ⭐</td>
+                      <td>{formatStarsFromCents(item.priceStarsCents)} ⭐</td>
+                      <td>{formatStarsFromCents(item.priceStarsCents * item.quantity)} ⭐</td>
                     </tr>
                   ))}
                 </tbody>

@@ -18,7 +18,7 @@ const requestInvoiceLink = async ({
   orderId,
   title,
   description,
-}: Pick<PaymentRequest, "amountStars" | "orderId" | "title" | "description">): Promise<string | null> => {
+}: Pick<PaymentRequest, "amountStars" | "orderId" | "title" | "description">): Promise<{ link: string | null; error?: string }> => {
   try {
     const response = await fetch("/api/telegram/stars-invoice", {
       method: "POST",
@@ -31,14 +31,18 @@ const requestInvoiceLink = async ({
       }),
     });
 
+    const payload = (await response.json()) as { invoiceLink?: string; error?: string };
+
     if (!response.ok) {
-      return null;
+      return { link: null, error: payload.error ?? "Ошибка запроса к серверу оплаты." };
     }
 
-    const payload = (await response.json()) as { invoiceLink?: string };
-    return typeof payload.invoiceLink === "string" ? payload.invoiceLink : null;
+    return {
+      link: typeof payload.invoiceLink === "string" ? payload.invoiceLink : null,
+      error: payload.error,
+    };
   } catch {
-    return null;
+    return { link: null, error: "Сетевая ошибка при создании invoice." };
   }
 };
 
@@ -59,17 +63,18 @@ export const payWithTelegramStars = async ({
     return { ok: false, status: "error", message: "Текущая версия Telegram не поддерживает оплату." };
   }
 
-  const invoiceLink = await requestInvoiceLink({ amountStars, orderId, title, description });
+  const invoice = await requestInvoiceLink({ amountStars, orderId, title, description });
+  const invoiceLink = invoice.link;
 
   if (!invoiceLink) {
     webApp.showPopup?.(
       {
         title: "Ошибка оплаты",
-        message: "Не удалось создать счет Telegram Stars. Проверьте серверные ключи оплаты.",
+        message: invoice.error ?? "Не удалось создать счет Telegram Stars. Проверьте серверные ключи оплаты.",
         buttons: [{ id: "ok", type: "ok", text: "Понятно" }],
       },
     );
-    return { ok: false, status: "error", message: "Не удалось создать счет оплаты." };
+    return { ok: false, status: "error", message: invoice.error ?? "Не удалось создать счет оплаты." };
   }
 
   return new Promise((resolve) => {

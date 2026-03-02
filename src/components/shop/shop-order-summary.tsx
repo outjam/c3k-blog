@@ -1,6 +1,7 @@
 "use client";
 
 import styles from "./shop-order-summary.module.scss";
+import { formatStarsFromCents } from "@/lib/stars-format";
 
 interface ShopOrderSummaryProps {
   subtotal: number;
@@ -48,7 +49,7 @@ export function ShopOrderSummary({
         </div>
         <p>
           {freeDeliveryLeft > 0
-            ? `До бесплатной доставки осталось ${freeDeliveryLeft} ⭐`
+            ? `До бесплатной доставки осталось ${formatStarsFromCents(freeDeliveryLeft)} ⭐`
             : "Бесплатная доставка активна"}
         </p>
       </div>
@@ -56,19 +57,19 @@ export function ShopOrderSummary({
       <dl className={styles.totals}>
         <div>
           <dt>Товары</dt>
-          <dd>{subtotal} ⭐</dd>
+          <dd>{formatStarsFromCents(subtotal)} ⭐</dd>
         </div>
         <div>
           <dt>Скидка</dt>
-          <dd>-{discount} ⭐</dd>
+          <dd>-{formatStarsFromCents(discount)} ⭐</dd>
         </div>
         <div>
           <dt>Доставка</dt>
-          <dd>{deliveryFee === 0 ? "Бесплатно" : `${deliveryFee} ⭐`}</dd>
+          <dd>{deliveryFee === 0 ? "Бесплатно" : `${formatStarsFromCents(deliveryFee)} ⭐`}</dd>
         </div>
         <div className={styles.totalRow}>
           <dt>Итого</dt>
-          <dd>{totalStars} ⭐</dd>
+          <dd>{formatStarsFromCents(totalStars)} ⭐</dd>
         </div>
       </dl>
     </section>

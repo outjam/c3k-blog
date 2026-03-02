@@ -40,8 +40,8 @@ const generateProduct = (index: number): ShopProduct => {
   const collection = COLLECTIONS[index % COLLECTIONS.length] ?? COLLECTIONS[0];
   const technique = TECHNIQUES[index % TECHNIQUES.length] ?? TECHNIQUES[0];
   const color = COLORS[index % COLORS.length] ?? COLORS[0];
-  const priceStars = index % 2 === 0 ? 1 : 2;
-  const oldPriceStars = index % 4 === 0 ? 2 : undefined;
+  const priceStarsCents = index % 2 === 0 ? 1 : 2;
+  const oldPriceStarsCents = index % 4 === 0 ? 2 : undefined;
   const stock = 3 + ((index * 5) % 18);
   const rating = Number((4.2 + ((index * 7) % 9) / 10).toFixed(1));
   const reviewsCount = 12 + ((index * 31) % 280);
@@ -58,8 +58,8 @@ const generateProduct = (index: number): ShopProduct => {
     description,
     category: categoryMeta.key,
     image: createProductArt(categoryMeta.emoji, title, categoryMeta.tone[0], categoryMeta.tone[1]),
-    priceStars,
-    oldPriceStars,
+    priceStarsCents,
+    oldPriceStarsCents,
     rating,
     reviewsCount,
     isNew: index < 10,
@@ -87,4 +87,8 @@ export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   mug: "Кружки",
   lamp: "Светильники",
   plate: "Тарелки",
+};
+
+export const getShopProductBySlug = (slug: string): ShopProduct | undefined => {
+  return SHOP_PRODUCTS.find((product) => product.slug === slug);
 };

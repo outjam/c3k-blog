@@ -18,9 +18,15 @@ const normalizeOrder = (value: unknown): ShopOrder | null => {
     id: String(candidate.id),
     createdAt: String(candidate.createdAt),
     status: candidate.status,
-    totalStars: Math.max(0, Number(candidate.totalStars ?? 0)),
-    deliveryFeeStars: Math.max(0, Number(candidate.deliveryFeeStars ?? 0)),
-    discountStars: Math.max(0, Number(candidate.discountStars ?? 0)),
+    totalStarsCents: Math.max(0, Number(candidate.totalStarsCents ?? (candidate as { totalStars?: number }).totalStars ?? 0)),
+    deliveryFeeStarsCents: Math.max(
+      0,
+      Number(candidate.deliveryFeeStarsCents ?? (candidate as { deliveryFeeStars?: number }).deliveryFeeStars ?? 0),
+    ),
+    discountStarsCents: Math.max(
+      0,
+      Number(candidate.discountStarsCents ?? (candidate as { discountStars?: number }).discountStars ?? 0),
+    ),
     delivery: candidate.delivery === "cdek" ? "cdek" : "yandex_go",
     address: String(candidate.address ?? ""),
     customerName: String(candidate.customerName ?? ""),
@@ -37,7 +43,10 @@ const normalizeOrder = (value: unknown): ShopOrder | null => {
           productId: String(row.productId),
           title: String(row.title),
           quantity: Math.max(1, Math.round(Number(row.quantity ?? 1))),
-          priceStars: Math.max(1, Math.round(Number(row.priceStars ?? 1))),
+          priceStarsCents: Math.max(
+            1,
+            Math.round(Number(row.priceStarsCents ?? (row as { priceStars?: number }).priceStars ?? 1)),
+          ),
         };
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item)),

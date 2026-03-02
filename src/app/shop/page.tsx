@@ -11,7 +11,8 @@ import { ShopOrderSummary } from "@/components/shop/shop-order-summary";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
 import { SHOP_CATEGORY_LABELS, SHOP_PRODUCTS } from "@/data/shop-products";
 import { payWithTelegramStars } from "@/lib/shop-payment";
-import { findPromoRule, getCartSubtotalStars, getDeliveryFeeStars, getDiscountAmountStars } from "@/lib/shop-pricing";
+import { formatStarsFromCents, starsCentsToInvoiceStars } from "@/lib/stars-format";
+import { findPromoRule, getCartSubtotalStarsCents, getDeliveryFeeStarsCents, getDiscountAmountStarsCents } from "@/lib/shop-pricing";
 import { appendShopOrder } from "@/lib/shop-orders";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { getTelegramWebApp, hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
@@ -34,9 +35,9 @@ const sortProducts = (items: typeof SHOP_PRODUCTS, sort: ProductSort) => {
 
   switch (sort) {
     case "price_asc":
-      return list.sort((a, b) => a.priceStars - b.priceStars);
+      return list.sort((a, b) => a.priceStarsCents - b.priceStarsCents);
     case "price_desc":
-      return list.sort((a, b) => b.priceStars - a.priceStars);
+      return list.sort((a, b) => b.priceStarsCents - a.priceStarsCents);
     case "rating":
       return list.sort((a, b) => b.rating - a.rating);
     case "new":
@@ -128,7 +129,7 @@ export default function ShopPage() {
         }
 
         if (quickFilter === "sale") {
-          return Boolean(product.oldPriceStars);
+          return Boolean(product.oldPriceStarsCents);
         }
 
         return true;
@@ -148,7 +149,7 @@ export default function ShopPage() {
       }
 
       if (quickFilter === "sale") {
-        return Boolean(product.oldPriceStars);
+        return Boolean(product.oldPriceStarsCents);
       }
 
       return true;
@@ -157,13 +158,16 @@ export default function ShopPage() {
     return sortProducts(filtered, sort);
   }, [category, inStockOnly, quickFilter, search, sort]);
 
-  const subtotalStars = useMemo(() => getCartSubtotalStars(SHOP_PRODUCTS, cartItems), [cartItems]);
-  const discountStars = useMemo(() => getDiscountAmountStars(subtotalStars, promoCode), [promoCode, subtotalStars]);
-  const deliveryFeeStars = useMemo(() => getDeliveryFeeStars(subtotalStars - discountStars), [discountStars, subtotalStars]);
-  const totalStars = Math.max(0, subtotalStars - discountStars + deliveryFeeStars);
-  const freeDeliveryThresholdStars = 12;
-  const freeDeliveryLeftStars = Math.max(freeDeliveryThresholdStars - (subtotalStars - discountStars), 0);
-  const freeDeliveryProgress = Math.min(((subtotalStars - discountStars) / freeDeliveryThresholdStars) * 100, 100);
+  const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(SHOP_PRODUCTS, cartItems), [cartItems]);
+  const discountStarsCents = useMemo(() => getDiscountAmountStarsCents(subtotalStarsCents, promoCode), [promoCode, subtotalStarsCents]);
+  const deliveryFeeStarsCents = useMemo(
+    () => getDeliveryFeeStarsCents(subtotalStarsCents - discountStarsCents),
+    [discountStarsCents, subtotalStarsCents],
+  );
+  const totalStarsCents = Math.max(0, subtotalStarsCents - discountStarsCents + deliveryFeeStarsCents);
+  const freeDeliveryThresholdStarsCents = 1200;
+  const freeDeliveryLeftStarsCents = Math.max(freeDeliveryThresholdStarsCents - (subtotalStarsCents - discountStarsCents), 0);
+  const freeDeliveryProgress = Math.min(((subtotalStarsCents - discountStarsCents) / freeDeliveryThresholdStarsCents) * 100, 100);
 
   const promoRule = findPromoRule(promoCode);
   const promoLabel = promoRule ? `${promoRule.label} активирована (${promoRule.code})` : "";
@@ -247,7 +251,7 @@ export default function ShopPage() {
     hapticImpact("medium");
 
     const payment = await payWithTelegramStars({
-      amountStars: totalStars,
+      amountStars: starsCentsToInvoiceStars(totalStarsCents),
       orderId: `C3K-${Date.now()}`,
       title: `Заказ C3K (${cartItems.length} шт.)`,
       description: `Оплата заказа в магазине C3K. Доставка: ${checkout.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}.`,
@@ -266,9 +270,9 @@ export default function ShopPage() {
       id: `order-${Date.now()}`,
       createdAt: new Date().toISOString(),
       status: "processing",
-      totalStars,
-      deliveryFeeStars,
-      discountStars,
+      totalStarsCents,
+      deliveryFeeStarsCents,
+      discountStarsCents,
       delivery: checkout.delivery,
       address: checkout.address,
       customerName,
@@ -286,7 +290,7 @@ export default function ShopPage() {
             productId: product.id,
             title: product.title,
             quantity: item.quantity,
-            priceStars: product.priceStars,
+            priceStarsCents: product.priceStarsCents,
           };
         })
         .filter((item): item is NonNullable<typeof item> => Boolean(item)),
@@ -341,7 +345,7 @@ export default function ShopPage() {
             Найдено товаров: <strong>{filteredProducts.length}</strong>
           </p>
           <p>
-            В корзине: <strong>{cartCount}</strong> · {subtotalStars} ⭐
+            В корзине: <strong>{cartCount}</strong> · {formatStarsFromCents(subtotalStarsCents)} ⭐
           </p>
         </section>
 
@@ -379,7 +383,7 @@ export default function ShopPage() {
         }}
         whileTap={{ scale: 0.97 }}
       >
-        Корзина {cartCount > 0 ? `(${cartCount})` : ""} · {subtotalStars} ⭐
+        Корзина {cartCount > 0 ? `(${cartCount})` : ""} · {formatStarsFromCents(subtotalStarsCents)} ⭐
       </motion.button>
 
       <ShopCartSheet
@@ -394,15 +398,15 @@ export default function ShopPage() {
         {paymentError ? <p className={styles.paymentError}>{paymentError}</p> : null}
 
         <ShopOrderSummary
-          subtotal={subtotalStars}
-          discount={discountStars}
-          deliveryFee={deliveryFeeStars}
-          totalStars={totalStars}
+          subtotal={subtotalStarsCents}
+          discount={discountStarsCents}
+          deliveryFee={deliveryFeeStarsCents}
+          totalStars={totalStarsCents}
           promoCode={promoCode}
           promoLabel={promoLabel}
           onPromoChange={setPromoCode}
           onApplyPromo={applyPromo}
-          freeDeliveryLeft={freeDeliveryLeftStars}
+          freeDeliveryLeft={freeDeliveryLeftStarsCents}
           freeDeliveryProgress={freeDeliveryProgress}
         />
 
@@ -414,7 +418,7 @@ export default function ShopPage() {
           onClick={submitPayment}
           disabled={!canPay || isPaying}
         >
-          {isPaying ? "Проводим платеж..." : `Оплатить ${totalStars} ⭐`}
+          {isPaying ? "Проводим платеж..." : `Оплатить ${formatStarsFromCents(totalStarsCents)} ⭐`}
         </button>
       </ShopCartSheet>
     </div>
