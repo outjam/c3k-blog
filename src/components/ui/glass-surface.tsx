@@ -173,33 +173,17 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
       return false;
     }
 
-    if (typeof CSS === "undefined" || typeof CSS.supports !== "function") {
-      return false;
-    }
+    const isWebkit = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    const isFirefox = /Firefox/.test(navigator.userAgent);
 
-    const hasBackdropBlur = CSS.supports("backdrop-filter", "blur(1px)")
-      || CSS.supports("-webkit-backdrop-filter", "blur(1px)");
-    const hasBackdropUrl = CSS.supports("backdrop-filter", `url(#${filterId})`)
-      || CSS.supports("-webkit-backdrop-filter", `url(#${filterId})`);
-
-    if (!hasBackdropBlur || !hasBackdropUrl) {
-      return false;
-    }
-
-    const ua = window.navigator.userAgent;
-    const isFirefox = /firefox/i.test(ua);
-    // Safari/iOS WebKit does not reliably support backdrop-filter URL composition.
-    // Force fallback path for visual stability.
-    const isWebKit = /applewebkit/i.test(ua) && !/chrom|android/i.test(ua);
-    if (isFirefox || isWebKit) {
+    if (isWebkit || isFirefox) {
       return false;
     }
 
     const div = document.createElement("div");
     div.style.backdropFilter = `url(#${filterId})`;
-    div.style.setProperty("-webkit-backdrop-filter", `url(#${filterId})`);
 
-    return div.style.backdropFilter !== "" || div.style.getPropertyValue("-webkit-backdrop-filter") !== "";
+    return div.style.backdropFilter !== "";
   };
 
   const containerStyle: React.CSSProperties = {

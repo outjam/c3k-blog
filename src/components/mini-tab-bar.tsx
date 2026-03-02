@@ -3,8 +3,8 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { animate, motion, useMotionValue, useTransform, type PanInfo } from "motion/react";
 
-import styles from "./mini-tab-bar.module.scss";
 import GlassSurface from "./GlassSurface";
+import styles from "./mini-tab-bar.module.scss";
 
 interface MiniTabBarItem {
   id: string;
@@ -35,7 +35,6 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
   const railRef = useRef<HTMLElement | null>(null);
   const [railInnerWidth, setRailInnerWidth] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [isCapsulePressed, setIsCapsulePressed] = useState(false);
   const capsuleX = useMotionValue(0);
   const accentOffsetX = useTransform(capsuleX, (value) => -value);
 
@@ -63,21 +62,6 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
 
     return () => observer.disconnect();
   }, []);
-
-  useEffect(() => {
-    if (!isCapsulePressed) {
-      return;
-    }
-
-    const release = () => setIsCapsulePressed(false);
-    window.addEventListener("pointerup", release);
-    window.addEventListener("pointercancel", release);
-
-    return () => {
-      window.removeEventListener("pointerup", release);
-      window.removeEventListener("pointercancel", release);
-    };
-  }, [isCapsulePressed]);
 
   useEffect(() => {
     if (!isReady) {
@@ -133,8 +117,6 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
           width="100%"
           height="100%"
           borderRadius={62}
-          backgroundOpacity={0.16}
-          saturation={1.16}
           displace={0.5}
           distortionScale={-180}
           redOffset={0}
@@ -142,10 +124,9 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
           blueOffset={20}
           brightness={52}
           opacity={0.9}
-          mixBlendMode="screen"
+          mixBlendMode="normal"
         />
       </div>
-      <div className={styles.tabBarTint} aria-hidden />
 
       <div className={styles.glowLeft} aria-hidden />
       <div className={styles.glowRight} aria-hidden />
@@ -162,43 +143,9 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
           whileTap={{ scale: 1.012 }}
           whileDrag={{ scaleX: 1.03, scaleY: 0.97 }}
           transition={{ type: "spring", stiffness: 520, damping: 36, mass: 0.55 }}
-          onPointerDown={() => setIsCapsulePressed(true)}
-          onTouchStart={() => setIsCapsulePressed(true)}
-          onTouchEnd={() => setIsCapsulePressed(false)}
-          onTouchCancel={() => setIsCapsulePressed(false)}
-          onDragStart={() => {
-            setIsDragging(true);
-            setIsCapsulePressed(true);
-          }}
-          onDragEnd={(event, info) => {
-            setIsCapsulePressed(false);
-            handleCapsuleDragEnd(event, info);
-          }}
+          onDragStart={() => setIsDragging(true)}
+          onDragEnd={handleCapsuleDragEnd}
         >
-          <div className={styles.capsuleGlass} aria-hidden />
-          <motion.div
-            className={styles.capsulePressGlass}
-            aria-hidden
-            initial={false}
-            animate={{ opacity: isCapsulePressed ? 1 : 0 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
-          >
-            <GlassSurface
-              width="100%"
-              height="100%"
-              borderRadius={54}
-              backgroundOpacity={0.2}
-              saturation={1.22}
-              displace={0.45}
-              distortionScale={-140}
-              redOffset={0}
-              greenOffset={8}
-              blueOffset={16}
-              brightness={54}
-              opacity={0.94}
-              mixBlendMode="screen"
-            />
-          </motion.div>
           <div className={styles.capsuleBg} />
           <div className={styles.capsuleShine} />
           <motion.div className={styles.accentTrack} style={{ x: accentOffsetX, width: railInnerWidth }}>

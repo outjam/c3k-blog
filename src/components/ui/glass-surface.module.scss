@@ -5,9 +5,6 @@
   justify-content: center;
   overflow: hidden;
   transition: opacity 0.26s ease-out;
-  transform: translateZ(0);
-  will-change: transform, opacity;
-  isolation: isolate;
 }
 
 .glassSurfaceFilter {
@@ -33,43 +30,29 @@
 }
 
 .glassSurfaceSvg {
-  background: rgba(255, 255, 255, var(--glass-frost, 0.06));
+  background: light-dark(hsl(0 0% 100% / var(--glass-frost, 0)), hsl(0 0% 0% / var(--glass-frost, 0)));
   backdrop-filter: var(--filter-id, url(#glass-filter)) saturate(var(--glass-saturation, 1));
-  -webkit-backdrop-filter: var(--filter-id, url(#glass-filter)) saturate(var(--glass-saturation, 1));
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
-    inset 0 8px 24px rgba(255, 255, 255, 0.08),
-    0 8px 32px rgba(17, 17, 26, 0.14);
-}
-
-:global(:root[data-app-theme="dark"]) .glassSurfaceSvg {
-  background: rgba(20, 20, 24, var(--glass-frost, 0.2));
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    inset 0 8px 24px rgba(255, 255, 255, 0.05),
-    0 8px 32px rgba(0, 0, 0, 0.24);
-}
-
-@media (prefers-color-scheme: dark) {
-  :global(:root:not([data-app-theme])) .glassSurfaceSvg {
-    background: rgba(20, 20, 24, var(--glass-frost, 0.2));
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-      inset 0 8px 24px rgba(255, 255, 255, 0.05),
-      0 8px 32px rgba(0, 0, 0, 0.24);
-  }
+    0 0 2px 1px light-dark(color-mix(in oklch, black, transparent 85%), color-mix(in oklch, white, transparent 65%)) inset,
+    0 0 10px 4px light-dark(color-mix(in oklch, black, transparent 90%), color-mix(in oklch, white, transparent 85%)) inset,
+    0 4px 16px rgba(17, 17, 26, 0.05),
+    0 8px 24px rgba(17, 17, 26, 0.05),
+    0 16px 56px rgba(17, 17, 26, 0.05),
+    0 4px 16px rgba(17, 17, 26, 0.05) inset,
+    0 8px 24px rgba(17, 17, 26, 0.05) inset,
+    0 16px 56px rgba(17, 17, 26, 0.05) inset;
 }
 
 .glassSurfaceFallback {
   position: relative;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(12px) saturate(1.8) brightness(1.1);
   -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(1.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow:
-    0 8px 32px 0 rgba(31, 38, 135, 0.16),
-    0 2px 16px 0 rgba(31, 38, 135, 0.08),
+    0 8px 32px 0 rgba(31, 38, 135, 0.2),
+    0 2px 16px 0 rgba(31, 38, 135, 0.1),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
     inset 0 -1px 0 0 rgba(255, 255, 255, 0.2);
 }
@@ -90,7 +73,6 @@
   mix-blend-mode: screen;
   filter: blur(12px);
   animation: glassShimmer 3.8s ease-in-out infinite;
-  transform: translateZ(0);
 }
 
 .glassSurfaceFallback::after {
@@ -104,7 +86,6 @@
   opacity: 0.65;
   transform: translateX(-24%);
   animation: glassSweep 2.6s ease-in-out infinite;
-  will-change: transform, opacity;
 }
 
 @media (prefers-color-scheme: dark) {

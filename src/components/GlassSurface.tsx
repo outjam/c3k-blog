@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useEffect, useRef, useState, useId } from 'react';
 import './GlassSurface.css';
 
@@ -66,7 +64,7 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
   className = '',
   style = {}
 }) => {
-  const id = useId().replace(/:/g, '-');
+  const id = useId();
   const filterId = `glass-filter-${id}`;
   const redGradId = `red-grad-${id}`;
   const blueGradId = `blue-grad-${id}`;
@@ -160,6 +158,20 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
   }, []);
 
   useEffect(() => {
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      setTimeout(updateDisplacementMap, 0);
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
     setTimeout(updateDisplacementMap, 0);
   }, [width, height]);
 
@@ -172,25 +184,17 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
       return false;
     }
 
-    const ua = window.navigator.userAgent;
-    const isFirefox = /firefox/i.test(ua);
-    const isWebKit = /applewebkit/i.test(ua) && !/chrom|crios|edg|opr|android/i.test(ua);
+    const isWebkit = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    const isFirefox = /Firefox/.test(navigator.userAgent);
 
-    if (isFirefox) {
-      return false;
-    }
-
-    // Safari/WebKit keeps URL filters unstable for this use-case, keep fallback there.
-    if (isWebKit) {
+    if (isWebkit || isFirefox) {
       return false;
     }
 
     const div = document.createElement('div');
-    div.style.backdropFilter = `url(#${filterId}) blur(1px)`;
-    div.style.setProperty('-webkit-backdrop-filter', `url(#${filterId}) blur(1px)`);
-    const webkitValue = div.style.getPropertyValue('-webkit-backdrop-filter');
+    div.style.backdropFilter = `url(#${filterId})`;
 
-    return div.style.backdropFilter.includes('url(') || webkitValue.includes('url(');
+    return div.style.backdropFilter !== '';
   };
 
   const containerStyle: React.CSSProperties = {
