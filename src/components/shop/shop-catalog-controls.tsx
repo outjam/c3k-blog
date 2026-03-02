@@ -16,6 +16,10 @@ interface ShopCatalogControlsProps {
   inStockOnly: boolean;
   onInStockChange: (value: boolean) => void;
   categoryOptions: Array<{ value: ShopCategory | "all"; label: string }>;
+  quickFilter: "all" | "new" | "hit" | "sale";
+  onQuickFilterChange: (value: "all" | "new" | "hit" | "sale") => void;
+  activeFiltersCount: number;
+  onResetFilters: () => void;
 }
 
 const SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
@@ -36,6 +40,10 @@ export function ShopCatalogControls({
   inStockOnly,
   onInStockChange,
   categoryOptions,
+  quickFilter,
+  onQuickFilterChange,
+  activeFiltersCount,
+  onResetFilters,
 }: ShopCatalogControlsProps) {
   return (
     <motion.section
@@ -85,6 +93,30 @@ export function ShopCatalogControls({
         <input type="checkbox" checked={inStockOnly} onChange={(event) => onInStockChange(event.target.checked)} />
         <span>Только в наличии</span>
       </label>
+
+      <div className={styles.quickFilters}>
+        {[
+          { value: "all" as const, label: "Все" },
+          { value: "new" as const, label: "Новинки" },
+          { value: "hit" as const, label: "Хиты" },
+          { value: "sale" as const, label: "Скидки" },
+        ].map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            className={`${styles.filterChip} ${quickFilter === item.value ? styles.filterChipActive : ""}`}
+            onClick={() => onQuickFilterChange(item.value)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {activeFiltersCount > 0 ? (
+        <button type="button" className={styles.resetButton} onClick={onResetFilters}>
+          Сбросить фильтры ({activeFiltersCount})
+        </button>
+      ) : null}
     </motion.section>
   );
 }

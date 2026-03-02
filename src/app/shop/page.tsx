@@ -10,7 +10,7 @@ import { ShopOrderSummary } from "@/components/shop/shop-order-summary";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
 import { SHOP_CATEGORY_LABELS, SHOP_PRODUCTS } from "@/data/shop-products";
 import { payWithTelegramStars } from "@/lib/shop-payment";
-import { findPromoRule, getCartSubtotalRub, getCartSubtotalStars, getDeliveryFee, getDiscountAmount } from "@/lib/shop-pricing";
+import { findPromoRule, getCartSubtotalStars, getDeliveryFeeStars, getDiscountAmountStars } from "@/lib/shop-pricing";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { getTelegramWebApp, hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { CartItem, CheckoutFormValues, ProductSort, ShopCategory } from "@/types/shop";
@@ -32,9 +32,9 @@ const sortProducts = (items: typeof SHOP_PRODUCTS, sort: ProductSort) => {
 
   switch (sort) {
     case "price_asc":
-      return list.sort((a, b) => a.priceRub - b.priceRub);
+      return list.sort((a, b) => a.priceStars - b.priceStars);
     case "price_desc":
-      return list.sort((a, b) => b.priceRub - a.priceRub);
+      return list.sort((a, b) => b.priceStars - a.priceStars);
     case "rating":
       return list.sort((a, b) => b.rating - a.rating);
     case "new":
@@ -49,6 +49,7 @@ export default function ShopPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ShopCategory | "all">("all");
   const [sort, setSort] = useState<ProductSort>("popular");
+  const [quickFilter, setQuickFilter] = useState<"all" | "new" | "hit" | "sale">("all");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState("");
@@ -114,27 +115,63 @@ export default function ShopPage() {
       }
 
       if (!normalizedQuery) {
+        if (quickFilter === "new") {
+          return product.isNew;
+        }
+
+        if (quickFilter === "hit") {
+          return product.isHit;
+        }
+
+        if (quickFilter === "sale") {
+          return Boolean(product.oldPriceStars);
+        }
+
         return true;
       }
 
       const textBlob = `${product.title} ${product.subtitle} ${product.attributes.sku} ${product.attributes.collection}`.toLowerCase();
-      return textBlob.includes(normalizedQuery);
+      if (!textBlob.includes(normalizedQuery)) {
+        return false;
+      }
+
+      if (quickFilter === "new") {
+        return product.isNew;
+      }
+
+      if (quickFilter === "hit") {
+        return product.isHit;
+      }
+
+      if (quickFilter === "sale") {
+        return Boolean(product.oldPriceStars);
+      }
+
+      return true;
     });
 
     return sortProducts(filtered, sort);
-  }, [category, inStockOnly, search, sort]);
+  }, [category, inStockOnly, quickFilter, search, sort]);
 
-  const subtotalRub = useMemo(() => getCartSubtotalRub(SHOP_PRODUCTS, cartItems), [cartItems]);
   const subtotalStars = useMemo(() => getCartSubtotalStars(SHOP_PRODUCTS, cartItems), [cartItems]);
-  const discountRub = useMemo(() => getDiscountAmount(subtotalRub, promoCode), [promoCode, subtotalRub]);
-  const deliveryFee = useMemo(() => getDeliveryFee(subtotalRub - discountRub), [discountRub, subtotalRub]);
-  const totalRub = Math.max(0, subtotalRub - discountRub + deliveryFee);
-  const totalStars = Math.max(0, subtotalStars - Math.round(discountRub / 55));
+  const discountStars = useMemo(() => getDiscountAmountStars(subtotalStars, promoCode), [promoCode, subtotalStars]);
+  const deliveryFeeStars = useMemo(() => getDeliveryFeeStars(subtotalStars - discountStars), [discountStars, subtotalStars]);
+  const totalStars = Math.max(0, subtotalStars - discountStars + deliveryFeeStars);
+  const freeDeliveryThresholdStars = 12;
+  const freeDeliveryLeftStars = Math.max(freeDeliveryThresholdStars - (subtotalStars - discountStars), 0);
+  const freeDeliveryProgress = Math.min(((subtotalStars - discountStars) / freeDeliveryThresholdStars) * 100, 100);
 
   const promoRule = findPromoRule(promoCode);
   const promoLabel = promoRule ? `${promoRule.label} активирована (${promoRule.code})` : "";
 
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const activeFiltersCount = [
+    Boolean(search.trim()),
+    category !== "all",
+    sort !== "popular",
+    inStockOnly,
+    quickFilter !== "all",
+  ].filter(Boolean).length;
 
   const addToCart = (productId: string) => {
     setCartItems((prev) => {
@@ -183,6 +220,15 @@ export default function ShopPage() {
     }
 
     hapticNotification("warning");
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setCategory("all");
+    setSort("popular");
+    setInStockOnly(false);
+    setQuickFilter("all");
+    hapticSelection();
   };
 
   const canPay = Boolean(cartItems.length > 0 && checkout.firstName && checkout.lastName && checkout.phone && checkout.address);
@@ -245,14 +291,41 @@ export default function ShopPage() {
           inStockOnly={inStockOnly}
           onInStockChange={setInStockOnly}
           categoryOptions={categoryOptions}
+          quickFilter={quickFilter}
+          onQuickFilterChange={setQuickFilter}
+          activeFiltersCount={activeFiltersCount}
+          onResetFilters={resetFilters}
         />
+
+        <section className={styles.resultsBar}>
+          <p>
+            Найдено товаров: <strong>{filteredProducts.length}</strong>
+          </p>
+          <p>
+            В корзине: <strong>{cartCount}</strong> · {subtotalStars} ⭐
+          </p>
+        </section>
 
         <LayoutGroup>
           <motion.section layout className={styles.grid}>
             <AnimatePresence>
-              {filteredProducts.map((product) => (
-                <ShopProductCard key={product.id} product={product} onAdd={addToCart} />
-              ))}
+              {filteredProducts.length > 0 ? (
+                filteredProducts.map((product) => <ShopProductCard key={product.id} product={product} onAdd={addToCart} />)
+              ) : (
+                <motion.article
+                  key="empty"
+                  className={styles.emptyState}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                >
+                  <h3>Ничего не найдено</h3>
+                  <p>Попробуйте сбросить фильтры или изменить поисковый запрос.</p>
+                  <button type="button" onClick={resetFilters}>
+                    Сбросить фильтры
+                  </button>
+                </motion.article>
+              )}
             </AnimatePresence>
           </motion.section>
         </LayoutGroup>
@@ -267,7 +340,7 @@ export default function ShopPage() {
         }}
         whileTap={{ scale: 0.97 }}
       >
-        Корзина {cartCount > 0 ? `(${cartCount})` : ""}
+        Корзина {cartCount > 0 ? `(${cartCount})` : ""} · {subtotalStars} ⭐
       </motion.button>
 
       <ShopCartSheet
@@ -280,15 +353,16 @@ export default function ShopPage() {
         onRemove={removeFromCart}
       >
         <ShopOrderSummary
-          subtotal={subtotalRub}
-          discount={discountRub}
-          deliveryFee={deliveryFee}
-          totalRub={totalRub}
+          subtotal={subtotalStars}
+          discount={discountStars}
+          deliveryFee={deliveryFeeStars}
           totalStars={totalStars}
           promoCode={promoCode}
           promoLabel={promoLabel}
           onPromoChange={setPromoCode}
           onApplyPromo={applyPromo}
+          freeDeliveryLeft={freeDeliveryLeftStars}
+          freeDeliveryProgress={freeDeliveryProgress}
         />
 
         <ShopCheckoutForm values={checkout} onChange={updateCheckout} />

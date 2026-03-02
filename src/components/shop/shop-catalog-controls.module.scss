@@ -69,6 +69,42 @@
   accent-color: var(--tg-accent);
 }
 
+.quickFilters {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.filterChip {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  border-radius: 999px;
+  min-height: 1.9rem;
+  padding: 0 0.68rem;
+  background: color-mix(in srgb, var(--tg-bg) 62%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.filterChipActive {
+  border-color: color-mix(in srgb, var(--tg-accent) 75%, transparent);
+  background: color-mix(in srgb, var(--tg-accent) 15%, var(--tg-section-bg));
+  color: var(--tg-accent);
+}
+
+.resetButton {
+  justify-self: start;
+  border: 0;
+  border-radius: 0.68rem;
+  min-height: 2rem;
+  padding: 0 0.72rem;
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .row {
     grid-template-columns: 1fr;

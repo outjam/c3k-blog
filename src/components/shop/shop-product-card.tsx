@@ -59,9 +59,8 @@ export function ShopProductCard({ product, onAdd }: ShopProductCardProps) {
 
         <div className={styles.footer}>
           <div className={styles.prices}>
-            <p className={styles.priceRub}>{product.priceRub.toLocaleString("ru-RU")} ₽</p>
             <p className={styles.priceStars}>{product.priceStars} ⭐</p>
-            {product.oldPriceRub ? <p className={styles.oldPrice}>{product.oldPriceRub.toLocaleString("ru-RU")} ₽</p> : null}
+            {product.oldPriceStars ? <p className={styles.oldPrice}>{product.oldPriceStars} ⭐</p> : null}
           </div>
 
           <button type="button" className={styles.addButton} onClick={() => onAdd(product.id)}>

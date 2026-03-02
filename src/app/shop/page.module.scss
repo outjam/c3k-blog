@@ -49,6 +49,53 @@
   gap: 0.75rem;
 }
 
+.resultsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border-radius: 0.86rem;
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  color: var(--tg-subtitle-text);
+  font-size: 0.82rem;
+}
+
+.resultsBar strong {
+  color: var(--tg-text);
+}
+
+.emptyState {
+  display: grid;
+  justify-items: start;
+  gap: 0.45rem;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: var(--tg-section-bg);
+  border: 1px dashed color-mix(in srgb, var(--tg-section-separator) 45%, transparent);
+}
+
+.emptyState h3 {
+  color: var(--tg-text);
+  font-size: 1rem;
+}
+
+.emptyState p {
+  color: var(--tg-subtitle-text);
+  font-size: 0.88rem;
+}
+
+.emptyState button {
+  border: 0;
+  border-radius: 0.7rem;
+  min-height: 2.15rem;
+  padding: 0 0.75rem;
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-weight: 700;
+}
+
 .cartFab {
   position: fixed;
   right: calc(1rem + var(--safe-area-right));
@@ -61,7 +108,7 @@
   background: var(--tg-btn);
   color: var(--tg-btn-text);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
 }
 
 .payButton {
@@ -76,4 +123,11 @@
 
 .payButton:disabled {
   opacity: 0.58;
+}
+
+@media (max-width: 700px) {
+  .resultsBar {
+    display: grid;
+    gap: 0.35rem;
+  }
 }

@@ -42,6 +42,31 @@
   font-size: 0.78rem;
 }
 
+.shippingProgress {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.shippingTrack {
+  height: 0.36rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-separator) 45%, transparent);
+  overflow: hidden;
+}
+
+.shippingTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--tg-accent) 86%, #3db7ff);
+  transition: width 0.3s ease;
+}
+
+.shippingProgress p {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
 .totals {
   display: grid;
   gap: 0.35rem;

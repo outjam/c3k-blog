@@ -21,14 +21,6 @@ const toMap = (products: ShopProduct[]): Map<string, ShopProduct> => {
   return new Map(products.map((product) => [product.id, product]));
 };
 
-export const getCartSubtotalRub = (products: ShopProduct[], items: CartItem[]): number => {
-  const map = toMap(products);
-  return items.reduce((acc, item) => {
-    const product = map.get(item.productId);
-    return product ? acc + product.priceRub * item.quantity : acc;
-  }, 0);
-};
-
 export const getCartSubtotalStars = (products: ShopProduct[], items: CartItem[]): number => {
   const map = toMap(products);
   return items.reduce((acc, item) => {
@@ -37,16 +29,16 @@ export const getCartSubtotalStars = (products: ShopProduct[], items: CartItem[])
   }, 0);
 };
 
-export const getDiscountAmount = (subtotal: number, promoCode: string): number => {
+export const getDiscountAmountStars = (subtotalStars: number, promoCode: string): number => {
   const promo = findPromoRule(promoCode);
 
   if (!promo) {
     return 0;
   }
 
-  return Math.round((subtotal * promo.discountPercent) / 100);
+  return Math.round((subtotalStars * promo.discountPercent) / 100);
 };
 
-export const getDeliveryFee = (subtotalAfterDiscount: number): number => {
-  return subtotalAfterDiscount >= 12000 ? 0 : 390;
+export const getDeliveryFeeStars = (subtotalAfterDiscountStars: number): number => {
+  return subtotalAfterDiscountStars >= 12 ? 0 : 1;
 };

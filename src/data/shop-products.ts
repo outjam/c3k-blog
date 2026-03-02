@@ -1,11 +1,11 @@
 import type { ShopCategory, ShopProduct } from "@/types/shop";
 
-const CATEGORY_META: Array<{ key: ShopCategory; label: string; basePrice: number; emoji: string; tone: [string, string] }> = [
-  { key: "figurine", label: "Фигурки", basePrice: 2490, emoji: "🗿", tone: ["#f8c38f", "#d99a68"] },
-  { key: "vase", label: "Вазы", basePrice: 3190, emoji: "🏺", tone: ["#e8b58f", "#be8156"] },
-  { key: "mug", label: "Кружки", basePrice: 1790, emoji: "☕", tone: ["#f5d2b2", "#c58b61"] },
-  { key: "lamp", label: "Светильники", basePrice: 4290, emoji: "🕯️", tone: ["#e6c8a4", "#b5794d"] },
-  { key: "plate", label: "Тарелки", basePrice: 2190, emoji: "🍽️", tone: ["#eecaa8", "#c3875a"] },
+const CATEGORY_META: Array<{ key: ShopCategory; label: string; emoji: string; tone: [string, string] }> = [
+  { key: "figurine", label: "Фигурки", emoji: "🗿", tone: ["#f8c38f", "#d99a68"] },
+  { key: "vase", label: "Вазы", emoji: "🏺", tone: ["#e8b58f", "#be8156"] },
+  { key: "mug", label: "Кружки", emoji: "☕", tone: ["#f5d2b2", "#c58b61"] },
+  { key: "lamp", label: "Светильники", emoji: "🕯️", tone: ["#e6c8a4", "#b5794d"] },
+  { key: "plate", label: "Тарелки", emoji: "🍽️", tone: ["#eecaa8", "#c3875a"] },
 ];
 
 const COLLECTIONS = ["Terra Nova", "Claycraft", "Nordic Dust", "Studio 26", "Warm Earth"];
@@ -34,19 +34,14 @@ const createProductArt = (emoji: string, title: string, toneA: string, toneB: st
 </svg>`);
 };
 
-const normalizePrice = (value: number): number => {
-  return Math.round(value / 10) * 10;
-};
-
 const generateProduct = (index: number): ShopProduct => {
   const categoryMeta = CATEGORY_META[index % CATEGORY_META.length];
   const sequence = index + 1;
   const collection = COLLECTIONS[index % COLLECTIONS.length] ?? COLLECTIONS[0];
   const technique = TECHNIQUES[index % TECHNIQUES.length] ?? TECHNIQUES[0];
   const color = COLORS[index % COLORS.length] ?? COLORS[0];
-  const spread = ((index * 73) % 9) * 120;
-  const priceRub = normalizePrice(categoryMeta.basePrice + spread + (index % 3) * 90);
-  const oldPriceRub = index % 4 === 0 ? normalizePrice(priceRub * 1.18) : undefined;
+  const priceStars = index % 2 === 0 ? 1 : 2;
+  const oldPriceStars = index % 4 === 0 ? 2 : undefined;
   const stock = 3 + ((index * 5) % 18);
   const rating = Number((4.2 + ((index * 7) % 9) / 10).toFixed(1));
   const reviewsCount = 12 + ((index * 31) % 280);
@@ -63,9 +58,8 @@ const generateProduct = (index: number): ShopProduct => {
     description,
     category: categoryMeta.key,
     image: createProductArt(categoryMeta.emoji, title, categoryMeta.tone[0], categoryMeta.tone[1]),
-    priceRub,
-    priceStars: Math.max(30, Math.round(priceRub / 55)),
-    oldPriceRub,
+    priceStars,
+    oldPriceStars,
     rating,
     reviewsCount,
     isNew: index < 10,

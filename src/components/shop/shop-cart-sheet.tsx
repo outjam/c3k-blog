@@ -69,7 +69,7 @@ export function ShopCartSheet({
                       <img src={product.image} alt={product.title} loading="lazy" />
                       <div className={styles.itemBody}>
                         <h4>{product.title}</h4>
-                        <p>{product.priceRub.toLocaleString("ru-RU")} ₽</p>
+                        <p>{product.priceStars} ⭐</p>
                         <div className={styles.qtyRow}>
                           <button type="button" onClick={() => onDecrease(product.id)}>
                             −

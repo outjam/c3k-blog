@@ -21,9 +21,8 @@ export interface ShopProduct {
   description: string;
   category: ShopCategory;
   image: string;
-  priceRub: number;
   priceStars: number;
-  oldPriceRub?: number;
+  oldPriceStars?: number;
   rating: number;
   reviewsCount: number;
   isNew: boolean;
