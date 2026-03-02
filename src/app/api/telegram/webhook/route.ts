@@ -21,6 +21,20 @@ interface TelegramUpdate {
   };
 }
 
+const PAYMENT_SUCCESS_EMOJI_ID = "5895669571058142797";
+const XTR_EMOJI_ID = "6028338546736107668";
+const PRE_MESSAGE_EMOJI_ID = "5102814755630875338";
+const OPEN_BUTTON_EMOJI_ID = "5890925363067886150";
+
+const escapeHtml = (value: string): string => {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+};
+
 const getMiniAppBaseUrl = (request: Request): string | null => {
   const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
 
@@ -99,18 +113,30 @@ export async function POST(request: Request) {
     const orderUrl = baseUrl
       ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payment.invoice_payload)}`
       : undefined;
+    const safePayload = escapeHtml(payment.invoice_payload);
 
     await telegramApi(botToken, "sendMessage", {
       chat_id: update.message.chat.id,
-      text: `Оплата получена ✅\nЗаказ: ${payment.invoice_payload}\nСумма: ${payment.total_amount} ${payment.currency}`,
+      parse_mode: "HTML",
+      text: `<tg-emoji emoji-id="${PRE_MESSAGE_EMOJI_ID}">✨</tg-emoji>`,
+    });
+
+    await telegramApi(botToken, "sendMessage", {
+      chat_id: update.message.chat.id,
+      parse_mode: "HTML",
+      text:
+        `Оплата получена <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji>\n` +
+        `Заказ: ${safePayload}\n` +
+        `Сумма: ${payment.total_amount} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`,
       reply_markup: orderUrl
         ? {
             inline_keyboard: [
               [
                 {
-                  text: "Открыть заказ",
+                  text: "Открыть",
                   url: orderUrl,
-                  style: "success",
+                  icon_custom_emoji_id: OPEN_BUTTON_EMOJI_ID,
+                  style: "primary",
                 },
               ],
             ],
