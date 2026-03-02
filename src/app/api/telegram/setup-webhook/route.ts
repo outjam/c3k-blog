@@ -16,11 +16,25 @@ interface TelegramWebhookInfo {
   allowed_updates?: string[];
 }
 
-const getPublicBaseUrl = (): string | null => {
-  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
+const getPublicBaseUrl = (request: Request): string | null => {
+  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL;
 
   if (explicit) {
     return explicit.replace(/\/+$/, "");
+  }
+
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+
+  if (host) {
+    return `${proto}://${host}`.replace(/\/+$/, "");
+  }
+
+  const nextPublicUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  if (nextPublicUrl) {
+    return nextPublicUrl.replace(/\/+$/, "");
   }
 
   const vercelUrl = process.env.VERCEL_URL;
@@ -99,7 +113,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Missing TELEGRAM_BOT_TOKEN" }, { status: 500 });
   }
 
-  const baseUrl = getPublicBaseUrl();
+  const baseUrl = getPublicBaseUrl(request);
 
   if (!baseUrl) {
     return NextResponse.json(

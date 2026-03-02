@@ -21,11 +21,25 @@ const sanitize = (value: string, fallback: string): string => {
   return trimmed.length > 0 ? trimmed.slice(0, 255) : fallback;
 };
 
-const getPublicBaseUrl = (): string | null => {
-  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
+const getPublicBaseUrl = (request: Request): string | null => {
+  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL;
 
   if (explicit) {
     return explicit.replace(/\/+$/, "");
+  }
+
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+
+  if (host) {
+    return `${proto}://${host}`.replace(/\/+$/, "");
+  }
+
+  const nextPublicUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  if (nextPublicUrl) {
+    return nextPublicUrl.replace(/\/+$/, "");
   }
 
   const vercelUrl = process.env.VERCEL_URL;
@@ -81,7 +95,7 @@ export async function POST(request: Request) {
   const title = sanitize(String(payload.title ?? "Заказ"), "Заказ");
   const description = sanitize(String(payload.description ?? "Оплата заказа"), "Оплата заказа");
 
-  const baseUrl = getPublicBaseUrl();
+  const baseUrl = getPublicBaseUrl(request);
   const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
 
   if (!baseUrl) {
