@@ -4,7 +4,7 @@
   z-index: 90;
   display: grid;
   align-items: end;
-  padding-top: var(--safe-area-top);
+  padding-top: calc(var(--safe-area-top) + 64px);
   overscroll-behavior: contain;
 }
 
@@ -12,9 +12,9 @@
   position: absolute;
   inset: 0;
   border: 0;
-  background: color-mix(in srgb, var(--tg-bg) 72%, transparent);
-  backdrop-filter: blur(14px) saturate(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+  background:
+    radial-gradient(120% 80% at 50% 100%, color-mix(in srgb, var(--tg-accent) 10%, transparent) 0%, transparent 70%),
+    color-mix(in srgb, var(--tg-bg) 84%, transparent);
 }
 
 .sheet {
@@ -22,9 +22,11 @@
   z-index: 1;
   width: min(100%, 880px);
   margin: 0 auto;
-  max-height: calc(100dvh - var(--safe-area-top));
+  max-height: calc(100dvh - var(--safe-area-top) - 64px);
   border-radius: 28px 28px 0 0;
-  background: var(--tg-bg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tg-section-bg) 95%, transparent) 0%, var(--tg-bg) 100%);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -42,7 +44,7 @@
   justify-items: center;
   padding-top: 10px;
   padding-bottom: 6px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--tg-bg) 96%, transparent) 0%, transparent 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tg-bg) 98%, transparent) 0%, transparent 100%);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -64,18 +66,29 @@
   position: absolute;
   top: 8px;
   right: 12px;
-  border: 0;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-bg) 92%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 84%, transparent);
   color: var(--tg-text);
 }
 
 .hero {
   display: grid;
   gap: 12px;
-  padding: 8px 14px 16px;
+  padding: 10px 16px 18px;
+}
+
+.heroShared {
+  border-radius: 24px;
+  overflow: hidden;
+  will-change: transform, border-radius;
+}
+
+.previewLarge {
+  display: grid;
+  gap: 12px;
 }
 
 .imageWrap {
@@ -88,24 +101,6 @@
   width: 100%;
   height: auto;
   display: block;
-}
-
-.heroTopBlur {
-  position: absolute;
-  top: -24%;
-  left: -10%;
-  width: 120%;
-  height: 44%;
-  pointer-events: none;
-}
-
-.heroBottomBlur {
-  position: absolute;
-  bottom: -20%;
-  left: -8%;
-  width: 116%;
-  height: 58%;
-  pointer-events: none;
 }
 
 .heroMeta {
@@ -136,6 +131,107 @@
   line-height: 1.42;
 }
 
+.largeBottom {
+  display: grid;
+  gap: 6px;
+}
+
+.smallMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--tg-hint);
+  font-size: 14px;
+}
+
+.previewSmall {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.previewSmallReverse .smallImageWrap {
+  order: 2;
+}
+
+.previewSmallReverse .smallContent {
+  order: 1;
+}
+
+.smallImageWrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  min-height: 110px;
+}
+
+.smallImage {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.smallContent {
+  display: grid;
+  gap: 8px;
+}
+
+.smallContent h2 {
+  color: var(--tg-text);
+  font-size: 20px;
+  line-height: 1.18;
+}
+
+.smallContent p {
+  color: var(--muted-text);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.ribbon {
+  position: absolute;
+  top: 0;
+  right: 14px;
+  z-index: 12;
+  width: 28px;
+  height: 42px;
+  display: grid;
+  place-items: start center;
+  padding-top: 4px;
+  background: #ff4949;
+  color: #1a0f0f;
+  font-size: 15px;
+  font-weight: 700;
+  clip-path: polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%);
+}
+
 .content {
-  padding: 0 14px 18px;
+  padding: 0 16px 20px;
+}
+
+.contentInner {
+  will-change: opacity, transform;
+}
+
+@media (max-width: 560px) {
+  .smallContent h2 {
+    font-size: 14px;
+  }
+
+  .smallContent p {
+    font-size: 12px;
+  }
+
+  .smallMeta {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .ribbon {
+    right: 10px;
+    width: 22px;
+    height: 34px;
+    font-size: 11px;
+  }
 }

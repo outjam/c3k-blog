@@ -3,14 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
-import BlurEffect from "react-progressive-blur";
 import type { MouseEventHandler } from "react";
 
 import { hapticImpact, hapticSelection } from "@/lib/telegram";
 import type { BlogPost } from "@/data/posts";
 
 import styles from "./post-card.module.scss";
-import GlassSurface from "./GlassSurface";
 
 interface PostCardProps {
   post: BlogPost;
@@ -35,13 +33,19 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
   return (
     <Link
       href={`/post/${post.slug}`}
+      data-post-card={post.slug}
       className={`${styles.card} ${layout === "large" ? styles.cardLarge : styles.cardSmall} ${
         reverse ? styles.cardReverse : ""
       } ${isHidden ? styles.cardHidden : ""}`}
       onTouchStart={() => hapticSelection()}
       onClick={handleClick}
     >
-      <motion.article className={styles.shell} layoutId={shellId} transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.82 }}>
+      <motion.article
+        className={styles.shell}
+        layoutId={shellId}
+        layout
+        transition={{ type: "spring", stiffness: 280, damping: 34, mass: 0.86 }}
+      >
         {layout === "large" ? (
           <>
             <div className={styles.largeImageWrap}>
@@ -53,8 +57,6 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
                 height={post.cover.height}
                 priority={false}
               />
-              <BlurEffect className={styles.largeTopBlur} intensity={24} position="top" />
-              <BlurEffect className={styles.largeBottomBlur} intensity={56} position="bottom" />
               <div className={styles.largeTopMeta}>
                 <span>{post.tags[0] ?? "Разработка"}</span>
                 <span>{post.readTime}</span>

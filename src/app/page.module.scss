@@ -34,6 +34,8 @@
 }
 
 .feed {
+  position: relative;
+  isolation: isolate;
   display: grid;
   gap: 1rem;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LayoutGroup } from "motion/react";
+import { LayoutGroup, motion } from "motion/react";
 
 import { PostCard } from "@/components/post-card";
 import { PostPreviewModal } from "@/components/post-preview-modal";
@@ -12,13 +12,19 @@ import styles from "./page.module.scss";
 
 const PAGE_SIZE = 10;
 
+interface ActivePostPreview {
+  slug: string;
+  layout: "large" | "small";
+  reverse: boolean;
+}
+
 export default function Home() {
-  const [activePostSlug, setActivePostSlug] = useState<string | null>(null);
+  const [activePreview, setActivePreview] = useState<ActivePostPreview | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const latestPost = posts[0];
-  const activePost = posts.find((post) => post.slug === activePostSlug) ?? null;
+  const activePost = posts.find((post) => post.slug === activePreview?.slug) ?? null;
   const visiblePosts = useMemo(() => posts.slice(0, visibleCount), [visibleCount]);
   const hasMore = visibleCount < posts.length;
 
@@ -49,20 +55,24 @@ export default function Home() {
 
   const openLatestPost = useCallback(() => {
     hapticImpact("medium");
-    setActivePostSlug(latestPost.slug);
+    setActivePreview({
+      slug: latestPost.slug,
+      layout: "large",
+      reverse: false,
+    });
   }, [latestPost.slug]);
 
-  const openPostPreview = useCallback((slug: string) => {
-    setActivePostSlug(slug);
+  const openPostPreview = useCallback((slug: string, layout: "large" | "small", reverse: boolean) => {
+    setActivePreview({ slug, layout, reverse });
   }, []);
 
   const closePostPreview = useCallback(() => {
-    setActivePostSlug(null);
+    setActivePreview(null);
   }, []);
 
   return (
     <div className={styles.page}>
-      <main className={styles.container}>
+      <motion.main className={styles.container} layoutScroll>
         <section className={styles.hero}>
           <h1>C3K Blog</h1>
           <p className={styles.subtitle}>
@@ -86,14 +96,20 @@ export default function Home() {
                   post={post}
                   layout={isLarge ? "large" : "small"}
                   reverse={reverse}
-                  isHidden={activePostSlug === post.slug}
-                  onOpen={() => openPostPreview(post.slug)}
+                  isHidden={activePreview?.slug === post.slug}
+                  onOpen={() => openPostPreview(post.slug, isLarge ? "large" : "small", reverse)}
                 />
               );
             })}
           </section>
 
-          <PostPreviewModal post={activePost} open={Boolean(activePost)} onClose={closePostPreview} />
+          <PostPreviewModal
+            post={activePost}
+            sourceLayout={activePreview?.layout ?? "large"}
+            sourceReverse={activePreview?.reverse ?? false}
+            open={Boolean(activePost)}
+            onClose={closePostPreview}
+          />
         </LayoutGroup>
 
         {hasMore ? (
@@ -101,7 +117,7 @@ export default function Home() {
             Загрузка следующих статей...
           </div>
         ) : null}
-      </main>
+      </motion.main>
 
     </div>
   );
