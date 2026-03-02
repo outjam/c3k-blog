@@ -8,6 +8,7 @@ interface ShopOrderSummaryProps {
   discount: number;
   deliveryFee: number;
   totalStars: number;
+  invoiceStars: number;
   promoCode: string;
   promoLabel: string;
   freeDeliveryLeft: number;
@@ -21,6 +22,7 @@ export function ShopOrderSummary({
   discount,
   deliveryFee,
   totalStars,
+  invoiceStars,
   promoCode,
   promoLabel,
   freeDeliveryLeft,
@@ -70,6 +72,10 @@ export function ShopOrderSummary({
         <div className={styles.totalRow}>
           <dt>Итого</dt>
           <dd>{formatStarsFromCents(totalStars)} ⭐</dd>
+        </div>
+        <div className={styles.invoiceRow}>
+          <dt>К списанию в Telegram</dt>
+          <dd>{invoiceStars} ⭐</dd>
         </div>
       </dl>
     </section>

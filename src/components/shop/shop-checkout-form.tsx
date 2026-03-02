@@ -7,9 +7,18 @@ import styles from "./shop-checkout-form.module.scss";
 interface ShopCheckoutFormProps {
   values: CheckoutFormValues;
   onChange: (field: keyof CheckoutFormValues, value: string) => void;
+  onRequestPhone?: () => void;
+  isRequestingPhone?: boolean;
+  canRequestPhone?: boolean;
 }
 
-export function ShopCheckoutForm({ values, onChange }: ShopCheckoutFormProps) {
+export function ShopCheckoutForm({
+  values,
+  onChange,
+  onRequestPhone,
+  isRequestingPhone = false,
+  canRequestPhone = false,
+}: ShopCheckoutFormProps) {
   return (
     <section className={styles.form}>
       <h3>Детали заказа</h3>
@@ -29,6 +38,13 @@ export function ShopCheckoutForm({ values, onChange }: ShopCheckoutFormProps) {
         <label>
           Телефон
           <input value={values.phone} onChange={(event) => onChange("phone", event.target.value)} placeholder="+7 (___) ___-__-__" />
+          {onRequestPhone ? (
+            <span className={styles.phoneActions}>
+              <button type="button" onClick={onRequestPhone} disabled={!canRequestPhone || isRequestingPhone}>
+                {isRequestingPhone ? "Запрашиваем..." : "Запросить из Telegram"}
+              </button>
+            </span>
+          ) : null}
         </label>
         <label>
           Эл. почта

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 
@@ -60,8 +60,19 @@ export default function ShopPage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [checkout, setCheckout] = useState<CheckoutFormValues>(defaultCheckout);
   const [isPaying, setIsPaying] = useState(false);
+  const [isRequestingPhone, setIsRequestingPhone] = useState(false);
+  const [canRequestPhone, setCanRequestPhone] = useState(false);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [paymentError, setPaymentError] = useState("");
+  const productsMap = useMemo(() => new Map(SHOP_PRODUCTS.map((item) => [item.id, item])), []);
+
+  const getMaxQuantity = useCallback(
+    (productId: string): number => {
+      const stock = productsMap.get(productId)?.attributes.stock ?? 0;
+      return Math.max(0, Math.min(stock, 99));
+    },
+    [productsMap],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -71,7 +82,20 @@ export default function ShopPage() {
         return;
       }
 
-      setCartItems(state.items);
+      const normalizedItems = state.items
+        .map((item) => {
+          const maxQuantity = getMaxQuantity(item.productId);
+
+          if (maxQuantity < 1) {
+            return null;
+          }
+
+          const quantity = Math.max(1, Math.min(Math.round(item.quantity), maxQuantity));
+          return { productId: item.productId, quantity };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+      setCartItems(normalizedItems);
       setPromoCode(state.promoCode);
       setIsCartHydrated(true);
     });
@@ -79,10 +103,11 @@ export default function ShopPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [getMaxQuantity]);
 
   useEffect(() => {
     const user = getTelegramWebApp()?.initDataUnsafe?.user;
+    setCanRequestPhone(Boolean(getTelegramWebApp()?.requestContact));
 
     if (!user) {
       return;
@@ -92,6 +117,7 @@ export default function ShopPage() {
       ...prev,
       firstName: prev.firstName || user.first_name || "",
       lastName: prev.lastName || user.last_name || "",
+      phone: prev.phone || user.phone_number || "",
       email: prev.email || (user.username ? `${user.username}@telegram.local` : ""),
       comment: prev.comment || (user.username ? `Telegram: @${user.username}` : ""),
     }));
@@ -105,7 +131,9 @@ export default function ShopPage() {
     void writeShopCart({ items: cartItems, promoCode });
   }, [cartItems, isCartHydrated, promoCode]);
 
-  const productsMap = useMemo(() => new Map(SHOP_PRODUCTS.map((item) => [item.id, item])), []);
+  const productQuantityMap = useMemo(() => {
+    return new Map(cartItems.map((item) => [item.productId, item.quantity]));
+  }, [cartItems]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = search.trim().toLowerCase();
@@ -165,6 +193,7 @@ export default function ShopPage() {
     [discountStarsCents, subtotalStarsCents],
   );
   const totalStarsCents = Math.max(0, subtotalStarsCents - discountStarsCents + deliveryFeeStarsCents);
+  const invoiceStars = starsCentsToInvoiceStars(totalStarsCents);
   const freeDeliveryThresholdStarsCents = 1200;
   const freeDeliveryLeftStarsCents = Math.max(freeDeliveryThresholdStarsCents - (subtotalStarsCents - discountStarsCents), 0);
   const freeDeliveryProgress = Math.min(((subtotalStarsCents - discountStarsCents) / freeDeliveryThresholdStarsCents) * 100, 100);
@@ -182,6 +211,19 @@ export default function ShopPage() {
   ].filter(Boolean).length;
 
   const addToCart = (productId: string) => {
+    const maxQuantity = getMaxQuantity(productId);
+    const currentQuantity = productQuantityMap.get(productId) ?? 0;
+
+    if (maxQuantity < 1) {
+      hapticNotification("warning");
+      return;
+    }
+
+    if (currentQuantity >= maxQuantity) {
+      hapticNotification("warning");
+      return;
+    }
+
     setCartItems((prev) => {
       const existing = prev.find((item) => item.productId === productId);
 
@@ -189,18 +231,38 @@ export default function ShopPage() {
         return [...prev, { productId, quantity: 1 }];
       }
 
-      return prev.map((item) => (item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, 99) } : item));
+      return prev.map((item) =>
+        item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) } : item,
+      );
     });
 
     hapticImpact("light");
   };
 
   const increaseQty = (productId: string) => {
-    setCartItems((prev) => prev.map((item) => (item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, 99) } : item)));
+    const maxQuantity = getMaxQuantity(productId);
+    const currentQuantity = productQuantityMap.get(productId) ?? 0;
+
+    if (maxQuantity < 1 || currentQuantity >= maxQuantity) {
+      hapticNotification("warning");
+      return;
+    }
+
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) } : item,
+      ),
+    );
     hapticSelection();
   };
 
   const decreaseQty = (productId: string) => {
+    const currentQuantity = productQuantityMap.get(productId) ?? 0;
+
+    if (currentQuantity <= 0) {
+      return;
+    }
+
     setCartItems((prev) =>
       prev
         .map((item) => (item.productId === productId ? { ...item, quantity: Math.max(item.quantity - 1, 0) } : item))
@@ -217,6 +279,75 @@ export default function ShopPage() {
   const updateCheckout = (field: keyof CheckoutFormValues, value: string) => {
     setCheckout((prev) => ({ ...prev, [field]: value }));
   };
+
+  const requestPhoneFromTelegram = useCallback(() => {
+    const webApp = getTelegramWebApp();
+
+    if (!webApp?.requestContact) {
+      hapticNotification("warning");
+      setPaymentError("Текущая версия Telegram не поддерживает запрос контакта.");
+      return;
+    }
+
+    setPaymentError("");
+    setIsRequestingPhone(true);
+
+    const applyPhone = () => {
+      const freshWebApp = getTelegramWebApp();
+      const phone = freshWebApp?.initDataUnsafe?.user?.phone_number;
+
+      if (!phone) {
+        return false;
+      }
+
+      setCheckout((prev) => ({ ...prev, phone }));
+      hapticNotification("success");
+      return true;
+    };
+
+    const finish = (resolved: boolean) => {
+      setIsRequestingPhone(false);
+
+      if (!resolved) {
+        hapticNotification("warning");
+        setPaymentError("Telegram не передал номер автоматически. Введите номер вручную.");
+      }
+    };
+
+    try {
+      webApp.requestContact?.((result) => {
+        const accepted = result === true || result === "sent" || result === "allowed";
+
+        if (!accepted) {
+          finish(false);
+          return;
+        }
+
+        if (applyPhone()) {
+          finish(true);
+          return;
+        }
+
+        let attempts = 0;
+        const timer = window.setInterval(() => {
+          attempts += 1;
+
+          if (applyPhone()) {
+            window.clearInterval(timer);
+            finish(true);
+            return;
+          }
+
+          if (attempts >= 8) {
+            window.clearInterval(timer);
+            finish(false);
+          }
+        }, 350);
+      });
+    } catch {
+      finish(false);
+    }
+  }, []);
 
   const applyPromo = () => {
     const normalized = promoCode.trim().toUpperCase();
@@ -251,7 +382,7 @@ export default function ShopPage() {
     hapticImpact("medium");
 
     const payment = await payWithTelegramStars({
-      amountStars: starsCentsToInvoiceStars(totalStarsCents),
+      amountStars: invoiceStars,
       orderId: `C3K-${Date.now()}`,
       title: `Заказ C3K (${cartItems.length} шт.)`,
       description: `Оплата заказа в магазине C3K. Доставка: ${checkout.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}.`,
@@ -353,7 +484,17 @@ export default function ShopPage() {
           <motion.section layout className={styles.grid}>
             <AnimatePresence>
               {filteredProducts.length > 0 ? (
-                filteredProducts.map((product) => <ShopProductCard key={product.id} product={product} onAdd={addToCart} />)
+                filteredProducts.map((product) => (
+                  <ShopProductCard
+                    key={product.id}
+                    product={product}
+                    quantity={productQuantityMap.get(product.id) ?? 0}
+                    canIncrease={(productQuantityMap.get(product.id) ?? 0) < getMaxQuantity(product.id)}
+                    onAdd={addToCart}
+                    onIncrease={increaseQty}
+                    onDecrease={decreaseQty}
+                  />
+                ))
               ) : (
                 <motion.article
                   key="empty"
@@ -394,6 +535,7 @@ export default function ShopPage() {
         onIncrease={increaseQty}
         onDecrease={decreaseQty}
         onRemove={removeFromCart}
+        getMaxQuantity={getMaxQuantity}
       >
         {paymentError ? <p className={styles.paymentError}>{paymentError}</p> : null}
 
@@ -402,6 +544,7 @@ export default function ShopPage() {
           discount={discountStarsCents}
           deliveryFee={deliveryFeeStarsCents}
           totalStars={totalStarsCents}
+          invoiceStars={invoiceStars}
           promoCode={promoCode}
           promoLabel={promoLabel}
           onPromoChange={setPromoCode}
@@ -410,7 +553,14 @@ export default function ShopPage() {
           freeDeliveryProgress={freeDeliveryProgress}
         />
 
-        <ShopCheckoutForm values={checkout} onChange={updateCheckout} />
+        <ShopCheckoutForm
+          values={checkout}
+          onChange={updateCheckout}
+          onRequestPhone={requestPhoneFromTelegram}
+          isRequestingPhone={isRequestingPhone}
+          canRequestPhone={canRequestPhone}
+        />
+        
 
         <button
           type="button"
@@ -418,7 +568,7 @@ export default function ShopPage() {
           onClick={submitPayment}
           disabled={!canPay || isPaying}
         >
-          {isPaying ? "Проводим платеж..." : `Оплатить ${formatStarsFromCents(totalStarsCents)} ⭐`}
+          {isPaying ? "Проводим платеж..." : `Оплатить ${invoiceStars} ⭐`}
         </button>
       </ShopCartSheet>
     </div>

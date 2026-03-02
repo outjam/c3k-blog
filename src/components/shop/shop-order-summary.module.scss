@@ -97,3 +97,13 @@
 .totalRow span {
   color: var(--tg-accent);
 }
+
+.invoiceRow dt {
+  color: var(--tg-text);
+  font-weight: 700;
+}
+
+.invoiceRow dd {
+  color: var(--tg-accent);
+  font-weight: 800;
+}

@@ -12,13 +12,29 @@ import styles from "./shop-product-card.module.scss";
 interface ShopProductCardProps {
   product: ShopProduct;
   onAdd: (productId: string) => void;
+  onIncrease: (productId: string) => void;
+  onDecrease: (productId: string) => void;
+  quantity: number;
+  canIncrease: boolean;
 }
 
-export function ShopProductCard({ product, onAdd }: ShopProductCardProps) {
+export function ShopProductCard({ product, onAdd, onIncrease, onDecrease, quantity, canIncrease }: ShopProductCardProps) {
   const handleAdd: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
     onAdd(product.id);
+  };
+
+  const handleIncrease: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onIncrease(product.id);
+  };
+
+  const handleDecrease: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDecrease(product.id);
   };
 
   return (
@@ -67,9 +83,21 @@ export function ShopProductCard({ product, onAdd }: ShopProductCardProps) {
               {product.oldPriceStarsCents ? <p className={styles.oldPrice}>{formatStarsFromCents(product.oldPriceStarsCents)} ⭐</p> : null}
             </div>
 
-            <button type="button" className={styles.addButton} onClick={handleAdd}>
-              В корзину
-            </button>
+            {quantity > 0 ? (
+              <div className={styles.stepper}>
+                <button type="button" onClick={handleDecrease} aria-label="Уменьшить количество">
+                  −
+                </button>
+                <span>{quantity}</span>
+                <button type="button" onClick={handleIncrease} disabled={!canIncrease} aria-label="Увеличить количество">
+                  +
+                </button>
+              </div>
+            ) : (
+              <button type="button" className={styles.addButton} onClick={handleAdd} disabled={product.attributes.stock < 1}>
+                {product.attributes.stock < 1 ? "Нет в наличии" : "В корзину"}
+              </button>
+            )}
           </div>
         </div>
       </Link>

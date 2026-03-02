@@ -15,6 +15,7 @@ interface ShopCartSheetProps {
   onIncrease: (productId: string) => void;
   onDecrease: (productId: string) => void;
   onRemove: (productId: string) => void;
+  getMaxQuantity: (productId: string) => number;
   children: React.ReactNode;
 }
 
@@ -26,6 +27,7 @@ export function ShopCartSheet({
   onIncrease,
   onDecrease,
   onRemove,
+  getMaxQuantity,
   children,
 }: ShopCartSheetProps) {
   return (
@@ -72,11 +74,15 @@ export function ShopCartSheet({
                         <h4>{product.title}</h4>
                         <p>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
                         <div className={styles.qtyRow}>
-                          <button type="button" onClick={() => onDecrease(product.id)}>
+                          <button type="button" onClick={() => onDecrease(product.id)} disabled={item.quantity <= 1}>
                             −
                           </button>
                           <span>{item.quantity}</span>
-                          <button type="button" onClick={() => onIncrease(product.id)}>
+                          <button
+                            type="button"
+                            onClick={() => onIncrease(product.id)}
+                            disabled={item.quantity >= getMaxQuantity(product.id)}
+                          >
                             +
                           </button>
                           <button type="button" onClick={() => onRemove(product.id)} className={styles.remove}>

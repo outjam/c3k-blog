@@ -40,5 +40,5 @@ export const getDiscountAmountStarsCents = (subtotalStarsCents: number, promoCod
 };
 
 export const getDeliveryFeeStarsCents = (subtotalAfterDiscountStarsCents: number): number => {
-  return subtotalAfterDiscountStarsCents >= 1200 ? 0 : 100;
+  return subtotalAfterDiscountStarsCents >= 1200 ? 0 : 1;
 };

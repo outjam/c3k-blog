@@ -21,6 +21,23 @@ interface TelegramUpdate {
   };
 }
 
+const getMiniAppBaseUrl = (request: Request): string | null => {
+  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
+
+  if (explicit) {
+    return explicit.replace(/\/+$/, "");
+  }
+
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+
+  if (!host) {
+    return null;
+  }
+
+  return `${proto}://${host}`.replace(/\/+$/, "");
+};
+
 const telegramApi = async (botToken: string, method: string, body: Record<string, unknown>) => {
   const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
     method: "POST",
@@ -78,10 +95,27 @@ export async function POST(request: Request) {
 
   if (update.message?.successful_payment && update.message.chat?.id) {
     const payment = update.message.successful_payment;
+    const baseUrl = getMiniAppBaseUrl(request);
+    const orderUrl = baseUrl
+      ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payment.invoice_payload)}`
+      : undefined;
 
     await telegramApi(botToken, "sendMessage", {
       chat_id: update.message.chat.id,
       text: `Оплата получена ✅\nЗаказ: ${payment.invoice_payload}\nСумма: ${payment.total_amount} ${payment.currency}`,
+      reply_markup: orderUrl
+        ? {
+            inline_keyboard: [
+              [
+                {
+                  text: "Открыть заказ",
+                  url: orderUrl,
+                  style: "success",
+                },
+              ],
+            ],
+          }
+        : undefined,
     });
   }
 

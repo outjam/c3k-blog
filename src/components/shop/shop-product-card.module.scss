@@ -136,6 +136,42 @@
   font-weight: 700;
 }
 
+.addButton:disabled {
+  opacity: 0.55;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  padding: 0.18rem;
+}
+
+.stepper button {
+  min-width: 1.85rem;
+  min-height: 1.85rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 86%, transparent);
+  color: var(--tg-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.stepper button:disabled {
+  opacity: 0.5;
+}
+
+.stepper span {
+  min-width: 1.6rem;
+  text-align: center;
+  color: var(--tg-text);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 @media (max-width: 700px) {
   .card {
     grid-template-columns: 1fr;

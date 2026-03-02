@@ -109,6 +109,10 @@
   color: var(--tg-text);
 }
 
+.qtyRow button:disabled {
+  opacity: 0.45;
+}
+
 .qtyRow span {
   color: var(--tg-text);
   min-width: 1.3rem;

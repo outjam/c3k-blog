@@ -68,6 +68,25 @@
   accent-color: var(--tg-accent);
 }
 
+.phoneActions {
+  display: flex;
+}
+
+.phoneActions button {
+  border: 0;
+  border-radius: 0.58rem;
+  min-height: 1.85rem;
+  padding: 0 0.62rem;
+  background: color-mix(in srgb, var(--tg-accent) 15%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.phoneActions button:disabled {
+  opacity: 0.5;
+}
+
 @media (max-width: 700px) {
   .row2 {
     grid-template-columns: 1fr;

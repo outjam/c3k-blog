@@ -26,6 +26,7 @@ export interface TelegramUser {
   first_name?: string;
   last_name?: string;
   username?: string;
+  phone_number?: string;
   language_code?: string;
   is_premium?: boolean;
   allows_write_to_pm?: boolean;
@@ -108,6 +109,7 @@ export interface TelegramWebApp {
     },
     callback?: (buttonId: string) => void,
   ) => void;
+  requestContact?: (callback?: (result: boolean | string) => void) => void;
   openInvoice?: (url: string, callback?: (status: "paid" | "cancelled" | "failed" | "pending") => void) => void;
   setHeaderColor(color: string): void;
   setBackgroundColor(color: string): void;
