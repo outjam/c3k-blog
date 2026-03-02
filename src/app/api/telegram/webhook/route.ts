@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 interface TelegramPreCheckoutQuery {
   id: string;
 }
@@ -38,9 +41,15 @@ export async function POST(request: Request) {
 
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   const secretHeader = request.headers.get("x-telegram-bot-api-secret-token");
+  const strictSecret = process.env.TELEGRAM_STRICT_WEBHOOK_SECRET === "1";
 
-  if (secret && secretHeader !== secret) {
-    return NextResponse.json({ ok: false, error: "Invalid webhook secret" }, { status: 401 });
+  if (secret) {
+    const expected = secret.trim();
+    const provided = (secretHeader ?? "").trim();
+
+    if (strictSecret && provided !== expected) {
+      return NextResponse.json({ ok: false, error: "Invalid webhook secret" }, { status: 401 });
+    }
   }
 
   let update: TelegramUpdate;
@@ -52,10 +61,19 @@ export async function POST(request: Request) {
   }
 
   if (update.pre_checkout_query?.id) {
-    await telegramApi(botToken, "answerPreCheckoutQuery", {
+    let answered = await telegramApi(botToken, "answerPreCheckoutQuery", {
       pre_checkout_query_id: update.pre_checkout_query.id,
       ok: true,
     });
+
+    if (!answered) {
+      answered = await telegramApi(botToken, "answerPreCheckoutQuery", {
+        pre_checkout_query_id: update.pre_checkout_query.id,
+        ok: true,
+      });
+    }
+
+    return NextResponse.json({ ok: answered });
   }
 
   if (update.message?.successful_payment && update.message.chat?.id) {
