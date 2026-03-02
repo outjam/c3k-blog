@@ -51,7 +51,6 @@ export async function POST(request: Request) {
     payload: orderId,
     currency: "XTR",
     prices: [{ label: title, amount: amountStars }],
-    provider_token: "",
   };
 
   try {

@@ -75,12 +75,12 @@ export const payWithTelegramStars = async ({
   return new Promise((resolve) => {
     try {
       webApp.openInvoice?.(invoiceLink, (status) => {
-        const success = status === "paid";
+        const success = status === "paid" || status === "pending";
         hapticNotification(success ? "success" : "warning");
         resolve({
           ok: success,
           status,
-          message: success ? "Оплата прошла успешно." : "Платеж не завершен.",
+          message: success ? "Оплата принята." : "Платеж не завершен.",
         });
       });
     } catch {
