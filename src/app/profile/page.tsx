@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 import { posts } from "@/data/posts";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
@@ -28,7 +27,7 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ShopOrder | null>(null);
   const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
-  const searchParams = useSearchParams();
+  const [focusOrdersSection, setFocusOrdersSection] = useState(false);
 
   const fullName = useMemo(() => {
     if (!user) {
@@ -68,10 +67,15 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get("section") === "orders" && activeOrders.length > 0) {
+    const params = new URLSearchParams(window.location.search);
+    setFocusOrdersSection(params.get("section") === "orders");
+  }, []);
+
+  useEffect(() => {
+    if (focusOrdersSection && activeOrders.length > 0) {
       setSelectedOrder(activeOrders[0] ?? null);
     }
-  }, [activeOrders, searchParams]);
+  }, [activeOrders, focusOrdersSection]);
 
   const handleThemeChange = async (nextTheme: AppTheme) => {
     setTheme(nextTheme);
