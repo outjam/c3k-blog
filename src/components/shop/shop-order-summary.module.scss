@@ -1,0 +1,74 @@
+.summary {
+  display: grid;
+  gap: 0.7rem;
+  border-radius: 0.95rem;
+  padding: 0.8rem;
+  background: var(--tg-section-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+}
+
+.summary h3 {
+  color: var(--tg-text);
+  font-size: 1rem;
+}
+
+.promoRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.promoRow input {
+  min-height: 2.35rem;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 65%, var(--tg-section-bg));
+  color: var(--tg-text);
+  padding: 0 0.6rem;
+}
+
+.promoRow button {
+  min-height: 2.35rem;
+  border: 0;
+  border-radius: 0.7rem;
+  padding: 0 0.75rem;
+  background: color-mix(in srgb, var(--tg-accent) 84%, #1ea4ff);
+  color: #fff;
+  font-weight: 700;
+}
+
+.promoLabel {
+  color: var(--tg-accent);
+  font-size: 0.78rem;
+}
+
+.totals {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: var(--tg-text);
+  font-size: 0.86rem;
+}
+
+.totals dt {
+  color: var(--tg-subtitle-text);
+}
+
+.totalRow {
+  margin-top: 0.3rem;
+  padding-top: 0.42rem;
+  border-top: 1px solid color-mix(in srgb, var(--tg-section-separator) 42%, transparent);
+}
+
+.totalRow dd {
+  font-weight: 700;
+}
+
+.totalRow span {
+  color: var(--tg-accent);
+}

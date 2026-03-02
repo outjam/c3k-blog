@@ -99,6 +99,16 @@ export interface TelegramWebApp {
   disableVerticalSwipes?: () => void;
   lockOrientation?: () => void;
   unlockOrientation?: () => void;
+  showAlert?: (message: string, callback?: () => void) => void;
+  showPopup?: (
+    params: {
+      title?: string;
+      message: string;
+      buttons?: Array<{ id?: string; type?: "default" | "ok" | "close" | "cancel" | "destructive"; text?: string }>;
+    },
+    callback?: (buttonId: string) => void,
+  ) => void;
+  openInvoice?: (url: string, callback?: (status: "paid" | "cancelled" | "failed" | "pending") => void) => void;
   setHeaderColor(color: string): void;
   setBackgroundColor(color: string): void;
   setBottomBarColor?: (color: string) => void;

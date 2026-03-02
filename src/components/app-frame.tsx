@@ -13,9 +13,9 @@ interface AppFrameProps {
 }
 
 interface TabItem {
-  id: "blog" | "profile";
+  id: "blog" | "shop" | "profile";
   label: string;
-  href: "/" | "/profile";
+  href: "/" | "/shop" | "/profile";
   icon: React.ReactNode;
 }
 
@@ -35,15 +35,25 @@ function ProfileIcon() {
   );
 }
 
+function ShopIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M7 4.5h10a2.5 2.5 0 0 1 2.5 2.5v1.5a2.5 2.5 0 0 1-2.5 2.5h-.26l-.64 8.13a2.5 2.5 0 0 1-2.49 2.3h-3.22a2.5 2.5 0 0 1-2.49-2.3L7.26 10H7A2.5 2.5 0 0 1 4.5 7.5V7A2.5 2.5 0 0 1 7 4.5Zm.08 5.5.64 8.05c.02.2.18.35.38.35h3.22c.2 0 .36-.15.38-.35L12.34 10H7.08Zm9.42-2a.5.5 0 0 0 .5-.5V7a.5.5 0 0 0-.5-.5H7a.5.5 0 0 0-.5.5v.5a.5.5 0 0 0 .5.5h9.5Z" />
+    </svg>
+  );
+}
+
 export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const isShop = pathname.startsWith("/shop");
   const isProfile = pathname.startsWith("/profile");
-  const activeIndex = isProfile ? 1 : 0;
-  const showTabBar = pathname === "/" || pathname.startsWith("/profile");
+  const activeIndex = isProfile ? 2 : isShop ? 1 : 0;
+  const showTabBar = pathname === "/" || pathname.startsWith("/shop") || pathname.startsWith("/profile");
 
   const tabs = useMemo<TabItem[]>(() => [
     { id: "blog", label: "Блог", href: "/", icon: <BlogIcon /> },
+    { id: "shop", label: "Магазин", href: "/shop", icon: <ShopIcon /> },
     { id: "profile", label: "Профиль", href: "/profile", icon: <ProfileIcon /> },
   ], []);
 

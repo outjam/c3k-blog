@@ -1,0 +1,155 @@
+.card {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0.9rem;
+  border-radius: 1rem;
+  background: var(--tg-section-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  overflow: hidden;
+}
+
+.mediaWrap {
+  position: relative;
+  background: color-mix(in srgb, var(--tg-bg) 55%, var(--tg-section-bg));
+  min-height: 100%;
+}
+
+.media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.badges {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.badgeNew,
+.badgeHit {
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.badgeNew {
+  color: #fff;
+  background: color-mix(in srgb, var(--tg-accent) 92%, #38bdf8);
+}
+
+.badgeHit {
+  color: #1b120a;
+  background: #f8b84b;
+}
+
+.body {
+  display: grid;
+  gap: 0.48rem;
+  padding: 0.85rem 0.85rem 0.8rem 0;
+}
+
+.subtitle {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.title {
+  color: var(--tg-text);
+  font-size: 1.02rem;
+  line-height: 1.25;
+}
+
+.description {
+  color: var(--muted-text);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.socialProof {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.attrs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.7rem;
+  padding-top: 0.2rem;
+}
+
+.attrs div {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.attrs dt {
+  color: var(--tg-hint);
+  font-size: 0.68rem;
+}
+
+.attrs dd {
+  color: var(--tg-text);
+  font-size: 0.78rem;
+}
+
+.footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.prices {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.priceRub {
+  color: var(--tg-text);
+  font-size: 1.04rem;
+  font-weight: 700;
+}
+
+.priceStars {
+  color: var(--tg-accent);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.oldPrice {
+  color: var(--tg-hint);
+  text-decoration: line-through;
+  font-size: 0.75rem;
+}
+
+.addButton {
+  min-height: 2.1rem;
+  border: 0;
+  border-radius: 0.7rem;
+  padding: 0 0.8rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .card {
+    grid-template-columns: 1fr;
+  }
+
+  .mediaWrap {
+    min-height: 170px;
+  }
+
+  .body {
+    padding: 0 0.75rem 0.75rem;
+  }
+}
