@@ -10,7 +10,6 @@
   border-radius: 62px;
   background: transparent;
   overflow: hidden;
-  contain: paint;
   transition: .6s;
 
   &:active {
@@ -25,6 +24,21 @@
   pointer-events: none;
   border-radius: inherit;
   overflow: hidden;
+}
+
+.fluidGlassFrame {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fluidGlassFrame :global(canvas) {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  pointer-events: none;
 }
 
 .tabBar::before {

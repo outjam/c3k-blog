@@ -3,7 +3,7 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { animate, motion, useMotionValue, useTransform, type PanInfo } from "motion/react";
 
-import GlassSurface from "./GlassSurface";
+import FluidGlass from "./FluidGlass";
 import styles from "./mini-tab-bar.module.scss";
 
 interface MiniTabBarItem {
@@ -113,19 +113,21 @@ export function MiniTabBar({ activeIndex, items, onChange }: MiniTabBarProps) {
       style={{ "--tab-count": tabCount } as CSSProperties}
     >
       <div className={styles.glassLayer} aria-hidden>
-        <GlassSurface
-          width="100%"
-          height="100%"
-          borderRadius={62}
-          displace={0.5}
-          distortionScale={-180}
-          redOffset={0}
-          greenOffset={10}
-          blueOffset={20}
-          brightness={52}
-          opacity={0.9}
-          mixBlendMode="normal"
-        />
+        <div className={styles.fluidGlassFrame}>
+          <FluidGlass
+            mode="bar"
+            barProps={{
+              navItems: [],
+              scale: 0.22,
+              ior: 1.15,
+              thickness: 6,
+              transmission: 1,
+              roughness: 0,
+              chromaticAberration: 0.04,
+              anisotropy: 0.01,
+            }}
+          />
+        </div>
       </div>
 
       <div className={styles.glowLeft} aria-hidden />
