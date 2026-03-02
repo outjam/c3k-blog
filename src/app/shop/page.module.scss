@@ -125,6 +125,14 @@
   opacity: 0.58;
 }
 
+.paymentError {
+  border-radius: 0.72rem;
+  padding: 0.56rem 0.65rem;
+  background: color-mix(in srgb, var(--tg-destructive-text) 14%, var(--tg-section-bg));
+  color: var(--tg-destructive-text);
+  font-size: 0.84rem;
+}
+
 @media (max-width: 700px) {
   .resultsBar {
     display: grid;

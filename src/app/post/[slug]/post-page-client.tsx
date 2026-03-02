@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import { RichPostContent } from "@/components/rich-post-content";
 import type { BlogPost } from "@/data/posts";
+import { readBookmarkedPostSlugs, toggleBookmarkedPost } from "@/lib/post-bookmarks";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
 
 import styles from "./page.module.scss";
@@ -15,6 +16,21 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 export function PostPageClient({ post }: { post: BlogPost }) {
   const router = useRouter();
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void readBookmarkedPostSlugs().then((slugs) => {
+      if (mounted) {
+        setIsBookmarked(slugs.includes(post.slug));
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [post.slug]);
 
   const handleBack = useCallback(() => {
     hapticImpact("light");
@@ -30,6 +46,14 @@ export function PostPageClient({ post }: { post: BlogPost }) {
     } catch {
       hapticNotification("warning");
     }
+  }, [post.slug]);
+
+  const handleBookmark = useCallback(() => {
+    void toggleBookmarkedPost(post.slug).then((next) => {
+      const saved = next.includes(post.slug);
+      setIsBookmarked(saved);
+      hapticNotification(saved ? "success" : "warning");
+    });
   }, [post.slug]);
 
   return (
@@ -58,6 +82,9 @@ export function PostPageClient({ post }: { post: BlogPost }) {
             </button>
             <button type="button" className={styles.action} onClick={handleShare}>
               Копировать ссылку
+            </button>
+            <button type="button" className={styles.action} onClick={handleBookmark}>
+              {isBookmarked ? "Убрать из избранного" : "В избранное"}
             </button>
           </div>
         </header>

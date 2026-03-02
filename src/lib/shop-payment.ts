@@ -7,6 +7,12 @@ export interface PaymentRequest {
   description: string;
 }
 
+export interface PaymentResult {
+  ok: boolean;
+  status: "paid" | "cancelled" | "failed" | "pending" | "error";
+  message?: string;
+}
+
 const requestInvoiceLink = async ({
   amountStars,
   orderId,
@@ -41,16 +47,16 @@ export const payWithTelegramStars = async ({
   orderId,
   title,
   description,
-}: PaymentRequest): Promise<boolean> => {
+}: PaymentRequest): Promise<PaymentResult> => {
   const webApp = getTelegramWebApp();
 
   if (!webApp) {
-    return false;
+    return { ok: false, status: "error", message: "Оплата доступна только в Telegram." };
   }
 
   if (!webApp.openInvoice) {
     webApp.showAlert?.("Обновите Telegram, чтобы открыть оплату Telegram Stars.");
-    return false;
+    return { ok: false, status: "error", message: "Текущая версия Telegram не поддерживает оплату." };
   }
 
   const invoiceLink = await requestInvoiceLink({ amountStars, orderId, title, description });
@@ -63,7 +69,7 @@ export const payWithTelegramStars = async ({
         buttons: [{ id: "ok", type: "ok", text: "Понятно" }],
       },
     );
-    return false;
+    return { ok: false, status: "error", message: "Не удалось создать счет оплаты." };
   }
 
   return new Promise((resolve) => {
@@ -71,12 +77,16 @@ export const payWithTelegramStars = async ({
       webApp.openInvoice?.(invoiceLink, (status) => {
         const success = status === "paid";
         hapticNotification(success ? "success" : "warning");
-        resolve(success);
+        resolve({
+          ok: success,
+          status,
+          message: success ? "Оплата прошла успешно." : "Платеж не завершен.",
+        });
       });
     } catch {
       webApp.showAlert?.("Не удалось открыть окно оплаты.");
       hapticNotification("warning");
-      resolve(false);
+      resolve({ ok: false, status: "error", message: "Не удалось открыть окно оплаты." });
     }
   });
 };

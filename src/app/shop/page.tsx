@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
+import { useRouter } from "next/navigation";
 
 import { ShopCartSheet } from "@/components/shop/shop-cart-sheet";
 import { ShopCatalogControls } from "@/components/shop/shop-catalog-controls";
@@ -11,6 +12,7 @@ import { ShopProductCard } from "@/components/shop/shop-product-card";
 import { SHOP_CATEGORY_LABELS, SHOP_PRODUCTS } from "@/data/shop-products";
 import { payWithTelegramStars } from "@/lib/shop-payment";
 import { findPromoRule, getCartSubtotalStars, getDeliveryFeeStars, getDiscountAmountStars } from "@/lib/shop-pricing";
+import { appendShopOrder } from "@/lib/shop-orders";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { getTelegramWebApp, hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { CartItem, CheckoutFormValues, ProductSort, ShopCategory } from "@/types/shop";
@@ -46,6 +48,7 @@ const sortProducts = (items: typeof SHOP_PRODUCTS, sort: ProductSort) => {
 };
 
 export default function ShopPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ShopCategory | "all">("all");
   const [sort, setSort] = useState<ProductSort>("popular");
@@ -57,6 +60,7 @@ export default function ShopPage() {
   const [checkout, setCheckout] = useState<CheckoutFormValues>(defaultCheckout);
   const [isPaying, setIsPaying] = useState(false);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -238,10 +242,11 @@ export default function ShopPage() {
       return;
     }
 
+    setPaymentError("");
     setIsPaying(true);
     hapticImpact("medium");
 
-    const paid = await payWithTelegramStars({
+    const payment = await payWithTelegramStars({
       amountStars: totalStars,
       orderId: `C3K-${Date.now()}`,
       title: `Заказ C3K (${cartItems.length} шт.)`,
@@ -250,15 +255,49 @@ export default function ShopPage() {
 
     setIsPaying(false);
 
-    if (!paid) {
+    if (!payment.ok) {
+      setPaymentError(payment.message ?? "Платеж не выполнен. Попробуйте снова.");
+      hapticNotification("error");
       return;
     }
+
+    const customerName = [checkout.firstName, checkout.lastName].filter(Boolean).join(" ");
+    await appendShopOrder({
+      id: `order-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      status: "processing",
+      totalStars,
+      deliveryFeeStars,
+      discountStars,
+      delivery: checkout.delivery,
+      address: checkout.address,
+      customerName,
+      phone: checkout.phone,
+      comment: checkout.comment,
+      items: cartItems
+        .map((item) => {
+          const product = productsMap.get(item.productId);
+
+          if (!product) {
+            return null;
+          }
+
+          return {
+            productId: product.id,
+            title: product.title,
+            quantity: item.quantity,
+            priceStars: product.priceStars,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    });
 
     setCartItems([]);
     setPromoCode("");
     setCheckout(defaultCheckout);
     setCartOpen(false);
     hapticNotification("success");
+    router.push("/profile?section=orders");
   };
 
   const categoryOptions = useMemo(
@@ -352,6 +391,8 @@ export default function ShopPage() {
         onDecrease={decreaseQty}
         onRemove={removeFromCart}
       >
+        {paymentError ? <p className={styles.paymentError}>{paymentError}</p> : null}
+
         <ShopOrderSummary
           subtotal={subtotalStars}
           discount={discountStars}

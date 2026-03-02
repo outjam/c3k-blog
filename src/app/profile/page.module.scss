@@ -3,6 +3,7 @@
   padding: 1.1rem;
   padding-right: calc(1.1rem + var(--safe-area-right));
   padding-left: calc(1.1rem + var(--safe-area-left));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
 }
 
 .card {
@@ -27,10 +28,18 @@
   line-height: 1.45;
 }
 
+.photo,
 .avatar {
   width: 3.2rem;
   height: 3.2rem;
   border-radius: 999px;
+}
+
+.photo {
+  object-fit: cover;
+}
+
+.avatar {
   display: grid;
   place-items: center;
   font-weight: 800;
@@ -72,6 +81,109 @@
   color: var(--tg-btn-text);
 }
 
+.section {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 0.8rem;
+  background: var(--card-bg);
+}
+
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.sectionHead h2 {
+  color: var(--tg-text);
+  font-size: 0.95rem;
+}
+
+.sectionHead p {
+  color: var(--tg-hint);
+  font-size: 0.82rem;
+}
+
+.ordersScroller {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  scroll-snap-type: x mandatory;
+}
+
+.orderCard {
+  min-width: 210px;
+  scroll-snap-align: start;
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.68rem;
+  border-radius: 0.72rem;
+  background: var(--tg-section-bg);
+  border: 1px solid var(--tg-section-separator);
+}
+
+.orderId {
+  color: var(--tg-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.orderStatus {
+  color: var(--tg-accent);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.orderMeta {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.inlineButton {
+  border: 0;
+  border-radius: 0.62rem;
+  min-height: 1.95rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.bookmarksList {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.bookmarkPost {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 0.6rem;
+  padding: 0.45rem;
+  border-radius: 0.72rem;
+  background: var(--tg-section-bg);
+  border: 1px solid var(--tg-section-separator);
+}
+
+.bookmarkPost img {
+  width: 86px;
+  height: 64px;
+  border-radius: 0.62rem;
+  object-fit: cover;
+}
+
+.bookmarkPost h3 {
+  color: var(--tg-text);
+  font-size: 0.82rem;
+}
+
+.bookmarkPost p {
+  color: var(--tg-hint);
+  font-size: 0.76rem;
+  margin-top: 0.3rem;
+}
+
 .list {
   display: grid;
   gap: 0.55rem;
@@ -96,7 +208,89 @@
   font-weight: 600;
 }
 
+.emptyState,
+.warning {
+  color: var(--tg-subtitle-text);
+  font-size: 0.88rem;
+}
+
 .warning {
   color: var(--tg-destructive-text);
-  line-height: 1.45;
+}
+
+.orderModalRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+}
+
+.orderModalBackdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--tg-bg) 70%, transparent);
+}
+
+.orderModal {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  max-width: 860px;
+  margin: 0 auto;
+  max-height: calc(100dvh - var(--safe-area-top) - 24px);
+  overflow: auto;
+  border-radius: 0.95rem 0.95rem 0 0;
+  background: var(--tg-bg);
+  border: 1px solid var(--tg-section-separator);
+  padding: 0.8rem;
+  padding-bottom: calc(var(--safe-area-bottom) + 1rem);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.orderModalHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.orderModalHead h3 {
+  color: var(--tg-text);
+  font-size: 1rem;
+}
+
+.orderModalHead button {
+  border: 0;
+  border-radius: 0.62rem;
+  min-height: 2rem;
+  padding: 0 0.68rem;
+  background: var(--tg-section-bg);
+  color: var(--tg-text);
+}
+
+.orderItemsScroll {
+  overflow-x: auto;
+  border-radius: 0.72rem;
+  border: 1px solid var(--tg-section-separator);
+}
+
+.orderItemsScroll table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+}
+
+.orderItemsScroll th,
+.orderItemsScroll td {
+  text-align: left;
+  padding: 0.5rem 0.55rem;
+  color: var(--tg-text);
+  font-size: 0.8rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+}
+
+.orderItemsScroll th {
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
 }

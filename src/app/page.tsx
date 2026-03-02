@@ -7,6 +7,7 @@ import { PostCard } from "@/components/post-card";
 import { PostPreviewModal } from "@/components/post-preview-modal";
 import { posts } from "@/data/posts";
 import { hapticImpact } from "@/lib/telegram";
+import { readBookmarkedPostSlugs, toggleBookmarkedPost } from "@/lib/post-bookmarks";
 
 import styles from "./page.module.scss";
 
@@ -22,12 +23,27 @@ export default function Home() {
   const [activePreview, setActivePreview] = useState<ActivePostPreview | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const latestPost = posts[0];
   const activePost = posts.find((post) => post.slug === activePreview?.slug) ?? null;
   const visiblePosts = useMemo(() => posts.slice(0, visibleCount), [visibleCount]);
   const hasMore = visibleCount < posts.length;
+
+  useEffect(() => {
+    let mounted = true;
+
+    void readBookmarkedPostSlugs().then((slugs) => {
+      if (mounted) {
+        setBookmarkedSlugs(slugs);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -77,6 +93,12 @@ export default function Home() {
     setActivePreview(null);
   }, []);
 
+  const handleToggleBookmark = useCallback((slug: string) => {
+    void toggleBookmarkedPost(slug).then((next) => {
+      setBookmarkedSlugs(next);
+    });
+  }, []);
+
   return (
     <div className={styles.page}>
       <motion.main className={styles.container} layoutScroll>
@@ -104,6 +126,8 @@ export default function Home() {
                   layout={isLarge ? "large" : "small"}
                   reverse={reverse}
                   isHidden={activePreview?.slug === post.slug && isPreviewOpen}
+                  isBookmarked={bookmarkedSlugs.includes(post.slug)}
+                  onToggleBookmark={handleToggleBookmark}
                   onOpen={() => openPostPreview(post.slug, isLarge ? "large" : "small", reverse)}
                 />
               );

@@ -1,18 +1,34 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
+import { posts } from "@/data/posts";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
+import { readBookmarkedPostSlugs } from "@/lib/post-bookmarks";
+import { readShopOrders } from "@/lib/shop-orders";
+import type { ShopOrder } from "@/types/shop";
 
 import styles from "./page.module.scss";
-import { GlassSurface } from "@/components/ui/glass-surface";
+
+const ORDER_STATUS_LABELS: Record<ShopOrder["status"], string> = {
+  processing: "В обработке",
+  delivering: "В доставке",
+  completed: "Завершен",
+  payment_failed: "Ошибка оплаты",
+};
 
 export default function ProfilePage() {
   const webApp = useTelegramWebApp();
   const user = webApp?.initDataUnsafe?.user;
   const formatBool = (value: boolean | undefined): string => (value ? "да" : "нет");
   const [theme, setTheme] = useState<AppTheme | null>(null);
+  const [orders, setOrders] = useState<ShopOrder[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<ShopOrder | null>(null);
+  const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
+  const searchParams = useSearchParams();
 
   const fullName = useMemo(() => {
     if (!user) {
@@ -21,6 +37,15 @@ export default function ProfilePage() {
 
     return [user.first_name, user.last_name].filter(Boolean).join(" ") || "Без имени";
   }, [user]);
+
+  const bookmarkedPosts = useMemo(() => {
+    const set = new Set(bookmarkedSlugs);
+    return posts.filter((post) => set.has(post.slug));
+  }, [bookmarkedSlugs]);
+
+  const activeOrders = useMemo(() => {
+    return orders.filter((order) => order.status !== "completed");
+  }, [orders]);
 
   useEffect(() => {
     const rafId = window.requestAnimationFrame(() => {
@@ -34,10 +59,19 @@ export default function ProfilePage() {
       }
     });
 
+    void readShopOrders().then((nextOrders) => setOrders(nextOrders));
+    void readBookmarkedPostSlugs().then((slugs) => setBookmarkedSlugs(slugs));
+
     return () => {
       window.cancelAnimationFrame(rafId);
     };
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("section") === "orders" && activeOrders.length > 0) {
+      setSelectedOrder(activeOrders[0] ?? null);
+    }
+  }, [activeOrders, searchParams]);
 
   const handleThemeChange = async (nextTheme: AppTheme) => {
     setTheme(nextTheme);
@@ -48,21 +82,8 @@ export default function ProfilePage() {
   return (
     <div className={styles.page}>
       <section className={styles.card}>
-        <GlassSurface
-                  width="100%"
-                  height="100%"
-                  borderRadius={62}
-                  displace={0.5}
-                  distortionScale={-180}
-                  redOffset={0}
-                  greenOffset={10}
-                  blueOffset={20}
-                  brightness={52}
-                  opacity={0.9}
-                  mixBlendMode="screen"
-                />
         <h1 className={styles.title}>Профиль</h1>
-        <p className={styles.subtitle}>Данные пользователя и окружения Telegram WebApp.</p>
+        <p className={styles.subtitle}>Данные пользователя, активные заказы и избранные публикации.</p>
 
         {user?.photo_url ? (
           <img className={styles.photo} src={user.photo_url} alt={fullName} />
@@ -92,18 +113,59 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2>Активные заказы</h2>
+            <p>{activeOrders.length} шт.</p>
+          </div>
+
+          {activeOrders.length === 0 ? (
+            <p className={styles.emptyState}>Активных заказов пока нет.</p>
+          ) : (
+            <div className={styles.ordersScroller}>
+              {activeOrders.map((order) => (
+                <article key={order.id} className={styles.orderCard}>
+                  <p className={styles.orderId}>#{order.id}</p>
+                  <p className={styles.orderStatus}>{ORDER_STATUS_LABELS[order.status]}</p>
+                  <p className={styles.orderMeta}>{new Date(order.createdAt).toLocaleString("ru-RU")}</p>
+                  <p className={styles.orderMeta}>Итого: {order.totalStars} ⭐</p>
+                  <p className={styles.orderMeta}>Доставка: {order.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}</p>
+                  <button type="button" className={styles.inlineButton} onClick={() => setSelectedOrder(order)}>
+                    Открыть детали
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2>Избранные посты</h2>
+            <p>{bookmarkedPosts.length} шт.</p>
+          </div>
+
+          {bookmarkedPosts.length === 0 ? (
+            <p className={styles.emptyState}>Добавьте статьи в избранное из ленты или страницы записи.</p>
+          ) : (
+            <div className={styles.bookmarksList}>
+              {bookmarkedPosts.map((post) => (
+                <Link key={post.slug} href={`/post/${post.slug}`} className={styles.bookmarkPost}>
+                  <img src={post.cover.src} alt={post.cover.alt} loading="lazy" />
+                  <div>
+                    <h3>{post.title}</h3>
+                    <p>{post.readTime}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
         <dl className={styles.list}>
           <div className={styles.row}>
             <dt>Имя (полное)</dt>
             <dd>{fullName}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Имя</dt>
-            <dd>{user?.first_name ?? "не указано"}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Фамилия</dt>
-            <dd>{user?.last_name ?? "не указана"}</dd>
           </div>
           <div className={styles.row}>
             <dt>Username</dt>
@@ -114,20 +176,8 @@ export default function ProfilePage() {
             <dd>{user?.id ?? "недоступен"}</dd>
           </div>
           <div className={styles.row}>
-            <dt>Язык</dt>
-            <dd>{user?.language_code ?? "недоступен"}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Бот</dt>
-            <dd>{formatBool(user?.is_bot)}</dd>
-          </div>
-          <div className={styles.row}>
             <dt>Premium</dt>
             <dd>{formatBool(user?.is_premium)}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Можно писать в ЛС</dt>
-            <dd>{formatBool(user?.allows_write_to_pm)}</dd>
           </div>
           <div className={styles.row}>
             <dt>Платформа</dt>
@@ -137,30 +187,49 @@ export default function ProfilePage() {
             <dt>Версия WebApp</dt>
             <dd>{webApp?.version ?? "недоступно"}</dd>
           </div>
-          <div className={styles.row}>
-            <dt>Тема</dt>
-            <dd>{webApp?.colorScheme ?? "недоступно"}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Развернут</dt>
-            <dd>{formatBool(webApp?.isExpanded)}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Viewport height</dt>
-            <dd>{webApp?.viewportHeight ?? "недоступно"}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Viewport stable</dt>
-            <dd>{webApp?.viewportStableHeight ?? "недоступно"}</dd>
-          </div>
         </dl>
 
-        {!user ? (
-          <p className={styles.warning}>
-            Открой Mini App внутри Telegram, чтобы получить данные пользователя.
-          </p>
-        ) : null}
+        {!user ? <p className={styles.warning}>Открой Mini App внутри Telegram, чтобы получить данные пользователя.</p> : null}
       </section>
+
+      {selectedOrder ? (
+        <div className={styles.orderModalRoot}>
+          <button type="button" className={styles.orderModalBackdrop} onClick={() => setSelectedOrder(null)} aria-label="Закрыть" />
+          <section className={styles.orderModal}>
+            <header className={styles.orderModalHead}>
+              <h3>Заказ #{selectedOrder.id}</h3>
+              <button type="button" onClick={() => setSelectedOrder(null)}>
+                Закрыть
+              </button>
+            </header>
+            <p className={styles.orderMeta}>Статус: {ORDER_STATUS_LABELS[selectedOrder.status]}</p>
+            <p className={styles.orderMeta}>Адрес: {selectedOrder.address}</p>
+
+            <div className={styles.orderItemsScroll}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Товар</th>
+                    <th>Кол-во</th>
+                    <th>Цена</th>
+                    <th>Сумма</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedOrder.items.map((item) => (
+                    <tr key={`${item.productId}-${item.title}`}>
+                      <td>{item.title}</td>
+                      <td>{item.quantity}</td>
+                      <td>{item.priceStars} ⭐</td>
+                      <td>{item.priceStars * item.quantity} ⭐</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

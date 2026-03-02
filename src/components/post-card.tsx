@@ -16,9 +16,19 @@ interface PostCardProps {
   reverse?: boolean;
   isHidden?: boolean;
   onOpen?: (post: BlogPost) => void;
+  isBookmarked?: boolean;
+  onToggleBookmark?: (slug: string) => void;
 }
 
-export function PostCard({ post, layout, reverse = false, isHidden = false, onOpen }: PostCardProps) {
+export function PostCard({
+  post,
+  layout,
+  reverse = false,
+  isHidden = false,
+  onOpen,
+  isBookmarked = false,
+  onToggleBookmark,
+}: PostCardProps) {
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
     hapticImpact("light");
 
@@ -29,6 +39,11 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
   };
 
   const shellId = `post-shell-${post.slug}`;
+  const toggleBookmark: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggleBookmark?.(post.slug);
+  };
 
   return (
     <Link
@@ -61,6 +76,14 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
                 <span>{post.tags[0] ?? "Разработка"}</span>
                 <span>{post.readTime}</span>
               </div>
+              <button
+                type="button"
+                className={`${styles.bookmarkButton} ${isBookmarked ? styles.bookmarkButtonActive : ""}`}
+                onClick={toggleBookmark}
+                aria-label={isBookmarked ? "Убрать из закладок" : "Добавить в закладки"}
+              >
+                ★
+              </button>
               <span className={styles.ribbon} aria-hidden>
                 ★
               </span>
@@ -81,6 +104,14 @@ export function PostCard({ post, layout, reverse = false, isHidden = false, onOp
                 width={post.cover.width}
                 height={post.cover.height}
               />
+              <button
+                type="button"
+                className={`${styles.bookmarkButton} ${isBookmarked ? styles.bookmarkButtonActive : ""}`}
+                onClick={toggleBookmark}
+                aria-label={isBookmarked ? "Убрать из закладок" : "Добавить в закладки"}
+              >
+                ★
+              </button>
               <span className={styles.ribbon} aria-hidden>
                 ★
               </span>
