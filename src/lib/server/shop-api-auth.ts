@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { isShopAdminTelegramUser } from "@/lib/shop-admin";
+import { canAccessAdminPermission, resolveShopAdminAccess } from "@/lib/server/shop-admin-access";
 import { extractTelegramInitDataFromRequest, verifyTelegramInitData } from "@/lib/server/telegram-init-data";
+import type { ShopAdminPermission, ShopAdminRole } from "@/types/shop";
 
 export interface ShopApiAuth {
   telegramUserId: number;
@@ -9,6 +11,11 @@ export interface ShopApiAuth {
   lastName: string;
   username: string;
   isAdmin: boolean;
+}
+
+export interface ShopApiAccess extends ShopApiAuth {
+  adminRole: ShopAdminRole | null;
+  adminPermissions: ShopAdminPermission[];
 }
 
 const SHOP_AUTH_DEBUG = process.env.SHOP_AUTH_DEBUG === "1";
@@ -51,6 +58,31 @@ export const getShopApiAuth = (request: Request): ShopApiAuth | null => {
     username: verified.user.username ?? "",
     isAdmin: isShopAdminTelegramUser(verified.user.id),
   };
+};
+
+export const getShopApiAccess = async (request: Request): Promise<ShopApiAccess | null> => {
+  const auth = getShopApiAuth(request);
+
+  if (!auth) {
+    return null;
+  }
+
+  const adminAccess = await resolveShopAdminAccess(auth.telegramUserId);
+
+  return {
+    ...auth,
+    isAdmin: Boolean(adminAccess),
+    adminRole: adminAccess?.role ?? null,
+    adminPermissions: adminAccess?.permissions ?? [],
+  };
+};
+
+export const hasAdminPermission = (auth: ShopApiAccess, permission: ShopAdminPermission): boolean => {
+  if (!auth.isAdmin || !auth.adminRole) {
+    return false;
+  }
+
+  return canAccessAdminPermission(auth.adminRole, permission);
 };
 
 export const unauthorizedResponse = (message = "Unauthorized") => {

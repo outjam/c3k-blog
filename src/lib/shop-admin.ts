@@ -1,4 +1,4 @@
-const DEFAULT_ADMIN_TELEGRAM_ID = 1693883;
+export const DEFAULT_ADMIN_TELEGRAM_ID = 1693883;
 
 const parseAdminIds = (raw: string | undefined): number[] => {
   if (!raw) {

@@ -1,7 +1,16 @@
 "use client";
 
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
-import type { ShopAppSettings, ShopOrder, ShopProduct, ShopPromoCode, ShopOrderStatus } from "@/types/shop";
+import type {
+  ShopAdminMember,
+  ShopAdminPermission,
+  ShopAdminRole,
+  ShopAppSettings,
+  ShopOrder,
+  ShopOrderStatus,
+  ShopProduct,
+  ShopPromoCode,
+} from "@/types/shop";
 
 interface ApiErrorShape {
   error?: string;
@@ -44,6 +53,13 @@ export interface AdminProductWithMeta extends ShopProduct {
   effectivePriceStarsCents: number;
   effectiveStock: number;
   effectivePublished: boolean;
+}
+
+export interface AdminSession {
+  telegramUserId: number;
+  isAdmin: boolean;
+  role: ShopAdminRole | null;
+  permissions: ShopAdminPermission[];
 }
 
 const parseApiError = async (response: Response): Promise<string> => {
@@ -285,6 +301,97 @@ export const patchAdminSettings = async (payload: Partial<ShopAppSettings>): Pro
     return { settings: data.settings ?? null };
   } catch {
     return { settings: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminSession = async (): Promise<{ session: AdminSession | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/session", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { session: null, error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as AdminSession;
+    return { session: payload };
+  } catch {
+    return { session: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminMembers = async (): Promise<{ admins: ShopAdminMember[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/admins", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { admins: [], error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as { admins?: ShopAdminMember[] };
+    return { admins: payload.admins ?? [] };
+  } catch {
+    return { admins: [], error: "Network error" };
+  }
+};
+
+export const upsertAdminMember = async (payload: {
+  telegramUserId: number;
+  role: ShopAdminRole;
+  username?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  disabled?: boolean;
+}): Promise<{ admins: ShopAdminMember[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/admins", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { admins: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { admins?: ShopAdminMember[] };
+    return { admins: data.admins ?? [] };
+  } catch {
+    return { admins: [], error: "Network error" };
+  }
+};
+
+export const removeAdminMember = async (telegramUserId: number): Promise<{ admins: ShopAdminMember[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/admins", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify({ telegramUserId }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { admins: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { admins?: ShopAdminMember[] };
+    return { admins: data.admins ?? [] };
+  } catch {
+    return { admins: [], error: "Network error" };
   }
 };
 

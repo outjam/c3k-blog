@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { SHOP_PRODUCTS } from "@/data/shop-products";
-import { forbiddenResponse, getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 
 export const runtime = "nodejs";
@@ -23,13 +23,13 @@ const normalizeProductId = (value: unknown): string => {
 };
 
 export async function GET(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "products:view")) {
     return forbiddenResponse();
   }
 
@@ -51,13 +51,13 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "products:manage")) {
     return forbiddenResponse();
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { forbiddenResponse, getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { PromoDiscountType } from "@/types/shop";
 
@@ -35,13 +35,13 @@ const parseDiscountType = (value: unknown): PromoDiscountType => {
 };
 
 export async function GET(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "promos:view")) {
     return forbiddenResponse();
   }
 
@@ -50,13 +50,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "promos:manage")) {
     return forbiddenResponse();
   }
 
@@ -109,13 +109,13 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "promos:manage")) {
     return forbiddenResponse();
   }
 
@@ -178,13 +178,13 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "promos:manage")) {
     return forbiddenResponse();
   }
 

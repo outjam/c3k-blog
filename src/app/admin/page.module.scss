@@ -201,8 +201,11 @@
 }
 
 .formRow input,
+.formRow select,
 .promoCreate input,
 .promoCreate select,
+.adminCreate input,
+.adminCreate select,
 .settingsForm input {
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
   border-radius: 0.55rem;
@@ -210,6 +213,37 @@
   color: var(--tg-text);
   padding: 0.4rem 0.52rem;
   font: inherit;
+}
+
+.adminCreate {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 1fr 1fr auto;
+  gap: 0.45rem;
+}
+
+.adminsList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.adminCard {
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.58rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.adminCard h3,
+.adminCard p {
+  margin: 0;
+}
+
+.adminCard p {
+  color: var(--tg-hint);
+  font-size: 0.8rem;
 }
 
 .checkboxRow {
@@ -291,7 +325,15 @@
     grid-template-columns: 1fr;
   }
 
+  .adminCreate {
+    grid-template-columns: 1fr;
+  }
+
   .formRow {
+    grid-template-columns: 1fr;
+  }
+
+  .adminsList {
     grid-template-columns: 1fr;
   }
 }

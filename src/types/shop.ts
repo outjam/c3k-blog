@@ -1,6 +1,20 @@
 export type ShopCategory = "figurine" | "vase" | "mug" | "lamp" | "plate";
 export type DeliveryMethod = "yandex_go" | "cdek";
 export type PromoDiscountType = "percent" | "fixed";
+export type ShopAdminRole = "owner" | "admin" | "orders" | "catalog" | "support";
+export type ShopAdminPermission =
+  | "dashboard:view"
+  | "orders:view"
+  | "orders:manage"
+  | "customers:view"
+  | "products:view"
+  | "products:manage"
+  | "promos:view"
+  | "promos:manage"
+  | "settings:view"
+  | "settings:manage"
+  | "admins:view"
+  | "admins:manage";
 export type ShopOrderStatus =
   | "awaiting_payment"
   | "payment_pending"
@@ -67,7 +81,20 @@ export interface ShopAppSettings {
   updatedAt: string;
 }
 
+export interface ShopAdminMember {
+  telegramUserId: number;
+  role: ShopAdminRole;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  disabled?: boolean;
+  addedByTelegramId?: number;
+  addedAt: string;
+  updatedAt: string;
+}
+
 export interface ShopAdminConfig {
+  adminMembers: ShopAdminMember[];
   productOverrides: Record<string, ShopProductOverride>;
   promoCodes: ShopPromoCode[];
   settings: ShopAppSettings;

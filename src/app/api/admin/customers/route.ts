@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { forbiddenResponse, getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { listShopOrders } from "@/lib/server/shop-orders-store";
 
 export const runtime = "nodejs";
@@ -19,13 +19,13 @@ interface CustomerAggregate {
 }
 
 export async function GET(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "customers:view")) {
     return forbiddenResponse();
   }
 

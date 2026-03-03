@@ -12,6 +12,7 @@ import styles from "./shop-admin-orders-panel.module.scss";
 
 interface ShopAdminOrdersPanelProps {
   enabled: boolean;
+  canManage?: boolean;
 }
 
 interface DraftState {
@@ -28,7 +29,7 @@ const toOrderDraft = (order: ShopOrder): DraftState => {
   return { status: order.status, note: "" };
 };
 
-export function ShopAdminOrdersPanel({ enabled }: ShopAdminOrdersPanelProps) {
+export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrdersPanelProps) {
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -162,6 +163,7 @@ export function ShopAdminOrdersPanel({ enabled }: ShopAdminOrdersPanelProps) {
                 <div className={styles.actions}>
                   <select
                     value={draft.status}
+                    disabled={!canManage}
                     onChange={(event) =>
                       setDrafts((prev) => ({
                         ...prev,
@@ -180,6 +182,7 @@ export function ShopAdminOrdersPanel({ enabled }: ShopAdminOrdersPanelProps) {
                   </select>
                   <input
                     value={draft.note}
+                    disabled={!canManage}
                     onChange={(event) =>
                       setDrafts((prev) => ({
                         ...prev,
@@ -193,8 +196,12 @@ export function ShopAdminOrdersPanel({ enabled }: ShopAdminOrdersPanelProps) {
                   />
                   <button
                     type="button"
-                    disabled={isSaving}
+                    disabled={isSaving || !canManage}
                     onClick={async () => {
+                      if (!canManage) {
+                        return;
+                      }
+
                       setSavingId(order.id);
                       const result = await updateAdminOrderStatus({
                         orderId: order.id,
@@ -216,7 +223,7 @@ export function ShopAdminOrdersPanel({ enabled }: ShopAdminOrdersPanelProps) {
                       }));
                     }}
                   >
-                    {isSaving ? "Сохраняем..." : "Применить"}
+                    {isSaving ? "Сохраняем..." : canManage ? "Применить" : "Только просмотр"}
                   </button>
                 </div>
               </article>

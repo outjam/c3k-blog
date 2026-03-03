@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { forbiddenResponse, getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 
 export const runtime = "nodejs";
@@ -15,13 +15,13 @@ interface SettingsPatchBody {
 }
 
 export async function GET(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "settings:view")) {
     return forbiddenResponse();
   }
 
@@ -30,13 +30,13 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "settings:manage")) {
     return forbiddenResponse();
   }
 

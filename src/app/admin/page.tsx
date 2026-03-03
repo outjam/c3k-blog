@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import {
@@ -9,24 +9,28 @@ import {
   deleteAdminPromo,
   fetchAdminCustomers,
   fetchAdminDashboard,
+  fetchAdminMembers,
   fetchAdminProducts,
   fetchAdminPromos,
+  fetchAdminSession,
   fetchAdminSettings,
   patchAdminProduct,
   patchAdminPromo,
   patchAdminSettings,
+  removeAdminMember,
+  upsertAdminMember,
   type AdminCustomer,
   type AdminDashboardData,
   type AdminProductWithMeta,
+  type AdminSession,
 } from "@/lib/admin-api";
-import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
-import { isShopAdminUserClient } from "@/lib/shop-admin-client";
+import { SHOP_ADMIN_ROLE_LABELS } from "@/lib/shop-admin-roles";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import type { ShopAppSettings, ShopPromoCode } from "@/types/shop";
+import type { ShopAdminMember, ShopAdminPermission, ShopAdminRole, ShopAppSettings, ShopPromoCode } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
-type AdminTab = "dashboard" | "orders" | "customers" | "products" | "promos" | "settings";
+type AdminTab = "dashboard" | "orders" | "customers" | "products" | "promos" | "settings" | "admins";
 
 interface ProductDraft {
   priceStarsCents: string;
@@ -36,6 +40,24 @@ interface ProductDraft {
   badge: string;
 }
 
+interface AdminMemberDraft {
+  role: ShopAdminRole;
+  disabled: boolean;
+  username: string;
+  firstName: string;
+  lastName: string;
+}
+
+const TAB_REQUIREMENTS: Record<AdminTab, ShopAdminPermission> = {
+  dashboard: "dashboard:view",
+  orders: "orders:view",
+  customers: "customers:view",
+  products: "products:view",
+  promos: "promos:view",
+  settings: "settings:view",
+  admins: "admins:view",
+};
+
 const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
   { id: "orders", label: "Заказы" },
@@ -43,7 +65,10 @@ const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "products", label: "Товары" },
   { id: "promos", label: "Промокоды" },
   { id: "settings", label: "Настройки" },
+  { id: "admins", label: "Админы" },
 ];
+
+const ROLE_OPTIONS: ShopAdminRole[] = ["owner", "admin", "orders", "catalog", "support"];
 
 const toProductDraft = (product: AdminProductWithMeta): ProductDraft => {
   return {
@@ -55,74 +80,176 @@ const toProductDraft = (product: AdminProductWithMeta): ProductDraft => {
   };
 };
 
+const toAdminDraft = (admin: ShopAdminMember): AdminMemberDraft => {
+  return {
+    role: admin.role,
+    disabled: Boolean(admin.disabled),
+    username: admin.username ?? "",
+    firstName: admin.firstName ?? "",
+    lastName: admin.lastName ?? "",
+  };
+};
+
 export default function AdminPage() {
-  const webApp = useTelegramWebApp();
-  const user = webApp?.initDataUnsafe?.user;
-  const isAdmin = isShopAdminUserClient(user?.id);
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
+  const [session, setSession] = useState<AdminSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [products, setProducts] = useState<AdminProductWithMeta[]>([]);
   const [promos, setPromos] = useState<ShopPromoCode[]>([]);
   const [settings, setSettings] = useState<ShopAppSettings | null>(null);
+  const [adminMembers, setAdminMembers] = useState<ShopAdminMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
+  const [adminDrafts, setAdminDrafts] = useState<Record<number, AdminMemberDraft>>({});
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [savingAdminId, setSavingAdminId] = useState<number | null>(null);
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [newPromoCode, setNewPromoCode] = useState("");
   const [newPromoLabel, setNewPromoLabel] = useState("");
   const [newPromoType, setNewPromoType] = useState<"percent" | "fixed">("percent");
   const [newPromoValue, setNewPromoValue] = useState("10");
   const [newPromoMinSubtotal, setNewPromoMinSubtotal] = useState("0");
+  const [newAdminTelegramId, setNewAdminTelegramId] = useState("");
+  const [newAdminRole, setNewAdminRole] = useState<ShopAdminRole>("support");
+  const [newAdminUsername, setNewAdminUsername] = useState("");
+  const [newAdminFirstName, setNewAdminFirstName] = useState("");
+  const [newAdminLastName, setNewAdminLastName] = useState("");
+
+  const hasPermission = (permission: ShopAdminPermission): boolean => {
+    return Boolean(session?.permissions?.includes(permission));
+  };
+
+  const availableTabs = useMemo(() => {
+    return TABS.filter((tab) => hasPermission(TAB_REQUIREMENTS[tab.id]));
+  }, [session]);
+
+  const loadSession = async () => {
+    setSessionLoading(true);
+    const sessionResponse = await fetchAdminSession();
+
+    if (sessionResponse.error) {
+      setError(sessionResponse.error);
+      setSession(null);
+      setSessionLoading(false);
+      return;
+    }
+
+    setSession(sessionResponse.session);
+    setSessionLoading(false);
+  };
 
   const loadAll = async () => {
+    if (!session?.isAdmin) {
+      return;
+    }
+
     setLoading(true);
     setError("");
 
-    const [dashboardRes, customersRes, productsRes, promosRes, settingsRes] = await Promise.all([
-      fetchAdminDashboard(),
-      fetchAdminCustomers(),
-      fetchAdminProducts(),
-      fetchAdminPromos(),
-      fetchAdminSettings(),
-    ]);
+    const errors: string[] = [];
 
-    if (dashboardRes.error || customersRes.error || productsRes.error || promosRes.error || settingsRes.error) {
-      setError(
-        dashboardRes.error ||
-          customersRes.error ||
-          productsRes.error ||
-          promosRes.error ||
-          settingsRes.error ||
-          "Unknown error",
-      );
+    if (hasPermission("dashboard:view")) {
+      const response = await fetchAdminDashboard();
+      setDashboard(response.data);
+      if (response.error) {
+        errors.push(response.error);
+      }
     }
 
-    setDashboard(dashboardRes.data);
-    setCustomers(customersRes.customers);
-    setProducts(productsRes.products);
-    setPromos(promosRes.promos);
-    setSettings(settingsRes.settings);
-    setProductDrafts((prev) => {
-      const next = { ...prev };
-
-      for (const product of productsRes.products) {
-        next[product.id] = prev[product.id] ?? toProductDraft(product);
+    if (hasPermission("customers:view")) {
+      const response = await fetchAdminCustomers();
+      setCustomers(response.customers);
+      if (response.error) {
+        errors.push(response.error);
       }
+    }
 
-      return next;
-    });
+    if (hasPermission("products:view")) {
+      const response = await fetchAdminProducts();
+      setProducts(response.products);
+      setProductDrafts((prev) => {
+        const next = { ...prev };
+
+        for (const product of response.products) {
+          next[product.id] = prev[product.id] ?? toProductDraft(product);
+        }
+
+        return next;
+      });
+
+      if (response.error) {
+        errors.push(response.error);
+      }
+    }
+
+    if (hasPermission("promos:view")) {
+      const response = await fetchAdminPromos();
+      setPromos(response.promos);
+      if (response.error) {
+        errors.push(response.error);
+      }
+    }
+
+    if (hasPermission("settings:view")) {
+      const response = await fetchAdminSettings();
+      setSettings(response.settings);
+      if (response.error) {
+        errors.push(response.error);
+      }
+    }
+
+    if (hasPermission("admins:view")) {
+      const response = await fetchAdminMembers();
+      const sorted = [...response.admins].sort((a, b) => a.telegramUserId - b.telegramUserId);
+      setAdminMembers(sorted);
+      setAdminDrafts((prev) => {
+        const next = { ...prev };
+
+        for (const admin of sorted) {
+          next[admin.telegramUserId] = prev[admin.telegramUserId] ?? toAdminDraft(admin);
+        }
+
+        return next;
+      });
+
+      if (response.error) {
+        errors.push(response.error);
+      }
+    }
+
+    if (errors.length > 0) {
+      setError(errors[0] as string);
+    }
+
     setLoading(false);
   };
 
   useEffect(() => {
-    if (!isAdmin) {
+    void loadSession();
+  }, []);
+
+  useEffect(() => {
+    if (!session?.isAdmin) {
       return;
     }
 
     void loadAll();
-  }, [isAdmin]);
+  }, [session?.telegramUserId, session?.isAdmin]);
+
+  useEffect(() => {
+    if (availableTabs.length === 0) {
+      return;
+    }
+
+    const exists = availableTabs.some((tab) => tab.id === activeTab);
+    if (!exists) {
+      setActiveTab(availableTabs[0]?.id ?? "dashboard");
+    }
+  }, [activeTab, availableTabs]);
 
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
@@ -137,7 +264,17 @@ export default function AdminPage() {
     });
   }, [products, productSearch]);
 
-  if (!isAdmin) {
+  if (sessionLoading) {
+    return (
+      <div className={styles.page}>
+        <section className={styles.card}>
+          <h1>Проверяем доступ...</h1>
+        </section>
+      </div>
+    );
+  }
+
+  if (!session?.isAdmin) {
     return (
       <div className={styles.page}>
         <section className={styles.card}>
@@ -157,7 +294,9 @@ export default function AdminPage() {
         <header className={styles.header}>
           <div>
             <h1>Admin Panel</h1>
-            <p>Управление магазином, заказами и клиентами.</p>
+            <p>
+              Роль: <b>{session.role ? SHOP_ADMIN_ROLE_LABELS[session.role] : "—"}</b>
+            </p>
           </div>
           <button type="button" onClick={() => void loadAll()} disabled={loading}>
             {loading ? "Обновляем..." : "Обновить всё"}
@@ -167,7 +306,7 @@ export default function AdminPage() {
         {error ? <p className={styles.error}>{error}</p> : null}
 
         <nav className={styles.tabs}>
-          {TABS.map((tab) => (
+          {availableTabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -179,7 +318,7 @@ export default function AdminPage() {
           ))}
         </nav>
 
-        {activeTab === "dashboard" ? (
+        {activeTab === "dashboard" && hasPermission("dashboard:view") ? (
           <section className={styles.section}>
             <h2>Показатели</h2>
             <div className={styles.metrics}>
@@ -210,9 +349,11 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "orders" ? <ShopAdminOrdersPanel enabled /> : null}
+        {activeTab === "orders" && hasPermission("orders:view") ? (
+          <ShopAdminOrdersPanel enabled canManage={hasPermission("orders:manage")} />
+        ) : null}
 
-        {activeTab === "customers" ? (
+        {activeTab === "customers" && hasPermission("customers:view") ? (
           <section className={styles.section}>
             <h2>Клиенты</h2>
             <div className={styles.tableWrap}>
@@ -244,7 +385,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "products" ? (
+        {activeTab === "products" && hasPermission("products:view") ? (
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2>Товары</h2>
@@ -334,8 +475,12 @@ export default function AdminPage() {
                     </div>
                     <button
                       type="button"
-                      disabled={isSaving}
+                      disabled={isSaving || !hasPermission("products:manage")}
                       onClick={async () => {
+                        if (!hasPermission("products:manage")) {
+                          return;
+                        }
+
                         setSavingProductId(product.id);
                         const response = await patchAdminProduct({
                           productId: product.id,
@@ -355,7 +500,7 @@ export default function AdminPage() {
                         await loadAll();
                       }}
                     >
-                      {isSaving ? "Сохраняем..." : "Сохранить"}
+                      {isSaving ? "Сохраняем..." : hasPermission("products:manage") ? "Сохранить" : "Только просмотр"}
                     </button>
                   </article>
                 );
@@ -364,7 +509,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "promos" ? (
+        {activeTab === "promos" && hasPermission("promos:view") ? (
           <section className={styles.section}>
             <h2>Промокоды</h2>
             <div className={styles.promoCreate}>
@@ -382,7 +527,12 @@ export default function AdminPage() {
               />
               <button
                 type="button"
+                disabled={!hasPermission("promos:manage")}
                 onClick={async () => {
+                  if (!hasPermission("promos:manage")) {
+                    return;
+                  }
+
                   const response = await createAdminPromo({
                     code: newPromoCode,
                     label: newPromoLabel || newPromoCode,
@@ -416,7 +566,12 @@ export default function AdminPage() {
                   <div className={styles.promoActions}>
                     <button
                       type="button"
+                      disabled={!hasPermission("promos:manage")}
                       onClick={async () => {
+                        if (!hasPermission("promos:manage")) {
+                          return;
+                        }
+
                         const response = await patchAdminPromo({
                           currentCode: promo.code,
                           active: !promo.active,
@@ -433,7 +588,12 @@ export default function AdminPage() {
                     <button
                       type="button"
                       className={styles.danger}
+                      disabled={!hasPermission("promos:manage")}
                       onClick={async () => {
+                        if (!hasPermission("promos:manage")) {
+                          return;
+                        }
+
                         const response = await deleteAdminPromo(promo.code);
                         if (response.error) {
                           setError(response.error);
@@ -451,7 +611,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "settings" ? (
+        {activeTab === "settings" && hasPermission("settings:view") ? (
           <section className={styles.section}>
             <h2>Настройки магазина</h2>
             {settings ? (
@@ -510,8 +670,11 @@ export default function AdminPage() {
                 </label>
                 <button
                   type="button"
+                  disabled={!hasPermission("settings:manage")}
                   onClick={async () => {
-                    if (!settings) return;
+                    if (!settings || !hasPermission("settings:manage")) {
+                      return;
+                    }
                     const response = await patchAdminSettings(settings);
                     if (response.error || !response.settings) {
                       setError(response.error ?? "Ошибка сохранения настроек");
@@ -520,7 +683,7 @@ export default function AdminPage() {
                     setSettings(response.settings);
                   }}
                 >
-                  Сохранить настройки
+                  {hasPermission("settings:manage") ? "Сохранить настройки" : "Только просмотр"}
                 </button>
               </div>
             ) : (
@@ -528,7 +691,256 @@ export default function AdminPage() {
             )}
           </section>
         ) : null}
+
+        {activeTab === "admins" && hasPermission("admins:view") ? (
+          <section className={styles.section}>
+            <h2>Администраторы и роли</h2>
+            <div className={styles.adminCreate}>
+              <input
+                value={newAdminTelegramId}
+                onChange={(event) => setNewAdminTelegramId(event.target.value)}
+                placeholder="Telegram ID"
+              />
+              <select value={newAdminRole} onChange={(event) => setNewAdminRole(event.target.value as ShopAdminRole)}>
+                {ROLE_OPTIONS.map((role) => (
+                  <option key={`new-admin-role-${role}`} value={role}>
+                    {SHOP_ADMIN_ROLE_LABELS[role]}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={newAdminUsername}
+                onChange={(event) => setNewAdminUsername(event.target.value)}
+                placeholder="username"
+              />
+              <input
+                value={newAdminFirstName}
+                onChange={(event) => setNewAdminFirstName(event.target.value)}
+                placeholder="Имя"
+              />
+              <input
+                value={newAdminLastName}
+                onChange={(event) => setNewAdminLastName(event.target.value)}
+                placeholder="Фамилия"
+              />
+              <button
+                type="button"
+                disabled={!hasPermission("admins:manage") || creatingAdmin}
+                onClick={async () => {
+                  if (!hasPermission("admins:manage")) {
+                    return;
+                  }
+
+                  const telegramUserId = Math.round(Number(newAdminTelegramId));
+
+                  if (!Number.isFinite(telegramUserId) || telegramUserId <= 0) {
+                    setError("Некорректный Telegram ID");
+                    return;
+                  }
+
+                  setCreatingAdmin(true);
+                  const response = await upsertAdminMember({
+                    telegramUserId,
+                    role: newAdminRole,
+                    username: newAdminUsername || undefined,
+                    firstName: newAdminFirstName || undefined,
+                    lastName: newAdminLastName || undefined,
+                    disabled: false,
+                  });
+                  setCreatingAdmin(false);
+
+                  if (response.error) {
+                    setError(response.error);
+                    return;
+                  }
+
+                  const sorted = [...response.admins].sort((a, b) => a.telegramUserId - b.telegramUserId);
+                  setAdminMembers(sorted);
+                  setAdminDrafts((prev) => {
+                    const next = { ...prev };
+
+                    for (const admin of sorted) {
+                      next[admin.telegramUserId] = next[admin.telegramUserId] ?? toAdminDraft(admin);
+                    }
+
+                    return next;
+                  });
+                  setNewAdminTelegramId("");
+                  setNewAdminRole("support");
+                  setNewAdminUsername("");
+                  setNewAdminFirstName("");
+                  setNewAdminLastName("");
+                }}
+              >
+                {creatingAdmin ? "Добавляем..." : "Добавить администратора"}
+              </button>
+            </div>
+
+            <div className={styles.adminsList}>
+              {adminMembers.map((admin) => {
+                const draft = adminDrafts[admin.telegramUserId] ?? toAdminDraft(admin);
+                const isSaving = savingAdminId === admin.telegramUserId;
+                const isOwner = admin.role === "owner";
+                const isSelf = admin.telegramUserId === session.telegramUserId;
+                const canManageThisAdmin = hasPermission("admins:manage") && !isOwner;
+
+                return (
+                  <article key={admin.telegramUserId} className={styles.adminCard}>
+                    <h3>
+                      {admin.username ? `@${admin.username}` : admin.telegramUserId} · {SHOP_ADMIN_ROLE_LABELS[admin.role]}
+                    </h3>
+                    <p>
+                      {[admin.firstName, admin.lastName].filter(Boolean).join(" ") || "Без имени"} · ID: {admin.telegramUserId}
+                    </p>
+                    <div className={styles.formRow}>
+                      <label>
+                        Роль
+                        <select
+                          value={draft.role}
+                          disabled={!canManageThisAdmin}
+                          onChange={(event) =>
+                            setAdminDrafts((prev) => ({
+                              ...prev,
+                              [admin.telegramUserId]: { ...draft, role: event.target.value as ShopAdminRole },
+                            }))
+                          }
+                        >
+                          {ROLE_OPTIONS.map((role) => (
+                            <option key={`admin-role-${admin.telegramUserId}-${role}`} value={role}>
+                              {SHOP_ADMIN_ROLE_LABELS[role]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        username
+                        <input
+                          value={draft.username}
+                          disabled={!canManageThisAdmin}
+                          onChange={(event) =>
+                            setAdminDrafts((prev) => ({
+                              ...prev,
+                              [admin.telegramUserId]: { ...draft, username: event.target.value },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className={styles.formRow}>
+                      <label>
+                        Имя
+                        <input
+                          value={draft.firstName}
+                          disabled={!canManageThisAdmin}
+                          onChange={(event) =>
+                            setAdminDrafts((prev) => ({
+                              ...prev,
+                              [admin.telegramUserId]: { ...draft, firstName: event.target.value },
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Фамилия
+                        <input
+                          value={draft.lastName}
+                          disabled={!canManageThisAdmin}
+                          onChange={(event) =>
+                            setAdminDrafts((prev) => ({
+                              ...prev,
+                              [admin.telegramUserId]: { ...draft, lastName: event.target.value },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className={styles.checkboxRow}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={draft.disabled}
+                          disabled={!canManageThisAdmin}
+                          onChange={(event) =>
+                            setAdminDrafts((prev) => ({
+                              ...prev,
+                              [admin.telegramUserId]: { ...draft, disabled: event.target.checked },
+                            }))
+                          }
+                        />
+                        Отключён
+                      </label>
+                    </div>
+                    <div className={styles.promoActions}>
+                      <button
+                        type="button"
+                        disabled={isSaving || !canManageThisAdmin}
+                        onClick={async () => {
+                          if (!canManageThisAdmin) {
+                            return;
+                          }
+
+                          setSavingAdminId(admin.telegramUserId);
+                          const response = await upsertAdminMember({
+                            telegramUserId: admin.telegramUserId,
+                            role: draft.role,
+                            username: draft.username || undefined,
+                            firstName: draft.firstName || undefined,
+                            lastName: draft.lastName || undefined,
+                            disabled: draft.disabled,
+                          });
+                          setSavingAdminId(null);
+
+                          if (response.error) {
+                            setError(response.error);
+                            return;
+                          }
+
+                          const sorted = [...response.admins].sort((a, b) => a.telegramUserId - b.telegramUserId);
+                          setAdminMembers(sorted);
+                          setAdminDrafts((prev) => {
+                            const next = { ...prev };
+
+                            for (const nextAdmin of sorted) {
+                              next[nextAdmin.telegramUserId] = toAdminDraft(nextAdmin);
+                            }
+
+                            return next;
+                          });
+                        }}
+                      >
+                        {isSaving ? "Сохраняем..." : canManageThisAdmin ? "Сохранить" : "Недоступно"}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.danger}
+                        disabled={!hasPermission("admins:manage") || isOwner || isSelf}
+                        onClick={async () => {
+                          if (!hasPermission("admins:manage") || isOwner || isSelf) {
+                            return;
+                          }
+
+                          const response = await removeAdminMember(admin.telegramUserId);
+
+                          if (response.error) {
+                            setError(response.error);
+                            return;
+                          }
+
+                          const sorted = [...response.admins].sort((a, b) => a.telegramUserId - b.telegramUserId);
+                          setAdminMembers(sorted);
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
       </main>
     </div>
   );
 }
+

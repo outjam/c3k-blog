@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import { posts } from "@/data/posts";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
+import { fetchAdminSession } from "@/lib/admin-api";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 import { readBookmarkedPostSlugs } from "@/lib/post-bookmarks";
 import { isShopAdminUserClient } from "@/lib/shop-admin-client";
@@ -27,7 +28,7 @@ export default function ProfilePage() {
   const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
   const [focusOrdersSection, setFocusOrdersSection] = useState(false);
   const [ordersError, setOrdersError] = useState("");
-  const isAdmin = isShopAdminUserClient(user?.id);
+  const [isAdmin, setIsAdmin] = useState(isShopAdminUserClient(user?.id));
 
   const fullName = useMemo(() => {
     if (!user) {
@@ -73,6 +74,12 @@ export default function ProfilePage() {
     })();
 
     void readBookmarkedPostSlugs().then((slugs) => setBookmarkedSlugs(slugs));
+
+    void fetchAdminSession().then((response) => {
+      if (!response.error && response.session) {
+        setIsAdmin(Boolean(response.session.isAdmin));
+      }
+    });
 
     return () => {
       window.cancelAnimationFrame(rafId);

@@ -5,7 +5,7 @@ import {
   notifyAdminsAboutStatusChange,
   notifyUserAboutStatusChange,
 } from "@/lib/server/shop-order-notify";
-import { forbiddenResponse, getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
 import type { ShopOrderStatus } from "@/types/shop";
 
@@ -54,13 +54,13 @@ const sanitizeOrderId = (value: string): string => {
 };
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = getShopApiAuth(request);
+  const auth = await getShopApiAccess(request);
 
   if (!auth) {
     return unauthorizedResponse();
   }
 
-  if (!auth.isAdmin) {
+  if (!hasAdminPermission(auth, "orders:manage")) {
     return forbiddenResponse();
   }
 

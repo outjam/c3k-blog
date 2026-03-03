@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { forbiddenResponse, getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { forbiddenResponse, getShopApiAccess, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { getShopOrderById } from "@/lib/server/shop-orders-store";
 
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ const sanitizeOrderId = (value: string): string => {
 };
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = getShopApiAuth(_request);
+  const auth = await getShopApiAccess(_request);
 
   if (!auth) {
     return unauthorizedResponse();
@@ -40,4 +40,3 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   return NextResponse.json({ order });
 }
-
