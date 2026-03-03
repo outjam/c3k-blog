@@ -30,6 +30,23 @@ const defaultCheckout: CheckoutFormValues = {
   delivery: "yandex_go",
 };
 
+const ORDER_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+const generateOrderCode = (): string => {
+  const bytes = new Uint8Array(6);
+
+  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  const raw = Array.from(bytes, (byte) => ORDER_CODE_ALPHABET[byte % ORDER_CODE_ALPHABET.length]).join("");
+  return `${raw.slice(0, 3)}-${raw.slice(3, 6)}`;
+};
+
 const sortProducts = (items: typeof SHOP_PRODUCTS, sort: ProductSort) => {
   const list = [...items];
 
@@ -380,12 +397,15 @@ export default function ShopPage() {
     setPaymentError("");
     setIsPaying(true);
     hapticImpact("medium");
+    const orderCode = generateOrderCode();
+    const productIdsForInvoice = Array.from(new Set(cartItems.map((item) => item.productId))).slice(0, 3);
 
     const payment = await payWithTelegramStars({
       amountStars: invoiceStars,
-      orderId: `C3K-${Date.now()}`,
+      orderId: orderCode,
       title: `Заказ C3K (${cartItems.length} шт.)`,
       description: `Оплата заказа в магазине C3K. Доставка: ${checkout.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}.`,
+      productIds: productIdsForInvoice,
     });
 
     setIsPaying(false);
@@ -398,7 +418,7 @@ export default function ShopPage() {
 
     const customerName = [checkout.firstName, checkout.lastName].filter(Boolean).join(" ");
     await appendShopOrder({
-      id: `order-${Date.now()}`,
+      id: orderCode,
       createdAt: new Date().toISOString(),
       status: "processing",
       totalStarsCents,

@@ -14,11 +14,42 @@ interface InvoicePayload {
   orderId?: string;
   title?: string;
   description?: string;
+  productIds?: string[];
 }
 
 const sanitize = (value: string, fallback: string): string => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed.slice(0, 255) : fallback;
+};
+
+const sanitizeOrderCode = (value: string): string => {
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "");
+
+  return normalized.length > 0 ? normalized.slice(0, 7) : "000-000";
+};
+
+const normalizeProductIds = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => String(item).trim())
+        .filter((item) => /^clay-\d+$/i.test(item))
+        .map((item) => item.toLowerCase()),
+    ),
+  ).slice(0, 3);
+};
+
+const buildInvoicePayload = (orderCode: string, productIds: string[]): string => {
+  const productChunk = productIds.join(",");
+  const payload = productChunk ? `${orderCode}|${productChunk}` : orderCode;
+  return payload.slice(0, 128);
 };
 
 const getPublicBaseUrl = (request: Request): string | null => {
@@ -91,9 +122,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid amountStars" }, { status: 400 });
   }
 
-  const orderId = sanitize(String(payload.orderId ?? "order"), "order");
+  const orderCode = sanitizeOrderCode(String(payload.orderId ?? ""));
   const title = sanitize(String(payload.title ?? "Заказ"), "Заказ");
   const description = sanitize(String(payload.description ?? "Оплата заказа"), "Оплата заказа");
+  const productIds = normalizeProductIds(payload.productIds);
+  const invoicePayload = buildInvoicePayload(orderCode, productIds);
 
   const baseUrl = getPublicBaseUrl(request);
   const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -129,7 +162,7 @@ export async function POST(request: Request) {
   const telegramBody = {
     title,
     description,
-    payload: orderId,
+    payload: invoicePayload,
     currency: "XTR",
     prices: [{ label: title, amount: amountStars }],
   };

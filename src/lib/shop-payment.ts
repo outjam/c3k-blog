@@ -5,6 +5,7 @@ export interface PaymentRequest {
   orderId: string;
   title: string;
   description: string;
+  productIds: string[];
 }
 
 export interface PaymentResult {
@@ -18,7 +19,8 @@ const requestInvoiceLink = async ({
   orderId,
   title,
   description,
-}: Pick<PaymentRequest, "amountStars" | "orderId" | "title" | "description">): Promise<{ link: string | null; error?: string }> => {
+  productIds,
+}: Pick<PaymentRequest, "amountStars" | "orderId" | "title" | "description" | "productIds">): Promise<{ link: string | null; error?: string }> => {
   try {
     const response = await fetch("/api/telegram/stars-invoice", {
       method: "POST",
@@ -28,6 +30,7 @@ const requestInvoiceLink = async ({
         orderId,
         title,
         description,
+        productIds,
       }),
     });
 
@@ -51,6 +54,7 @@ export const payWithTelegramStars = async ({
   orderId,
   title,
   description,
+  productIds,
 }: PaymentRequest): Promise<PaymentResult> => {
   const webApp = getTelegramWebApp();
 
@@ -63,7 +67,7 @@ export const payWithTelegramStars = async ({
     return { ok: false, status: "error", message: "Текущая версия Telegram не поддерживает оплату." };
   }
 
-  const invoice = await requestInvoiceLink({ amountStars, orderId, title, description });
+  const invoice = await requestInvoiceLink({ amountStars, orderId, title, description, productIds });
   const invoiceLink = invoice.link;
 
   if (!invoiceLink) {

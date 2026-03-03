@@ -23,8 +23,8 @@ interface TelegramUpdate {
 
 const PAYMENT_SUCCESS_EMOJI_ID = "5895669571058142797";
 const XTR_EMOJI_ID = "6028338546736107668";
-const PRE_MESSAGE_EMOJI_ID = "5102814755630875338";
-const OPEN_BUTTON_EMOJI_ID = "5890925363067886150";
+const OPEN_BUTTON_EMOJI_ID = "5920332557466997677";
+const ORDER_TITLE_STEMS = ["Фигурк", "Ваз", "Кружк", "Светильник", "Тарелк"] as const;
 
 const escapeHtml = (value: string): string => {
   return value
@@ -33,6 +33,43 @@ const escapeHtml = (value: string): string => {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+};
+
+interface ParsedInvoicePayload {
+  orderCode: string;
+  productIds: string[];
+}
+
+const parseInvoicePayload = (rawPayload: string): ParsedInvoicePayload => {
+  const [rawOrderCode, rawProductIds = ""] = rawPayload.split("|", 2);
+  const normalizedOrderCode = rawOrderCode
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "");
+  const orderCode = /^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(normalizedOrderCode) ? normalizedOrderCode : "000-000";
+  const productIds = rawProductIds
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => /^clay-\d+$/.test(item))
+    .slice(0, 3);
+
+  return { orderCode, productIds };
+};
+
+const productIdToTitle = (productId: string): string => {
+  const match = /^clay-(\d+)$/i.exec(productId);
+  const sequence = Number(match?.[1] ?? NaN);
+
+  if (!Number.isFinite(sequence) || sequence < 1) {
+    return "Товар из корзины";
+  }
+
+  const stem = ORDER_TITLE_STEMS[(sequence - 1) % ORDER_TITLE_STEMS.length] ?? ORDER_TITLE_STEMS[0];
+  return `${stem} из глины №${sequence}`;
+};
+
+const formatAmount = (amount: number): string => {
+  return new Intl.NumberFormat("ru-RU").format(Math.max(0, Math.round(amount)));
 };
 
 const getMiniAppBaseUrl = (request: Request): string | null => {
@@ -110,30 +147,25 @@ export async function POST(request: Request) {
   if (update.message?.successful_payment && update.message.chat?.id) {
     const payment = update.message.successful_payment;
     const baseUrl = getMiniAppBaseUrl(request);
-    const orderUrl = baseUrl
-      ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payment.invoice_payload)}`
-      : undefined;
-    const safePayload = escapeHtml(payment.invoice_payload);
-
-    await telegramApi(botToken, "sendMessage", {
-      chat_id: update.message.chat.id,
-      parse_mode: "HTML",
-      text: `<tg-emoji emoji-id="${PRE_MESSAGE_EMOJI_ID}">✨</tg-emoji>`,
-    });
+    const orderUrl = baseUrl ? `${baseUrl}/shop` : undefined;
+    const payload = parseInvoicePayload(payment.invoice_payload);
+    const orderLines = (payload.productIds.length > 0 ? payload.productIds : [""]).map((productId) =>
+      `∙ ${escapeHtml(productId ? productIdToTitle(productId) : "Товар из корзины")}`,
+    );
 
     await telegramApi(botToken, "sendMessage", {
       chat_id: update.message.chat.id,
       parse_mode: "HTML",
       text:
-        `Оплата получена <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji>\n` +
-        `Заказ: ${safePayload}\n` +
-        `Сумма: ${payment.total_amount} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`,
+        `<b>Заказ № ${payload.orderCode} <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji></b>\n\n` +
+        `${orderLines.join("\n")}\n\n` +
+        `${formatAmount(payment.total_amount)} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`,
       reply_markup: orderUrl
         ? {
             inline_keyboard: [
               [
                 {
-                  text: "Открыть",
+                  text: "Магазин",
                   url: orderUrl,
                   icon_custom_emoji_id: OPEN_BUTTON_EMOJI_ID,
                   style: "primary",
