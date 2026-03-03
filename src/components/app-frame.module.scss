@@ -38,3 +38,11 @@
 .contentWithTabBar {
   padding-bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom));
 }
+
+.profileAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}

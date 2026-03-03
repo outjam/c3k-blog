@@ -13,6 +13,8 @@ const ALL_PERMISSIONS: ShopAdminPermission[] = [
   "orders:view",
   "orders:manage",
   "customers:view",
+  "blog:view",
+  "blog:manage",
   "products:view",
   "products:manage",
   "promos:view",
@@ -27,8 +29,17 @@ const ROLE_PERMISSIONS: Record<ShopAdminRole, ShopAdminPermission[]> = {
   owner: ALL_PERMISSIONS,
   admin: ALL_PERMISSIONS.filter((permission) => permission !== "admins:manage"),
   orders: ["dashboard:view", "orders:view", "orders:manage", "customers:view"],
-  catalog: ["dashboard:view", "products:view", "products:manage", "promos:view", "promos:manage", "settings:view"],
-  support: ["dashboard:view", "orders:view", "customers:view"],
+  catalog: [
+    "dashboard:view",
+    "blog:view",
+    "blog:manage",
+    "products:view",
+    "products:manage",
+    "promos:view",
+    "promos:manage",
+    "settings:view",
+  ],
+  support: ["dashboard:view", "orders:view", "customers:view", "blog:view"],
 };
 
 export const getRolePermissions = (role: ShopAdminRole): ShopAdminPermission[] => {
@@ -42,4 +53,3 @@ export const hasRolePermission = (role: ShopAdminRole, permission: ShopAdminPerm
 export const isShopAdminRole = (value: string): value is ShopAdminRole => {
   return value === "owner" || value === "admin" || value === "orders" || value === "catalog" || value === "support";
 };
-

@@ -5,7 +5,13 @@ import {
   notifyAdminsAboutStatusChange,
   notifyUserAboutStatusChange,
 } from "@/lib/server/shop-order-notify";
-import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import {
+  forbiddenResponse,
+  getShopApiAccess,
+  hasAdminPermission,
+  requireJsonRequest,
+  unauthorizedResponse,
+} from "@/lib/server/shop-api-auth";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
 import type { ShopOrderStatus } from "@/types/shop";
 
@@ -62,6 +68,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   if (!hasAdminPermission(auth, "orders:manage")) {
     return forbiddenResponse();
+  }
+
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
   }
 
   const params = await context.params;

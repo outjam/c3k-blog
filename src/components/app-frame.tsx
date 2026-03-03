@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { hapticSelection } from "@/lib/telegram";
 import { MiniTabBar } from "@/components/mini-tab-bar";
+import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
 
 import styles from "./app-frame.module.scss";
 
@@ -46,6 +47,8 @@ function ShopIcon() {
 export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const webApp = useTelegramWebApp();
+  const profilePhotoUrl = webApp?.initDataUnsafe?.user?.photo_url;
   const isShop = pathname.startsWith("/shop");
   const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders");
   const activeIndex = isProfile ? 2 : isShop ? 1 : 0;
@@ -55,8 +58,13 @@ export function AppFrame({ children }: AppFrameProps) {
   const tabs = useMemo<TabItem[]>(() => [
     { id: "blog", label: "Блог", href: "/", icon: <BlogIcon /> },
     { id: "shop", label: "Магазин", href: "/shop", icon: <ShopIcon /> },
-    { id: "profile", label: "Профиль", href: "/profile", icon: <ProfileIcon /> },
-  ], []);
+    {
+      id: "profile",
+      label: "Профиль",
+      href: "/profile",
+      icon: profilePhotoUrl ? <img src={profilePhotoUrl} alt="" className={styles.profileAvatar} /> : <ProfileIcon />,
+    },
+  ], [profilePhotoUrl]);
 
   const navigateTo = (index: number) => {
     const nextTab = tabs[index];
@@ -67,7 +75,7 @@ export function AppFrame({ children }: AppFrameProps) {
 
     if (nextTab.href !== pathname) {
       hapticSelection();
-      router.push(nextTab.href);
+      router.push(nextTab.href, { scroll: false });
     }
   };
 

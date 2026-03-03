@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import {
+  createAdminProduct,
   createAdminPromo,
+  deleteAdminProduct,
   deleteAdminPromo,
   fetchAdminCustomers,
   fetchAdminDashboard,
@@ -106,8 +108,12 @@ export default function AdminPage() {
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
   const [adminDrafts, setAdminDrafts] = useState<Record<number, AdminMemberDraft>>({});
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [savingAdminId, setSavingAdminId] = useState<number | null>(null);
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [creatingProduct, setCreatingProduct] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [adminSearch, setAdminSearch] = useState("");
   const [newPromoCode, setNewPromoCode] = useState("");
   const [newPromoLabel, setNewPromoLabel] = useState("");
   const [newPromoType, setNewPromoType] = useState<"percent" | "fixed">("percent");
@@ -151,75 +157,96 @@ export default function AdminPage() {
     setError("");
 
     const errors: string[] = [];
+    const jobs: Promise<void>[] = [];
 
     if (hasPermission("dashboard:view")) {
-      const response = await fetchAdminDashboard();
-      setDashboard(response.data);
-      if (response.error) {
-        errors.push(response.error);
-      }
+      jobs.push(
+        fetchAdminDashboard().then((response) => {
+          setDashboard(response.data);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
     }
 
     if (hasPermission("customers:view")) {
-      const response = await fetchAdminCustomers();
-      setCustomers(response.customers);
-      if (response.error) {
-        errors.push(response.error);
-      }
+      jobs.push(
+        fetchAdminCustomers().then((response) => {
+          setCustomers(response.customers);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
     }
 
     if (hasPermission("products:view")) {
-      const response = await fetchAdminProducts();
-      setProducts(response.products);
-      setProductDrafts((prev) => {
-        const next = { ...prev };
+      jobs.push(
+        fetchAdminProducts().then((response) => {
+          setProducts(response.products);
+          setProductDrafts((prev) => {
+            const next = { ...prev };
 
-        for (const product of response.products) {
-          next[product.id] = prev[product.id] ?? toProductDraft(product);
-        }
+            for (const product of response.products) {
+              next[product.id] = prev[product.id] ?? toProductDraft(product);
+            }
 
-        return next;
-      });
+            return next;
+          });
 
-      if (response.error) {
-        errors.push(response.error);
-      }
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
     }
 
     if (hasPermission("promos:view")) {
-      const response = await fetchAdminPromos();
-      setPromos(response.promos);
-      if (response.error) {
-        errors.push(response.error);
-      }
+      jobs.push(
+        fetchAdminPromos().then((response) => {
+          setPromos(response.promos);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
     }
 
     if (hasPermission("settings:view")) {
-      const response = await fetchAdminSettings();
-      setSettings(response.settings);
-      if (response.error) {
-        errors.push(response.error);
-      }
+      jobs.push(
+        fetchAdminSettings().then((response) => {
+          setSettings(response.settings);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
     }
 
     if (hasPermission("admins:view")) {
-      const response = await fetchAdminMembers();
-      const sorted = [...response.admins].sort((a, b) => a.telegramUserId - b.telegramUserId);
-      setAdminMembers(sorted);
-      setAdminDrafts((prev) => {
-        const next = { ...prev };
+      jobs.push(
+        fetchAdminMembers().then((response) => {
+          const sorted = [...response.admins].sort((a, b) => a.telegramUserId - b.telegramUserId);
+          setAdminMembers(sorted);
+          setAdminDrafts((prev) => {
+            const next = { ...prev };
 
-        for (const admin of sorted) {
-          next[admin.telegramUserId] = prev[admin.telegramUserId] ?? toAdminDraft(admin);
-        }
+            for (const admin of sorted) {
+              next[admin.telegramUserId] = prev[admin.telegramUserId] ?? toAdminDraft(admin);
+            }
 
-        return next;
-      });
+            return next;
+          });
 
-      if (response.error) {
-        errors.push(response.error);
-      }
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
     }
+
+    await Promise.all(jobs);
 
     if (errors.length > 0) {
       setError(errors[0] as string);
@@ -264,6 +291,53 @@ export default function AdminPage() {
     });
   }, [products, productSearch]);
 
+  const filteredCustomers = useMemo(() => {
+    const query = customerSearch.trim().toLowerCase();
+
+    if (!query) {
+      return customers;
+    }
+
+    return customers.filter((customer) => {
+      const haystack = [
+        customer.telegramUserId,
+        customer.username,
+        customer.firstName,
+        customer.lastName,
+        customer.phone,
+        customer.email,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [customerSearch, customers]);
+
+  const filteredAdminMembers = useMemo(() => {
+    const query = adminSearch.trim().toLowerCase();
+
+    if (!query) {
+      return adminMembers;
+    }
+
+    return adminMembers.filter((admin) => {
+      const haystack = [
+        admin.telegramUserId,
+        admin.username,
+        admin.firstName,
+        admin.lastName,
+        admin.role,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [adminMembers, adminSearch]);
+
   if (sessionLoading) {
     return (
       <div className={styles.page}>
@@ -302,6 +376,14 @@ export default function AdminPage() {
             {loading ? "Обновляем..." : "Обновить всё"}
           </button>
         </header>
+
+        <div className={styles.permissionRow}>
+          {session.permissions.map((permission) => (
+            <span key={permission} className={styles.permissionPill}>
+              {permission}
+            </span>
+          ))}
+        </div>
 
         {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -355,33 +437,31 @@ export default function AdminPage() {
 
         {activeTab === "customers" && hasPermission("customers:view") ? (
           <section className={styles.section}>
-            <h2>Клиенты</h2>
-            <div className={styles.tableWrap}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Telegram</th>
-                    <th>Имя</th>
-                    <th>Телефон</th>
-                    <th>Заказы</th>
-                    <th>Сумма</th>
-                    <th>Последний заказ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customers.map((customer) => (
-                    <tr key={customer.telegramUserId}>
-                      <td>{customer.username ? `@${customer.username}` : customer.telegramUserId}</td>
-                      <td>{[customer.firstName, customer.lastName].filter(Boolean).join(" ") || "—"}</td>
-                      <td>{customer.phone || "—"}</td>
-                      <td>{customer.ordersCount}</td>
-                      <td>{formatStarsFromCents(customer.totalSpentStarsCents)} ⭐</td>
-                      <td>{new Date(customer.lastOrderAt).toLocaleString("ru-RU")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className={styles.sectionHead}>
+              <h2>Клиенты</h2>
+              <input
+                value={customerSearch}
+                onChange={(event) => setCustomerSearch(event.target.value)}
+                placeholder="Поиск по имени, @username, телефону"
+              />
             </div>
+
+            {filteredCustomers.length === 0 ? (
+              <p className={styles.hint}>Клиенты не найдены.</p>
+            ) : (
+              <div className={styles.customersList}>
+                {filteredCustomers.map((customer) => (
+                  <article key={customer.telegramUserId} className={styles.customerCard}>
+                    <h3>{customer.username ? `@${customer.username}` : customer.telegramUserId}</h3>
+                    <p>{[customer.firstName, customer.lastName].filter(Boolean).join(" ") || "Без имени"}</p>
+                    <p>Телефон: {customer.phone || "не указан"}</p>
+                    <p>Заказы: {customer.ordersCount}</p>
+                    <p>Сумма: {formatStarsFromCents(customer.totalSpentStarsCents)} ⭐</p>
+                    <p>Последний заказ: {new Date(customer.lastOrderAt).toLocaleString("ru-RU")}</p>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         ) : null}
 
@@ -389,22 +469,51 @@ export default function AdminPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2>Товары</h2>
-              <input
-                value={productSearch}
-                onChange={(event) => setProductSearch(event.target.value)}
-                placeholder="Поиск по товару / SKU"
-              />
+              <div className={styles.sectionHeadActions}>
+                <input
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Поиск по товару / SKU"
+                />
+                <button
+                  type="button"
+                  className={styles.inlineButton}
+                  disabled={!hasPermission("products:manage") || creatingProduct}
+                  onClick={async () => {
+                    if (!hasPermission("products:manage")) {
+                      return;
+                    }
+
+                    setCreatingProduct(true);
+                    const response = await createAdminProduct({});
+                    setCreatingProduct(false);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setProducts(response.products);
+                    await loadAll();
+                  }}
+                >
+                  {creatingProduct ? "Создаём..." : "Новый товар"}
+                </button>
+              </div>
             </div>
 
             <div className={styles.productsList}>
               {filteredProducts.map((product) => {
                 const draft = productDrafts[product.id] ?? toProductDraft(product);
                 const isSaving = savingProductId === product.id;
+                const isDeleting = deletingProductId === product.id;
 
                 return (
                   <article key={product.id} className={styles.productCard}>
                     <h3>{product.title}</h3>
-                    <p>{product.attributes.sku}</p>
+                    <p>
+                      {product.attributes.sku} · {product.isCustom ? "Кастомный товар" : "Базовый товар"}
+                    </p>
                     <div className={styles.formRow}>
                       <label>
                         Цена (stars cents)
@@ -502,6 +611,32 @@ export default function AdminPage() {
                     >
                       {isSaving ? "Сохраняем..." : hasPermission("products:manage") ? "Сохранить" : "Только просмотр"}
                     </button>
+                    {product.isCustom ? (
+                      <button
+                        type="button"
+                        className={styles.danger}
+                        disabled={isDeleting || !hasPermission("products:manage")}
+                        onClick={async () => {
+                          if (!hasPermission("products:manage")) {
+                            return;
+                          }
+
+                          setDeletingProductId(product.id);
+                          const response = await deleteAdminProduct(product.id);
+                          setDeletingProductId(null);
+
+                          if (response.error) {
+                            setError(response.error);
+                            return;
+                          }
+
+                          setProducts(response.products);
+                          await loadAll();
+                        }}
+                      >
+                        {isDeleting ? "Удаляем..." : "Удалить"}
+                      </button>
+                    ) : null}
                   </article>
                 );
               })}
@@ -695,6 +830,11 @@ export default function AdminPage() {
         {activeTab === "admins" && hasPermission("admins:view") ? (
           <section className={styles.section}>
             <h2>Администраторы и роли</h2>
+            <input
+              value={adminSearch}
+              onChange={(event) => setAdminSearch(event.target.value)}
+              placeholder="Поиск по роли, @username, ID"
+            />
             <div className={styles.adminCreate}>
               <input
                 value={newAdminTelegramId}
@@ -777,7 +917,7 @@ export default function AdminPage() {
             </div>
 
             <div className={styles.adminsList}>
-              {adminMembers.map((admin) => {
+              {filteredAdminMembers.map((admin) => {
                 const draft = adminDrafts[admin.telegramUserId] ?? toAdminDraft(admin);
                 const isSaving = savingAdminId === admin.telegramUserId;
                 const isOwner = admin.role === "owner";
@@ -943,4 +1083,3 @@ export default function AdminPage() {
     </div>
   );
 }
-

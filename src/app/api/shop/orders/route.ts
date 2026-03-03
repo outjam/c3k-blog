@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
 import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
-import { getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { getShopOrderById, listShopOrdersByTelegramUser, upsertShopOrder } from "@/lib/server/shop-orders-store";
 import type { DeliveryMethod, ShopOrder, ShopOrderItem, ShopOrderStatus } from "@/types/shop";
 
@@ -116,6 +116,11 @@ export async function POST(request: Request) {
 
   if (!auth) {
     return unauthorizedResponse();
+  }
+
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
   }
 
   let payload: CreateOrderBody;

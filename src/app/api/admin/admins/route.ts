@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 
 import { DEFAULT_ADMIN_TELEGRAM_ID } from "@/lib/shop-admin";
 import { isShopAdminRole } from "@/lib/shop-admin-roles";
-import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import {
+  forbiddenResponse,
+  getShopApiAccess,
+  hasAdminPermission,
+  requireJsonRequest,
+  unauthorizedResponse,
+} from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ShopAdminMember, ShopAdminRole } from "@/types/shop";
 
@@ -96,6 +102,11 @@ export async function PUT(request: Request) {
     return forbiddenResponse();
   }
 
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
+  }
+
   let payload: AdminUpsertBody;
 
   try {
@@ -159,6 +170,11 @@ export async function DELETE(request: Request) {
 
   if (!hasAdminPermission(auth, "admins:manage")) {
     return forbiddenResponse();
+  }
+
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
   }
 
   let payload: AdminDeleteBody;

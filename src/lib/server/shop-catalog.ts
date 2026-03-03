@@ -19,27 +19,34 @@ export const getCatalogSnapshot = async (): Promise<{
   settings: ShopAppSettings;
 }> => {
   const config = await readShopAdminConfig();
+  const map = new Map<string, ShopProduct>(SHOP_PRODUCTS.map((product) => [product.id, product]));
 
-  const products = SHOP_PRODUCTS.map((product) => {
-    const override = config.productOverrides[product.id];
+  for (const product of Object.values(config.productRecords)) {
+    map.set(product.id, product);
+  }
 
-    if (!override) {
-      return product;
-    }
+  const products = Array.from(map.values())
+    .map((product) => {
+      const override = config.productOverrides[product.id];
 
-    const next = applyProductOverride(product, {
-      priceStarsCents: typeof override.priceStarsCents === "number" ? override.priceStarsCents : product.priceStarsCents,
-      attributes: {
-        ...product.attributes,
-        stock: typeof override.stock === "number" ? override.stock : product.attributes.stock,
-      },
-      isNew: typeof override.isFeatured === "boolean" ? override.isFeatured : product.isNew,
-      isHit: typeof override.isFeatured === "boolean" ? override.isFeatured : product.isHit,
-      subtitle: override.badge ? `${product.subtitle} • ${override.badge}` : product.subtitle,
-    });
+      if (!override) {
+        return product;
+      }
 
-    return override.isPublished === false ? null : next;
-  }).filter((item): item is ShopProduct => Boolean(item));
+      const next = applyProductOverride(product, {
+        priceStarsCents: typeof override.priceStarsCents === "number" ? override.priceStarsCents : product.priceStarsCents,
+        attributes: {
+          ...product.attributes,
+          stock: typeof override.stock === "number" ? override.stock : product.attributes.stock,
+        },
+        isNew: typeof override.isFeatured === "boolean" ? override.isFeatured : product.isNew,
+        isHit: typeof override.isFeatured === "boolean" ? override.isFeatured : product.isHit,
+        subtitle: override.badge ? `${product.subtitle} • ${override.badge}` : product.subtitle,
+      });
+
+      return override.isPublished === false ? null : next;
+    })
+    .filter((item): item is ShopProduct => Boolean(item));
 
   return {
     products,

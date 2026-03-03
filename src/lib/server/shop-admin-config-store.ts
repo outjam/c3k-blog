@@ -1,4 +1,5 @@
 import { SHOP_PRODUCTS } from "@/data/shop-products";
+import type { BlogPost, PostContentBlock } from "@/data/posts";
 import {
   DEFAULT_DELIVERY_FEE_STARS_CENTS,
   DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS,
@@ -7,11 +8,208 @@ import {
 } from "@/lib/shop-pricing";
 import { isShopAdminRole } from "@/lib/shop-admin-roles";
 import { DEFAULT_ADMIN_TELEGRAM_ID, getShopAdminTelegramIds } from "@/lib/shop-admin";
-import type { ShopAdminConfig, ShopAdminMember, ShopAppSettings, ShopPromoCode } from "@/types/shop";
+import type { ShopAdminConfig, ShopAdminMember, ShopAppSettings, ShopProduct, ShopPromoCode } from "@/types/shop";
 
 const ADMIN_CONFIG_KEY = "c3k:shop:admin-config:v1";
 
 type GlobalWithConfig = typeof globalThis & { __c3kShopAdminConfigMemory__?: ShopAdminConfig };
+
+const DEFAULT_PRODUCT = SHOP_PRODUCTS[0] as ShopProduct;
+const DEFAULT_BLOG_COVER = {
+  src: "/posts/cover-pattern.svg",
+  alt: "Обложка поста",
+  width: 1200,
+  height: 700,
+};
+
+const normalizeSafeId = (value: unknown, maxLength: number): string => {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLength);
+};
+
+const normalizeSafeSlug = (value: unknown, maxLength: number): string => {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё_-]/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLength);
+};
+
+const sanitizeContentBlock = (raw: unknown): PostContentBlock | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const block = raw as Partial<PostContentBlock> & { type?: string };
+
+  if (block.type === "paragraph" && typeof block.text === "string") {
+    return { type: "paragraph", text: block.text.slice(0, 6000) };
+  }
+
+  if (block.type === "heading" && typeof block.text === "string") {
+    return { type: "heading", text: block.text.slice(0, 240) };
+  }
+
+  if (block.type === "quote" && typeof block.text === "string") {
+    return {
+      type: "quote",
+      text: block.text.slice(0, 1200),
+      author: typeof block.author === "string" ? block.author.slice(0, 120) : undefined,
+    };
+  }
+
+  if (block.type === "list") {
+    const sourceItems = Array.isArray(block.items) ? block.items : [];
+    const items = sourceItems
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 50)
+      .map((item) => item.slice(0, 220));
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    return {
+      type: "list",
+      ordered: Boolean(block.ordered),
+      items,
+    };
+  }
+
+  if (block.type === "image" && block.image && typeof block.image === "object") {
+    const image = block.image as unknown as Record<string, unknown>;
+    const src = String(image.src ?? "").trim();
+
+    if (!src) {
+      return null;
+    }
+
+    return {
+      type: "image",
+      image: {
+        src,
+        alt: String(image.alt ?? "Изображение").slice(0, 220),
+        caption: typeof image.caption === "string" ? image.caption.slice(0, 320) : undefined,
+        width: Math.max(1, Math.round(Number(image.width ?? 1200))),
+        height: Math.max(1, Math.round(Number(image.height ?? 700))),
+      },
+    };
+  }
+
+  return null;
+};
+
+const sanitizeBlogPost = (raw: unknown): BlogPost | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const post = raw as Partial<BlogPost>;
+  const slug = normalizeSafeSlug(post.slug, 120);
+
+  if (!slug) {
+    return null;
+  }
+
+  const tags = (Array.isArray(post.tags) ? post.tags : [])
+    .map((tag) => String(tag ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((tag) => tag.slice(0, 32));
+
+  const sourceBlocks = Array.isArray(post.content) ? post.content : [];
+  const content = sourceBlocks
+    .map((block) => sanitizeContentBlock(block))
+    .filter((block): block is PostContentBlock => Boolean(block));
+
+  return {
+    slug,
+    title: String(post.title ?? "").trim().slice(0, 180) || "Без названия",
+    excerpt: String(post.excerpt ?? "").trim().slice(0, 420) || "Описание отсутствует",
+    tags: tags.length > 0 ? tags : ["telegram", "webapp"],
+    cardVariant: post.cardVariant === "feature" || post.cardVariant === "glass" || post.cardVariant === "minimal" ? post.cardVariant : "minimal",
+    publishedAt: String(post.publishedAt ?? new Date().toISOString().slice(0, 10)),
+    readTime: String(post.readTime ?? "5 мин").slice(0, 20),
+    cover:
+      post.cover && typeof post.cover === "object"
+        ? {
+            src: String((post.cover as { src?: string }).src ?? DEFAULT_BLOG_COVER.src),
+            alt: String((post.cover as { alt?: string }).alt ?? DEFAULT_BLOG_COVER.alt).slice(0, 220),
+            caption:
+              typeof (post.cover as { caption?: string }).caption === "string"
+                ? (post.cover as { caption?: string }).caption?.slice(0, 320)
+                : undefined,
+            width: Math.max(1, Math.round(Number((post.cover as { width?: number }).width ?? DEFAULT_BLOG_COVER.width))),
+            height: Math.max(1, Math.round(Number((post.cover as { height?: number }).height ?? DEFAULT_BLOG_COVER.height))),
+          }
+        : DEFAULT_BLOG_COVER,
+    content: content.length > 0 ? content : [{ type: "paragraph", text: "Контент пока не добавлен." }],
+  };
+};
+
+const sanitizeProduct = (raw: unknown): ShopProduct | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const product = raw as Partial<ShopProduct>;
+  const id = normalizeSafeId(product.id, 80);
+  const slug = normalizeSafeSlug(product.slug, 120);
+
+  if (!id || !slug) {
+    return null;
+  }
+
+  const category = product.category;
+  if (category !== "figurine" && category !== "vase" && category !== "mug" && category !== "lamp" && category !== "plate") {
+    return null;
+  }
+
+  const sourceAttributes = product.attributes ?? DEFAULT_PRODUCT.attributes;
+
+  return {
+    id,
+    slug,
+    title: String(product.title ?? "").trim().slice(0, 160) || "Новый товар",
+    subtitle: String(product.subtitle ?? "").trim().slice(0, 220) || "Описание",
+    description: String(product.description ?? "").trim().slice(0, 5000) || "Описание товара отсутствует.",
+    category,
+    image: String(product.image ?? "").trim() || DEFAULT_PRODUCT.image,
+    priceStarsCents: Math.max(1, Math.round(Number(product.priceStarsCents ?? 1))),
+    oldPriceStarsCents:
+      typeof product.oldPriceStarsCents === "number" && Number.isFinite(product.oldPriceStarsCents)
+        ? Math.max(1, Math.round(product.oldPriceStarsCents))
+        : undefined,
+    rating: Math.max(0, Math.min(5, Number(product.rating ?? DEFAULT_PRODUCT.rating))),
+    reviewsCount: Math.max(0, Math.round(Number(product.reviewsCount ?? DEFAULT_PRODUCT.reviewsCount))),
+    isNew: Boolean(product.isNew),
+    isHit: Boolean(product.isHit),
+    tags: (Array.isArray(product.tags) ? product.tags : [])
+      .map((tag) => String(tag ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 20)
+      .map((tag) => tag.slice(0, 42)),
+    attributes: {
+      material: String(sourceAttributes.material ?? DEFAULT_PRODUCT.attributes.material).slice(0, 120),
+      technique: String(sourceAttributes.technique ?? DEFAULT_PRODUCT.attributes.technique).slice(0, 120),
+      color: String(sourceAttributes.color ?? DEFAULT_PRODUCT.attributes.color).slice(0, 120),
+      heightCm: Math.max(1, Math.round(Number(sourceAttributes.heightCm ?? DEFAULT_PRODUCT.attributes.heightCm))),
+      widthCm: Math.max(1, Math.round(Number(sourceAttributes.widthCm ?? DEFAULT_PRODUCT.attributes.widthCm))),
+      weightGr: Math.max(1, Math.round(Number(sourceAttributes.weightGr ?? DEFAULT_PRODUCT.attributes.weightGr))),
+      collection: String(sourceAttributes.collection ?? DEFAULT_PRODUCT.attributes.collection).slice(0, 120),
+      sku: String(sourceAttributes.sku ?? `SKU-${id}`).slice(0, 60),
+      stock: Math.max(0, Math.min(9999, Math.round(Number(sourceAttributes.stock ?? 0)))),
+    },
+  };
+};
 
 const normalizePromoCode = (code: string): string => {
   return code
@@ -61,7 +259,10 @@ const buildDefaultConfig = (): ShopAdminConfig => {
 
   return {
     adminMembers,
+    productRecords: {},
     productOverrides: {},
+    blogPostRecords: {},
+    hiddenPostSlugs: [],
     promoCodes: PROMO_RULES.map((rule) => toDefaultPromo(rule)),
     settings: buildDefaultSettings(),
     updatedAt: now,
@@ -77,7 +278,7 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
 
   const row = input as Partial<ShopAdminConfig>;
   const updatedAt = String(row.updatedAt ?? fallback.updatedAt);
-  const validProductIds = new Set(SHOP_PRODUCTS.map((item) => item.id));
+  const staticProductIds = new Set(SHOP_PRODUCTS.map((item) => item.id));
   const staticAdminIds = new Set(getShopAdminTelegramIds());
   staticAdminIds.add(DEFAULT_ADMIN_TELEGRAM_ID);
   const now = new Date().toISOString();
@@ -140,6 +341,40 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
       role: member.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? "owner" : member.role,
       disabled: member.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? false : member.disabled,
     }));
+
+  const productRecords = Object.fromEntries(
+    Object.entries(row.productRecords ?? {})
+      .map(([key, value]) => {
+        const sanitized = sanitizeProduct({ ...(value as object), id: key });
+
+        if (!sanitized) {
+          return null;
+        }
+
+        return [sanitized.id, sanitized] as const;
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+  );
+
+  const blogPostRecords = Object.fromEntries(
+    Object.entries(row.blogPostRecords ?? {})
+      .map(([key, value]) => {
+        const sanitized = sanitizeBlogPost({ ...(value as object), slug: key });
+
+        if (!sanitized) {
+          return null;
+        }
+
+        return [sanitized.slug, sanitized] as const;
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+  );
+
+  const hiddenPostSlugs = (Array.isArray(row.hiddenPostSlugs) ? row.hiddenPostSlugs : [])
+    .map((slug) => normalizeSafeSlug(slug, 120))
+    .filter(Boolean);
+
+  const validProductIds = new Set([...staticProductIds, ...Object.keys(productRecords)]);
 
   const productOverrides = Object.fromEntries(
     Object.entries(row.productOverrides ?? {})
@@ -222,7 +457,10 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
 
   return {
     adminMembers,
+    productRecords,
     productOverrides,
+    blogPostRecords,
+    hiddenPostSlugs,
     promoCodes,
     settings,
     updatedAt,

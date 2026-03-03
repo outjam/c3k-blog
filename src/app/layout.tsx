@@ -3,6 +3,7 @@ import { Manrope } from "next/font/google";
 import Script from "next/script";
 
 import { AppFrame } from "@/components/app-frame";
+import { ScrollPositionManager } from "@/components/scroll-position-manager";
 import { TelegramMiniAppProvider } from "@/components/telegram-mini-app-provider";
 
 import "./globals.scss";
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body className={manrope.variable}>
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <TelegramMiniAppProvider>
+          <ScrollPositionManager />
           <AppFrame>{children}</AppFrame>
         </TelegramMiniAppProvider>
       </body>

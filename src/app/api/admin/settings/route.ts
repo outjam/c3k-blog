@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import {
+  forbiddenResponse,
+  getShopApiAccess,
+  hasAdminPermission,
+  requireJsonRequest,
+  unauthorizedResponse,
+} from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 
 export const runtime = "nodejs";
@@ -38,6 +44,11 @@ export async function PATCH(request: Request) {
 
   if (!hasAdminPermission(auth, "settings:manage")) {
     return forbiddenResponse();
+  }
+
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
   }
 
   let payload: SettingsPatchBody;

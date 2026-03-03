@@ -92,3 +92,13 @@ export const unauthorizedResponse = (message = "Unauthorized") => {
 export const forbiddenResponse = (message = "Forbidden") => {
   return NextResponse.json({ error: message }, { status: 403 });
 };
+
+export const requireJsonRequest = (request: Request) => {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return NextResponse.json({ error: "Expected application/json request body" }, { status: 415 });
+  }
+
+  return null;
+};

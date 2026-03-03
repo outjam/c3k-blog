@@ -53,6 +53,8 @@ export interface AdminProductWithMeta extends ShopProduct {
   effectivePriceStarsCents: number;
   effectiveStock: number;
   effectivePublished: boolean;
+  isCustom?: boolean;
+  sourceType?: "base" | "edited" | "custom";
 }
 
 export interface AdminSession {
@@ -157,6 +159,54 @@ export const patchAdminProduct = async (payload: {
     return { ok: true };
   } catch {
     return { ok: false, error: "Network error" };
+  }
+};
+
+export const createAdminProduct = async (payload: {
+  product?: Partial<ShopProduct>;
+}): Promise<{ products: AdminProductWithMeta[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/products", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { products: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { products?: AdminProductWithMeta[] };
+    return { products: data.products ?? [] };
+  } catch {
+    return { products: [], error: "Network error" };
+  }
+};
+
+export const deleteAdminProduct = async (productId: string): Promise<{ products: AdminProductWithMeta[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/products", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify({ productId }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { products: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { products?: AdminProductWithMeta[] };
+    return { products: data.products ?? [] };
+  } catch {
+    return { products: [], error: "Network error" };
   }
 };
 

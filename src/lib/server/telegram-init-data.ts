@@ -17,7 +17,17 @@ export interface VerifiedTelegramInitData {
   user: TelegramAuthUser;
 }
 
-const MAX_AUTH_AGE_SECONDS = 60 * 60 * 24 * 7;
+const DEFAULT_MAX_AUTH_AGE_SECONDS = 60 * 60 * 24;
+
+const getMaxAuthAgeSeconds = (): number => {
+  const raw = Number.parseInt(process.env.TELEGRAM_INITDATA_MAX_AGE_SECONDS ?? "", 10);
+
+  if (Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+
+  return DEFAULT_MAX_AUTH_AGE_SECONDS;
+};
 
 const getHashFromParams = (params: URLSearchParams): string | null => {
   const hash = params.get("hash");
@@ -96,8 +106,9 @@ export const verifyTelegramInitData = (initData: string, botToken: string): Veri
   if (authDate && Number.isFinite(authDate)) {
     const now = Math.floor(Date.now() / 1000);
     const age = Math.abs(now - authDate);
+    const maxAuthAgeSeconds = getMaxAuthAgeSeconds();
 
-    if (age > MAX_AUTH_AGE_SECONDS) {
+    if (age > maxAuthAgeSeconds) {
       return null;
     }
   }

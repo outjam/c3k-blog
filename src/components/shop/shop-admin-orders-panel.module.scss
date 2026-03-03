@@ -1,18 +1,27 @@
 .panel {
-  margin-top: 1rem;
+  margin-top: 0.4rem;
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
-  border-radius: 0.8rem;
-  padding: 0.8rem;
+  border-radius: 0.95rem;
+  padding: 0.9rem;
   background: color-mix(in srgb, var(--tg-section-bg) 94%, transparent);
   display: grid;
   gap: 0.7rem;
 }
 
 .head {
+  position: sticky;
+  top: calc(var(--safe-area-top) + 11.2rem);
+  z-index: 6;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 0.7rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .head h2 {
@@ -25,10 +34,11 @@
 .actions button {
   border: 0;
   border-radius: 0.65rem;
-  background: var(--tg-accent);
-  color: var(--tg-on-accent);
-  padding: 0.52rem 0.72rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  padding: 0.55rem 0.76rem;
   font: inherit;
+  min-height: 2.4rem;
 }
 
 .filters {
@@ -53,8 +63,9 @@
   border-radius: 0.58rem;
   background: var(--tg-section-bg);
   color: var(--tg-text);
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.62rem;
   font: inherit;
+  min-height: 2.4rem;
 }
 
 .statusRow {
@@ -120,12 +131,22 @@
 
 .actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 0.45rem;
 }
 
 @media (max-width: 700px) {
+  .head {
+    top: calc(var(--safe-area-top) + 12.8rem);
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions {
     grid-template-columns: minmax(0, 1fr);
   }
 }

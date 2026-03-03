@@ -7,6 +7,8 @@ export type ShopAdminPermission =
   | "orders:view"
   | "orders:manage"
   | "customers:view"
+  | "blog:view"
+  | "blog:manage"
   | "products:view"
   | "products:manage"
   | "promos:view"
@@ -95,7 +97,10 @@ export interface ShopAdminMember {
 
 export interface ShopAdminConfig {
   adminMembers: ShopAdminMember[];
+  productRecords: Record<string, ShopProduct>;
   productOverrides: Record<string, ShopProductOverride>;
+  blogPostRecords: Record<string, import("@/data/posts").BlogPost>;
+  hiddenPostSlugs: string[];
   promoCodes: ShopPromoCode[];
   settings: ShopAppSettings;
   updatedAt: string;

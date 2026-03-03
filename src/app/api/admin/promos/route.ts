@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { forbiddenResponse, getShopApiAccess, hasAdminPermission, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import {
+  forbiddenResponse,
+  getShopApiAccess,
+  hasAdminPermission,
+  requireJsonRequest,
+  unauthorizedResponse,
+} from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { PromoDiscountType } from "@/types/shop";
 
@@ -60,6 +66,11 @@ export async function POST(request: Request) {
     return forbiddenResponse();
   }
 
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
+  }
+
   let payload: PromoCreateBody;
 
   try {
@@ -117,6 +128,11 @@ export async function PATCH(request: Request) {
 
   if (!hasAdminPermission(auth, "promos:manage")) {
     return forbiddenResponse();
+  }
+
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
   }
 
   let payload: PromoPatchBody;
