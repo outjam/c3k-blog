@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
-import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
-import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { getShopOrderById, listShopOrdersByTelegramUser, upsertShopOrder } from "@/lib/server/shop-orders-store";
-import type { DeliveryMethod, ShopOrder, ShopOrderItem, ShopOrderStatus } from "@/types/shop";
+import type { DeliveryMethod, ShopOrder, ShopOrderItem } from "@/types/shop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface CreateOrderBody {
   id?: string;
-  status?: ShopOrderStatus;
   invoiceStars?: number;
   totalStarsCents?: number;
   deliveryFeeStarsCents?: number;
@@ -31,23 +27,6 @@ interface CreateOrderBody {
     priceStarsCents?: number;
   }>;
 }
-
-const getBaseUrl = (request: Request): string | null => {
-  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
-
-  if (explicit) {
-    return explicit.replace(/\/+$/, "");
-  }
-
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-
-  if (!host) {
-    return null;
-  }
-
-  return `${proto}://${host}`.replace(/\/+$/, "");
-};
 
 const sanitizeOrderId = (value: string | undefined): string | null => {
   const normalized = String(value ?? "")
@@ -86,14 +65,6 @@ const sanitizeItems = (value: CreateOrderBody["items"]): ShopOrderItem[] => {
       };
     })
     .filter((item): item is ShopOrderItem => Boolean(item));
-};
-
-const normalizeStatus = (status: ShopOrderStatus | undefined): ShopOrderStatus => {
-  if (!status) {
-    return "paid";
-  }
-
-  return status in SHOP_ORDER_STATUS_LABELS ? status : "paid";
 };
 
 const clampMoney = (value: unknown): number => {
@@ -154,17 +125,22 @@ export async function POST(request: Request) {
   const deliveryFeeStarsCents = clampMoney(payload.deliveryFeeStarsCents);
   const totalStarsCents = Math.max(clampMoney(payload.totalStarsCents), subtotalFromItems - discountStarsCents + deliveryFeeStarsCents);
   const invoiceStars = Math.max(1, Math.round(Number(payload.invoiceStars ?? Math.ceil(totalStarsCents / 100))));
+  const promoCode = String(payload.promoCode ?? "")
+    .trim()
+    .toUpperCase()
+    .slice(0, 24);
 
   const order: ShopOrder = {
     id: orderId,
     createdAt: now,
     updatedAt: now,
-    status: normalizeStatus(payload.status),
+    status: "created",
     invoiceStars,
     totalStarsCents,
     deliveryFeeStarsCents,
     discountStarsCents,
     delivery: payload.delivery === "cdek" ? "cdek" : "yandex_go",
+    promoCode: promoCode || undefined,
     address: String(payload.address ?? "").trim().slice(0, 255),
     customerName: String(payload.customerName ?? "").trim().slice(0, 120),
     phone: String(payload.phone ?? "").trim().slice(0, 80),
@@ -174,42 +150,28 @@ export async function POST(request: Request) {
     telegramUsername: auth.username || undefined,
     telegramFirstName: auth.firstName || undefined,
     telegramLastName: auth.lastName || undefined,
+    payment: {
+      currency: "XTR",
+      amount: invoiceStars,
+      invoicePayloadHash: "",
+      status: "created",
+      updatedAt: now,
+    },
     items,
     history: [
       {
         id: `${Date.now()}-created`,
         at: now,
         fromStatus: null,
-        toStatus: normalizeStatus(payload.status),
+        toStatus: "created",
         actor: "user",
         actorTelegramId: auth.telegramUserId,
-        note: "Заказ создан после успешной оплаты",
+        note: "Заказ создан до оплаты",
       },
     ],
   };
 
   await upsertShopOrder(order);
-  const usedPromoCode = String(payload.promoCode ?? "")
-    .trim()
-    .toUpperCase()
-    .slice(0, 24);
-
-  if (usedPromoCode) {
-    await mutateShopAdminConfig((current) => {
-      const nowUpdated = new Date().toISOString();
-      const promoCodes = current.promoCodes.map((promo) =>
-        promo.code === usedPromoCode ? { ...promo, usedCount: promo.usedCount + 1, updatedAt: nowUpdated } : promo,
-      );
-
-      return {
-        ...current,
-        promoCodes,
-        updatedAt: nowUpdated,
-      };
-    });
-  }
-
-  await notifyAdminsAboutNewOrder(order, getBaseUrl(request));
 
   return NextResponse.json({ order, created: true });
 }

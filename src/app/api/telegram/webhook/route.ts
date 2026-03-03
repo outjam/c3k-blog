@@ -1,10 +1,14 @@
+import { createHash } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
+import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
 import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
+import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { mutateShopOrder } from "@/lib/server/shop-orders-store";
 import { sendTelegramDocument, sendTelegramMessage } from "@/lib/server/telegram-bot";
 import type { TelegramInlineButton } from "@/lib/server/telegram-bot";
-import { mutateShopOrder, upsertShopOrder } from "@/lib/server/shop-orders-store";
 import type { ShopOrder } from "@/types/shop";
 
 export const runtime = "nodejs";
@@ -18,6 +22,8 @@ interface TelegramSuccessfulPayment {
   total_amount: number;
   currency: string;
   invoice_payload: string;
+  telegram_payment_charge_id?: string;
+  provider_payment_charge_id?: string;
 }
 
 interface TelegramUpdate {
@@ -59,7 +65,7 @@ const parseInvoicePayload = (rawPayload: string): ParsedInvoicePayload => {
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9-]/g, "");
-  const orderCode = /^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(normalizedOrderCode) ? normalizedOrderCode : "000-000";
+  const orderCode = /^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(normalizedOrderCode) ? normalizedOrderCode : "";
   const productIds = rawProductIds
     .split(",")
     .map((item) => item.trim().toLowerCase())
@@ -117,6 +123,27 @@ const telegramApi = async (botToken: string, method: string, body: Record<string
   return response.ok;
 };
 
+const bumpPromoUsage = async (promoCode: string): Promise<void> => {
+  const normalized = promoCode.trim().toUpperCase().slice(0, 24);
+
+  if (!normalized) {
+    return;
+  }
+
+  await mutateShopAdminConfig((current) => {
+    const nowUpdated = new Date().toISOString();
+    const promoCodes = current.promoCodes.map((promo) =>
+      promo.code === normalized ? { ...promo, usedCount: promo.usedCount + 1, updatedAt: nowUpdated } : promo,
+    );
+
+    return {
+      ...current,
+      promoCodes,
+      updatedAt: nowUpdated,
+    };
+  });
+};
+
 export async function POST(request: Request) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -124,17 +151,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Missing TELEGRAM_BOT_TOKEN" }, { status: 500 });
   }
 
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  const secretHeader = request.headers.get("x-telegram-bot-api-secret-token");
-  const strictSecret = process.env.TELEGRAM_STRICT_WEBHOOK_SECRET === "1";
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  const providedSecret = (request.headers.get("x-telegram-bot-api-secret-token") ?? "").trim();
 
-  if (secret) {
-    const expected = secret.trim();
-    const provided = (secretHeader ?? "").trim();
+  if (!secret) {
+    return NextResponse.json({ ok: false, error: "Missing TELEGRAM_WEBHOOK_SECRET" }, { status: 500 });
+  }
 
-    if (strictSecret && provided !== expected) {
-      return NextResponse.json({ ok: false, error: "Invalid webhook secret" }, { status: 401 });
-    }
+  if (providedSecret !== secret) {
+    return NextResponse.json({ ok: false, error: "Invalid webhook secret" }, { status: 401 });
   }
 
   let update: TelegramUpdate;
@@ -163,17 +188,57 @@ export async function POST(request: Request) {
 
   if (update.message?.successful_payment && update.message.chat?.id) {
     const payment = update.message.successful_payment;
-    const baseUrl = getMiniAppBaseUrl(request);
-    const shopMiniAppUrl = baseUrl ? `${baseUrl}/shop` : undefined;
     const payload = parseInvoicePayload(payment.invoice_payload);
-    const profileOrderUrl = baseUrl
-      ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payload.orderCode)}`
-      : undefined;
-    const orderMiniAppUrl = baseUrl ? `${baseUrl}/orders/${encodeURIComponent(payload.orderCode)}` : undefined;
+
+    if (!payload.orderCode) {
+      return NextResponse.json({ ok: true, ignored: "invalid_order_code" });
+    }
+
     const now = new Date().toISOString();
-    const telegramUser = update.message.from;
+    const payloadHash = createHash("sha256").update(payment.invoice_payload).digest("hex");
+    const telegramChargeId = String(payment.telegram_payment_charge_id ?? "").trim().slice(0, 160);
+    const providerChargeId = String(payment.provider_payment_charge_id ?? "").trim().slice(0, 160);
+
+    let previousStatus: ShopOrder["status"] | null = null;
+    let wasDuplicate = false;
+    let promoCodeToApply: string | undefined;
 
     const updatedOrder = await mutateShopOrder(payload.orderCode, (currentOrder) => {
+      const currentChargeId = currentOrder.payment?.telegramPaymentChargeId;
+
+      if (currentChargeId && telegramChargeId && currentChargeId === telegramChargeId) {
+        wasDuplicate = true;
+        return currentOrder;
+      }
+
+      if (currentOrder.payment?.invoicePayloadHash && currentOrder.payment.invoicePayloadHash !== payloadHash) {
+        throw new Error("payload_hash_mismatch");
+      }
+
+      if (currentOrder.status === "paid") {
+        wasDuplicate = true;
+        return {
+          ...currentOrder,
+          payment: {
+            currency: payment.currency || currentOrder.payment?.currency || "XTR",
+            amount: clampStarsAmount(payment.total_amount),
+            invoicePayloadHash: currentOrder.payment?.invoicePayloadHash ?? payloadHash,
+            invoicePayload: currentOrder.payment?.invoicePayload ?? payment.invoice_payload,
+            telegramPaymentChargeId: telegramChargeId || currentOrder.payment?.telegramPaymentChargeId,
+            providerPaymentChargeId: providerChargeId || currentOrder.payment?.providerPaymentChargeId,
+            status: "paid",
+            updatedAt: now,
+          },
+        };
+      }
+
+      if (!canTransitionShopOrderStatus(currentOrder.status, "paid")) {
+        throw new Error("invalid_transition");
+      }
+
+      previousStatus = currentOrder.status;
+      promoCodeToApply = currentOrder.promoCode;
+
       const history = [...currentOrder.history];
       history.unshift({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -181,7 +246,7 @@ export async function POST(request: Request) {
         fromStatus: currentOrder.status,
         toStatus: "paid",
         actor: "bot",
-        actorTelegramId: telegramUser?.id ?? currentOrder.telegramUserId,
+        actorTelegramId: update.message?.from?.id ?? currentOrder.telegramUserId,
         note: "Webhook: успешная оплата Telegram Stars",
       });
 
@@ -190,121 +255,119 @@ export async function POST(request: Request) {
         status: "paid",
         updatedAt: now,
         invoiceStars: clampStarsAmount(payment.total_amount),
+        payment: {
+          currency: payment.currency || "XTR",
+          amount: clampStarsAmount(payment.total_amount),
+          invoicePayloadHash: currentOrder.payment?.invoicePayloadHash ?? payloadHash,
+          invoicePayload: currentOrder.payment?.invoicePayload ?? payment.invoice_payload,
+          telegramPaymentChargeId: telegramChargeId || undefined,
+          providerPaymentChargeId: providerChargeId || undefined,
+          status: "paid",
+          updatedAt: now,
+        },
         history,
       };
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "payload_hash_mismatch" || message === "invalid_transition") {
+        return message as "payload_hash_mismatch" | "invalid_transition";
+      }
+
+      throw error;
     });
 
-    let resolvedOrder = updatedOrder;
+    if (!updatedOrder) {
+      return NextResponse.json({ ok: true, ignored: "order_not_found" });
+    }
 
-    if (!resolvedOrder) {
-      const fallbackOrder: ShopOrder = {
-        id: payload.orderCode,
-        createdAt: now,
-        updatedAt: now,
-        status: "paid",
-        invoiceStars: clampStarsAmount(payment.total_amount),
-        totalStarsCents: clampStarsAmount(payment.total_amount) * 100,
-        deliveryFeeStarsCents: 0,
-        discountStarsCents: 0,
-        delivery: "yandex_go",
-        address: "",
-        customerName: [telegramUser?.first_name, telegramUser?.last_name].filter(Boolean).join(" ").trim(),
-        phone: "",
-        email: undefined,
-        comment: "Создано из webhook (fallback)",
-        telegramUserId: telegramUser?.id ?? update.message.chat.id,
-        telegramUsername: telegramUser?.username,
-        telegramFirstName: telegramUser?.first_name,
-        telegramLastName: telegramUser?.last_name,
-        items: payload.productIds.map((productId) => ({
-          productId,
-          title: productIdToTitle(productId),
-          quantity: 1,
-          priceStarsCents: 100,
-        })),
-        history: [
+    if (updatedOrder === "payload_hash_mismatch" || updatedOrder === "invalid_transition") {
+      return NextResponse.json({ ok: true, ignored: updatedOrder });
+    }
+
+    if (!wasDuplicate) {
+      const baseUrl = getMiniAppBaseUrl(request);
+      const shopMiniAppUrl = baseUrl ? `${baseUrl}/shop` : undefined;
+      const profileOrderUrl = baseUrl
+        ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payload.orderCode)}`
+        : undefined;
+      const orderMiniAppUrl = baseUrl ? `${baseUrl}/orders/${encodeURIComponent(payload.orderCode)}` : undefined;
+
+      if (promoCodeToApply) {
+        await bumpPromoUsage(promoCodeToApply);
+      }
+
+      await notifyAdminsAboutNewOrder(updatedOrder, baseUrl);
+
+      const buttons: TelegramInlineButton[][] = [];
+
+      if (orderMiniAppUrl) {
+        buttons.push([
           {
-            id: `${Date.now()}-created`,
-            at: now,
-            fromStatus: null,
-            toStatus: "paid",
-            actor: "bot",
-            actorTelegramId: telegramUser?.id ?? update.message.chat.id,
-            note: "Webhook: заказ создан автоматически",
+            text: "Открыть заказ",
+            web_app: { url: orderMiniAppUrl },
+            icon_custom_emoji_id: OPEN_BUTTON_EMOJI_ID,
+            style: "success" as const,
           },
-        ],
-      };
+        ]);
+      }
 
-      await upsertShopOrder(fallbackOrder);
-      await notifyAdminsAboutNewOrder(fallbackOrder, baseUrl);
-      resolvedOrder = fallbackOrder;
-    }
+      const secondRow: TelegramInlineButton[] = [];
 
-    const buttons: TelegramInlineButton[][] = [];
+      if (profileOrderUrl) {
+        secondRow.push({ text: "Мои заказы", web_app: { url: profileOrderUrl }, style: "default" as const });
+      }
 
-    if (orderMiniAppUrl) {
-      buttons.push([
-        {
-          text: "Открыть заказ",
-          web_app: { url: orderMiniAppUrl },
-          icon_custom_emoji_id: OPEN_BUTTON_EMOJI_ID,
-          style: "success" as const,
-        },
-      ]);
-    }
+      if (shopMiniAppUrl) {
+        secondRow.push({ text: "Магазин", web_app: { url: shopMiniAppUrl }, style: "primary" as const });
+      }
 
-    const secondRow: TelegramInlineButton[] = [];
+      if (secondRow.length > 0) {
+        buttons.push(secondRow);
+      }
 
-    if (profileOrderUrl) {
-      secondRow.push({ text: "Мои заказы", web_app: { url: profileOrderUrl }, style: "default" as const });
-    }
+      const orderItems = updatedOrder.items?.length
+        ? updatedOrder.items.map((item) => ({
+            title: item.title,
+            quantity: item.quantity,
+          }))
+        : (payload.productIds.length > 0 ? payload.productIds : [""]).map((productId) => ({
+            title: productId ? productIdToTitle(productId) : "Товар из корзины",
+            quantity: 1,
+          }));
 
-    if (shopMiniAppUrl) {
-      secondRow.push({ text: "Магазин", web_app: { url: shopMiniAppUrl }, style: "primary" as const });
-    }
+      const orderLines = orderItems.map((item) => `∙ ${escapeHtml(item.title)}${item.quantity > 1 ? ` × ${item.quantity}` : ""}`);
 
-    if (secondRow.length > 0) {
-      buttons.push(secondRow);
-    }
+      const summaryText =
+        `<b>Заказ № ${payload.orderCode} <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji></b>\n\n` +
+        `${orderLines.join("\n")}\n\n` +
+        `${formatAmount(payment.total_amount)} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`;
 
-    const orderItems = resolvedOrder?.items?.length
-      ? resolvedOrder.items.map((item) => ({
-          title: item.title,
-          quantity: item.quantity,
-        }))
-      : (payload.productIds.length > 0 ? payload.productIds : [""]).map((productId) => ({
-          title: productId ? productIdToTitle(productId) : "Товар из корзины",
-          quantity: 1,
-        }));
+      const cardSvg = buildOrderCardSvg({
+        orderId: payload.orderCode,
+        amountStars: payment.total_amount,
+        items: orderItems,
+        appTitle: "C3K Telegram Shop",
+      });
 
-    const orderLines = orderItems.map((item) => `∙ ${escapeHtml(item.title)}${item.quantity > 1 ? ` × ${item.quantity}` : ""}`);
-
-    const summaryText =
-      `<b>Заказ № ${payload.orderCode} <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji></b>\n\n` +
-      `${orderLines.join("\n")}\n\n` +
-      `${formatAmount(payment.total_amount)} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`;
-
-    const cardSvg = buildOrderCardSvg({
-      orderId: payload.orderCode,
-      amountStars: payment.total_amount,
-      items: orderItems,
-      appTitle: "C3K Telegram Shop",
-    });
-
-    const sentCard = await sendTelegramDocument(update.message.chat.id, cardSvg, {
-      fileName: `order-${payload.orderCode}.svg`,
-      mimeType: "image/svg+xml",
-      caption: summaryText,
-      parseMode: "HTML",
-      buttons: buttons.length > 0 ? buttons : undefined,
-    });
-
-    if (!sentCard) {
-      await sendTelegramMessage(update.message.chat.id, summaryText, {
+      const sentCard = await sendTelegramDocument(update.message.chat.id, cardSvg, {
+        fileName: `order-${payload.orderCode}.svg`,
+        mimeType: "image/svg+xml",
+        caption: summaryText,
         parseMode: "HTML",
         buttons: buttons.length > 0 ? buttons : undefined,
-        messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
       });
+
+      if (!sentCard) {
+        await sendTelegramMessage(update.message.chat.id, summaryText, {
+          parseMode: "HTML",
+          buttons: buttons.length > 0 ? buttons : undefined,
+          messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
+        });
+      }
+    }
+
+    if (previousStatus === null && wasDuplicate) {
+      return NextResponse.json({ ok: true, duplicate: true });
     }
   }
 

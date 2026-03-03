@@ -11,7 +11,6 @@ interface ApiOrdersResponse {
 
 interface CreateOrderPayload {
   id: string;
-  status: ShopOrderStatus;
   invoiceStars: number;
   promoCode?: string;
   totalStarsCents: number;
@@ -94,6 +93,36 @@ export const createShopOrder = async (payload: CreateOrderPayload): Promise<{ or
         ...getTelegramAuthHeaders(),
       },
       body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { order: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as ApiOrdersResponse;
+    return { order: data.order ?? null };
+  } catch {
+    return { order: null, error: "Network error" };
+  }
+};
+
+export const markShopOrderPaymentFailed = async (payload: {
+  orderId: string;
+  providerStatus?: string;
+  reason?: string;
+}): Promise<{ order: ShopOrder | null; error?: string }> => {
+  try {
+    const response = await fetch(`/api/shop/orders/${encodeURIComponent(payload.orderId)}/payment-failed`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...getTelegramAuthHeaders(),
+      },
+      body: JSON.stringify({
+        providerStatus: payload.providerStatus,
+        reason: payload.reason,
+      }),
       cache: "no-store",
     });
 

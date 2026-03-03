@@ -1,10 +1,17 @@
+import { createHash } from "node:crypto";
+
 import { NextResponse } from "next/server";
+
+import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
+import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { mutateShopOrder } from "@/lib/server/shop-orders-store";
 
 interface CreateInvoiceLinkResponse {
   ok: boolean;
   result?: string;
   description?: string;
 }
+
 interface TelegramWebhookInfo {
   url?: string;
 }
@@ -22,13 +29,17 @@ const sanitize = (value: string, fallback: string): string => {
   return trimmed.length > 0 ? trimmed.slice(0, 255) : fallback;
 };
 
-const sanitizeOrderCode = (value: string): string => {
+const sanitizeOrderCode = (value: string): string | null => {
   const normalized = value
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9-]/g, "");
 
-  return normalized.length > 0 ? normalized.slice(0, 7) : "000-000";
+  if (/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(normalized)) {
+    return normalized;
+  }
+
+  return null;
 };
 
 const normalizeProductIds = (value: unknown): string[] => {
@@ -102,10 +113,27 @@ const telegramRequest = async <T,>(
 };
 
 export async function POST(request: Request) {
+  const auth = getShopApiAuth(request);
+
+  if (!auth) {
+    return unauthorizedResponse();
+  }
+
+  const contentTypeError = requireJsonRequest(request);
+  if (contentTypeError) {
+    return contentTypeError;
+  }
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
   if (!botToken) {
     return NextResponse.json({ error: "Missing TELEGRAM_BOT_TOKEN" }, { status: 500 });
+  }
+
+  const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+
+  if (!secretToken) {
+    return NextResponse.json({ error: "Missing TELEGRAM_WEBHOOK_SECRET" }, { status: 500 });
   }
 
   let payload: InvoicePayload;
@@ -116,20 +144,91 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
   }
 
-  const amountStars = Math.max(1, Math.round(Number(payload.amountStars ?? 0)));
+  const orderCode = sanitizeOrderCode(String(payload.orderId ?? ""));
 
-  if (!Number.isFinite(amountStars) || amountStars < 1) {
-    return NextResponse.json({ error: "Invalid amountStars" }, { status: 400 });
+  if (!orderCode) {
+    return NextResponse.json({ error: "Invalid orderId" }, { status: 400 });
   }
 
-  const orderCode = sanitizeOrderCode(String(payload.orderId ?? ""));
   const title = sanitize(String(payload.title ?? "Заказ"), "Заказ");
   const description = sanitize(String(payload.description ?? "Оплата заказа"), "Оплата заказа");
   const productIds = normalizeProductIds(payload.productIds);
   const invoicePayload = buildInvoicePayload(orderCode, productIds);
+  const invoicePayloadHash = createHash("sha256").update(invoicePayload).digest("hex");
+  const now = new Date().toISOString();
+
+  let invoiceAmount = Math.max(1, Math.round(Number(payload.amountStars ?? 0)));
+
+  const orderUpdated = await mutateShopOrder(orderCode, (currentOrder) => {
+    if (currentOrder.telegramUserId !== auth.telegramUserId) {
+      throw new Error("forbidden");
+    }
+
+    if (currentOrder.status === "paid") {
+      throw new Error("already_paid");
+    }
+
+    if (!canTransitionShopOrderStatus(currentOrder.status, "pending_payment")) {
+      throw new Error("invalid_transition");
+    }
+
+    invoiceAmount = Math.max(1, Math.round(Number(currentOrder.invoiceStars || invoiceAmount || 1)));
+
+    const history = [...currentOrder.history];
+    history.unshift({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      at: now,
+      fromStatus: currentOrder.status,
+      toStatus: "pending_payment",
+      actor: "system",
+      actorTelegramId: auth.telegramUserId,
+      note: "Открыт invoice Telegram Stars",
+    });
+
+    return {
+      ...currentOrder,
+      status: "pending_payment",
+      invoiceStars: invoiceAmount,
+      updatedAt: now,
+      payment: {
+        currency: "XTR",
+        amount: invoiceAmount,
+        invoicePayloadHash,
+        invoicePayload,
+        telegramPaymentChargeId: currentOrder.payment?.telegramPaymentChargeId,
+        providerPaymentChargeId: currentOrder.payment?.providerPaymentChargeId,
+        status: "pending_payment",
+        updatedAt: now,
+      },
+      history,
+    };
+  }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "";
+
+    if (message === "forbidden" || message === "already_paid" || message === "invalid_transition") {
+      return message as "forbidden" | "already_paid" | "invalid_transition";
+    }
+
+    throw error;
+  });
+
+  if (orderUpdated === "forbidden") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (orderUpdated === "already_paid") {
+    return NextResponse.json({ error: "Order is already paid" }, { status: 409 });
+  }
+
+  if (orderUpdated === "invalid_transition") {
+    return NextResponse.json({ error: "Order cannot start a new payment session" }, { status: 409 });
+  }
+
+  if (!orderUpdated) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
 
   const baseUrl = getPublicBaseUrl(request);
-  const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
 
   if (!baseUrl) {
     return NextResponse.json(
@@ -139,7 +238,6 @@ export async function POST(request: Request) {
   }
 
   const webhookUrl = `${baseUrl}/api/telegram/webhook`;
-
   const webhookInfo = await telegramRequest<TelegramWebhookInfo>(botToken, "getWebhookInfo");
 
   if (!webhookInfo.ok) {
@@ -164,13 +262,47 @@ export async function POST(request: Request) {
     description,
     payload: invoicePayload,
     currency: "XTR",
-    prices: [{ label: title, amount: amountStars }],
+    prices: [{ label: title, amount: invoiceAmount }],
   };
 
   try {
     const telegramResult = await telegramRequest<string>(botToken, "createInvoiceLink", telegramBody);
 
     if (!telegramResult.ok || !telegramResult.result) {
+      await mutateShopOrder(orderCode, (currentOrder) => {
+        if (currentOrder.status !== "pending_payment") {
+          return currentOrder;
+        }
+
+        const failedAt = new Date().toISOString();
+        const history = [...currentOrder.history];
+        history.unshift({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          at: failedAt,
+          fromStatus: currentOrder.status,
+          toStatus: "payment_failed",
+          actor: "system",
+          note: "createInvoiceLink завершился с ошибкой",
+        });
+
+        return {
+          ...currentOrder,
+          status: "payment_failed",
+          updatedAt: failedAt,
+          payment: {
+            currency: currentOrder.payment?.currency ?? "XTR",
+            amount: currentOrder.payment?.amount ?? invoiceAmount,
+            invoicePayloadHash: currentOrder.payment?.invoicePayloadHash ?? invoicePayloadHash,
+            invoicePayload: currentOrder.payment?.invoicePayload ?? invoicePayload,
+            telegramPaymentChargeId: currentOrder.payment?.telegramPaymentChargeId,
+            providerPaymentChargeId: currentOrder.payment?.providerPaymentChargeId,
+            status: "failed",
+            updatedAt: failedAt,
+          },
+          history,
+        };
+      });
+
       return NextResponse.json(
         { error: telegramResult.description ?? "createInvoiceLink returned empty result" },
         { status: 502 },

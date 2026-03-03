@@ -18,6 +18,8 @@ export type ShopAdminPermission =
   | "admins:view"
   | "admins:manage";
 export type ShopOrderStatus =
+  | "created"
+  | "pending_payment"
   | "awaiting_payment"
   | "payment_pending"
   | "paid"
@@ -39,6 +41,19 @@ export type ShopOrderStatus =
   | "failed";
 
 export type ShopOrderHistoryActor = "user" | "admin" | "system" | "bot";
+
+export type ShopOrderPaymentStatus = "created" | "pending_payment" | "paid" | "failed";
+
+export interface ShopOrderPaymentMeta {
+  currency: string;
+  amount: number;
+  invoicePayloadHash: string;
+  invoicePayload?: string;
+  telegramPaymentChargeId?: string;
+  providerPaymentChargeId?: string;
+  status: ShopOrderPaymentStatus;
+  updatedAt: string;
+}
 
 export interface ShopOrderHistoryItem {
   id: string;
@@ -186,6 +201,7 @@ export interface ShopOrder {
   deliveryFeeStarsCents: number;
   discountStarsCents: number;
   delivery: DeliveryMethod;
+  promoCode?: string;
   address: string;
   customerName: string;
   phone: string;
@@ -195,6 +211,7 @@ export interface ShopOrder {
   telegramUsername?: string;
   telegramFirstName?: string;
   telegramLastName?: string;
+  payment?: ShopOrderPaymentMeta;
   items: ShopOrderItem[];
   history: ShopOrderHistoryItem[];
 }

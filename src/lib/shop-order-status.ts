@@ -1,6 +1,8 @@
 import type { ShopOrderStatus } from "@/types/shop";
 
 export const SHOP_ORDER_STATUS_LABELS: Record<ShopOrderStatus, string> = {
+  created: "Создан",
+  pending_payment: "Ожидает подтверждения платежа",
   awaiting_payment: "Ожидает оплату",
   payment_pending: "Оплата подтверждается",
   paid: "Оплачен",
@@ -23,6 +25,8 @@ export const SHOP_ORDER_STATUS_LABELS: Record<ShopOrderStatus, string> = {
 };
 
 export const SHOP_ORDER_STATUS_TRANSITIONS: Record<ShopOrderStatus, ShopOrderStatus[]> = {
+  created: ["pending_payment", "payment_failed", "failed", "cancelled_by_user", "cancelled_by_admin"],
+  pending_payment: ["paid", "payment_failed", "failed", "cancelled_by_admin"],
   awaiting_payment: ["payment_pending", "paid", "payment_failed", "failed", "cancelled_by_user", "cancelled_by_admin"],
   payment_pending: ["paid", "payment_failed", "failed", "cancelled_by_admin"],
   paid: ["processing", "confirmed", "refund_requested", "cancel_requested", "cancelled_by_admin"],
@@ -40,7 +44,7 @@ export const SHOP_ORDER_STATUS_TRANSITIONS: Record<ShopOrderStatus, ShopOrderSta
   cancelled_by_admin: ["refund_requested", "refunded"],
   refund_requested: ["refunded", "failed"],
   refunded: [],
-  payment_failed: ["awaiting_payment", "failed"],
+  payment_failed: ["created", "pending_payment", "awaiting_payment", "failed"],
   failed: ["processing", "confirmed", "cancelled_by_admin", "refund_requested"],
 };
 

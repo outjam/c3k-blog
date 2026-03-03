@@ -1,4 +1,5 @@
 import { getTelegramWebApp, hapticNotification } from "@/lib/telegram";
+import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 
 export interface PaymentRequest {
   amountStars: number;
@@ -24,7 +25,10 @@ const requestInvoiceLink = async ({
   try {
     const response = await fetch("/api/telegram/stars-invoice", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...getTelegramAuthHeaders(),
+      },
       body: JSON.stringify({
         amountStars,
         orderId,
@@ -89,7 +93,7 @@ export const payWithTelegramStars = async ({
         resolve({
           ok: success,
           status,
-          message: success ? "Оплата принята." : "Платеж не завершен.",
+          message: success ? "Платеж отправлен, ожидаем подтверждение." : "Платеж не завершен.",
         });
       });
     } catch {

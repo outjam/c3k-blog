@@ -126,7 +126,11 @@ export async function POST(request: Request) {
   }
 
   const webhookUrl = `${baseUrl}/api/telegram/webhook`;
-  const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+
+  if (!secretToken) {
+    return NextResponse.json({ ok: false, error: "Missing TELEGRAM_WEBHOOK_SECRET" }, { status: 500 });
+  }
 
   const setWebhook = await telegramRequest<boolean>(botToken, "setWebhook", {
     url: webhookUrl,
@@ -144,8 +148,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     webhookUrl,
-    secretEnabled: Boolean(secretToken),
+    secretEnabled: true,
     webhookInfo: info.ok ? info.result : null,
-    warning: !secretToken ? "Set TELEGRAM_WEBHOOK_SECRET for better security." : undefined,
   });
 }

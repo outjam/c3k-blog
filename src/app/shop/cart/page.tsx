@@ -9,8 +9,7 @@ import { ShopOrderSummary } from "@/components/shop/shop-order-summary";
 import { SHOP_PRODUCTS } from "@/data/shop-products";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { validateCheckoutForm, hasCheckoutErrors, type CheckoutValidationErrors } from "@/lib/shop-checkout-validation";
-import { createShopOrder } from "@/lib/shop-orders-api";
-import { appendShopOrder } from "@/lib/shop-orders";
+import { createShopOrder, markShopOrderPaymentFailed } from "@/lib/shop-orders-api";
 import { payWithTelegramStars } from "@/lib/shop-payment";
 import {
   DEFAULT_DELIVERY_FEE_STARS_CENTS,
@@ -339,26 +338,7 @@ export default function ShopCartPage() {
     hapticImpact("medium");
 
     const orderCode = generateOrderCode();
-    const productIdsForInvoice = Array.from(new Set(cartItems.map((item) => item.productId))).slice(0, 3);
-
-    const payment = await payWithTelegramStars({
-      amountStars: invoiceStars,
-      orderId: orderCode,
-      title: `Заказ C3K (${cartItems.length} шт.)`,
-      description: `Оплата заказа в магазине C3K. Доставка: ${checkout.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}.`,
-      productIds: productIdsForInvoice,
-    });
-
-    setIsPaying(false);
-
-    if (!payment.ok) {
-      setPaymentError(payment.message ?? "Платеж не выполнен. Попробуйте снова.");
-      hapticNotification("error");
-      return;
-    }
-
     const customerName = [checkout.firstName, checkout.lastName].filter(Boolean).join(" ");
-    const telegramUser = getTelegramWebApp()?.initDataUnsafe?.user;
     const normalizedItems = cartItems
       .map((item) => {
         const product = productsMap.get(item.productId);
@@ -378,7 +358,6 @@ export default function ShopCartPage() {
 
     const orderCreation = await createShopOrder({
       id: orderCode,
-      status: "paid",
       invoiceStars,
       promoCode: promoCode.trim().toUpperCase() || undefined,
       totalStarsCents,
@@ -394,45 +373,31 @@ export default function ShopCartPage() {
     });
 
     if (!orderCreation.order) {
-      const now = new Date().toISOString();
-      await appendShopOrder({
-        id: orderCode,
-        createdAt: now,
-        updatedAt: now,
-        status: "paid",
-        invoiceStars,
-        totalStarsCents,
-        deliveryFeeStarsCents,
-        discountStarsCents,
-        delivery: checkout.delivery,
-        address: checkout.address,
-        customerName,
-        phone: checkout.phone,
-        email: checkout.email,
-        comment: `${checkout.comment}\n[local-fallback] ${orderCreation.error ?? "sync failed"}`.trim(),
-        telegramUserId: telegramUser?.id ?? 0,
-        telegramUsername: telegramUser?.username,
-        telegramFirstName: telegramUser?.first_name,
-        telegramLastName: telegramUser?.last_name,
-        items: normalizedItems,
-        history: [
-          {
-            id: `${Date.now()}-local`,
-            at: now,
-            fromStatus: null,
-            toStatus: "paid",
-            actor: "user",
-            actorTelegramId: telegramUser?.id,
-            note: "Локальный fallback: сервер заказов недоступен",
-          },
-        ],
+      setIsPaying(false);
+      setPaymentError(orderCreation.error ?? "Сервер заказов недоступен. Оплата не была инициирована.");
+      hapticNotification("error");
+      return;
+    }
+
+    const productIdsForInvoice = Array.from(new Set(cartItems.map((item) => item.productId))).slice(0, 3);
+    const payment = await payWithTelegramStars({
+      amountStars: invoiceStars,
+      orderId: orderCode,
+      title: `Заказ C3K (${cartItems.length} шт.)`,
+      description: `Оплата заказа в магазине C3K. Доставка: ${checkout.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}.`,
+      productIds: productIdsForInvoice,
+    });
+
+    setIsPaying(false);
+
+    if (!payment.ok) {
+      await markShopOrderPaymentFailed({
+        orderId: orderCode,
+        providerStatus: payment.status,
+        reason: payment.message,
       });
-      setPaymentError("Оплата прошла, но сервер заказов недоступен. Заказ сохранён локально.");
-      setCartItems([]);
-      setPromoCode("");
-      setCheckout(defaultCheckout);
-      hapticNotification("warning");
-      router.push("/profile?section=orders");
+      setPaymentError(payment.message ?? "Платеж не выполнен. Попробуйте снова.");
+      hapticNotification("error");
       return;
     }
 

@@ -45,6 +45,7 @@ const normalizeOrder = (value: unknown): ShopOrder | null => {
       Number(candidate.discountStarsCents ?? (candidate as { discountStars?: number }).discountStars ?? 0),
     ),
     delivery: candidate.delivery === "cdek" ? "cdek" : "yandex_go",
+    promoCode: String(candidate.promoCode ?? "").trim().toUpperCase().slice(0, 24) || undefined,
     address: String(candidate.address ?? ""),
     customerName: String(candidate.customerName ?? ""),
     phone: String(candidate.phone ?? ""),
@@ -54,6 +55,39 @@ const normalizeOrder = (value: unknown): ShopOrder | null => {
     telegramUsername: String(candidate.telegramUsername ?? "") || undefined,
     telegramFirstName: String(candidate.telegramFirstName ?? "") || undefined,
     telegramLastName: String(candidate.telegramLastName ?? "") || undefined,
+    payment:
+      candidate.payment && typeof candidate.payment === "object"
+        ? {
+            currency: String((candidate.payment as { currency?: string }).currency ?? "XTR").slice(0, 12) || "XTR",
+            amount: Math.max(0, Math.round(Number((candidate.payment as { amount?: number }).amount ?? 0))),
+            invoicePayloadHash:
+              String((candidate.payment as { invoicePayloadHash?: string }).invoicePayloadHash ?? "")
+                .trim()
+                .toLowerCase()
+                .slice(0, 128) || "",
+            invoicePayload:
+              String((candidate.payment as { invoicePayload?: string }).invoicePayload ?? "").trim().slice(0, 128) || undefined,
+            telegramPaymentChargeId:
+              String((candidate.payment as { telegramPaymentChargeId?: string }).telegramPaymentChargeId ?? "")
+                .trim()
+                .slice(0, 160) || undefined,
+            providerPaymentChargeId:
+              String((candidate.payment as { providerPaymentChargeId?: string }).providerPaymentChargeId ?? "")
+                .trim()
+                .slice(0, 160) || undefined,
+            status:
+              String((candidate.payment as { status?: string }).status ?? "").trim() === "paid"
+                ? "paid"
+                : String((candidate.payment as { status?: string }).status ?? "").trim() === "pending_payment"
+                  ? "pending_payment"
+                  : String((candidate.payment as { status?: string }).status ?? "").trim() === "failed"
+                    ? "failed"
+                    : "created",
+            updatedAt:
+              String((candidate.payment as { updatedAt?: string }).updatedAt ?? candidate.updatedAt ?? candidate.createdAt) ||
+              String(candidate.updatedAt ?? candidate.createdAt),
+          }
+        : undefined,
     items: candidate.items
       .map((item) => {
         const row = item as Partial<ShopOrder["items"][number]>;
