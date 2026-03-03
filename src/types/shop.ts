@@ -57,7 +57,25 @@ export interface ShopProductOverride {
   isPublished?: boolean;
   isFeatured?: boolean;
   badge?: string;
+  categoryId?: string;
+  subcategoryId?: string;
   updatedAt: string;
+}
+
+export interface ShopProductSubcategory {
+  id: string;
+  label: string;
+  description?: string;
+  order: number;
+}
+
+export interface ShopProductCategory {
+  id: string;
+  label: string;
+  emoji?: string;
+  description?: string;
+  order: number;
+  subcategories: ShopProductSubcategory[];
 }
 
 export interface ShopPromoCode {
@@ -99,6 +117,7 @@ export interface ShopAdminConfig {
   adminMembers: ShopAdminMember[];
   productRecords: Record<string, ShopProduct>;
   productOverrides: Record<string, ShopProductOverride>;
+  productCategories: ShopProductCategory[];
   blogPostRecords: Record<string, import("@/data/posts").BlogPost>;
   hiddenPostSlugs: string[];
   promoCodes: ShopPromoCode[];
@@ -125,6 +144,10 @@ export interface ShopProduct {
   subtitle: string;
   description: string;
   category: ShopCategory;
+  categoryId?: string;
+  subcategoryId?: string;
+  categoryLabel?: string;
+  subcategoryLabel?: string;
   image: string;
   priceStarsCents: number;
   oldPriceStarsCents?: number;

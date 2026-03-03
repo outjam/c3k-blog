@@ -77,6 +77,10 @@ export function ShopProductCard({
 
         <div className={styles.body}>
           <p className={styles.subtitle}>{product.subtitle}</p>
+          <p className={styles.categoryMeta}>
+            {product.categoryLabel ?? "Категория"}
+            {product.subcategoryLabel ? ` · ${product.subcategoryLabel}` : ""}
+          </p>
           <h3 className={styles.title}>{product.title}</h3>
           <p className={styles.description}>{product.description}</p>
           <p className={styles.socialProof}>

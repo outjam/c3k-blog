@@ -88,6 +88,12 @@
   font-size: 0.78rem;
 }
 
+.categoryMeta {
+  color: var(--tg-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .title {
   color: var(--tg-text);
   font-size: clamp(0.94rem, 2.8vw, 1.02rem);

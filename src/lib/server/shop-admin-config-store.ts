@@ -1,4 +1,4 @@
-import { SHOP_PRODUCTS } from "@/data/shop-products";
+import { SHOP_DEFAULT_PRODUCT_CATEGORIES, SHOP_PRODUCTS } from "@/data/shop-products";
 import type { BlogPost, PostContentBlock } from "@/data/posts";
 import {
   DEFAULT_DELIVERY_FEE_STARS_CENTS,
@@ -8,7 +8,15 @@ import {
 } from "@/lib/shop-pricing";
 import { isShopAdminRole } from "@/lib/shop-admin-roles";
 import { DEFAULT_ADMIN_TELEGRAM_ID, getShopAdminTelegramIds } from "@/lib/shop-admin";
-import type { ShopAdminConfig, ShopAdminMember, ShopAppSettings, ShopProduct, ShopPromoCode } from "@/types/shop";
+import type {
+  ShopAdminConfig,
+  ShopAdminMember,
+  ShopAppSettings,
+  ShopProduct,
+  ShopProductCategory,
+  ShopProductSubcategory,
+  ShopPromoCode,
+} from "@/types/shop";
 
 const ADMIN_CONFIG_KEY = "c3k:shop:admin-config:v1";
 
@@ -40,6 +48,84 @@ const normalizeSafeSlug = (value: unknown, maxLength: number): string => {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, maxLength);
+};
+
+const cloneDefaultProductCategories = (): ShopProductCategory[] => {
+  return SHOP_DEFAULT_PRODUCT_CATEGORIES.map((category) => ({
+    ...category,
+    subcategories: category.subcategories.map((subcategory) => ({ ...subcategory })),
+  }));
+};
+
+const sanitizeProductSubcategory = (raw: unknown, fallbackOrder: number): ShopProductSubcategory | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ShopProductSubcategory>;
+  const id = normalizeSafeId(source.id, 48);
+
+  if (!id) {
+    return null;
+  }
+
+  const label = String(source.label ?? "").trim().slice(0, 64);
+
+  if (!label) {
+    return null;
+  }
+
+  return {
+    id,
+    label,
+    description: source.description ? String(source.description).trim().slice(0, 180) : undefined,
+    order:
+      typeof source.order === "number" && Number.isFinite(source.order)
+        ? Math.max(1, Math.round(source.order))
+        : fallbackOrder,
+  };
+};
+
+const sanitizeProductCategory = (raw: unknown, fallbackOrder: number): ShopProductCategory | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ShopProductCategory>;
+  const id = normalizeSafeId(source.id, 48);
+
+  if (!id) {
+    return null;
+  }
+
+  const label = String(source.label ?? "").trim().slice(0, 64);
+
+  if (!label) {
+    return null;
+  }
+
+  const subcategoryMap = new Map<string, ShopProductSubcategory>();
+  const rawSubcategories = Array.isArray(source.subcategories) ? source.subcategories : [];
+
+  rawSubcategories.forEach((entry, index) => {
+    const sanitized = sanitizeProductSubcategory(entry, (index + 1) * 10);
+
+    if (sanitized) {
+      subcategoryMap.set(sanitized.id, sanitized);
+    }
+  });
+
+  return {
+    id,
+    label,
+    emoji: source.emoji ? String(source.emoji).trim().slice(0, 8) : undefined,
+    description: source.description ? String(source.description).trim().slice(0, 220) : undefined,
+    order:
+      typeof source.order === "number" && Number.isFinite(source.order)
+        ? Math.max(1, Math.round(source.order))
+        : fallbackOrder,
+    subcategories: Array.from(subcategoryMap.values()).sort((a, b) => a.order - b.order),
+  };
 };
 
 const sanitizeContentBlock = (raw: unknown): PostContentBlock | null => {
@@ -261,6 +347,7 @@ const buildDefaultConfig = (): ShopAdminConfig => {
     adminMembers,
     productRecords: {},
     productOverrides: {},
+    productCategories: cloneDefaultProductCategories(),
     blogPostRecords: {},
     hiddenPostSlugs: [],
     promoCodes: PROMO_RULES.map((rule) => toDefaultPromo(rule)),
@@ -374,6 +461,25 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
     .map((slug) => normalizeSafeSlug(slug, 120))
     .filter(Boolean);
 
+  const categoryMap = new Map<string, ShopProductCategory>();
+  const rawCategories = Array.isArray(row.productCategories) ? row.productCategories : fallback.productCategories;
+
+  rawCategories.forEach((entry, index) => {
+    const sanitized = sanitizeProductCategory(entry, (index + 1) * 10);
+
+    if (sanitized) {
+      categoryMap.set(sanitized.id, sanitized);
+    }
+  });
+
+  if (categoryMap.size === 0) {
+    cloneDefaultProductCategories().forEach((category) => {
+      categoryMap.set(category.id, category);
+    });
+  }
+
+  const productCategories = Array.from(categoryMap.values()).sort((a, b) => a.order - b.order);
+
   const validProductIds = new Set([...staticProductIds, ...Object.keys(productRecords)]);
 
   const productOverrides = Object.fromEntries(
@@ -386,6 +492,15 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
         }
 
         const source = value as Partial<ShopAdminConfig["productOverrides"][string]>;
+        const categoryId = normalizeSafeId(source?.categoryId, 48);
+        const resolvedCategoryId = categoryId && categoryMap.has(categoryId) ? categoryId : undefined;
+        const subcategoryId = normalizeSafeId(source?.subcategoryId, 48);
+        const resolvedSubcategoryId =
+          resolvedCategoryId && subcategoryId
+            ? categoryMap.get(resolvedCategoryId)?.subcategories.some((item) => item.id === subcategoryId)
+              ? subcategoryId
+              : undefined
+            : undefined;
 
         return [
           normalizedId,
@@ -402,6 +517,8 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
             isPublished: typeof source?.isPublished === "boolean" ? source.isPublished : undefined,
             isFeatured: typeof source?.isFeatured === "boolean" ? source.isFeatured : undefined,
             badge: typeof source?.badge === "string" ? source.badge.slice(0, 40) : undefined,
+            categoryId: resolvedCategoryId,
+            subcategoryId: resolvedSubcategoryId,
             updatedAt: String(source?.updatedAt ?? updatedAt),
           },
         ] as const;
@@ -459,6 +576,7 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
     adminMembers,
     productRecords,
     productOverrides,
+    productCategories,
     blogPostRecords,
     hiddenPostSlugs,
     promoCodes,

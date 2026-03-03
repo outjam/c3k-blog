@@ -1,4 +1,4 @@
-import type { ShopCategory, ShopProduct } from "@/types/shop";
+import type { ShopCategory, ShopProduct, ShopProductCategory } from "@/types/shop";
 
 const CATEGORY_META: Array<{ key: ShopCategory; label: string; emoji: string; tone: [string, string] }> = [
   { key: "figurine", label: "Фигурки", emoji: "🗿", tone: ["#f8c38f", "#d99a68"] },
@@ -88,6 +88,69 @@ export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   lamp: "Светильники",
   plate: "Тарелки",
 };
+
+export const SHOP_DEFAULT_PRODUCT_CATEGORIES: ShopProductCategory[] = [
+  {
+    id: "figurine",
+    label: "Фигурки",
+    emoji: "🗿",
+    description: "Декоративные статуэтки и мини-скульптуры",
+    order: 10,
+    subcategories: [
+      { id: "collectible", label: "Коллекционные", order: 10 },
+      { id: "minimal", label: "Минимализм", order: 20 },
+      { id: "fantasy", label: "Фэнтези", order: 30 },
+    ],
+  },
+  {
+    id: "vase",
+    label: "Вазы",
+    emoji: "🏺",
+    description: "Настольные, интерьерные и декоративные вазы",
+    order: 20,
+    subcategories: [
+      { id: "table", label: "Настольные", order: 10 },
+      { id: "floor", label: "Напольные", order: 20 },
+      { id: "decorative", label: "Декор", order: 30 },
+    ],
+  },
+  {
+    id: "mug",
+    label: "Кружки",
+    emoji: "☕",
+    description: "Кружки для кофе, чая и авторские наборы",
+    order: 30,
+    subcategories: [
+      { id: "coffee", label: "Кофейные", order: 10 },
+      { id: "tea", label: "Чайные", order: 20 },
+      { id: "gift", label: "Подарочные", order: 30 },
+    ],
+  },
+  {
+    id: "lamp",
+    label: "Светильники",
+    emoji: "🕯️",
+    description: "Настольные и интерьерные источники света",
+    order: 40,
+    subcategories: [
+      { id: "table-lamp", label: "Настольные", order: 10 },
+      { id: "night", label: "Ночники", order: 20 },
+      { id: "ambient", label: "Атмосферные", order: 30 },
+    ],
+  },
+  {
+    id: "plate",
+    label: "Тарелки",
+    emoji: "🍽️",
+    description: "Подача, сервировка и декоративные блюда",
+    order: 50,
+    subcategories: [
+      { id: "serving", label: "Сервировочные", order: 10 },
+      { id: "dessert", label: "Десертные", order: 20 },
+      { id: "decorative", label: "Декор", order: 30 },
+    ],
+  },
+];
 
 export const getShopProductBySlug = (slug: string): ShopProduct | undefined => {
   return SHOP_PRODUCTS.find((product) => product.slug === slug);

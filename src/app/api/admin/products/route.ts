@@ -22,6 +22,8 @@ interface ProductPatchBody {
   isPublished?: boolean | null;
   isFeatured?: boolean | null;
   badge?: string | null;
+  categoryId?: string | null;
+  subcategoryId?: string | null;
 }
 
 interface ProductCreateBody {
@@ -122,6 +124,8 @@ const createDefaultProductById = (id: string): ShopProduct => {
 
 const buildAdminProductsPayload = async () => {
   const config = await readShopAdminConfig();
+  const categoryMap = new Map(config.productCategories.map((category) => [category.id, category]));
+  const fallbackCategoryId = config.productCategories[0]?.id;
   const ids = new Set<string>([
     ...SHOP_PRODUCTS.map((product) => product.id),
     ...Object.keys(config.productRecords),
@@ -139,9 +143,25 @@ const buildAdminProductsPayload = async () => {
       }
 
       const override = config.productOverrides[id];
+      const categoryId =
+        override?.categoryId && categoryMap.has(override.categoryId)
+          ? override.categoryId
+          : categoryMap.has(source.category)
+            ? source.category
+            : fallbackCategoryId;
+      const category = categoryId ? categoryMap.get(categoryId) : undefined;
+      const subcategoryId =
+        override?.subcategoryId && category?.subcategories.some((entry) => entry.id === override.subcategoryId)
+          ? override.subcategoryId
+          : undefined;
+      const subcategory = subcategoryId ? category?.subcategories.find((entry) => entry.id === subcategoryId) : undefined;
 
       return {
         ...source,
+        categoryId,
+        subcategoryId,
+        categoryLabel: category?.label,
+        subcategoryLabel: subcategory?.label,
         adminOverride: override ?? null,
         effectivePriceStarsCents: typeof override?.priceStarsCents === "number" ? override.priceStarsCents : source.priceStarsCents,
         effectiveStock: typeof override?.stock === "number" ? override.stock : source.attributes.stock,
@@ -289,6 +309,49 @@ export async function PATCH(request: Request) {
     };
 
     const existingOverride = current.productOverrides[productId] ?? { productId, updatedAt: now };
+    const categoryMap = new Map(current.productCategories.map((category) => [category.id, category]));
+    const normalizedCategoryId =
+      typeof payload.categoryId === "string"
+        ? normalizeId(payload.categoryId).slice(0, 48)
+        : payload.categoryId === null
+          ? null
+          : undefined;
+    const normalizedSubcategoryId =
+      typeof payload.subcategoryId === "string"
+        ? normalizeId(payload.subcategoryId).slice(0, 48)
+        : payload.subcategoryId === null
+          ? null
+          : undefined;
+    const nextCategoryId =
+      normalizedCategoryId === undefined
+        ? existingOverride.categoryId
+        : normalizedCategoryId === null
+          ? undefined
+          : normalizedCategoryId;
+    const selectedCategory = nextCategoryId ? categoryMap.get(nextCategoryId) : undefined;
+
+    if (nextCategoryId && !selectedCategory) {
+      throw new Error("Unknown categoryId");
+    }
+
+    let nextSubcategoryId =
+      normalizedSubcategoryId === undefined
+        ? existingOverride.subcategoryId
+        : normalizedSubcategoryId === null
+          ? undefined
+          : normalizedSubcategoryId;
+
+    if (nextSubcategoryId) {
+      const isValidSubcategory = Boolean(selectedCategory?.subcategories.some((item) => item.id === nextSubcategoryId));
+
+      if (!isValidSubcategory) {
+        if (normalizedSubcategoryId !== undefined) {
+          throw new Error("Unknown subcategoryId");
+        }
+
+        nextSubcategoryId = undefined;
+      }
+    }
 
     const nextOverride = {
       ...existingOverride,
@@ -315,6 +378,8 @@ export async function PATCH(request: Request) {
           : payload.badge === null
             ? undefined
             : existingOverride.badge,
+      categoryId: nextCategoryId,
+      subcategoryId: nextSubcategoryId,
     };
 
     const hasValues =
@@ -322,7 +387,9 @@ export async function PATCH(request: Request) {
       typeof nextOverride.stock === "number" ||
       typeof nextOverride.isPublished === "boolean" ||
       typeof nextOverride.isFeatured === "boolean" ||
-      typeof nextOverride.badge === "string";
+      typeof nextOverride.badge === "string" ||
+      typeof nextOverride.categoryId === "string" ||
+      typeof nextOverride.subcategoryId === "string";
 
     const productOverrides = { ...current.productOverrides };
 
@@ -344,11 +411,19 @@ export async function PATCH(request: Request) {
       return { __handled: true } as const;
     }
 
+    if (message === "Unknown categoryId" || message === "Unknown subcategoryId") {
+      return { __handledError: message } as const;
+    }
+
     throw error;
   });
 
   if (result && "__handled" in result) {
     return NextResponse.json({ error: "Unknown productId" }, { status: 404 });
+  }
+
+  if (result && "__handledError" in result) {
+    return NextResponse.json({ error: result.__handledError }, { status: 400 });
   }
 
   return NextResponse.json(await buildAdminProductsPayload());

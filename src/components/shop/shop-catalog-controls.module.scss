@@ -1,11 +1,10 @@
 .controls {
   display: grid;
-  gap: 0.64rem;
-  padding: 0.85rem;
+  gap: 0.68rem;
+  padding: 0.86rem;
   border-radius: var(--radius-lg);
   background: var(--tg-section-bg);
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
-  box-shadow: var(--shadow-sm);
 }
 
 .searchWrap {
@@ -13,15 +12,15 @@
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 0.74rem;
+  border-radius: 0.78rem;
   background: color-mix(in srgb, var(--tg-bg) 65%, var(--tg-section-bg));
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
-  padding: 0 0.65rem;
+  padding: 0 0.68rem;
 }
 
 .searchIcon {
   color: var(--tg-hint);
-  font-size: 0.95rem;
+  font-size: 0.96rem;
 }
 
 .searchInput {
@@ -34,36 +33,116 @@
   outline: none;
 }
 
+.categoriesRail {
+  display: flex;
+  gap: 0.48rem;
+  overflow-x: auto;
+  padding-bottom: 0.08rem;
+  scrollbar-width: none;
+}
+
+.categoriesRail::-webkit-scrollbar {
+  display: none;
+}
+
+.categoryCard {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  border-radius: 0.82rem;
+  padding: 0.48rem 0.62rem;
+  min-width: 112px;
+  background: color-mix(in srgb, var(--tg-bg) 62%, var(--tg-section-bg));
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.35rem;
+  color: var(--tg-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.categoryCardActive {
+  border-color: color-mix(in srgb, var(--tg-accent) 72%, transparent);
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: var(--tg-accent);
+}
+
+.categoryEmoji {
+  font-size: 0.98rem;
+}
+
+.categoryLabel {
+  text-align: left;
+  line-height: 1.2;
+}
+
+.categoryCount {
+  font-size: 0.72rem;
+  color: var(--tg-subtitle-text);
+}
+
+.subcategories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.subcategoryChip {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  border-radius: 999px;
+  min-height: 2.02rem;
+  padding: 0 0.68rem;
+  background: color-mix(in srgb, var(--tg-bg) 62%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.74rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.subcategoryChip span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.7rem;
+}
+
+.subcategoryChipActive {
+  border-color: color-mix(in srgb, var(--tg-accent) 72%, transparent);
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: var(--tg-accent);
+}
+
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr auto;
   gap: 0.6rem;
+  align-items: end;
 }
 
 .selectWrap {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.32rem;
   color: var(--tg-subtitle-text);
-  font-size: 0.77rem;
+  font-size: 0.76rem;
 }
 
 .selectWrap select {
   width: 100%;
-  min-height: 2.3rem;
+  min-height: 2.34rem;
   border-radius: 0.75rem;
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
   background: color-mix(in srgb, var(--tg-bg) 65%, var(--tg-section-bg));
   color: var(--tg-text);
   font: inherit;
-  padding: 0 0.55rem;
+  padding: 0 0.56rem;
 }
 
 .stockOnly {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.46rem;
   color: var(--tg-text);
-  font-size: 0.9rem;
+  font-size: 0.84rem;
+  min-height: 2.34rem;
 }
 
 .stockOnly input {
@@ -73,7 +152,7 @@
 .quickFilters {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.42rem;
   flex-wrap: wrap;
 }
 
@@ -84,7 +163,7 @@
   padding: 0 0.68rem;
   background: color-mix(in srgb, var(--tg-bg) 62%, var(--tg-section-bg));
   color: var(--tg-text);
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-weight: 600;
 }
 
@@ -106,17 +185,17 @@
   font-weight: 700;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .controls {
     padding: 0.74rem;
-    gap: 0.55rem;
+    gap: 0.58rem;
   }
 
   .row {
     grid-template-columns: 1fr;
   }
 
-  .quickFilters {
-    gap: 0.34rem;
+  .categoryCard {
+    min-width: 104px;
   }
 }

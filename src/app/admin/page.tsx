@@ -6,16 +6,20 @@ import { useEffect, useMemo, useState } from "react";
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import {
   createAdminProduct,
+  createAdminProductCategory,
   createAdminPromo,
+  deleteAdminProductCategory,
   deleteAdminProduct,
   deleteAdminPromo,
   fetchAdminCustomers,
   fetchAdminDashboard,
   fetchAdminMembers,
+  fetchAdminProductCategories,
   fetchAdminProducts,
   fetchAdminPromos,
   fetchAdminSession,
   fetchAdminSettings,
+  patchAdminProductCategory,
   patchAdminProduct,
   patchAdminPromo,
   patchAdminSettings,
@@ -28,11 +32,18 @@ import {
 } from "@/lib/admin-api";
 import { SHOP_ADMIN_ROLE_LABELS } from "@/lib/shop-admin-roles";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import type { ShopAdminMember, ShopAdminPermission, ShopAdminRole, ShopAppSettings, ShopPromoCode } from "@/types/shop";
+import type {
+  ShopAdminMember,
+  ShopAdminPermission,
+  ShopAdminRole,
+  ShopAppSettings,
+  ShopProductCategory,
+  ShopPromoCode,
+} from "@/types/shop";
 
 import styles from "./page.module.scss";
 
-type AdminTab = "dashboard" | "orders" | "customers" | "products" | "promos" | "settings" | "admins";
+type AdminTab = "dashboard" | "orders" | "customers" | "products" | "categories" | "promos" | "settings" | "admins";
 
 interface ProductDraft {
   priceStarsCents: string;
@@ -40,6 +51,21 @@ interface ProductDraft {
   isPublished: boolean;
   isFeatured: boolean;
   badge: string;
+  categoryId: string;
+  subcategoryId: string;
+}
+
+interface ProductCategoryDraft {
+  label: string;
+  emoji: string;
+  description: string;
+  order: string;
+}
+
+interface ProductSubcategoryDraft {
+  label: string;
+  description: string;
+  order: string;
 }
 
 interface AdminMemberDraft {
@@ -55,6 +81,7 @@ const TAB_REQUIREMENTS: Record<AdminTab, ShopAdminPermission> = {
   orders: "orders:view",
   customers: "customers:view",
   products: "products:view",
+  categories: "products:view",
   promos: "promos:view",
   settings: "settings:view",
   admins: "admins:view",
@@ -65,6 +92,7 @@ const TABS: Array<{ id: AdminTab; label: string }> = [
   { id: "orders", label: "Заказы" },
   { id: "customers", label: "Клиенты" },
   { id: "products", label: "Товары" },
+  { id: "categories", label: "Категории" },
   { id: "promos", label: "Промокоды" },
   { id: "settings", label: "Настройки" },
   { id: "admins", label: "Админы" },
@@ -79,6 +107,8 @@ const toProductDraft = (product: AdminProductWithMeta): ProductDraft => {
     isPublished: product.adminOverride?.isPublished ?? true,
     isFeatured: product.adminOverride?.isFeatured ?? false,
     badge: product.adminOverride?.badge ?? "",
+    categoryId: product.categoryId ?? product.adminOverride?.categoryId ?? product.category,
+    subcategoryId: product.subcategoryId ?? product.adminOverride?.subcategoryId ?? "",
   };
 };
 
@@ -99,6 +129,7 @@ export default function AdminPage() {
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [products, setProducts] = useState<AdminProductWithMeta[]>([]);
+  const [productCategories, setProductCategories] = useState<ShopProductCategory[]>([]);
   const [promos, setPromos] = useState<ShopPromoCode[]>([]);
   const [settings, setSettings] = useState<ShopAppSettings | null>(null);
   const [adminMembers, setAdminMembers] = useState<ShopAdminMember[]>([]);
@@ -106,12 +137,23 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
+  const [categoryDrafts, setCategoryDrafts] = useState<Record<string, ProductCategoryDraft>>({});
+  const [subcategoryDrafts, setSubcategoryDrafts] = useState<Record<string, ProductSubcategoryDraft>>({});
   const [adminDrafts, setAdminDrafts] = useState<Record<number, AdminMemberDraft>>({});
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [savingAdminId, setSavingAdminId] = useState<number | null>(null);
   const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [creatingProduct, setCreatingProduct] = useState(false);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [creatingSubcategoryFor, setCreatingSubcategoryFor] = useState<string | null>(null);
+  const [savingCategoryKey, setSavingCategoryKey] = useState<string | null>(null);
+  const [deletingCategoryKey, setDeletingCategoryKey] = useState<string | null>(null);
+  const [newCategoryLabel, setNewCategoryLabel] = useState("");
+  const [newCategoryEmoji, setNewCategoryEmoji] = useState("");
+  const [newCategoryDescription, setNewCategoryDescription] = useState("");
+  const [newSubcategoryLabel, setNewSubcategoryLabel] = useState<Record<string, string>>({});
+  const [newSubcategoryDescription, setNewSubcategoryDescription] = useState<Record<string, string>>({});
   const [customerSearch, setCustomerSearch] = useState("");
   const [adminSearch, setAdminSearch] = useState("");
   const [newPromoCode, setNewPromoCode] = useState("");
@@ -190,6 +232,46 @@ export default function AdminPage() {
 
             for (const product of response.products) {
               next[product.id] = prev[product.id] ?? toProductDraft(product);
+            }
+
+            return next;
+          });
+
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
+      jobs.push(
+        fetchAdminProductCategories().then((response) => {
+          const nextCategories = response.error ? productCategories : response.categories;
+          setProductCategories(nextCategories);
+          setCategoryDrafts((prev) => {
+            const next = { ...prev };
+
+            for (const category of nextCategories) {
+              next[category.id] = prev[category.id] ?? {
+                label: category.label,
+                emoji: category.emoji ?? "",
+                description: category.description ?? "",
+                order: String(category.order),
+              };
+            }
+
+            return next;
+          });
+          setSubcategoryDrafts((prev) => {
+            const next = { ...prev };
+
+            for (const category of nextCategories) {
+              for (const subcategory of category.subcategories) {
+                const key = `${category.id}:${subcategory.id}`;
+                next[key] = prev[key] ?? {
+                  label: subcategory.label,
+                  description: subcategory.description ?? "",
+                  order: String(subcategory.order),
+                };
+              }
             }
 
             return next;
@@ -337,6 +419,66 @@ export default function AdminPage() {
       return haystack.includes(query);
     });
   }, [adminMembers, adminSearch]);
+
+  const categoryMap = useMemo(() => {
+    return new Map(productCategories.map((category) => [category.id, category]));
+  }, [productCategories]);
+
+  const syncCategoryState = (categories: ShopProductCategory[]) => {
+    setProductCategories(categories);
+    setCategoryDrafts((prev) => {
+      const next: Record<string, ProductCategoryDraft> = {};
+
+      for (const category of categories) {
+        next[category.id] = prev[category.id] ?? {
+          label: category.label,
+          emoji: category.emoji ?? "",
+          description: category.description ?? "",
+          order: String(category.order),
+        };
+      }
+
+      return next;
+    });
+    setSubcategoryDrafts((prev) => {
+      const next: Record<string, ProductSubcategoryDraft> = {};
+
+      for (const category of categories) {
+        for (const subcategory of category.subcategories) {
+          const key = `${category.id}:${subcategory.id}`;
+          next[key] = prev[key] ?? {
+            label: subcategory.label,
+            description: subcategory.description ?? "",
+            order: String(subcategory.order),
+          };
+        }
+      }
+
+      return next;
+    });
+    setProductDrafts((prev) => {
+      const validCategoryIds = new Set(categories.map((category) => category.id));
+      const next: Record<string, ProductDraft> = {};
+
+      for (const [productId, draft] of Object.entries(prev)) {
+        const categoryId = validCategoryIds.has(draft.categoryId)
+          ? draft.categoryId
+          : categories[0]?.id ?? "";
+        const selectedCategory = categories.find((category) => category.id === categoryId);
+        const isValidSubcategory = Boolean(
+          draft.subcategoryId && selectedCategory?.subcategories.some((item) => item.id === draft.subcategoryId),
+        );
+
+        next[productId] = {
+          ...draft,
+          categoryId,
+          subcategoryId: isValidSubcategory ? draft.subcategoryId : "",
+        };
+      }
+
+      return next;
+    });
+  };
 
   if (sessionLoading) {
     return (
@@ -507,6 +649,8 @@ export default function AdminPage() {
                 const draft = productDrafts[product.id] ?? toProductDraft(product);
                 const isSaving = savingProductId === product.id;
                 const isDeleting = deletingProductId === product.id;
+                const selectedCategory = categoryMap.get(draft.categoryId);
+                const subcategories = selectedCategory?.subcategories ?? [];
 
                 return (
                   <article key={product.id} className={styles.productCard}>
@@ -554,6 +698,57 @@ export default function AdminPage() {
                         />
                       </label>
                     </div>
+                    <div className={styles.formRow}>
+                      <label>
+                        Категория витрины
+                        <select
+                          value={draft.categoryId}
+                          onChange={(event) =>
+                            setProductDrafts((prev) => {
+                              const categoryId = event.target.value;
+                              const nextCategory = categoryMap.get(categoryId);
+                              const isCurrentSubcategoryValid = Boolean(
+                                draft.subcategoryId &&
+                                  nextCategory?.subcategories.some((subcategory) => subcategory.id === draft.subcategoryId),
+                              );
+                              return {
+                                ...prev,
+                                [product.id]: {
+                                  ...draft,
+                                  categoryId,
+                                  subcategoryId: isCurrentSubcategoryValid ? draft.subcategoryId : "",
+                                },
+                              };
+                            })
+                          }
+                        >
+                          {productCategories.map((category) => (
+                            <option key={`product-category-${product.id}-${category.id}`} value={category.id}>
+                              {category.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Подкатегория
+                        <select
+                          value={draft.subcategoryId}
+                          onChange={(event) =>
+                            setProductDrafts((prev) => ({
+                              ...prev,
+                              [product.id]: { ...draft, subcategoryId: event.target.value },
+                            }))
+                          }
+                        >
+                          <option value="">Без подкатегории</option>
+                          {subcategories.map((subcategory) => (
+                            <option key={`product-subcategory-${product.id}-${subcategory.id}`} value={subcategory.id}>
+                              {subcategory.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
                     <div className={styles.checkboxRow}>
                       <label>
                         <input
@@ -598,6 +793,8 @@ export default function AdminPage() {
                           isPublished: draft.isPublished,
                           isFeatured: draft.isFeatured,
                           badge: draft.badge.trim() ? draft.badge.trim() : null,
+                          categoryId: draft.categoryId || null,
+                          subcategoryId: draft.subcategoryId.trim() ? draft.subcategoryId.trim() : null,
                         });
                         setSavingProductId(null);
 
@@ -637,6 +834,370 @@ export default function AdminPage() {
                         {isDeleting ? "Удаляем..." : "Удалить"}
                       </button>
                     ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "categories" && hasPermission("products:view") ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>
+              <h2>Категории и подкатегории</h2>
+            </div>
+
+            <div className={styles.categoryCreate}>
+              <input
+                value={newCategoryLabel}
+                onChange={(event) => setNewCategoryLabel(event.target.value)}
+                placeholder="Название категории"
+              />
+              <input
+                value={newCategoryEmoji}
+                onChange={(event) => setNewCategoryEmoji(event.target.value)}
+                placeholder="Эмодзи"
+              />
+              <input
+                value={newCategoryDescription}
+                onChange={(event) => setNewCategoryDescription(event.target.value)}
+                placeholder="Описание категории"
+              />
+              <button
+                type="button"
+                disabled={!hasPermission("products:manage") || creatingCategory || !newCategoryLabel.trim()}
+                onClick={async () => {
+                  if (!hasPermission("products:manage")) {
+                    return;
+                  }
+
+                  setCreatingCategory(true);
+                  const response = await createAdminProductCategory({
+                    label: newCategoryLabel.trim(),
+                    emoji: newCategoryEmoji.trim() || undefined,
+                    description: newCategoryDescription.trim() || undefined,
+                  });
+                  setCreatingCategory(false);
+
+                  if (response.error) {
+                    setError(response.error);
+                    return;
+                  }
+
+                  syncCategoryState(response.categories);
+                  setNewCategoryLabel("");
+                  setNewCategoryEmoji("");
+                  setNewCategoryDescription("");
+                  await loadAll();
+                }}
+              >
+                {creatingCategory ? "Создаём..." : "Создать категорию"}
+              </button>
+            </div>
+
+            <div className={styles.categoriesAdminList}>
+              {productCategories.map((category) => {
+                const draft = categoryDrafts[category.id] ?? {
+                  label: category.label,
+                  emoji: category.emoji ?? "",
+                  description: category.description ?? "",
+                  order: String(category.order),
+                };
+                const categorySavingKey = `category:${category.id}`;
+                const categoryDeletingKey = `category:${category.id}`;
+
+                return (
+                  <article key={`category-admin-${category.id}`} className={styles.categoryAdminCard}>
+                    <header className={styles.categoryAdminHeader}>
+                      <h3>
+                        {category.emoji ? `${category.emoji} ` : ""}
+                        {category.label}
+                      </h3>
+                      <p>ID: {category.id}</p>
+                    </header>
+
+                    <div className={styles.formRow}>
+                      <label>
+                        Название
+                        <input
+                          value={draft.label}
+                          onChange={(event) =>
+                            setCategoryDrafts((prev) => ({
+                              ...prev,
+                              [category.id]: { ...draft, label: event.target.value },
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Эмодзи
+                        <input
+                          value={draft.emoji}
+                          onChange={(event) =>
+                            setCategoryDrafts((prev) => ({
+                              ...prev,
+                              [category.id]: { ...draft, emoji: event.target.value },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className={styles.formRow}>
+                      <label>
+                        Описание
+                        <input
+                          value={draft.description}
+                          onChange={(event) =>
+                            setCategoryDrafts((prev) => ({
+                              ...prev,
+                              [category.id]: { ...draft, description: event.target.value },
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Порядок
+                        <input
+                          value={draft.order}
+                          onChange={(event) =>
+                            setCategoryDrafts((prev) => ({
+                              ...prev,
+                              [category.id]: { ...draft, order: event.target.value },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className={styles.promoActions}>
+                      <button
+                        type="button"
+                        disabled={!hasPermission("products:manage") || savingCategoryKey === categorySavingKey}
+                        onClick={async () => {
+                          if (!hasPermission("products:manage")) {
+                            return;
+                          }
+
+                          setSavingCategoryKey(categorySavingKey);
+                          const response = await patchAdminProductCategory({
+                            categoryId: category.id,
+                            label: draft.label.trim(),
+                            emoji: draft.emoji.trim() ? draft.emoji.trim() : null,
+                            description: draft.description.trim() ? draft.description.trim() : null,
+                            order: draft.order.trim() ? Number(draft.order) : null,
+                          });
+                          setSavingCategoryKey(null);
+
+                          if (response.error) {
+                            setError(response.error);
+                            return;
+                          }
+
+                          syncCategoryState(response.categories);
+                          await loadAll();
+                        }}
+                      >
+                        {savingCategoryKey === categorySavingKey ? "Сохраняем..." : "Сохранить категорию"}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.danger}
+                        disabled={!hasPermission("products:manage") || deletingCategoryKey === categoryDeletingKey}
+                        onClick={async () => {
+                          if (!hasPermission("products:manage")) {
+                            return;
+                          }
+
+                          setDeletingCategoryKey(categoryDeletingKey);
+                          const response = await deleteAdminProductCategory({ categoryId: category.id });
+                          setDeletingCategoryKey(null);
+
+                          if (response.error) {
+                            setError(response.error);
+                            return;
+                          }
+
+                          syncCategoryState(response.categories);
+                          await loadAll();
+                        }}
+                      >
+                        {deletingCategoryKey === categoryDeletingKey ? "Удаляем..." : "Удалить категорию"}
+                      </button>
+                    </div>
+
+                    <div className={styles.subcategoryBlock}>
+                      <h4>Подкатегории</h4>
+                      {category.subcategories.length === 0 ? <p className={styles.hint}>Нет подкатегорий.</p> : null}
+                      {category.subcategories.map((subcategory) => {
+                        const key = `${category.id}:${subcategory.id}`;
+                        const subDraft = subcategoryDrafts[key] ?? {
+                          label: subcategory.label,
+                          description: subcategory.description ?? "",
+                          order: String(subcategory.order),
+                        };
+                        const savingKey = `subcategory:${key}`;
+                        const deletingKey = `subcategory:${key}`;
+
+                        return (
+                          <div key={key} className={styles.subcategoryRow}>
+                            <div className={styles.formRow}>
+                              <label>
+                                Название
+                                <input
+                                  value={subDraft.label}
+                                  onChange={(event) =>
+                                    setSubcategoryDrafts((prev) => ({
+                                      ...prev,
+                                      [key]: { ...subDraft, label: event.target.value },
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Порядок
+                                <input
+                                  value={subDraft.order}
+                                  onChange={(event) =>
+                                    setSubcategoryDrafts((prev) => ({
+                                      ...prev,
+                                      [key]: { ...subDraft, order: event.target.value },
+                                    }))
+                                  }
+                                />
+                              </label>
+                            </div>
+                            <div className={styles.formRow}>
+                              <label>
+                                Описание
+                                <input
+                                  value={subDraft.description}
+                                  onChange={(event) =>
+                                    setSubcategoryDrafts((prev) => ({
+                                      ...prev,
+                                      [key]: { ...subDraft, description: event.target.value },
+                                    }))
+                                  }
+                                />
+                              </label>
+                            </div>
+                            <div className={styles.promoActions}>
+                              <button
+                                type="button"
+                                disabled={!hasPermission("products:manage") || savingCategoryKey === savingKey}
+                                onClick={async () => {
+                                  if (!hasPermission("products:manage")) {
+                                    return;
+                                  }
+
+                                  setSavingCategoryKey(savingKey);
+                                  const response = await patchAdminProductCategory({
+                                    categoryId: category.id,
+                                    subcategoryId: subcategory.id,
+                                    label: subDraft.label.trim(),
+                                    description: subDraft.description.trim() ? subDraft.description.trim() : null,
+                                    order: subDraft.order.trim() ? Number(subDraft.order) : null,
+                                  });
+                                  setSavingCategoryKey(null);
+
+                                  if (response.error) {
+                                    setError(response.error);
+                                    return;
+                                  }
+
+                                  syncCategoryState(response.categories);
+                                  await loadAll();
+                                }}
+                              >
+                                {savingCategoryKey === savingKey ? "Сохраняем..." : "Сохранить"}
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.danger}
+                                disabled={!hasPermission("products:manage") || deletingCategoryKey === deletingKey}
+                                onClick={async () => {
+                                  if (!hasPermission("products:manage")) {
+                                    return;
+                                  }
+
+                                  setDeletingCategoryKey(deletingKey);
+                                  const response = await deleteAdminProductCategory({
+                                    categoryId: category.id,
+                                    subcategoryId: subcategory.id,
+                                  });
+                                  setDeletingCategoryKey(null);
+
+                                  if (response.error) {
+                                    setError(response.error);
+                                    return;
+                                  }
+
+                                  syncCategoryState(response.categories);
+                                  await loadAll();
+                                }}
+                              >
+                                {deletingCategoryKey === deletingKey ? "Удаляем..." : "Удалить"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <div className={styles.subcategoryCreate}>
+                        <input
+                          value={newSubcategoryLabel[category.id] ?? ""}
+                          onChange={(event) =>
+                            setNewSubcategoryLabel((prev) => ({
+                              ...prev,
+                              [category.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Новая подкатегория"
+                        />
+                        <input
+                          value={newSubcategoryDescription[category.id] ?? ""}
+                          onChange={(event) =>
+                            setNewSubcategoryDescription((prev) => ({
+                              ...prev,
+                              [category.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Описание подкатегории"
+                        />
+                        <button
+                          type="button"
+                          disabled={
+                            !hasPermission("products:manage") ||
+                            creatingSubcategoryFor === category.id ||
+                            !(newSubcategoryLabel[category.id] ?? "").trim()
+                          }
+                          onClick={async () => {
+                            if (!hasPermission("products:manage")) {
+                              return;
+                            }
+
+                            setCreatingSubcategoryFor(category.id);
+                            const response = await createAdminProductCategory({
+                              parentCategoryId: category.id,
+                              label: (newSubcategoryLabel[category.id] ?? "").trim(),
+                              description: (newSubcategoryDescription[category.id] ?? "").trim() || undefined,
+                            });
+                            setCreatingSubcategoryFor(null);
+
+                            if (response.error) {
+                              setError(response.error);
+                              return;
+                            }
+
+                            syncCategoryState(response.categories);
+                            setNewSubcategoryLabel((prev) => ({ ...prev, [category.id]: "" }));
+                            setNewSubcategoryDescription((prev) => ({ ...prev, [category.id]: "" }));
+                            await loadAll();
+                          }}
+                        >
+                          {creatingSubcategoryFor === category.id ? "Добавляем..." : "Добавить подкатегорию"}
+                        </button>
+                      </div>
+                    </div>
                   </article>
                 );
               })}

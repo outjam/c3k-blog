@@ -5,14 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ShopCatalogControls } from "@/components/shop/shop-catalog-controls";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
-import { SHOP_CATEGORY_LABELS, SHOP_PRODUCTS } from "@/data/shop-products";
+import { SHOP_DEFAULT_PRODUCT_CATEGORIES, SHOP_PRODUCTS } from "@/data/shop-products";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
 import { getCartSubtotalStarsCents } from "@/lib/shop-pricing";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
-import type { CartItem, ProductSort, ShopAppSettings, ShopCategory, ShopProduct } from "@/types/shop";
+import type { CartItem, ProductSort, ShopAppSettings, ShopProduct, ShopProductCategory } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
@@ -45,7 +45,8 @@ const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
 
 export default function ShopPage() {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<ShopCategory | "all">("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | "all">("all");
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | "all">("all");
   const [sort, setSort] = useState<ProductSort>("popular");
   const [quickFilter, setQuickFilter] = useState<"all" | "new" | "hit" | "sale">("all");
   const [inStockOnly, setInStockOnly] = useState(false);
@@ -53,6 +54,7 @@ export default function ShopPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>(SHOP_PRODUCTS);
+  const [catalogCategories, setCatalogCategories] = useState<ShopProductCategory[]>(SHOP_DEFAULT_PRODUCT_CATEGORIES);
   const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
   const [catalogError, setCatalogError] = useState("");
 
@@ -124,6 +126,9 @@ export default function ShopPage() {
       }
 
       setCatalogProducts(snapshot.products);
+      if (snapshot.categories.length > 0) {
+        setCatalogCategories(snapshot.categories);
+      }
 
       if (snapshot.settings) {
         setCatalogSettings(snapshot.settings);
@@ -143,6 +148,19 @@ export default function ShopPage() {
     void writeShopCart({ items: cartItems, promoCode: "" });
   }, [cartItems, isCartHydrated]);
 
+  useEffect(() => {
+    if (selectedCategoryId === "all") {
+      return;
+    }
+
+    const exists = catalogCategories.some((category) => category.id === selectedCategoryId);
+
+    if (!exists) {
+      setSelectedCategoryId("all");
+      setSelectedSubcategoryId("all");
+    }
+  }, [catalogCategories, selectedCategoryId]);
+
   const productQuantityMap = useMemo(() => {
     return new Map(cartItems.map((item) => [item.productId, item.quantity]));
   }, [cartItems]);
@@ -151,7 +169,13 @@ export default function ShopPage() {
     const normalizedQuery = search.trim().toLowerCase();
 
     const filtered = catalogProducts.filter((product) => {
-      if (category !== "all" && product.category !== category) {
+      const productCategoryId = product.categoryId ?? product.category;
+
+      if (selectedCategoryId !== "all" && productCategoryId !== selectedCategoryId) {
+        return false;
+      }
+
+      if (selectedSubcategoryId !== "all" && product.subcategoryId !== selectedSubcategoryId) {
         return false;
       }
 
@@ -196,13 +220,14 @@ export default function ShopPage() {
     });
 
     return sortProducts(filtered, sort);
-  }, [catalogProducts, category, inStockOnly, quickFilter, search, sort]);
+  }, [catalogProducts, inStockOnly, quickFilter, search, selectedCategoryId, selectedSubcategoryId, sort]);
 
   const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(catalogProducts, cartItems), [cartItems, catalogProducts]);
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const activeFiltersCount = [
     Boolean(search.trim()),
-    category !== "all",
+    selectedCategoryId !== "all",
+    selectedSubcategoryId !== "all",
     sort !== "popular",
     inStockOnly,
     quickFilter !== "all",
@@ -271,7 +296,8 @@ export default function ShopPage() {
 
   const resetFilters = () => {
     setSearch("");
-    setCategory("all");
+    setSelectedCategoryId("all");
+    setSelectedSubcategoryId("all");
     setSort("popular");
     setInStockOnly(false);
     setQuickFilter("all");
@@ -284,13 +310,56 @@ export default function ShopPage() {
     });
   };
 
-  const categoryOptions = useMemo(
-    () => [
-      { value: "all" as const, label: "Все товары" },
-      ...Object.entries(SHOP_CATEGORY_LABELS).map(([value, label]) => ({ value: value as ShopCategory, label })),
-    ],
-    [],
-  );
+  const categoryCountMap = useMemo(() => {
+    return catalogProducts.reduce<Record<string, number>>((acc, product) => {
+      const categoryId = product.categoryId ?? product.category;
+      acc[categoryId] = (acc[categoryId] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [catalogProducts]);
+
+  const subcategoryCountMap = useMemo(() => {
+    return catalogProducts.reduce<Record<string, number>>((acc, product) => {
+      if (!product.subcategoryId) {
+        return acc;
+      }
+
+      const key = `${product.categoryId ?? product.category}:${product.subcategoryId}`;
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [catalogProducts]);
+
+  const selectedCategory = useMemo(() => {
+    return selectedCategoryId === "all"
+      ? null
+      : catalogCategories.find((category) => category.id === selectedCategoryId) ?? null;
+  }, [catalogCategories, selectedCategoryId]);
+
+  const visibleSubcategories = selectedCategory?.subcategories ?? [];
+
+  useEffect(() => {
+    if (selectedSubcategoryId === "all") {
+      return;
+    }
+
+    const exists = visibleSubcategories.some((subcategory) => subcategory.id === selectedSubcategoryId);
+
+    if (!exists) {
+      setSelectedSubcategoryId("all");
+    }
+  }, [selectedSubcategoryId, visibleSubcategories]);
+
+  const handleCategoryChange = (value: string | "all") => {
+    setSelectedCategoryId(value);
+    setSelectedSubcategoryId("all");
+    hapticSelection();
+  };
+
+  const handleSubcategoryChange = (value: string | "all") => {
+    setSelectedSubcategoryId(value);
+    hapticSelection();
+  };
 
   return (
     <div className={styles.page}>
@@ -306,13 +375,18 @@ export default function ShopPage() {
         <ShopCatalogControls
           search={search}
           onSearchChange={setSearch}
-          category={category}
-          onCategoryChange={setCategory}
+          selectedCategoryId={selectedCategoryId}
+          onCategoryChange={handleCategoryChange}
+          selectedSubcategoryId={selectedSubcategoryId}
+          onSubcategoryChange={handleSubcategoryChange}
           sort={sort}
           onSortChange={setSort}
           inStockOnly={inStockOnly}
           onInStockChange={setInStockOnly}
-          categoryOptions={categoryOptions}
+          categories={catalogCategories}
+          categoryCountMap={categoryCountMap}
+          visibleSubcategories={visibleSubcategories}
+          subcategoryCountMap={subcategoryCountMap}
           quickFilter={quickFilter}
           onQuickFilterChange={setQuickFilter}
           activeFiltersCount={activeFiltersCount}

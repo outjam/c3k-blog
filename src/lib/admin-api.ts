@@ -9,6 +9,7 @@ import type {
   ShopOrder,
   ShopOrderStatus,
   ShopProduct,
+  ShopProductCategory,
   ShopPromoCode,
 } from "@/types/shop";
 
@@ -48,6 +49,8 @@ export interface AdminProductWithMeta extends ShopProduct {
     isPublished?: boolean;
     isFeatured?: boolean;
     badge?: string;
+    categoryId?: string;
+    subcategoryId?: string;
     updatedAt: string;
   } | null;
   effectivePriceStarsCents: number;
@@ -133,6 +136,110 @@ export const fetchAdminProducts = async (): Promise<{ products: AdminProductWith
   }
 };
 
+export const fetchAdminProductCategories = async (): Promise<{ categories: ShopProductCategory[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/product-categories", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { categories: [], error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as { categories?: ShopProductCategory[] };
+    return { categories: payload.categories ?? [] };
+  } catch {
+    return { categories: [], error: "Network error" };
+  }
+};
+
+export const createAdminProductCategory = async (payload: {
+  parentCategoryId?: string;
+  label: string;
+  emoji?: string;
+  description?: string;
+  id?: string;
+}): Promise<{ categories: ShopProductCategory[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/product-categories", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { categories: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { categories?: ShopProductCategory[] };
+    return { categories: data.categories ?? [] };
+  } catch {
+    return { categories: [], error: "Network error" };
+  }
+};
+
+export const patchAdminProductCategory = async (payload: {
+  categoryId: string;
+  subcategoryId?: string;
+  label?: string;
+  emoji?: string | null;
+  description?: string | null;
+  order?: number | null;
+}): Promise<{ categories: ShopProductCategory[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/product-categories", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { categories: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { categories?: ShopProductCategory[] };
+    return { categories: data.categories ?? [] };
+  } catch {
+    return { categories: [], error: "Network error" };
+  }
+};
+
+export const deleteAdminProductCategory = async (payload: {
+  categoryId: string;
+  subcategoryId?: string;
+}): Promise<{ categories: ShopProductCategory[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/product-categories", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { categories: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { categories?: ShopProductCategory[] };
+    return { categories: data.categories ?? [] };
+  } catch {
+    return { categories: [], error: "Network error" };
+  }
+};
+
 export const patchAdminProduct = async (payload: {
   productId: string;
   priceStarsCents?: number | null;
@@ -140,6 +247,8 @@ export const patchAdminProduct = async (payload: {
   isPublished?: boolean | null;
   isFeatured?: boolean | null;
   badge?: string | null;
+  categoryId?: string | null;
+  subcategoryId?: string | null;
 }): Promise<{ ok: boolean; error?: string }> => {
   try {
     const response = await fetch("/api/admin/products", {
@@ -447,6 +556,7 @@ export const removeAdminMember = async (telegramUserId: number): Promise<{ admin
 
 export const fetchPublicCatalog = async (): Promise<{
   products: ShopProduct[];
+  categories: ShopProductCategory[];
   promoRules: Array<{ code: string; label: string; discountType: "percent" | "fixed"; discountValue: number }>;
   settings: ShopAppSettings | null;
   error?: string;
@@ -458,22 +568,24 @@ export const fetchPublicCatalog = async (): Promise<{
     });
 
     if (!response.ok) {
-      return { products: [], promoRules: [], settings: null, error: await parseApiError(response) };
+      return { products: [], categories: [], promoRules: [], settings: null, error: await parseApiError(response) };
     }
 
     const payload = (await response.json()) as {
       products?: ShopProduct[];
+      categories?: ShopProductCategory[];
       promoRules?: Array<{ code: string; label: string; discountType: "percent" | "fixed"; discountValue: number }>;
       settings?: ShopAppSettings;
     };
 
     return {
       products: payload.products ?? [],
+      categories: payload.categories ?? [],
       promoRules: payload.promoRules ?? [],
       settings: payload.settings ?? null,
     };
   } catch {
-    return { products: [], promoRules: [], settings: null, error: "Network error" };
+    return { products: [], categories: [], promoRules: [], settings: null, error: "Network error" };
   }
 };
 

@@ -2,20 +2,25 @@
 
 import { motion } from "motion/react";
 
-import type { ProductSort, ShopCategory } from "@/types/shop";
+import type { ProductSort, ShopProductCategory } from "@/types/shop";
 
 import styles from "./shop-catalog-controls.module.scss";
 
 interface ShopCatalogControlsProps {
   search: string;
   onSearchChange: (value: string) => void;
-  category: ShopCategory | "all";
-  onCategoryChange: (value: ShopCategory | "all") => void;
+  selectedCategoryId: string | "all";
+  onCategoryChange: (value: string | "all") => void;
+  selectedSubcategoryId: string | "all";
+  onSubcategoryChange: (value: string | "all") => void;
   sort: ProductSort;
   onSortChange: (value: ProductSort) => void;
   inStockOnly: boolean;
   onInStockChange: (value: boolean) => void;
-  categoryOptions: Array<{ value: ShopCategory | "all"; label: string }>;
+  categories: ShopProductCategory[];
+  categoryCountMap: Record<string, number>;
+  visibleSubcategories: ShopProductCategory["subcategories"];
+  subcategoryCountMap: Record<string, number>;
   quickFilter: "all" | "new" | "hit" | "sale";
   onQuickFilterChange: (value: "all" | "new" | "hit" | "sale") => void;
   activeFiltersCount: number;
@@ -33,13 +38,18 @@ const SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
 export function ShopCatalogControls({
   search,
   onSearchChange,
-  category,
+  selectedCategoryId,
   onCategoryChange,
+  selectedSubcategoryId,
+  onSubcategoryChange,
   sort,
   onSortChange,
   inStockOnly,
   onInStockChange,
-  categoryOptions,
+  categories,
+  categoryCountMap,
+  visibleSubcategories,
+  subcategoryCountMap,
   quickFilter,
   onQuickFilterChange,
   activeFiltersCount,
@@ -65,18 +75,53 @@ export function ShopCatalogControls({
         />
       </label>
 
-      <div className={styles.row}>
-        <label className={styles.selectWrap}>
-          <span>Категория</span>
-          <select value={category} onChange={(event) => onCategoryChange(event.target.value as ShopCategory | "all")}> 
-            {categoryOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className={styles.categoriesRail}>
+        <button
+          type="button"
+          className={`${styles.categoryCard} ${selectedCategoryId === "all" ? styles.categoryCardActive : ""}`}
+          onClick={() => onCategoryChange("all")}
+        >
+          <span className={styles.categoryLabel}>Все товары</span>
+          <span className={styles.categoryCount}>{Object.values(categoryCountMap).reduce((sum, value) => sum + value, 0)}</span>
+        </button>
+        {categories.map((category) => (
+          <button
+            key={category.id}
+            type="button"
+            className={`${styles.categoryCard} ${selectedCategoryId === category.id ? styles.categoryCardActive : ""}`}
+            onClick={() => onCategoryChange(category.id)}
+          >
+            <span className={styles.categoryEmoji}>{category.emoji ?? "🧱"}</span>
+            <span className={styles.categoryLabel}>{category.label}</span>
+            <span className={styles.categoryCount}>{categoryCountMap[category.id] ?? 0}</span>
+          </button>
+        ))}
+      </div>
 
+      {visibleSubcategories.length > 0 ? (
+        <div className={styles.subcategories}>
+          <button
+            type="button"
+            className={`${styles.subcategoryChip} ${selectedSubcategoryId === "all" ? styles.subcategoryChipActive : ""}`}
+            onClick={() => onSubcategoryChange("all")}
+          >
+            Все подкатегории
+          </button>
+          {visibleSubcategories.map((subcategory) => (
+            <button
+              key={subcategory.id}
+              type="button"
+              className={`${styles.subcategoryChip} ${selectedSubcategoryId === subcategory.id ? styles.subcategoryChipActive : ""}`}
+              onClick={() => onSubcategoryChange(subcategory.id)}
+            >
+              {subcategory.label}
+              <span>{subcategoryCountMap[`${selectedCategoryId}:${subcategory.id}`] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className={styles.row}>
         <label className={styles.selectWrap}>
           <span>Сортировка</span>
           <select value={sort} onChange={(event) => onSortChange(event.target.value as ProductSort)}>
@@ -87,12 +132,12 @@ export function ShopCatalogControls({
             ))}
           </select>
         </label>
-      </div>
 
-      <label className={styles.stockOnly}>
-        <input type="checkbox" checked={inStockOnly} onChange={(event) => onInStockChange(event.target.checked)} />
-        <span>Только в наличии</span>
-      </label>
+        <label className={styles.stockOnly}>
+          <input type="checkbox" checked={inStockOnly} onChange={(event) => onInStockChange(event.target.checked)} />
+          <span>Только в наличии</span>
+        </label>
+      </div>
 
       <div className={styles.quickFilters}>
         {[
