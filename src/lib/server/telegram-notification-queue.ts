@@ -7,6 +7,8 @@ import {
 } from "@/lib/server/telegram-bot";
 
 const QUEUE_STORAGE_KEY = "c3k:telegram:notify-queue:v1";
+const INLINE_PROCESS_ENABLED = process.env.TELEGRAM_QUEUE_INLINE_PROCESSING !== "0";
+const INLINE_PROCESS_LIMIT = Math.max(1, Math.min(25, Math.round(Number(process.env.TELEGRAM_QUEUE_INLINE_LIMIT ?? 5))));
 
 type NotificationJobKind = "message" | "document";
 
@@ -115,6 +117,14 @@ const computeRetryDelayMs = (attempts: number): number => {
   return (baseSec + jitterSec) * 1000;
 };
 
+const kickInlineQueueProcessing = (): void => {
+  if (!INLINE_PROCESS_ENABLED) {
+    return;
+  }
+
+  void processTelegramNotificationQueue(INLINE_PROCESS_LIMIT).catch(() => undefined);
+};
+
 export const enqueueTelegramMessageNotification = async (input: {
   chatId: number;
   text: string;
@@ -146,6 +156,7 @@ export const enqueueTelegramMessageNotification = async (input: {
 
   jobs.push(job);
   await writeQueue(jobs);
+  kickInlineQueueProcessing();
   return true;
 };
 
@@ -184,6 +195,7 @@ export const enqueueTelegramDocumentNotification = async (input: {
 
   jobs.push(job);
   await writeQueue(jobs);
+  kickInlineQueueProcessing();
   return true;
 };
 

@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/telegram/notifications/worker?limit=25",
-      "schedule": "* * * * *"
+      "schedule": "0 5 * * *"
     }
   ]
 }
