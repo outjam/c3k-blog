@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { posts as staticPosts } from "@/data/posts";
 import type { BlogPost } from "@/data/posts";
 import {
   forbiddenResponse,
@@ -9,8 +8,11 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
-import { getBlogPostsSnapshot } from "@/lib/server/blog-posts-store";
-import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import {
+  getAdminBlogPostsSnapshot,
+  hideBlogPostBySlug,
+  upsertBlogPost,
+} from "@/lib/server/blog-posts-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,8 +35,6 @@ const normalizeSlug = (value: unknown): string => {
     .slice(0, 120);
 };
 
-const staticSlugSet = new Set(staticPosts.map((post) => post.slug));
-
 export async function GET(request: Request) {
   const auth = await getShopApiAccess(request);
 
@@ -46,12 +46,11 @@ export async function GET(request: Request) {
     return forbiddenResponse();
   }
 
-  const [posts, config] = await Promise.all([getBlogPostsSnapshot(), readShopAdminConfig()]);
-  return NextResponse.json({
-    posts,
-    hiddenPostSlugs: config.hiddenPostSlugs,
-    customSlugs: Object.keys(config.blogPostRecords),
-  });
+  try {
+    return NextResponse.json(await getAdminBlogPostsSnapshot());
+  } catch {
+    return NextResponse.json({ error: "Failed to load blog posts" }, { status: 502 });
+  }
 }
 
 export async function PUT(request: Request) {
@@ -82,30 +81,27 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Invalid post payload" }, { status: 400 });
   }
 
-  const post = payload.post;
-  const slug = normalizeSlug(post.slug);
+  const slug = normalizeSlug(payload.post.slug);
 
   if (!slug) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-  await mutateShopAdminConfig((current) => ({
-    ...current,
-    blogPostRecords: {
-      ...current.blogPostRecords,
-      [slug]: {
-        ...post,
-        slug,
-        publishedAt: post.publishedAt || now.slice(0, 10),
-      },
-    },
-    hiddenPostSlugs: current.hiddenPostSlugs.filter((item) => item !== slug),
-    updatedAt: now,
-  }));
+  try {
+    const saved = await upsertBlogPost({
+      ...payload.post,
+      slug,
+      publishedAt: payload.post.publishedAt || new Date().toISOString().slice(0, 10),
+    });
 
-  const posts = await getBlogPostsSnapshot();
-  return NextResponse.json({ posts });
+    if (!saved) {
+      return NextResponse.json({ error: "Failed to save post" }, { status: 502 });
+    }
+
+    return NextResponse.json(await getAdminBlogPostsSnapshot());
+  } catch {
+    return NextResponse.json({ error: "Failed to save post" }, { status: 502 });
+  }
 }
 
 export async function DELETE(request: Request) {
@@ -138,23 +134,15 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-  await mutateShopAdminConfig((current) => {
-    const blogPostRecords = { ...current.blogPostRecords };
-    delete blogPostRecords[slug];
+  try {
+    const hidden = await hideBlogPostBySlug(slug);
 
-    const hiddenPostSlugs = staticSlugSet.has(slug)
-      ? Array.from(new Set([...current.hiddenPostSlugs, slug]))
-      : current.hiddenPostSlugs.filter((item) => item !== slug);
+    if (!hidden) {
+      return NextResponse.json({ error: "Failed to delete post" }, { status: 502 });
+    }
 
-    return {
-      ...current,
-      blogPostRecords,
-      hiddenPostSlugs,
-      updatedAt: now,
-    };
-  });
-
-  const posts = await getBlogPostsSnapshot();
-  return NextResponse.json({ posts });
+    return NextResponse.json(await getAdminBlogPostsSnapshot());
+  } catch {
+    return NextResponse.json({ error: "Failed to delete post" }, { status: 502 });
+  }
 }

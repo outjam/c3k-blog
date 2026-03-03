@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ShopCatalogControls } from "@/components/shop/shop-catalog-controls";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
-import { SHOP_DEFAULT_PRODUCT_CATEGORIES, SHOP_PRODUCTS } from "@/data/shop-products";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
 import { getCartSubtotalStarsCents } from "@/lib/shop-pricing";
@@ -53,10 +52,11 @@ export default function ShopPage() {
   const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
-  const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>(SHOP_PRODUCTS);
-  const [catalogCategories, setCatalogCategories] = useState<ShopProductCategory[]>(SHOP_DEFAULT_PRODUCT_CATEGORIES);
+  const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<ShopProductCategory[]>([]);
   const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
   const [catalogError, setCatalogError] = useState("");
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
 
   const productsMap = useMemo(() => new Map(catalogProducts.map((item) => [item.id, item])), [catalogProducts]);
 
@@ -83,6 +83,10 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
+    if (!catalogLoaded) {
+      return;
+    }
+
     let mounted = true;
 
     readShopCart().then((state) => {
@@ -110,7 +114,7 @@ export default function ShopPage() {
     return () => {
       mounted = false;
     };
-  }, [getMaxQuantity]);
+  }, [catalogLoaded, getMaxQuantity]);
 
   useEffect(() => {
     let mounted = true;
@@ -122,6 +126,7 @@ export default function ShopPage() {
 
       if (snapshot.error) {
         setCatalogError(snapshot.error);
+        setCatalogLoaded(true);
         return;
       }
 
@@ -133,6 +138,8 @@ export default function ShopPage() {
       if (snapshot.settings) {
         setCatalogSettings(snapshot.settings);
       }
+
+      setCatalogLoaded(true);
     });
 
     return () => {

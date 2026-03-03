@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import { ShopCheckoutForm } from "@/components/shop/shop-checkout-form";
 import { ShopOrderSummary } from "@/components/shop/shop-order-summary";
-import { SHOP_PRODUCTS } from "@/data/shop-products";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { validateCheckoutForm, hasCheckoutErrors, type CheckoutValidationErrors } from "@/lib/shop-checkout-validation";
 import { createShopOrder, markShopOrderPaymentFailed } from "@/lib/shop-orders-api";
@@ -74,10 +73,11 @@ export default function ShopCartPage() {
   const [canRequestPhone, setCanRequestPhone] = useState(false);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [paymentError, setPaymentError] = useState("");
-  const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>(SHOP_PRODUCTS);
+  const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
   const [promoRules, setPromoRules] = useState(PROMO_RULES);
   const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
   const [catalogError, setCatalogError] = useState("");
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
 
   const productsMap = useMemo(() => new Map(catalogProducts.map((item) => [item.id, item])), [catalogProducts]);
 
@@ -90,6 +90,10 @@ export default function ShopCartPage() {
   );
 
   useEffect(() => {
+    if (!catalogLoaded) {
+      return;
+    }
+
     let mounted = true;
 
     readShopCart().then((state) => {
@@ -118,7 +122,7 @@ export default function ShopCartPage() {
     return () => {
       mounted = false;
     };
-  }, [getMaxQuantity]);
+  }, [catalogLoaded, getMaxQuantity]);
 
   useEffect(() => {
     let mounted = true;
@@ -130,6 +134,7 @@ export default function ShopCartPage() {
 
       if (snapshot.error) {
         setCatalogError(snapshot.error);
+        setCatalogLoaded(true);
         return;
       }
 
@@ -139,6 +144,8 @@ export default function ShopCartPage() {
       if (snapshot.settings) {
         setCatalogSettings(snapshot.settings);
       }
+
+      setCatalogLoaded(true);
     });
 
     return () => {

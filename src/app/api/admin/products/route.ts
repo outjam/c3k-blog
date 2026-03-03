@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { SHOP_PRODUCTS } from "@/data/shop-products";
-import type { ShopProduct } from "@/types/shop";
+import { getPostgresHttpConfig, postgresTableRequest } from "@/lib/server/postgres-http";
 import {
   forbiddenResponse,
   getShopApiAccess,
@@ -9,7 +8,8 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
-import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import type { ShopCategory, ShopProduct } from "@/types/shop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +34,49 @@ interface ProductDeleteBody {
   productId?: string;
 }
 
+interface ProductDbRow {
+  product_code?: string;
+  slug?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  image_url?: string;
+  price_stars_cents?: number;
+  old_price_stars_cents?: number | null;
+  stock?: number;
+  is_published?: boolean;
+  is_featured?: boolean;
+  rating?: number;
+  reviews_count?: number;
+  metadata?: Record<string, unknown>;
+  updated_at?: string;
+}
+
+interface ProductMetadata {
+  category?: ShopCategory;
+  categoryId?: string;
+  subcategoryId?: string;
+  isNew?: boolean;
+  isHit?: boolean;
+  tags?: string[];
+  badge?: string;
+  attributes?: Partial<ShopProduct["attributes"]>;
+}
+
+const DEFAULT_PRODUCT_IMAGE = "/posts/cover-pattern.svg";
+const DEFAULT_PRODUCT_CATEGORY: ShopCategory = "figurine";
+const DEFAULT_ATTRIBUTES: ShopProduct["attributes"] = {
+  material: "Глина",
+  technique: "Ручная работа",
+  color: "Натуральный",
+  heightCm: 10,
+  widthCm: 10,
+  weightGr: 200,
+  collection: "Classic",
+  sku: "SKU-DEFAULT",
+  stock: 0,
+};
+
 const normalizeId = (value: unknown): string => {
   return String(value ?? "")
     .trim()
@@ -42,6 +85,16 @@ const normalizeId = (value: unknown): string => {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+};
+
+const normalizeMetaId = (value: unknown): string => {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
 };
 
 const normalizeSlug = (value: unknown): string => {
@@ -54,8 +107,77 @@ const normalizeSlug = (value: unknown): string => {
     .slice(0, 120);
 };
 
-const defaultProduct = SHOP_PRODUCTS[0] as ShopProduct;
-const baseProductMap = new Map(SHOP_PRODUCTS.map((product) => [product.id, product]));
+const isValidCategory = (value: unknown): value is ShopCategory => {
+  return value === "figurine" || value === "vase" || value === "mug" || value === "lamp" || value === "plate";
+};
+
+const toMetadata = (value: unknown): ProductMetadata => {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const source = value as Record<string, unknown>;
+  const tags = Array.isArray(source.tags)
+    ? source.tags.map((tag) => String(tag ?? "").trim().slice(0, 42)).filter(Boolean).slice(0, 20)
+    : undefined;
+
+  return {
+    category: isValidCategory(source.category) ? source.category : undefined,
+    categoryId: normalizeMetaId(source.categoryId),
+    subcategoryId: normalizeMetaId(source.subcategoryId),
+    isNew: typeof source.isNew === "boolean" ? source.isNew : undefined,
+    isHit: typeof source.isHit === "boolean" ? source.isHit : undefined,
+    tags,
+    badge: typeof source.badge === "string" ? source.badge.trim().slice(0, 40) : undefined,
+    attributes: source.attributes && typeof source.attributes === "object" ? (source.attributes as ProductMetadata["attributes"]) : undefined,
+  };
+};
+
+const toShopProduct = (row: ProductDbRow): ShopProduct | null => {
+  const id = normalizeId(row.product_code);
+  const slug = normalizeSlug(row.slug);
+
+  if (!id || !slug) {
+    return null;
+  }
+
+  const metadata = toMetadata(row.metadata);
+  const attrs = metadata.attributes ?? {};
+  const category = metadata.category ?? DEFAULT_PRODUCT_CATEGORY;
+
+  return {
+    id,
+    slug,
+    title: String(row.title ?? "").trim() || `Товар ${id}`,
+    subtitle: String(row.subtitle ?? "").trim() || "Описание",
+    description: String(row.description ?? "").trim() || "Описание товара отсутствует.",
+    category,
+    categoryId: metadata.categoryId || undefined,
+    subcategoryId: metadata.subcategoryId || undefined,
+    image: String(row.image_url ?? "").trim() || DEFAULT_PRODUCT_IMAGE,
+    priceStarsCents: Math.max(1, Math.round(Number(row.price_stars_cents ?? 1))),
+    oldPriceStarsCents:
+      typeof row.old_price_stars_cents === "number" && Number.isFinite(row.old_price_stars_cents)
+        ? Math.max(1, Math.round(row.old_price_stars_cents))
+        : undefined,
+    rating: Math.max(0, Math.min(5, Number(row.rating ?? 0))),
+    reviewsCount: Math.max(0, Math.round(Number(row.reviews_count ?? 0))),
+    isNew: Boolean(metadata.isNew),
+    isHit: Boolean(metadata.isHit),
+    tags: metadata.tags ?? [],
+    attributes: {
+      material: String(attrs.material ?? DEFAULT_ATTRIBUTES.material).slice(0, 120),
+      technique: String(attrs.technique ?? DEFAULT_ATTRIBUTES.technique).slice(0, 120),
+      color: String(attrs.color ?? DEFAULT_ATTRIBUTES.color).slice(0, 120),
+      heightCm: Math.max(1, Math.round(Number(attrs.heightCm ?? DEFAULT_ATTRIBUTES.heightCm))),
+      widthCm: Math.max(1, Math.round(Number(attrs.widthCm ?? DEFAULT_ATTRIBUTES.widthCm))),
+      weightGr: Math.max(1, Math.round(Number(attrs.weightGr ?? DEFAULT_ATTRIBUTES.weightGr))),
+      collection: String(attrs.collection ?? DEFAULT_ATTRIBUTES.collection).slice(0, 120),
+      sku: String(attrs.sku ?? `SKU-${id}`).slice(0, 60),
+      stock: Math.max(0, Math.min(9999, Math.round(Number(row.stock ?? attrs.stock ?? DEFAULT_ATTRIBUTES.stock)))),
+    },
+  };
+};
 
 const mergeProduct = (current: ShopProduct, patch: Partial<ShopProduct>): ShopProduct => {
   return {
@@ -79,14 +201,7 @@ const mergeProduct = (current: ShopProduct, patch: Partial<ShopProduct>): ShopPr
           : undefined,
     rating: Math.max(0, Math.min(5, Number(patch.rating ?? current.rating))),
     reviewsCount: Math.max(0, Math.round(Number(patch.reviewsCount ?? current.reviewsCount))),
-    category:
-      patch.category === "figurine" ||
-      patch.category === "vase" ||
-      patch.category === "mug" ||
-      patch.category === "lamp" ||
-      patch.category === "plate"
-        ? patch.category
-        : current.category,
+    category: isValidCategory(patch.category) ? patch.category : current.category,
     isNew: typeof patch.isNew === "boolean" ? patch.isNew : current.isNew,
     isHit: typeof patch.isHit === "boolean" ? patch.isHit : current.isHit,
     attributes: {
@@ -107,52 +222,150 @@ const mergeProduct = (current: ShopProduct, patch: Partial<ShopProduct>): ShopPr
 
 const createDefaultProductById = (id: string): ShopProduct => {
   return {
-    ...defaultProduct,
     id,
     slug: normalizeSlug(id) || id,
     title: `Новый товар ${id}`,
     subtitle: "Новая карточка товара",
     description: "Заполните описание товара в админке.",
+    category: DEFAULT_PRODUCT_CATEGORY,
+    image: DEFAULT_PRODUCT_IMAGE,
+    priceStarsCents: 1,
+    oldPriceStarsCents: undefined,
+    rating: 0,
+    reviewsCount: 0,
+    isNew: true,
+    isHit: false,
     tags: ["new"],
     attributes: {
-      ...defaultProduct.attributes,
+      ...DEFAULT_ATTRIBUTES,
       sku: `SKU-${id.slice(0, 12).toUpperCase()}`,
       stock: 0,
     },
   };
 };
 
+const requireDatabase = (): string | null => {
+  if (getPostgresHttpConfig()) {
+    return null;
+  }
+
+  return "Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY";
+};
+
+const toDbPayload = (options: {
+  product: ShopProduct;
+  baseMetadata?: ProductMetadata;
+  isPublished: boolean;
+  isFeatured: boolean;
+  badge?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+}) => {
+  const metadata: ProductMetadata = {
+    ...options.baseMetadata,
+    category: options.product.category,
+    categoryId: options.categoryId,
+    subcategoryId: options.subcategoryId,
+    isNew: options.product.isNew,
+    isHit: options.product.isHit,
+    tags: options.product.tags,
+    badge: options.badge,
+    attributes: {
+      material: options.product.attributes.material,
+      technique: options.product.attributes.technique,
+      color: options.product.attributes.color,
+      heightCm: options.product.attributes.heightCm,
+      widthCm: options.product.attributes.widthCm,
+      weightGr: options.product.attributes.weightGr,
+      collection: options.product.attributes.collection,
+      sku: options.product.attributes.sku,
+      stock: options.product.attributes.stock,
+    },
+  };
+
+  return {
+    product_code: options.product.id,
+    slug: options.product.slug,
+    title: options.product.title,
+    subtitle: options.product.subtitle,
+    description: options.product.description,
+    image_url: options.product.image,
+    price_stars_cents: options.product.priceStarsCents,
+    old_price_stars_cents: options.product.oldPriceStarsCents ?? null,
+    stock: options.product.attributes.stock,
+    is_published: options.isPublished,
+    is_featured: options.isFeatured,
+    rating: options.product.rating,
+    reviews_count: options.product.reviewsCount,
+    metadata,
+  };
+};
+
+const readAllProducts = async (): Promise<ProductDbRow[] | null> => {
+  const query = new URLSearchParams();
+  query.set(
+    "select",
+    "product_code,slug,title,subtitle,description,image_url,price_stars_cents,old_price_stars_cents,stock,is_published,is_featured,rating,reviews_count,metadata,updated_at",
+  );
+  query.set("order", "updated_at.desc");
+
+  return postgresTableRequest<ProductDbRow[]>({
+    method: "GET",
+    path: "/products",
+    query,
+  });
+};
+
+const readOneProduct = async (productId: string): Promise<ProductDbRow | null> => {
+  const query = new URLSearchParams();
+  query.set(
+    "select",
+    "product_code,slug,title,subtitle,description,image_url,price_stars_cents,old_price_stars_cents,stock,is_published,is_featured,rating,reviews_count,metadata,updated_at",
+  );
+  query.set("product_code", `eq.${productId}`);
+  query.set("limit", "1");
+
+  const rows = await postgresTableRequest<ProductDbRow[]>({
+    method: "GET",
+    path: "/products",
+    query,
+  });
+
+  if (!rows || rows.length === 0) {
+    return null;
+  }
+
+  return rows[0] ?? null;
+};
+
 const buildAdminProductsPayload = async () => {
-  const config = await readShopAdminConfig();
+  const [config, rows] = await Promise.all([readShopAdminConfig(), readAllProducts()]);
+
+  if (!rows) {
+    throw new Error("Failed to read products from Postgres");
+  }
+
   const categoryMap = new Map(config.productCategories.map((category) => [category.id, category]));
   const fallbackCategoryId = config.productCategories[0]?.id;
-  const ids = new Set<string>([
-    ...SHOP_PRODUCTS.map((product) => product.id),
-    ...Object.keys(config.productRecords),
-    ...Object.keys(config.productOverrides),
-  ]);
 
-  const products = Array.from(ids)
-    .map((id) => {
-      const base = baseProductMap.get(id);
-      const record = config.productRecords[id];
-      const source = record ?? base ?? null;
+  const products = rows
+    .map((row) => {
+      const source = toShopProduct(row);
 
       if (!source) {
         return null;
       }
 
-      const override = config.productOverrides[id];
-      const categoryId =
-        override?.categoryId && categoryMap.has(override.categoryId)
-          ? override.categoryId
-          : categoryMap.has(source.category)
-            ? source.category
-            : fallbackCategoryId;
+      const metadata = toMetadata(row.metadata);
+      const categoryId = metadata.categoryId && categoryMap.has(metadata.categoryId)
+        ? metadata.categoryId
+        : categoryMap.has(source.category)
+          ? source.category
+          : fallbackCategoryId;
       const category = categoryId ? categoryMap.get(categoryId) : undefined;
       const subcategoryId =
-        override?.subcategoryId && category?.subcategories.some((entry) => entry.id === override.subcategoryId)
-          ? override.subcategoryId
+        metadata.subcategoryId && category?.subcategories.some((entry) => entry.id === metadata.subcategoryId)
+          ? metadata.subcategoryId
           : undefined;
       const subcategory = subcategoryId ? category?.subcategories.find((entry) => entry.id === subcategoryId) : undefined;
 
@@ -162,12 +375,22 @@ const buildAdminProductsPayload = async () => {
         subcategoryId,
         categoryLabel: category?.label,
         subcategoryLabel: subcategory?.label,
-        adminOverride: override ?? null,
-        effectivePriceStarsCents: typeof override?.priceStarsCents === "number" ? override.priceStarsCents : source.priceStarsCents,
-        effectiveStock: typeof override?.stock === "number" ? override.stock : source.attributes.stock,
-        effectivePublished: override?.isPublished ?? true,
-        isCustom: !base,
-        sourceType: record ? (base ? "edited" : "custom") : "base",
+        adminOverride: {
+          productId: source.id,
+          priceStarsCents: source.priceStarsCents,
+          stock: source.attributes.stock,
+          isPublished: row.is_published ?? true,
+          isFeatured: row.is_featured ?? false,
+          badge: metadata.badge,
+          categoryId,
+          subcategoryId,
+          updatedAt: String(row.updated_at ?? new Date().toISOString()),
+        },
+        effectivePriceStarsCents: source.priceStarsCents,
+        effectiveStock: source.attributes.stock,
+        effectivePublished: row.is_published ?? true,
+        isCustom: true,
+        sourceType: "custom" as const,
       };
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -187,7 +410,17 @@ export async function GET(request: Request) {
     return forbiddenResponse();
   }
 
-  return NextResponse.json(await buildAdminProductsPayload());
+  const dbError = requireDatabase();
+
+  if (dbError) {
+    return NextResponse.json({ error: dbError }, { status: 500 });
+  }
+
+  try {
+    return NextResponse.json(await buildAdminProductsPayload());
+  } catch {
+    return NextResponse.json({ error: "Failed to load products" }, { status: 502 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -206,6 +439,12 @@ export async function POST(request: Request) {
     return contentTypeError;
   }
 
+  const dbError = requireDatabase();
+
+  if (dbError) {
+    return NextResponse.json({ error: dbError }, { status: 500 });
+  }
+
   let payload: ProductCreateBody;
 
   try {
@@ -217,47 +456,35 @@ export async function POST(request: Request) {
   const sourcePatch = payload.product ?? {};
   const requestedId = normalizeId(sourcePatch.id);
   const id = requestedId || `custom-${Date.now().toString(36)}`;
-  const now = new Date().toISOString();
+  const existing = await readOneProduct(id);
 
-  const created = await mutateShopAdminConfig((current) => {
-    if (baseProductMap.has(id) || current.productRecords[id]) {
-      throw new Error("Product id already exists");
-    }
+  if (existing) {
+    return NextResponse.json({ error: "Product id already exists" }, { status: 409 });
+  }
 
-    const base = createDefaultProductById(id);
-    const product = mergeProduct(base, {
-      ...sourcePatch,
-      id,
-      slug: normalizeSlug(sourcePatch.slug ?? id) || id,
-    });
-
-    return {
-      ...current,
-      productRecords: {
-        ...current.productRecords,
-        [id]: product,
-      },
-      productOverrides: {
-        ...current.productOverrides,
-        [id]: {
-          productId: id,
-          updatedAt: now,
-          isPublished: true,
-        },
-      },
-      updatedAt: now,
-    };
-  }).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    if (message === "Product id already exists") {
-      return { __handled: true } as const;
-    }
-
-    throw error;
+  const base = createDefaultProductById(id);
+  const product = mergeProduct(base, {
+    ...sourcePatch,
+    id,
+    slug: normalizeSlug(sourcePatch.slug ?? id) || id,
   });
 
-  if (created && "__handled" in created) {
-    return NextResponse.json({ error: "Product id already exists" }, { status: 409 });
+  const body = toDbPayload({
+    product,
+    isPublished: true,
+    isFeatured: false,
+    categoryId: product.category,
+  });
+
+  const created = await postgresTableRequest<ProductDbRow[]>({
+    method: "POST",
+    path: "/products",
+    body,
+    prefer: "return=representation",
+  });
+
+  if (!created) {
+    return NextResponse.json({ error: "Failed to create product" }, { status: 502 });
   }
 
   return NextResponse.json(await buildAdminProductsPayload());
@@ -279,6 +506,12 @@ export async function PATCH(request: Request) {
     return contentTypeError;
   }
 
+  const dbError = requireDatabase();
+
+  if (dbError) {
+    return NextResponse.json({ error: dbError }, { status: 500 });
+  }
+
   let payload: ProductPatchBody;
 
   try {
@@ -293,140 +526,128 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid productId" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-  const result = await mutateShopAdminConfig((current) => {
-    const base = baseProductMap.get(productId);
-    const currentProduct = current.productRecords[productId] ?? base ?? null;
+  const [currentRow, config] = await Promise.all([readOneProduct(productId), readShopAdminConfig()]);
 
-    if (!currentProduct) {
-      throw new Error("Unknown productId");
-    }
-
-    const nextProduct = payload.product ? mergeProduct(currentProduct, payload.product) : currentProduct;
-    const productRecords = {
-      ...current.productRecords,
-      [productId]: nextProduct,
-    };
-
-    const existingOverride = current.productOverrides[productId] ?? { productId, updatedAt: now };
-    const categoryMap = new Map(current.productCategories.map((category) => [category.id, category]));
-    const normalizedCategoryId =
-      typeof payload.categoryId === "string"
-        ? normalizeId(payload.categoryId).slice(0, 48)
-        : payload.categoryId === null
-          ? null
-          : undefined;
-    const normalizedSubcategoryId =
-      typeof payload.subcategoryId === "string"
-        ? normalizeId(payload.subcategoryId).slice(0, 48)
-        : payload.subcategoryId === null
-          ? null
-          : undefined;
-    const nextCategoryId =
-      normalizedCategoryId === undefined
-        ? existingOverride.categoryId
-        : normalizedCategoryId === null
-          ? undefined
-          : normalizedCategoryId;
-    const selectedCategory = nextCategoryId ? categoryMap.get(nextCategoryId) : undefined;
-
-    if (nextCategoryId && !selectedCategory) {
-      throw new Error("Unknown categoryId");
-    }
-
-    let nextSubcategoryId =
-      normalizedSubcategoryId === undefined
-        ? existingOverride.subcategoryId
-        : normalizedSubcategoryId === null
-          ? undefined
-          : normalizedSubcategoryId;
-
-    if (nextSubcategoryId) {
-      const isValidSubcategory = Boolean(selectedCategory?.subcategories.some((item) => item.id === nextSubcategoryId));
-
-      if (!isValidSubcategory) {
-        if (normalizedSubcategoryId !== undefined) {
-          throw new Error("Unknown subcategoryId");
-        }
-
-        nextSubcategoryId = undefined;
-      }
-    }
-
-    const nextOverride = {
-      ...existingOverride,
-      updatedAt: now,
-      priceStarsCents:
-        typeof payload.priceStarsCents === "number" && Number.isFinite(payload.priceStarsCents)
-          ? Math.max(1, Math.round(payload.priceStarsCents))
-          : payload.priceStarsCents === null
-            ? undefined
-            : existingOverride.priceStarsCents,
-      stock:
-        typeof payload.stock === "number" && Number.isFinite(payload.stock)
-          ? Math.max(0, Math.min(999, Math.round(payload.stock)))
-          : payload.stock === null
-            ? undefined
-            : existingOverride.stock,
-      isPublished:
-        typeof payload.isPublished === "boolean" ? payload.isPublished : payload.isPublished === null ? undefined : existingOverride.isPublished,
-      isFeatured:
-        typeof payload.isFeatured === "boolean" ? payload.isFeatured : payload.isFeatured === null ? undefined : existingOverride.isFeatured,
-      badge:
-        typeof payload.badge === "string"
-          ? payload.badge.trim().slice(0, 40)
-          : payload.badge === null
-            ? undefined
-            : existingOverride.badge,
-      categoryId: nextCategoryId,
-      subcategoryId: nextSubcategoryId,
-    };
-
-    const hasValues =
-      typeof nextOverride.priceStarsCents === "number" ||
-      typeof nextOverride.stock === "number" ||
-      typeof nextOverride.isPublished === "boolean" ||
-      typeof nextOverride.isFeatured === "boolean" ||
-      typeof nextOverride.badge === "string" ||
-      typeof nextOverride.categoryId === "string" ||
-      typeof nextOverride.subcategoryId === "string";
-
-    const productOverrides = { ...current.productOverrides };
-
-    if (hasValues) {
-      productOverrides[productId] = nextOverride;
-    } else {
-      delete productOverrides[productId];
-    }
-
-    return {
-      ...current,
-      productRecords,
-      productOverrides,
-      updatedAt: now,
-    };
-  }).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    if (message === "Unknown productId") {
-      return { __handled: true } as const;
-    }
-
-    if (message === "Unknown categoryId" || message === "Unknown subcategoryId") {
-      return { __handledError: message } as const;
-    }
-
-    throw error;
-  });
-
-  if (result && "__handled" in result) {
+  if (!currentRow) {
     return NextResponse.json({ error: "Unknown productId" }, { status: 404 });
   }
 
-  if (result && "__handledError" in result) {
-    return NextResponse.json({ error: result.__handledError }, { status: 400 });
+  const currentProduct = toShopProduct(currentRow);
+
+  if (!currentProduct) {
+    return NextResponse.json({ error: "Invalid product payload in database" }, { status: 409 });
   }
 
-  return NextResponse.json(await buildAdminProductsPayload());
+  const currentMeta = toMetadata(currentRow.metadata);
+  const categoryMap = new Map(config.productCategories.map((category) => [category.id, category]));
+
+  const normalizedCategoryId =
+    typeof payload.categoryId === "string"
+      ? normalizeMetaId(payload.categoryId)
+      : payload.categoryId === null
+        ? null
+        : undefined;
+  const normalizedSubcategoryId =
+    typeof payload.subcategoryId === "string"
+      ? normalizeMetaId(payload.subcategoryId)
+      : payload.subcategoryId === null
+        ? null
+        : undefined;
+
+  const nextCategoryId =
+    normalizedCategoryId === undefined
+      ? currentMeta.categoryId
+      : normalizedCategoryId === null
+        ? undefined
+        : normalizedCategoryId;
+
+  if (nextCategoryId && !categoryMap.has(nextCategoryId)) {
+    return NextResponse.json({ error: "Unknown categoryId" }, { status: 400 });
+  }
+
+  const selectedCategory = nextCategoryId ? categoryMap.get(nextCategoryId) : undefined;
+
+  let nextSubcategoryId =
+    normalizedSubcategoryId === undefined
+      ? currentMeta.subcategoryId
+      : normalizedSubcategoryId === null
+        ? undefined
+        : normalizedSubcategoryId;
+
+  if (nextSubcategoryId) {
+    const isValidSubcategory = Boolean(selectedCategory?.subcategories.some((item) => item.id === nextSubcategoryId));
+
+    if (!isValidSubcategory) {
+      if (normalizedSubcategoryId !== undefined) {
+        return NextResponse.json({ error: "Unknown subcategoryId" }, { status: 400 });
+      }
+
+      nextSubcategoryId = undefined;
+    }
+  }
+
+  let nextProduct = payload.product ? mergeProduct(currentProduct, payload.product) : currentProduct;
+
+  if (typeof payload.priceStarsCents === "number" && Number.isFinite(payload.priceStarsCents)) {
+    nextProduct = { ...nextProduct, priceStarsCents: Math.max(1, Math.round(payload.priceStarsCents)) };
+  }
+
+  if (typeof payload.stock === "number" && Number.isFinite(payload.stock)) {
+    nextProduct = {
+      ...nextProduct,
+      attributes: {
+        ...nextProduct.attributes,
+        stock: Math.max(0, Math.min(9999, Math.round(payload.stock))),
+      },
+    };
+  }
+
+  const isPublished =
+    typeof payload.isPublished === "boolean"
+      ? payload.isPublished
+      : typeof currentRow.is_published === "boolean"
+        ? currentRow.is_published
+        : true;
+  const isFeatured =
+    typeof payload.isFeatured === "boolean"
+      ? payload.isFeatured
+      : typeof currentRow.is_featured === "boolean"
+        ? currentRow.is_featured
+        : false;
+
+  const badge =
+    typeof payload.badge === "string"
+      ? payload.badge.trim().slice(0, 40)
+      : payload.badge === null
+        ? undefined
+        : currentMeta.badge;
+
+  const body = toDbPayload({
+    product: nextProduct,
+    baseMetadata: currentMeta,
+    isPublished,
+    isFeatured,
+    badge,
+    categoryId: nextCategoryId,
+    subcategoryId: nextSubcategoryId,
+  });
+
+  const query = new URLSearchParams();
+  query.set("product_code", `eq.${productId}`);
+
+  const updated = await postgresTableRequest<ProductDbRow[]>({
+    method: "PATCH",
+    path: "/products",
+    query,
+    body,
+    prefer: "return=representation",
+  });
+
+  if (!updated) {
+    return NextResponse.json({ error: "Failed to update product" }, { status: 502 });
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(request: Request) {
@@ -445,6 +666,12 @@ export async function DELETE(request: Request) {
     return contentTypeError;
   }
 
+  const dbError = requireDatabase();
+
+  if (dbError) {
+    return NextResponse.json({ error: dbError }, { status: 500 });
+  }
+
   let payload: ProductDeleteBody;
 
   try {
@@ -459,21 +686,19 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Invalid productId" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-  await mutateShopAdminConfig((current) => {
-    const nextRecords = { ...current.productRecords };
-    const nextOverrides = { ...current.productOverrides };
+  const query = new URLSearchParams();
+  query.set("product_code", `eq.${productId}`);
 
-    delete nextRecords[productId];
-    delete nextOverrides[productId];
-
-    return {
-      ...current,
-      productRecords: nextRecords,
-      productOverrides: nextOverrides,
-      updatedAt: now,
-    };
+  const deleted = await postgresTableRequest<ProductDbRow[]>({
+    method: "DELETE",
+    path: "/products",
+    query,
+    prefer: "return=representation",
   });
+
+  if (!deleted) {
+    return NextResponse.json({ error: "Failed to delete product" }, { status: 502 });
+  }
 
   return NextResponse.json(await buildAdminProductsPayload());
 }

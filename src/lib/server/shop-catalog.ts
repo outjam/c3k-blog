@@ -1,4 +1,3 @@
-import { SHOP_PRODUCTS } from "@/data/shop-products";
 import { getPostgresHttpConfig, postgresTableRequest } from "@/lib/server/postgres-http";
 import { readShopAdminConfig, toActivePromoRules } from "@/lib/server/shop-admin-config-store";
 import type { ShopAppSettings, ShopProduct, ShopProductCategory } from "@/types/shop";
@@ -23,12 +22,22 @@ interface ProductDbRow {
 }
 
 const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1";
+const DEFAULT_PRODUCT_IMAGE = "/posts/cover-pattern.svg";
+const DEFAULT_ATTRIBUTES: ShopProduct["attributes"] = {
+  material: "Глина",
+  technique: "Ручная работа",
+  color: "Натуральный",
+  heightCm: 10,
+  widthCm: 10,
+  weightGr: 200,
+  collection: "Classic",
+  sku: "SKU-DEFAULT",
+  stock: 0,
+};
 
 const isValidCategory = (value: unknown): value is ProductCategory => {
   return value === "figurine" || value === "vase" || value === "mug" || value === "lamp" || value === "plate";
 };
-
-const defaultAttributes = SHOP_PRODUCTS[0]?.attributes;
 
 const toDbProduct = (row: ProductDbRow): ShopProduct | null => {
   const id = String(row.product_code ?? "")
@@ -55,7 +64,7 @@ const toDbProduct = (row: ProductDbRow): ShopProduct | null => {
     category,
     categoryId: typeof metadata.categoryId === "string" ? metadata.categoryId : undefined,
     subcategoryId: typeof metadata.subcategoryId === "string" ? metadata.subcategoryId : undefined,
-    image: String(row.image_url ?? "").trim() || SHOP_PRODUCTS[0]?.image || "/posts/cover-pattern.svg",
+    image: String(row.image_url ?? "").trim() || DEFAULT_PRODUCT_IMAGE,
     priceStarsCents: Math.max(1, Math.round(Number(row.price_stars_cents ?? 1))),
     oldPriceStarsCents:
       typeof row.old_price_stars_cents === "number" && Number.isFinite(row.old_price_stars_cents)
@@ -67,22 +76,22 @@ const toDbProduct = (row: ProductDbRow): ShopProduct | null => {
     isHit: Boolean(metadata.isHit),
     tags: Array.isArray(metadata.tags) ? metadata.tags.map((item) => String(item ?? "").slice(0, 42)).filter(Boolean) : [],
     attributes: {
-      material: String((rawAttributes as { material?: string }).material ?? defaultAttributes?.material ?? "Глина").slice(0, 120),
-      technique: String((rawAttributes as { technique?: string }).technique ?? defaultAttributes?.technique ?? "Ручная работа").slice(0, 120),
-      color: String((rawAttributes as { color?: string }).color ?? defaultAttributes?.color ?? "Натуральный").slice(0, 120),
+      material: String((rawAttributes as { material?: string }).material ?? DEFAULT_ATTRIBUTES.material).slice(0, 120),
+      technique: String((rawAttributes as { technique?: string }).technique ?? DEFAULT_ATTRIBUTES.technique).slice(0, 120),
+      color: String((rawAttributes as { color?: string }).color ?? DEFAULT_ATTRIBUTES.color).slice(0, 120),
       heightCm: Math.max(
         1,
-        Math.round(Number((rawAttributes as { heightCm?: number }).heightCm ?? defaultAttributes?.heightCm ?? 10)),
+        Math.round(Number((rawAttributes as { heightCm?: number }).heightCm ?? DEFAULT_ATTRIBUTES.heightCm)),
       ),
       widthCm: Math.max(
         1,
-        Math.round(Number((rawAttributes as { widthCm?: number }).widthCm ?? defaultAttributes?.widthCm ?? 10)),
+        Math.round(Number((rawAttributes as { widthCm?: number }).widthCm ?? DEFAULT_ATTRIBUTES.widthCm)),
       ),
       weightGr: Math.max(
         1,
-        Math.round(Number((rawAttributes as { weightGr?: number }).weightGr ?? defaultAttributes?.weightGr ?? 200)),
+        Math.round(Number((rawAttributes as { weightGr?: number }).weightGr ?? DEFAULT_ATTRIBUTES.weightGr)),
       ),
-      collection: String((rawAttributes as { collection?: string }).collection ?? defaultAttributes?.collection ?? "Classic").slice(
+      collection: String((rawAttributes as { collection?: string }).collection ?? DEFAULT_ATTRIBUTES.collection).slice(
         0,
         120,
       ),
@@ -143,7 +152,7 @@ export const getCatalogSnapshot = async (): Promise<{
     throw new Error("Postgres strict mode is enabled, but SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are missing");
   }
 
-  let baseProducts = SHOP_PRODUCTS;
+  let baseProducts: ShopProduct[] = [];
 
   if (hasPostgresConfig) {
     const dbRead = await readProductsFromDb();
@@ -161,10 +170,6 @@ export const getCatalogSnapshot = async (): Promise<{
   const categoryMap = new Map(categories.map((category) => [category.id, category]));
   const fallbackCategoryId = categories[0]?.id;
   const map = new Map<string, ShopProduct>(baseProducts.map((product) => [product.id, product]));
-
-  for (const product of Object.values(config.productRecords)) {
-    map.set(product.id, product);
-  }
 
   const products = Array.from(map.values())
     .map((product) => {

@@ -1,4 +1,3 @@
-import { SHOP_DEFAULT_PRODUCT_CATEGORIES, SHOP_PRODUCTS } from "@/data/shop-products";
 import type { BlogPost, PostContentBlock } from "@/data/posts";
 import {
   DEFAULT_DELIVERY_FEE_STARS_CENTS,
@@ -26,13 +25,88 @@ const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1";
 
 type GlobalWithConfig = typeof globalThis & { __c3kShopAdminConfigMemory__?: ShopAdminConfig };
 
-const DEFAULT_PRODUCT = SHOP_PRODUCTS[0] as ShopProduct;
+const DEFAULT_PRODUCT_IMAGE = "/posts/cover-pattern.svg";
+const DEFAULT_PRODUCT_RATING = 0;
+const DEFAULT_PRODUCT_REVIEWS_COUNT = 0;
+const DEFAULT_PRODUCT_ATTRIBUTES: ShopProduct["attributes"] = {
+  material: "Глина",
+  technique: "Ручная работа",
+  color: "Натуральный",
+  heightCm: 10,
+  widthCm: 10,
+  weightGr: 200,
+  collection: "Classic",
+  sku: "SKU-DEFAULT",
+  stock: 0,
+};
 const DEFAULT_BLOG_COVER = {
   src: "/posts/cover-pattern.svg",
   alt: "Обложка поста",
   width: 1200,
   height: 700,
 };
+const DEFAULT_PRODUCT_CATEGORIES: ShopProductCategory[] = [
+  {
+    id: "figurine",
+    label: "Фигурки",
+    emoji: "🗿",
+    description: "Декоративные статуэтки и мини-скульптуры",
+    order: 10,
+    subcategories: [
+      { id: "collectible", label: "Коллекционные", order: 10 },
+      { id: "minimal", label: "Минимализм", order: 20 },
+      { id: "fantasy", label: "Фэнтези", order: 30 },
+    ],
+  },
+  {
+    id: "vase",
+    label: "Вазы",
+    emoji: "🏺",
+    description: "Настольные, интерьерные и декоративные вазы",
+    order: 20,
+    subcategories: [
+      { id: "table", label: "Настольные", order: 10 },
+      { id: "floor", label: "Напольные", order: 20 },
+      { id: "decorative", label: "Декор", order: 30 },
+    ],
+  },
+  {
+    id: "mug",
+    label: "Кружки",
+    emoji: "☕",
+    description: "Кружки для кофе, чая и авторские наборы",
+    order: 30,
+    subcategories: [
+      { id: "coffee", label: "Кофейные", order: 10 },
+      { id: "tea", label: "Чайные", order: 20 },
+      { id: "gift", label: "Подарочные", order: 30 },
+    ],
+  },
+  {
+    id: "lamp",
+    label: "Светильники",
+    emoji: "🕯️",
+    description: "Настольные и интерьерные источники света",
+    order: 40,
+    subcategories: [
+      { id: "table-lamp", label: "Настольные", order: 10 },
+      { id: "night", label: "Ночники", order: 20 },
+      { id: "ambient", label: "Атмосферные", order: 30 },
+    ],
+  },
+  {
+    id: "plate",
+    label: "Тарелки",
+    emoji: "🍽️",
+    description: "Подача, сервировка и декоративные блюда",
+    order: 50,
+    subcategories: [
+      { id: "serving", label: "Сервировочные", order: 10 },
+      { id: "dessert", label: "Десертные", order: 20 },
+      { id: "decorative", label: "Декор", order: 30 },
+    ],
+  },
+];
 
 const normalizeSafeId = (value: unknown, maxLength: number): string => {
   return String(value ?? "")
@@ -55,7 +129,7 @@ const normalizeSafeSlug = (value: unknown, maxLength: number): string => {
 };
 
 const cloneDefaultProductCategories = (): ShopProductCategory[] => {
-  return SHOP_DEFAULT_PRODUCT_CATEGORIES.map((category) => ({
+  return DEFAULT_PRODUCT_CATEGORIES.map((category) => ({
     ...category,
     subcategories: category.subcategories.map((subcategory) => ({ ...subcategory })),
   }));
@@ -263,7 +337,7 @@ const sanitizeProduct = (raw: unknown): ShopProduct | null => {
     return null;
   }
 
-  const sourceAttributes = product.attributes ?? DEFAULT_PRODUCT.attributes;
+  const sourceAttributes = product.attributes ?? DEFAULT_PRODUCT_ATTRIBUTES;
 
   return {
     id,
@@ -272,14 +346,14 @@ const sanitizeProduct = (raw: unknown): ShopProduct | null => {
     subtitle: String(product.subtitle ?? "").trim().slice(0, 220) || "Описание",
     description: String(product.description ?? "").trim().slice(0, 5000) || "Описание товара отсутствует.",
     category,
-    image: String(product.image ?? "").trim() || DEFAULT_PRODUCT.image,
+    image: String(product.image ?? "").trim() || DEFAULT_PRODUCT_IMAGE,
     priceStarsCents: Math.max(1, Math.round(Number(product.priceStarsCents ?? 1))),
     oldPriceStarsCents:
       typeof product.oldPriceStarsCents === "number" && Number.isFinite(product.oldPriceStarsCents)
         ? Math.max(1, Math.round(product.oldPriceStarsCents))
         : undefined,
-    rating: Math.max(0, Math.min(5, Number(product.rating ?? DEFAULT_PRODUCT.rating))),
-    reviewsCount: Math.max(0, Math.round(Number(product.reviewsCount ?? DEFAULT_PRODUCT.reviewsCount))),
+    rating: Math.max(0, Math.min(5, Number(product.rating ?? DEFAULT_PRODUCT_RATING))),
+    reviewsCount: Math.max(0, Math.round(Number(product.reviewsCount ?? DEFAULT_PRODUCT_REVIEWS_COUNT))),
     isNew: Boolean(product.isNew),
     isHit: Boolean(product.isHit),
     tags: (Array.isArray(product.tags) ? product.tags : [])
@@ -288,13 +362,13 @@ const sanitizeProduct = (raw: unknown): ShopProduct | null => {
       .slice(0, 20)
       .map((tag) => tag.slice(0, 42)),
     attributes: {
-      material: String(sourceAttributes.material ?? DEFAULT_PRODUCT.attributes.material).slice(0, 120),
-      technique: String(sourceAttributes.technique ?? DEFAULT_PRODUCT.attributes.technique).slice(0, 120),
-      color: String(sourceAttributes.color ?? DEFAULT_PRODUCT.attributes.color).slice(0, 120),
-      heightCm: Math.max(1, Math.round(Number(sourceAttributes.heightCm ?? DEFAULT_PRODUCT.attributes.heightCm))),
-      widthCm: Math.max(1, Math.round(Number(sourceAttributes.widthCm ?? DEFAULT_PRODUCT.attributes.widthCm))),
-      weightGr: Math.max(1, Math.round(Number(sourceAttributes.weightGr ?? DEFAULT_PRODUCT.attributes.weightGr))),
-      collection: String(sourceAttributes.collection ?? DEFAULT_PRODUCT.attributes.collection).slice(0, 120),
+      material: String(sourceAttributes.material ?? DEFAULT_PRODUCT_ATTRIBUTES.material).slice(0, 120),
+      technique: String(sourceAttributes.technique ?? DEFAULT_PRODUCT_ATTRIBUTES.technique).slice(0, 120),
+      color: String(sourceAttributes.color ?? DEFAULT_PRODUCT_ATTRIBUTES.color).slice(0, 120),
+      heightCm: Math.max(1, Math.round(Number(sourceAttributes.heightCm ?? DEFAULT_PRODUCT_ATTRIBUTES.heightCm))),
+      widthCm: Math.max(1, Math.round(Number(sourceAttributes.widthCm ?? DEFAULT_PRODUCT_ATTRIBUTES.widthCm))),
+      weightGr: Math.max(1, Math.round(Number(sourceAttributes.weightGr ?? DEFAULT_PRODUCT_ATTRIBUTES.weightGr))),
+      collection: String(sourceAttributes.collection ?? DEFAULT_PRODUCT_ATTRIBUTES.collection).slice(0, 120),
       sku: String(sourceAttributes.sku ?? `SKU-${id}`).slice(0, 60),
       stock: Math.max(0, Math.min(9999, Math.round(Number(sourceAttributes.stock ?? 0)))),
     },
@@ -369,7 +443,6 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
 
   const row = input as Partial<ShopAdminConfig>;
   const updatedAt = String(row.updatedAt ?? fallback.updatedAt);
-  const staticProductIds = new Set(SHOP_PRODUCTS.map((item) => item.id));
   const staticAdminIds = new Set(getShopAdminTelegramIds());
   staticAdminIds.add(DEFAULT_ADMIN_TELEGRAM_ID);
   const now = new Date().toISOString();
@@ -484,7 +557,7 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
 
   const productCategories = Array.from(categoryMap.values()).sort((a, b) => a.order - b.order);
 
-  const validProductIds = new Set([...staticProductIds, ...Object.keys(productRecords)]);
+  const validProductIds = new Set(Object.keys(productRecords));
 
   const productOverrides = Object.fromEntries(
     Object.entries(row.productOverrides ?? {})
