@@ -35,6 +35,7 @@ export interface TelegramUser {
 
 export interface TelegramInitDataUnsafe {
   user?: TelegramUser;
+  start_param?: string;
 }
 
 export interface TelegramMainButton {

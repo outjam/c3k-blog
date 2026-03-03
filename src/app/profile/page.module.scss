@@ -55,6 +55,20 @@
   background: var(--card-bg);
 }
 
+.adminEntryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  border-radius: 0.7rem;
+  border: 0;
+  text-decoration: none;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .themeTitle {
   color: var(--tg-subtitle-text);
   font-size: 0.9rem;

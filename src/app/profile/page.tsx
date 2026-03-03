@@ -110,6 +110,12 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {isAdmin ? (
+          <Link href="/admin" className={styles.adminEntryButton}>
+            Перейти в админку
+          </Link>
+        ) : null}
+
         <div className={styles.themeBox}>
           <p className={styles.themeTitle}>Тема приложения</p>
           <div className={styles.themeActions}>

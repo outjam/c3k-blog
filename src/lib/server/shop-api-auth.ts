@@ -11,22 +11,36 @@ export interface ShopApiAuth {
   isAdmin: boolean;
 }
 
+const SHOP_AUTH_DEBUG = process.env.SHOP_AUTH_DEBUG === "1";
+
+const logShopAuthDebug = (message: string, request?: Request) => {
+  if (!SHOP_AUTH_DEBUG) {
+    return;
+  }
+
+  const url = request ? new URL(request.url).pathname : "";
+  console.warn(`[shop-auth] ${message}${url ? ` (${url})` : ""}`);
+};
+
 export const getShopApiAuth = (request: Request): ShopApiAuth | null => {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const botToken = (process.env.TELEGRAM_BOT_TOKEN ?? process.env.BOT_TOKEN ?? "").trim();
 
   if (!botToken) {
+    logShopAuthDebug("missing bot token env", request);
     return null;
   }
 
   const initData = extractTelegramInitDataFromRequest(request);
 
   if (!initData) {
+    logShopAuthDebug("missing x-telegram-init-data header", request);
     return null;
   }
 
   const verified = verifyTelegramInitData(initData, botToken);
 
   if (!verified) {
+    logShopAuthDebug("invalid telegram initData signature/hash", request);
     return null;
   }
 

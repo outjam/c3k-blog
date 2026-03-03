@@ -30,9 +30,9 @@ const getHashFromParams = (params: URLSearchParams): string | null => {
   return normalized.length === 64 ? normalized : null;
 };
 
-const buildDataCheckString = (params: URLSearchParams): string => {
+const buildDataCheckString = (params: URLSearchParams, excludeSignature = false): string => {
   const pairs = Array.from(params.entries())
-    .filter(([key]) => key !== "hash" && key !== "signature")
+    .filter(([key]) => key !== "hash" && (!excludeSignature || key !== "signature"))
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${value}`);
 
@@ -81,10 +81,12 @@ export const verifyTelegramInitData = (initData: string, botToken: string): Veri
   }
 
   const dataCheckString = buildDataCheckString(params);
+  const legacyDataCheckString = buildDataCheckString(params, true);
   const secret = createHmac("sha256", "WebAppData").update(botToken).digest();
   const expectedHash = createHmac("sha256", secret).update(dataCheckString).digest("hex");
+  const legacyExpectedHash = createHmac("sha256", secret).update(legacyDataCheckString).digest("hex");
 
-  if (!safeCompareHex(receivedHash, expectedHash)) {
+  if (!safeCompareHex(receivedHash, expectedHash) && !safeCompareHex(receivedHash, legacyExpectedHash)) {
     return null;
   }
 
