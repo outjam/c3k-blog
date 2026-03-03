@@ -31,6 +31,8 @@ interface InvoicePayload {
   productIds?: string[];
 }
 
+const PRODUCT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,79}$/;
+
 const sanitize = (value: string, fallback: string): string => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed.slice(0, 255) : fallback;
@@ -58,7 +60,7 @@ const normalizeProductIds = (value: unknown): string[] => {
     new Set(
       value
         .map((item) => String(item).trim())
-        .filter((item) => /^clay-\d+$/i.test(item))
+        .filter((item) => PRODUCT_ID_RE.test(item.toLowerCase()))
         .map((item) => item.toLowerCase()),
     ),
   ).slice(0, 3);

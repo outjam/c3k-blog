@@ -46,7 +46,7 @@ interface TelegramUpdate {
 const PAYMENT_SUCCESS_EMOJI_ID = "5895669571058142797";
 const XTR_EMOJI_ID = "6028338546736107668";
 const OPEN_BUTTON_EMOJI_ID = "5920332557466997677";
-const ORDER_TITLE_STEMS = ["Фигурк", "Ваз", "Кружк", "Светильник", "Тарелк"] as const;
+const PRODUCT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 
 const escapeHtml = (value: string): string => {
   return value
@@ -72,22 +72,20 @@ const parseInvoicePayload = (rawPayload: string): ParsedInvoicePayload => {
   const productIds = rawProductIds
     .split(",")
     .map((item) => item.trim().toLowerCase())
-    .filter((item) => /^clay-\d+$/.test(item))
+    .filter((item) => PRODUCT_ID_RE.test(item))
     .slice(0, 3);
 
   return { orderCode, productIds };
 };
 
-const productIdToTitle = (productId: string): string => {
-  const match = /^clay-(\d+)$/i.exec(productId);
-  const sequence = Number(match?.[1] ?? NaN);
+const productIdToFallbackTitle = (productId: string): string => {
+  const normalized = productId.trim().toLowerCase();
 
-  if (!Number.isFinite(sequence) || sequence < 1) {
+  if (!PRODUCT_ID_RE.test(normalized)) {
     return "Товар из корзины";
   }
 
-  const stem = ORDER_TITLE_STEMS[(sequence - 1) % ORDER_TITLE_STEMS.length] ?? ORDER_TITLE_STEMS[0];
-  return `${stem} из глины №${sequence}`;
+  return `Товар ${normalized}`;
 };
 
 const formatAmount = (amount: number): string => {
@@ -334,7 +332,7 @@ export async function POST(request: Request) {
             quantity: item.quantity,
           }))
         : (payload.productIds.length > 0 ? payload.productIds : [""]).map((productId) => ({
-            title: productId ? productIdToTitle(productId) : "Товар из корзины",
+            title: productId ? productIdToFallbackTitle(productId) : "Товар из корзины",
             quantity: 1,
           }));
 

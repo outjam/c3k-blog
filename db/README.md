@@ -20,5 +20,7 @@
 ## Notification Worker
 
 - Set `TELEGRAM_WORKER_SECRET`.
+- Set `CRON_SECRET` (recommended for Vercel Cron Authorization header).
 - Process queue with `POST /api/telegram/notifications/worker?key=...`.
-- Inspect queue size with `GET /api/telegram/notifications/worker?key=...`.
+- Trigger queue processing with `GET /api/telegram/notifications/worker` (used by Vercel Cron).
+- Inspect queue size with `GET /api/telegram/notifications/worker?mode=status&key=...`.
