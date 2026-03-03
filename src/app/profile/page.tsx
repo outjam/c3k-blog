@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
-import { posts } from "@/data/posts";
+import type { BlogPost } from "@/data/posts";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
 import { fetchAdminSession } from "@/lib/admin-api";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
@@ -26,6 +26,8 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ShopOrder | null>(null);
   const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [blogPostsLoading, setBlogPostsLoading] = useState(true);
   const [focusOrdersSection, setFocusOrdersSection] = useState(false);
   const [ordersError, setOrdersError] = useState("");
   const [isAdmin, setIsAdmin] = useState(isShopAdminUserClient(user?.id));
@@ -40,8 +42,8 @@ export default function ProfilePage() {
 
   const bookmarkedPosts = useMemo(() => {
     const set = new Set(bookmarkedSlugs);
-    return posts.filter((post) => set.has(post.slug));
-  }, [bookmarkedSlugs]);
+    return blogPosts.filter((post) => set.has(post.slug));
+  }, [blogPosts, bookmarkedSlugs]);
 
   const activeOrders = useMemo(() => {
     return orders.filter((order) => !FINAL_ORDER_STATUSES.has(order.status));
@@ -74,6 +76,19 @@ export default function ProfilePage() {
     })();
 
     void readBookmarkedPostSlugs().then((slugs) => setBookmarkedSlugs(slugs));
+    void (async () => {
+      setBlogPostsLoading(true);
+
+      try {
+        const response = await fetch("/api/blog/posts", { cache: "no-store" });
+        const payload = (await response.json()) as { posts?: BlogPost[] };
+        setBlogPosts(Array.isArray(payload.posts) ? payload.posts : []);
+      } catch {
+        setBlogPosts([]);
+      } finally {
+        setBlogPostsLoading(false);
+      }
+    })();
 
     void fetchAdminSession().then((response) => {
       if (!response.error && response.session) {
@@ -192,7 +207,9 @@ export default function ProfilePage() {
           </div>
 
           {bookmarkedPosts.length === 0 ? (
-            <p className={styles.emptyState}>Добавьте статьи в избранное из ленты или страницы записи.</p>
+            <p className={styles.emptyState}>
+              {blogPostsLoading ? "Загружаем избранные посты..." : "Добавьте статьи в избранное из ленты или страницы записи."}
+            </p>
           ) : (
             <div className={styles.bookmarksList}>
               {bookmarkedPosts.map((post) => (
