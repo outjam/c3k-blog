@@ -7,6 +7,7 @@ import { ShopCatalogControls } from "@/components/shop/shop-catalog-controls";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
 import { SHOP_CATEGORY_LABELS, SHOP_PRODUCTS } from "@/data/shop-products";
 import { fetchPublicCatalog } from "@/lib/admin-api";
+import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
 import { getCartSubtotalStarsCents } from "@/lib/shop-pricing";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents } from "@/lib/stars-format";
@@ -48,6 +49,7 @@ export default function ShopPage() {
   const [sort, setSort] = useState<ProductSort>("popular");
   const [quickFilter, setQuickFilter] = useState<"all" | "new" | "hit" | "sale">("all");
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>(SHOP_PRODUCTS);
@@ -63,6 +65,20 @@ export default function ShopPage() {
     },
     [productsMap],
   );
+
+  useEffect(() => {
+    let mounted = true;
+
+    void readFavoriteProductIds().then((ids) => {
+      if (mounted) {
+        setFavoriteProductIds(ids);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -262,6 +278,12 @@ export default function ShopPage() {
     hapticSelection();
   };
 
+  const handleToggleFavorite = (productId: string) => {
+    void toggleFavoriteProductId(productId).then((next) => {
+      setFavoriteProductIds(next);
+    });
+  };
+
   const categoryOptions = useMemo(
     () => [
       { value: "all" as const, label: "Все товары" },
@@ -304,6 +326,9 @@ export default function ShopPage() {
           <p>
             В корзине: <strong>{cartCount}</strong> · {formatStarsFromCents(subtotalStarsCents)} ⭐
           </p>
+          <p>
+            Избранное: <strong>{favoriteProductIds.length}</strong>
+          </p>
         </section>
 
         <section className={styles.grid}>
@@ -317,6 +342,8 @@ export default function ShopPage() {
                 onAdd={addToCart}
                 onIncrease={increaseQty}
                 onDecrease={decreaseQty}
+                onToggleFavorite={handleToggleFavorite}
+                isFavorite={favoriteProductIds.includes(product.id)}
               />
             ))
           ) : (
@@ -337,4 +364,3 @@ export default function ShopPage() {
     </div>
   );
 }
-

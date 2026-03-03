@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
-import { sendTelegramMessage } from "@/lib/server/telegram-bot";
+import { sendTelegramDocument, sendTelegramMessage } from "@/lib/server/telegram-bot";
 import type { TelegramInlineButton } from "@/lib/server/telegram-bot";
 import { mutateShopOrder, upsertShopOrder } from "@/lib/server/shop-orders-store";
 import type { ShopOrder } from "@/types/shop";
@@ -169,9 +170,6 @@ export async function POST(request: Request) {
       ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payload.orderCode)}`
       : undefined;
     const orderMiniAppUrl = baseUrl ? `${baseUrl}/orders/${encodeURIComponent(payload.orderCode)}` : undefined;
-    const orderLines = (payload.productIds.length > 0 ? payload.productIds : [""]).map((productId) =>
-      `∙ ${escapeHtml(productId ? productIdToTitle(productId) : "Товар из корзины")}`,
-    );
     const now = new Date().toISOString();
     const telegramUser = update.message.from;
 
@@ -196,7 +194,9 @@ export async function POST(request: Request) {
       };
     });
 
-    if (!updatedOrder) {
+    let resolvedOrder = updatedOrder;
+
+    if (!resolvedOrder) {
       const fallbackOrder: ShopOrder = {
         id: payload.orderCode,
         createdAt: now,
@@ -237,6 +237,7 @@ export async function POST(request: Request) {
 
       await upsertShopOrder(fallbackOrder);
       await notifyAdminsAboutNewOrder(fallbackOrder, baseUrl);
+      resolvedOrder = fallbackOrder;
     }
 
     const buttons: TelegramInlineButton[][] = [];
@@ -266,17 +267,45 @@ export async function POST(request: Request) {
       buttons.push(secondRow);
     }
 
-    await sendTelegramMessage(
-      update.message.chat.id,
+    const orderItems = resolvedOrder?.items?.length
+      ? resolvedOrder.items.map((item) => ({
+          title: item.title,
+          quantity: item.quantity,
+        }))
+      : (payload.productIds.length > 0 ? payload.productIds : [""]).map((productId) => ({
+          title: productId ? productIdToTitle(productId) : "Товар из корзины",
+          quantity: 1,
+        }));
+
+    const orderLines = orderItems.map((item) => `∙ ${escapeHtml(item.title)}${item.quantity > 1 ? ` × ${item.quantity}` : ""}`);
+
+    const summaryText =
       `<b>Заказ № ${payload.orderCode} <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji></b>\n\n` +
-        `${orderLines.join("\n")}\n\n` +
-        `${formatAmount(payment.total_amount)} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`,
-      {
+      `${orderLines.join("\n")}\n\n` +
+      `${formatAmount(payment.total_amount)} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`;
+
+    const cardSvg = buildOrderCardSvg({
+      orderId: payload.orderCode,
+      amountStars: payment.total_amount,
+      items: orderItems,
+      appTitle: "C3K Telegram Shop",
+    });
+
+    const sentCard = await sendTelegramDocument(update.message.chat.id, cardSvg, {
+      fileName: `order-${payload.orderCode}.svg`,
+      mimeType: "image/svg+xml",
+      caption: summaryText,
+      parseMode: "HTML",
+      buttons: buttons.length > 0 ? buttons : undefined,
+    });
+
+    if (!sentCard) {
+      await sendTelegramMessage(update.message.chat.id, summaryText, {
         parseMode: "HTML",
         buttons: buttons.length > 0 ? buttons : undefined,
         messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
-      },
-    );
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });

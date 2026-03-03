@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import type { ShopProduct } from "@/types/shop";
+import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
@@ -14,6 +15,21 @@ import styles from "./page.module.scss";
 
 export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void readFavoriteProductIds().then((ids) => {
+      if (mounted) {
+        setIsFavorite(ids.includes(product.id));
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [product.id]);
 
   const addToCart = useCallback(async () => {
     const cart = await readShopCart();
@@ -33,6 +49,14 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     hapticImpact("light");
     router.back();
   }, [router]);
+
+  const toggleFavorite = useCallback(() => {
+    void toggleFavoriteProductId(product.id).then((ids) => {
+      const favorite = ids.includes(product.id);
+      setIsFavorite(favorite);
+      hapticNotification(favorite ? "success" : "warning");
+    });
+  }, [product.id]);
 
   return (
     <div className={styles.page}>
@@ -69,6 +93,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
           <button type="button" className={styles.addButton} onClick={() => void addToCart()}>
             Добавить в корзину
+          </button>
+          <button type="button" className={styles.addButton} onClick={toggleFavorite}>
+            {isFavorite ? "Убрать из избранного" : "В избранное"}
           </button>
           <button type="button" className={styles.addButton} onClick={() => router.push("/shop/cart")}>
             Перейти в корзину

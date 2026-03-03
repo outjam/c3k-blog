@@ -1,8 +1,8 @@
 .tabBar {
   position: fixed;
-  right: calc(32px + var(--safe-area-right));
+  right: calc(clamp(10px, 3vw, 24px) + var(--safe-area-right));
   bottom: 21px;
-  left: calc(32px + var(--safe-area-left));
+  left: calc(clamp(10px, 3vw, 24px) + var(--safe-area-left));
   z-index: 40;
   max-width: 680px;
   margin: 0 auto;
@@ -19,6 +19,34 @@
 
   &:active {
     scale: 1.025;
+  }
+}
+
+@media (max-width: 560px) {
+  .tabBar {
+    bottom: calc(var(--safe-area-bottom) + 10px);
+    border-radius: 46px;
+    padding: 0.22rem;
+  }
+
+  .tab {
+    height: 56px;
+    padding: 0.4rem 0.5rem;
+    gap: 0.12rem;
+  }
+
+  .tabIcon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .tabIcon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .tabLabel {
+    font-size: 9px;
   }
 }
 

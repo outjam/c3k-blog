@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import type { MouseEventHandler } from "react";
 
+import { hapticSelection } from "@/lib/telegram";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { ShopProduct } from "@/types/shop";
 
@@ -14,11 +15,22 @@ interface ShopProductCardProps {
   onAdd: (productId: string) => void;
   onIncrease: (productId: string) => void;
   onDecrease: (productId: string) => void;
+  onToggleFavorite: (productId: string) => void;
+  isFavorite: boolean;
   quantity: number;
   canIncrease: boolean;
 }
 
-export function ShopProductCard({ product, onAdd, onIncrease, onDecrease, quantity, canIncrease }: ShopProductCardProps) {
+export function ShopProductCard({
+  product,
+  onAdd,
+  onIncrease,
+  onDecrease,
+  onToggleFavorite,
+  isFavorite,
+  quantity,
+  canIncrease,
+}: ShopProductCardProps) {
   const handleAdd: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -37,6 +49,13 @@ export function ShopProductCard({ product, onAdd, onIncrease, onDecrease, quanti
     onDecrease(product.id);
   };
 
+  const handleFavorite: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggleFavorite(product.id);
+    hapticSelection();
+  };
+
   return (
     <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
       <Link href={`/shop/${product.slug}`} className={styles.card}>
@@ -46,6 +65,14 @@ export function ShopProductCard({ product, onAdd, onIncrease, onDecrease, quanti
             {product.isNew ? <span className={styles.badgeNew}>NEW</span> : null}
             {product.isHit ? <span className={styles.badgeHit}>HIT</span> : null}
           </div>
+          <button
+            type="button"
+            className={`${styles.favoriteButton} ${isFavorite ? styles.favoriteButtonActive : ""}`}
+            onClick={handleFavorite}
+            aria-label={isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
+          >
+            {isFavorite ? "★" : "☆"}
+          </button>
         </div>
 
         <div className={styles.body}>

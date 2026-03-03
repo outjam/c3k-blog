@@ -14,6 +14,14 @@ interface TelegramMessageOptions {
   messageEffectId?: string;
 }
 
+interface TelegramDocumentOptions {
+  caption?: string;
+  parseMode?: "HTML" | "MarkdownV2";
+  buttons?: TelegramInlineButton[][];
+  fileName?: string;
+  mimeType?: string;
+}
+
 interface TelegramApiResponse<T = unknown> {
   ok: boolean;
   result?: T;
@@ -79,6 +87,29 @@ export const telegramBotRequest = async <T = unknown>(
   return (await response.json()) as TelegramApiResponse<T>;
 };
 
+const telegramBotMultipartRequest = async <T = unknown>(
+  method: string,
+  formData: FormData,
+): Promise<TelegramApiResponse<T>> => {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (!botToken) {
+    return { ok: false, description: "Missing TELEGRAM_BOT_TOKEN" };
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return { ok: false, description: `HTTP ${response.status}` };
+  }
+
+  return (await response.json()) as TelegramApiResponse<T>;
+};
+
 export const sendTelegramMessage = async (
   chatId: number,
   text: string,
@@ -126,5 +157,56 @@ export const sendTelegramMessage = async (
   }
 
   const result = await telegramBotRequest("sendMessage", basePayload);
+  return result.ok;
+};
+
+export const sendTelegramDocument = async (
+  chatId: number,
+  content: string | Uint8Array,
+  options?: TelegramDocumentOptions,
+): Promise<boolean> => {
+  const encoded = typeof content === "string" ? new TextEncoder().encode(content) : content;
+  const bytes = new Uint8Array(encoded.byteLength);
+  bytes.set(encoded);
+  const mimeType = options?.mimeType ?? "image/svg+xml";
+  const fileName = options?.fileName ?? "attachment.svg";
+
+  const buildForm = (withEnhancements: boolean): FormData => {
+    const formData = new FormData();
+    formData.append("chat_id", String(chatId));
+
+    if (options?.caption) {
+      formData.append("caption", options.caption);
+    }
+
+    if (options?.parseMode) {
+      formData.append("parse_mode", options.parseMode);
+    }
+
+    if (options?.buttons && options.buttons.length > 0) {
+      formData.append(
+        "reply_markup",
+        JSON.stringify({
+          inline_keyboard: toInlineKeyboard(options.buttons, withEnhancements),
+        }),
+      );
+    }
+
+    formData.append("document", new Blob([bytes.buffer], { type: mimeType }), fileName);
+    return formData;
+  };
+
+  if (options?.buttons && options.buttons.length > 0) {
+    const richResult = await telegramBotMultipartRequest("sendDocument", buildForm(true));
+
+    if (richResult.ok) {
+      return true;
+    }
+
+    const fallbackResult = await telegramBotMultipartRequest("sendDocument", buildForm(false));
+    return fallbackResult.ok;
+  }
+
+  const result = await telegramBotMultipartRequest("sendDocument", buildForm(false));
   return result.ok;
 };

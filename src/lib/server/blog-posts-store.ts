@@ -7,6 +7,18 @@ const toTimestamp = (value: string): number => {
   return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
+const safeDecode = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeSlugValue = (value: string): string => {
+  return safeDecode(value).trim().normalize("NFC");
+};
+
 export const getBlogPostsSnapshot = async (): Promise<BlogPost[]> => {
   const config = await readShopAdminConfig();
   const hiddenSet = new Set(config.hiddenPostSlugs);
@@ -31,6 +43,14 @@ export const getBlogPostsSnapshot = async (): Promise<BlogPost[]> => {
 
 export const getBlogPostBySlug = async (slug: string): Promise<BlogPost | null> => {
   const posts = await getBlogPostsSnapshot();
-  return posts.find((post) => post.slug === slug) ?? null;
-};
+  const candidates = Array.from(
+    new Set([slug, safeDecode(slug)].map((value) => normalizeSlugValue(value)).filter(Boolean)),
+  );
 
+  return (
+    posts.find((post) => {
+      const normalizedPostSlug = normalizeSlugValue(post.slug);
+      return candidates.includes(normalizedPostSlug);
+    }) ?? null
+  );
+};

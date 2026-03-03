@@ -1,7 +1,16 @@
 :root {
-  --max-width: 780px;
+  --max-width: 860px;
   --app-header-height: 64px;
   --app-tabbar-height: 82px;
+  --radius-sm: 0.7rem;
+  --radius-md: 0.95rem;
+  --radius-lg: 1.2rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --shadow-sm: 0 8px 20px color-mix(in srgb, #000 10%, transparent);
+  --shadow-md: 0 14px 32px color-mix(in srgb, #000 14%, transparent);
 
   --safe-area-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px));
   --safe-area-right: max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px));
@@ -21,6 +30,7 @@
   --color-button-text: #ffffff;
   --color-danger: #ff453a;
   --color-divider: #3a3a3c;
+  --color-surface-soft: #151724;
 }
 
 :root[data-app-theme="light"] {
@@ -35,6 +45,7 @@
   --color-button-text: #ffffff;
   --color-danger: #ff3b30;
   --color-divider: #d1d1d6;
+  --color-surface-soft: #f7f8fc;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -50,6 +61,7 @@
     --color-button-text: #ffffff;
     --color-danger: #ff453a;
     --color-divider: #3a3a3c;
+    --color-surface-soft: #151724;
   }
 }
 
@@ -66,6 +78,7 @@
     --color-button-text: #ffffff;
     --color-danger: #ff3b30;
     --color-divider: #d1d1d6;
+    --color-surface-soft: #f7f8fc;
   }
 }
 
@@ -88,6 +101,7 @@
 
   --surface: var(--tg-bg);
   --card-bg: var(--tg-section-bg);
+  --card-bg-soft: var(--color-surface-soft);
   --card-border: transparent;
   --tag-bg: transparent;
   --tag-border: transparent;

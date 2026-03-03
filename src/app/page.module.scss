@@ -3,61 +3,78 @@
   background: var(--tg-bg);
   display: grid;
   justify-items: center;
-  padding-top: 1.2rem;
-  padding-right: calc(1.2rem + var(--safe-area-right));
-  padding-bottom: 1.2rem;
-  padding-left: calc(1.2rem + var(--safe-area-left));
+  padding-top: 0.9rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-bottom: 1rem;
+  padding-left: calc(1rem + var(--safe-area-left));
 }
 
 .container {
   width: 100%;
   max-width: var(--max-width);
   display: grid;
-  gap: 1.1rem;
+  gap: 0.95rem;
   padding-bottom: 5.5rem;
 }
 
 .hero {
-  padding: 1.15rem;
-  border-radius: 0.9rem;
+  padding: 1.2rem;
+  border-radius: var(--radius-lg);
   background: var(--tg-section-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 
 .hero h1 {
   color: var(--tg-section-header-text);
+  font-size: clamp(1.28rem, 5vw, 1.72rem);
+  line-height: 1.12;
 }
 
 .subtitle {
   color: var(--tg-subtitle-text);
-  margin-top: 0.4rem;
+  margin-top: 0.55rem;
+  font-size: clamp(0.88rem, 2.6vw, 0.97rem);
   line-height: 1.45;
+  max-width: 58ch;
 }
 
 .feed {
   position: relative;
   isolation: isolate;
   display: grid;
-  gap: 1rem;
+  gap: 0.82rem;
 }
 
 .fallbackButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-top: 0.9rem;
+  margin-top: 1rem;
   border: 0;
-  border-radius: 0.85rem;
-  padding: 0.7rem 0.9rem;
+  border-radius: 0.82rem;
+  min-height: 2.65rem;
+  padding: 0 0.98rem;
   background: var(--tg-btn);
   color: var(--tg-btn-text);
   text-decoration: none;
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 0.89rem;
 }
 
 .loadMoreHint {
-  padding: 0.8rem 0.2rem 0.5rem;
+  padding: 0.85rem 0.2rem 0.45rem;
   text-align: center;
   color: var(--tg-subtitle-text);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 560px) {
+  .hero {
+    padding: 1rem;
+  }
+
+  .container {
+    gap: 0.75rem;
+  }
 }

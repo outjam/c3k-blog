@@ -2,18 +2,46 @@
   color: inherit;
   text-decoration: none;
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 188px 1fr;
   gap: 0.9rem;
-  border-radius: 1rem;
+  border-radius: var(--radius-lg);
   background: var(--tg-section-bg);
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease;
+}
+
+.card:active {
+  transform: scale(0.994);
 }
 
 .mediaWrap {
   position: relative;
   background: color-mix(in srgb, var(--tg-bg) 55%, var(--tg-section-bg));
   min-height: 100%;
+}
+
+.favoriteButton {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-bg) 82%, transparent);
+  color: var(--tg-text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.favoriteButtonActive {
+  color: #f8b84b;
 }
 
 .media {
@@ -51,8 +79,8 @@
 
 .body {
   display: grid;
-  gap: 0.48rem;
-  padding: 0.85rem 0.85rem 0.8rem 0;
+  gap: 0.42rem;
+  padding: 0.78rem 0.8rem 0.72rem 0;
 }
 
 .subtitle {
@@ -62,13 +90,14 @@
 
 .title {
   color: var(--tg-text);
-  font-size: 1.02rem;
+  font-size: clamp(0.94rem, 2.8vw, 1.02rem);
   line-height: 1.25;
+  font-weight: 700;
 }
 
 .description {
   color: var(--muted-text);
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   line-height: 1.35;
 }
 
@@ -80,7 +109,7 @@
 .attrs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem 0.7rem;
+  gap: 0.4rem 0.62rem;
   padding-top: 0.2rem;
 }
 
@@ -126,7 +155,7 @@
 }
 
 .addButton {
-  min-height: 2.1rem;
+  min-height: 2.22rem;
   border: 0;
   border-radius: 0.7rem;
   padding: 0 0.8rem;
@@ -175,13 +204,23 @@
 @media (max-width: 700px) {
   .card {
     grid-template-columns: 1fr;
+    gap: 0.64rem;
   }
 
   .mediaWrap {
-    min-height: 170px;
+    min-height: 160px;
   }
 
   .body {
-    padding: 0 0.75rem 0.75rem;
+    padding: 0 0.72rem 0.72rem;
+  }
+
+  .attrs {
+    grid-template-columns: 1fr;
+    gap: 0.28rem;
+  }
+
+  .footer {
+    align-items: center;
   }
 }

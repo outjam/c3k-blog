@@ -6,15 +6,16 @@ import { useEffect, useMemo, useState } from "react";
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import type { BlogPost } from "@/data/posts";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
-import { fetchAdminSession } from "@/lib/admin-api";
+import { fetchAdminSession, fetchPublicCatalog } from "@/lib/admin-api";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 import { readBookmarkedPostSlugs } from "@/lib/post-bookmarks";
+import { readFavoriteProductIds } from "@/lib/product-favorites";
 import { isShopAdminUserClient } from "@/lib/shop-admin-client";
 import { FINAL_ORDER_STATUSES, SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { readShopOrders } from "@/lib/shop-orders";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import type { ShopOrder } from "@/types/shop";
+import type { ShopOrder, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
@@ -28,6 +29,9 @@ export default function ProfilePage() {
   const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [blogPostsLoading, setBlogPostsLoading] = useState(true);
+  const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [focusOrdersSection, setFocusOrdersSection] = useState(false);
   const [ordersError, setOrdersError] = useState("");
   const [isAdmin, setIsAdmin] = useState(isShopAdminUserClient(user?.id));
@@ -44,6 +48,11 @@ export default function ProfilePage() {
     const set = new Set(bookmarkedSlugs);
     return blogPosts.filter((post) => set.has(post.slug));
   }, [blogPosts, bookmarkedSlugs]);
+
+  const favoriteProducts = useMemo(() => {
+    const set = new Set(favoriteProductIds);
+    return catalogProducts.filter((product) => set.has(product.id));
+  }, [catalogProducts, favoriteProductIds]);
 
   const activeOrders = useMemo(() => {
     return orders.filter((order) => !FINAL_ORDER_STATUSES.has(order.status));
@@ -76,6 +85,8 @@ export default function ProfilePage() {
     })();
 
     void readBookmarkedPostSlugs().then((slugs) => setBookmarkedSlugs(slugs));
+    void readFavoriteProductIds().then((ids) => setFavoriteProductIds(ids));
+
     void (async () => {
       setBlogPostsLoading(true);
 
@@ -88,6 +99,20 @@ export default function ProfilePage() {
       } finally {
         setBlogPostsLoading(false);
       }
+    })();
+
+    void (async () => {
+      setProductsLoading(true);
+
+      const snapshot = await fetchPublicCatalog();
+
+      if (!snapshot.error) {
+        setCatalogProducts(snapshot.products);
+      } else {
+        setCatalogProducts([]);
+      }
+
+      setProductsLoading(false);
     })();
 
     void fetchAdminSession().then((response) => {
@@ -218,6 +243,31 @@ export default function ProfilePage() {
                   <div>
                     <h3>{post.title}</h3>
                     <p>{post.readTime}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2>Избранные товары</h2>
+            <p>{favoriteProducts.length} шт.</p>
+          </div>
+
+          {favoriteProducts.length === 0 ? (
+            <p className={styles.emptyState}>
+              {productsLoading ? "Загружаем избранные товары..." : "Добавьте товары в избранное из каталога или карточки товара."}
+            </p>
+          ) : (
+            <div className={styles.favoritesList}>
+              {favoriteProducts.map((product) => (
+                <Link key={product.id} href={`/shop/${product.slug}`} className={styles.favoriteProduct}>
+                  <img src={product.image} alt={product.title} loading="lazy" />
+                  <div>
+                    <h3>{product.title}</h3>
+                    <p>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
                   </div>
                 </Link>
               ))}
