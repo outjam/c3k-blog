@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import type { BlogPost } from "@/data/posts";
+import type { BlogPost } from "@/types/blog";
 import {
   forbiddenResponse,
   getShopApiAccess,

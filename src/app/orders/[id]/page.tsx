@@ -15,16 +15,14 @@ export default function OrderDetailsPage() {
   const params = useParams<{ id: string }>();
   const rawId = params?.id ?? "";
   const orderId = decodeURIComponent(rawId).trim().toUpperCase();
+  const isValidOrderId = orderId.length > 0;
 
   const [order, setOrder] = useState<ShopOrder | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(isValidOrderId ? "" : "Неверный номер заказа");
+  const [loading, setLoading] = useState(isValidOrderId);
 
   useEffect(() => {
-    if (!orderId) {
-      setOrder(null);
-      setError("Неверный номер заказа");
-      setLoading(false);
+    if (!isValidOrderId) {
       return;
     }
 
@@ -48,7 +46,7 @@ export default function OrderDetailsPage() {
     return () => {
       cancelled = true;
     };
-  }, [orderId]);
+  }, [isValidOrderId, orderId]);
 
   return (
     <div className={styles.page}>
@@ -164,4 +162,3 @@ export default function OrderDetailsPage() {
     </div>
   );
 }
-

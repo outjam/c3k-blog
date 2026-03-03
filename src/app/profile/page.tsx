@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
-import type { BlogPost } from "@/data/posts";
+import type { BlogPost } from "@/types/blog";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
 import { fetchAdminSession, fetchPublicCatalog } from "@/lib/admin-api";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";

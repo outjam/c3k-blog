@@ -112,6 +112,36 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
     feImageRef.current?.setAttribute('href', generateDisplacementMap());
   };
 
+  function supportsSVGFilters(): boolean {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return false;
+    }
+
+    if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') {
+      return false;
+    }
+
+    const ua = navigator.userAgent;
+    const isWebkit = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR/.test(ua);
+    const isFirefox = /Firefox/.test(ua);
+
+    if (isWebkit || isFirefox) {
+      return false;
+    }
+
+    const hasBackdrop = CSS.supports('backdrop-filter', 'blur(1px)')
+      || CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
+    if (!hasBackdrop) {
+      return false;
+    }
+
+    const div = document.createElement('div');
+    div.style.backdropFilter = `url(#${filterId})`;
+    div.style.setProperty('-webkit-backdrop-filter', `url(#${filterId})`);
+
+    return div.style.backdropFilter !== '' || div.style.getPropertyValue('-webkit-backdrop-filter') !== '';
+  }
+
   useEffect(() => {
     updateDisplacementMap();
     [
@@ -164,38 +194,14 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
   }, [width, height]);
 
   useEffect(() => {
-    setSvgSupported(supportsSVGFilters());
+    const timer = window.setTimeout(() => {
+      setSvgSupported(supportsSVGFilters());
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
-
-  const supportsSVGFilters = () => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
-      return false;
-    }
-
-    if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') {
-      return false;
-    }
-
-    const ua = navigator.userAgent;
-    const isWebkit = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR/.test(ua);
-    const isFirefox = /Firefox/.test(ua);
-
-    if (isWebkit || isFirefox) {
-      return false;
-    }
-
-    const hasBackdrop = CSS.supports('backdrop-filter', 'blur(1px)')
-      || CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
-    if (!hasBackdrop) {
-      return false;
-    }
-
-    const div = document.createElement('div');
-    div.style.backdropFilter = `url(#${filterId})`;
-    div.style.setProperty('-webkit-backdrop-filter', `url(#${filterId})`);
-
-    return div.style.backdropFilter !== '' || div.style.getPropertyValue('-webkit-backdrop-filter') !== '';
-  };
 
   const containerStyle: React.CSSProperties = {
     ...style,

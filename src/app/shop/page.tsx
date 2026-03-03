@@ -23,6 +23,7 @@ const defaultCatalogSettings: ShopAppSettings = {
   freeDeliveryThresholdStarsCents: 200,
   updatedAt: "",
 };
+const EMPTY_SUBCATEGORIES: ShopProductCategory["subcategories"] = [];
 
 const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
   const list = [...items];
@@ -155,18 +156,31 @@ export default function ShopPage() {
     void writeShopCart({ items: cartItems, promoCode: "" });
   }, [cartItems, isCartHydrated]);
 
-  useEffect(() => {
+  const effectiveSelectedCategoryId = useMemo<string | "all">(() => {
     if (selectedCategoryId === "all") {
-      return;
+      return "all";
     }
 
-    const exists = catalogCategories.some((category) => category.id === selectedCategoryId);
-
-    if (!exists) {
-      setSelectedCategoryId("all");
-      setSelectedSubcategoryId("all");
-    }
+    return catalogCategories.some((category) => category.id === selectedCategoryId) ? selectedCategoryId : "all";
   }, [catalogCategories, selectedCategoryId]);
+
+  const selectedCategory = useMemo(() => {
+    return effectiveSelectedCategoryId === "all"
+      ? null
+      : catalogCategories.find((category) => category.id === effectiveSelectedCategoryId) ?? null;
+  }, [catalogCategories, effectiveSelectedCategoryId]);
+
+  const visibleSubcategories = useMemo(() => {
+    return selectedCategory?.subcategories ?? EMPTY_SUBCATEGORIES;
+  }, [selectedCategory]);
+
+  const effectiveSelectedSubcategoryId = useMemo<string | "all">(() => {
+    if (effectiveSelectedCategoryId === "all" || selectedSubcategoryId === "all") {
+      return "all";
+    }
+
+    return visibleSubcategories.some((subcategory) => subcategory.id === selectedSubcategoryId) ? selectedSubcategoryId : "all";
+  }, [effectiveSelectedCategoryId, selectedSubcategoryId, visibleSubcategories]);
 
   const productQuantityMap = useMemo(() => {
     return new Map(cartItems.map((item) => [item.productId, item.quantity]));
@@ -178,11 +192,11 @@ export default function ShopPage() {
     const filtered = catalogProducts.filter((product) => {
       const productCategoryId = product.categoryId ?? product.category;
 
-      if (selectedCategoryId !== "all" && productCategoryId !== selectedCategoryId) {
+      if (effectiveSelectedCategoryId !== "all" && productCategoryId !== effectiveSelectedCategoryId) {
         return false;
       }
 
-      if (selectedSubcategoryId !== "all" && product.subcategoryId !== selectedSubcategoryId) {
+      if (effectiveSelectedSubcategoryId !== "all" && product.subcategoryId !== effectiveSelectedSubcategoryId) {
         return false;
       }
 
@@ -227,14 +241,14 @@ export default function ShopPage() {
     });
 
     return sortProducts(filtered, sort);
-  }, [catalogProducts, inStockOnly, quickFilter, search, selectedCategoryId, selectedSubcategoryId, sort]);
+  }, [catalogProducts, effectiveSelectedCategoryId, effectiveSelectedSubcategoryId, inStockOnly, quickFilter, search, sort]);
 
   const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(catalogProducts, cartItems), [cartItems, catalogProducts]);
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const activeFiltersCount = [
     Boolean(search.trim()),
-    selectedCategoryId !== "all",
-    selectedSubcategoryId !== "all",
+    effectiveSelectedCategoryId !== "all",
+    effectiveSelectedSubcategoryId !== "all",
     sort !== "popular",
     inStockOnly,
     quickFilter !== "all",
@@ -337,26 +351,6 @@ export default function ShopPage() {
     }, {});
   }, [catalogProducts]);
 
-  const selectedCategory = useMemo(() => {
-    return selectedCategoryId === "all"
-      ? null
-      : catalogCategories.find((category) => category.id === selectedCategoryId) ?? null;
-  }, [catalogCategories, selectedCategoryId]);
-
-  const visibleSubcategories = selectedCategory?.subcategories ?? [];
-
-  useEffect(() => {
-    if (selectedSubcategoryId === "all") {
-      return;
-    }
-
-    const exists = visibleSubcategories.some((subcategory) => subcategory.id === selectedSubcategoryId);
-
-    if (!exists) {
-      setSelectedSubcategoryId("all");
-    }
-  }, [selectedSubcategoryId, visibleSubcategories]);
-
   const handleCategoryChange = (value: string | "all") => {
     setSelectedCategoryId(value);
     setSelectedSubcategoryId("all");
@@ -382,9 +376,9 @@ export default function ShopPage() {
         <ShopCatalogControls
           search={search}
           onSearchChange={setSearch}
-          selectedCategoryId={selectedCategoryId}
+          selectedCategoryId={effectiveSelectedCategoryId}
           onCategoryChange={handleCategoryChange}
-          selectedSubcategoryId={selectedSubcategoryId}
+          selectedSubcategoryId={effectiveSelectedSubcategoryId}
           onSubcategoryChange={handleSubcategoryChange}
           sort={sort}
           onSortChange={setSort}

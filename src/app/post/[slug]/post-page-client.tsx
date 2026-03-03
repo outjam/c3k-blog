@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import { RichPostContent } from "@/components/rich-post-content";
-import type { BlogPost } from "@/data/posts";
+import type { BlogPost } from "@/types/blog";
 import {
   clearBlogReactionApi,
   createBlogCommentApi,

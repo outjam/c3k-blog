@@ -1,12 +1,11 @@
-import type { BlogPost, PostContentBlock } from "@/data/posts";
+import type { BlogPost, PostContentBlock } from "@/types/blog";
 import {
   DEFAULT_DELIVERY_FEE_STARS_CENTS,
   DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS,
-  PROMO_RULES,
   type PromoRule,
 } from "@/lib/shop-pricing";
 import { isShopAdminRole } from "@/lib/shop-admin-roles";
-import { DEFAULT_ADMIN_TELEGRAM_ID, getShopAdminTelegramIds } from "@/lib/shop-admin";
+import { getShopAdminOwnerTelegramId, getShopAdminTelegramIds } from "@/lib/shop-admin";
 import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
 import type {
   ShopAdminConfig,
@@ -24,84 +23,22 @@ const DEFAULT_PRODUCT_IMAGE = "/posts/cover-pattern.svg";
 const DEFAULT_PRODUCT_RATING = 0;
 const DEFAULT_PRODUCT_REVIEWS_COUNT = 0;
 const DEFAULT_PRODUCT_ATTRIBUTES: ShopProduct["attributes"] = {
-  material: "Глина",
-  technique: "Ручная работа",
-  color: "Натуральный",
-  heightCm: 10,
-  widthCm: 10,
-  weightGr: 200,
-  collection: "Classic",
-  sku: "SKU-DEFAULT",
+  material: "",
+  technique: "",
+  color: "",
+  heightCm: 0,
+  widthCm: 0,
+  weightGr: 0,
+  collection: "",
+  sku: "",
   stock: 0,
 };
 const DEFAULT_BLOG_COVER = {
-  src: "/posts/cover-pattern.svg",
-  alt: "Обложка поста",
-  width: 1200,
-  height: 700,
+  src: "",
+  alt: "",
+  width: 1,
+  height: 1,
 };
-const DEFAULT_PRODUCT_CATEGORIES: ShopProductCategory[] = [
-  {
-    id: "figurine",
-    label: "Фигурки",
-    emoji: "🗿",
-    description: "Декоративные статуэтки и мини-скульптуры",
-    order: 10,
-    subcategories: [
-      { id: "collectible", label: "Коллекционные", order: 10 },
-      { id: "minimal", label: "Минимализм", order: 20 },
-      { id: "fantasy", label: "Фэнтези", order: 30 },
-    ],
-  },
-  {
-    id: "vase",
-    label: "Вазы",
-    emoji: "🏺",
-    description: "Настольные, интерьерные и декоративные вазы",
-    order: 20,
-    subcategories: [
-      { id: "table", label: "Настольные", order: 10 },
-      { id: "floor", label: "Напольные", order: 20 },
-      { id: "decorative", label: "Декор", order: 30 },
-    ],
-  },
-  {
-    id: "mug",
-    label: "Кружки",
-    emoji: "☕",
-    description: "Кружки для кофе, чая и авторские наборы",
-    order: 30,
-    subcategories: [
-      { id: "coffee", label: "Кофейные", order: 10 },
-      { id: "tea", label: "Чайные", order: 20 },
-      { id: "gift", label: "Подарочные", order: 30 },
-    ],
-  },
-  {
-    id: "lamp",
-    label: "Светильники",
-    emoji: "🕯️",
-    description: "Настольные и интерьерные источники света",
-    order: 40,
-    subcategories: [
-      { id: "table-lamp", label: "Настольные", order: 10 },
-      { id: "night", label: "Ночники", order: 20 },
-      { id: "ambient", label: "Атмосферные", order: 30 },
-    ],
-  },
-  {
-    id: "plate",
-    label: "Тарелки",
-    emoji: "🍽️",
-    description: "Подача, сервировка и декоративные блюда",
-    order: 50,
-    subcategories: [
-      { id: "serving", label: "Сервировочные", order: 10 },
-      { id: "dessert", label: "Десертные", order: 20 },
-      { id: "decorative", label: "Декор", order: 30 },
-    ],
-  },
-];
 
 const normalizeSafeId = (value: unknown, maxLength: number): string => {
   return String(value ?? "")
@@ -121,13 +58,6 @@ const normalizeSafeSlug = (value: unknown, maxLength: number): string => {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, maxLength);
-};
-
-const cloneDefaultProductCategories = (): ShopProductCategory[] => {
-  return DEFAULT_PRODUCT_CATEGORIES.map((category) => ({
-    ...category,
-    subcategories: category.subcategories.map((subcategory) => ({ ...subcategory })),
-  }));
 };
 
 const sanitizeProductSubcategory = (raw: unknown, fallbackOrder: number): ShopProductSubcategory | null => {
@@ -327,8 +257,9 @@ const sanitizeProduct = (raw: unknown): ShopProduct | null => {
     return null;
   }
 
-  const category = product.category;
-  if (category !== "figurine" && category !== "vase" && category !== "mug" && category !== "lamp" && category !== "plate") {
+  const category = String(product.category ?? "").trim();
+
+  if (!category) {
     return null;
   }
 
@@ -378,22 +309,6 @@ const normalizePromoCode = (code: string): string => {
     .slice(0, 24);
 };
 
-const toDefaultPromo = (rule: PromoRule): ShopPromoCode => {
-  const now = new Date().toISOString();
-  return {
-    code: rule.code,
-    label: rule.label,
-    discountType: rule.discountType,
-    discountValue: Math.round(rule.discountValue),
-    minSubtotalStarsCents: 0,
-    active: true,
-    usageLimit: undefined,
-    usedCount: 0,
-    createdAt: now,
-    updatedAt: now,
-  };
-};
-
 const buildDefaultSettings = (): ShopAppSettings => {
   const now = new Date().toISOString();
   return {
@@ -409,9 +324,10 @@ const buildDefaultSettings = (): ShopAppSettings => {
 const buildDefaultConfig = (): ShopAdminConfig => {
   const now = new Date().toISOString();
   const staticAdminIds = getShopAdminTelegramIds();
+  const ownerId = getShopAdminOwnerTelegramId();
   const adminMembers: ShopAdminMember[] = staticAdminIds.map((telegramUserId) => ({
     telegramUserId,
-    role: telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? "owner" : "admin",
+    role: ownerId && telegramUserId === ownerId ? "owner" : "admin",
     addedAt: now,
     updatedAt: now,
   }));
@@ -420,10 +336,10 @@ const buildDefaultConfig = (): ShopAdminConfig => {
     adminMembers,
     productRecords: {},
     productOverrides: {},
-    productCategories: cloneDefaultProductCategories(),
+    productCategories: [],
     blogPostRecords: {},
     hiddenPostSlugs: [],
-    promoCodes: PROMO_RULES.map((rule) => toDefaultPromo(rule)),
+    promoCodes: [],
     settings: buildDefaultSettings(),
     updatedAt: now,
   };
@@ -439,7 +355,10 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
   const row = input as Partial<ShopAdminConfig>;
   const updatedAt = String(row.updatedAt ?? fallback.updatedAt);
   const staticAdminIds = new Set(getShopAdminTelegramIds());
-  staticAdminIds.add(DEFAULT_ADMIN_TELEGRAM_ID);
+  const ownerId = getShopAdminOwnerTelegramId();
+  if (ownerId) {
+    staticAdminIds.add(ownerId);
+  }
   const now = new Date().toISOString();
 
   const memberMap = new Map<number, ShopAdminMember>();
@@ -477,7 +396,7 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
     const exists = memberMap.get(staticId);
 
     if (exists) {
-      if (staticId === DEFAULT_ADMIN_TELEGRAM_ID) {
+      if (ownerId && staticId === ownerId) {
         exists.role = "owner";
         exists.disabled = false;
       }
@@ -487,7 +406,7 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
 
     memberMap.set(staticId, {
       telegramUserId: staticId,
-      role: staticId === DEFAULT_ADMIN_TELEGRAM_ID ? "owner" : "admin",
+      role: ownerId && staticId === ownerId ? "owner" : "admin",
       addedAt: now,
       updatedAt: now,
     });
@@ -497,8 +416,8 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
     .sort((a, b) => a.telegramUserId - b.telegramUserId)
     .map((member) => ({
       ...member,
-      role: member.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? "owner" : member.role,
-      disabled: member.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? false : member.disabled,
+      role: ownerId && member.telegramUserId === ownerId ? "owner" : member.role,
+      disabled: ownerId && member.telegramUserId === ownerId ? false : member.disabled,
     }));
 
   const productRecords = Object.fromEntries(
@@ -543,12 +462,6 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
       categoryMap.set(sanitized.id, sanitized);
     }
   });
-
-  if (categoryMap.size === 0) {
-    cloneDefaultProductCategories().forEach((category) => {
-      categoryMap.set(category.id, category);
-    });
-  }
 
   const productCategories = Array.from(categoryMap.values()).sort((a, b) => a.order - b.order);
 

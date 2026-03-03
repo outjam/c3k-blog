@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { DEFAULT_ADMIN_TELEGRAM_ID } from "@/lib/shop-admin";
+import { getShopAdminOwnerTelegramId } from "@/lib/shop-admin";
 import { isShopAdminRole } from "@/lib/shop-admin-roles";
 import {
   forbiddenResponse,
@@ -48,21 +48,23 @@ const sanitizeMember = (
   nowIso: string,
   incoming?: AdminUpsertBody,
 ): ShopAdminMember => {
+  const ownerId = getShopAdminOwnerTelegramId();
+  const isOwner = ownerId !== null && source.telegramUserId === ownerId;
   const next: ShopAdminMember = {
     ...source,
-    role: source.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? "owner" : source.role,
-    disabled: source.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? false : source.disabled,
+    role: isOwner ? "owner" : source.role,
+    disabled: isOwner ? false : source.disabled,
     updatedAt: nowIso,
   };
 
   if (incoming) {
     const incomingRole = typeof incoming.role === "string" ? incoming.role : "";
     const nextRole: ShopAdminRole = isShopAdminRole(incomingRole) ? incomingRole : source.role;
-    next.role = source.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? "owner" : nextRole;
+    next.role = isOwner ? "owner" : nextRole;
     next.username = normalizeString(incoming.username, 64)?.replace(/^@/, "") ?? source.username;
     next.firstName = normalizeString(incoming.firstName, 80) ?? source.firstName;
     next.lastName = normalizeString(incoming.lastName, 80) ?? source.lastName;
-    next.disabled = source.telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID ? false : Boolean(incoming.disabled);
+    next.disabled = isOwner ? false : Boolean(incoming.disabled);
   }
 
   if (!next.addedByTelegramId) {
@@ -191,8 +193,10 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Invalid telegramUserId" }, { status: 400 });
   }
 
-  if (telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID) {
-    return NextResponse.json({ error: "Default owner cannot be removed" }, { status: 409 });
+  const ownerId = getShopAdminOwnerTelegramId();
+
+  if (ownerId && telegramUserId === ownerId) {
+    return NextResponse.json({ error: "Owner cannot be removed" }, { status: 409 });
   }
 
   if (telegramUserId === auth.telegramUserId) {

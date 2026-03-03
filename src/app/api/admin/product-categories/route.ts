@@ -7,7 +7,15 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
-import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import {
+  createShopProductCategory,
+  createShopProductSubcategory,
+  deleteShopProductCategory,
+  deleteShopProductSubcategory,
+  listShopProductCategories,
+  updateShopProductCategory,
+  updateShopProductSubcategory,
+} from "@/lib/server/shop-taxonomy-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,22 +62,26 @@ const normalizeDescription = (value: unknown): string | undefined => {
 };
 
 const toResponse = async () => {
-  const config = await readShopAdminConfig();
-  return NextResponse.json({ categories: config.productCategories });
+  const categories = await listShopProductCategories();
+  return NextResponse.json({ categories });
 };
 
-const makeUniqueId = (base: string, occupied: Set<string>): string => {
-  if (!occupied.has(base)) {
-    return base;
+const toHandledError = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : "Unknown error";
+
+  if (
+    message === "Unknown categoryId" ||
+    message === "Invalid categoryId" ||
+    message === "Invalid subcategoryId" ||
+    message === "Invalid label" ||
+    message === "Category already exists" ||
+    message === "Invalid category payload" ||
+    message === "Invalid subcategory payload"
+  ) {
+    return message;
   }
 
-  let index = 2;
-
-  while (occupied.has(`${base}-${index}`)) {
-    index += 1;
-  }
-
-  return `${base}-${index}`;
+  return "Failed to mutate categories";
 };
 
 export async function GET(request: Request) {
@@ -83,7 +95,11 @@ export async function GET(request: Request) {
     return forbiddenResponse();
   }
 
-  return toResponse();
+  try {
+    return await toResponse();
+  } catch {
+    return NextResponse.json({ error: "Failed to load categories" }, { status: 502 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -116,73 +132,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Label is required" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
+  const parentId = normalizeId(payload.parentCategoryId);
 
-  const result = await mutateShopAdminConfig((current) => {
-    const categories = [...current.productCategories];
-    const parentId = normalizeId(payload.parentCategoryId);
-
+  try {
     if (parentId) {
-      const parentIndex = categories.findIndex((category) => category.id === parentId);
-
-      if (parentIndex < 0) {
-        throw new Error("Unknown categoryId");
-      }
-
-      const parent = categories[parentIndex];
-      const occupiedIds = new Set(parent.subcategories.map((item) => item.id));
-      const requestedId = normalizeId(payload.id);
-      const baseId = requestedId || normalizeId(label) || `subcategory-${Date.now().toString(36)}`;
-      const id = makeUniqueId(baseId, occupiedIds);
-      const nextOrder = Math.max(10, ...parent.subcategories.map((item) => item.order + 10));
-      const nextSubcategories = [...parent.subcategories, { id, label, description: normalizeDescription(payload.description), order: nextOrder }];
-
-      categories[parentIndex] = {
-        ...parent,
-        subcategories: nextSubcategories.sort((a, b) => a.order - b.order),
-      };
-
-      return {
-        ...current,
-        productCategories: categories,
-        updatedAt: now,
-      };
+      await createShopProductSubcategory({
+        categoryCode: parentId,
+        code: normalizeId(payload.id) || undefined,
+        label,
+        description: normalizeDescription(payload.description),
+      });
+    } else {
+      await createShopProductCategory({
+        code: normalizeId(payload.id) || undefined,
+        label,
+        emoji: payload.emoji ? String(payload.emoji).trim().slice(0, 8) : undefined,
+        description: normalizeDescription(payload.description),
+      });
     }
 
-    const occupiedIds = new Set(categories.map((category) => category.id));
-    const requestedId = normalizeId(payload.id);
-    const baseId = requestedId || normalizeId(label) || `category-${Date.now().toString(36)}`;
-    const id = makeUniqueId(baseId, occupiedIds);
-    const nextOrder = Math.max(10, ...categories.map((category) => category.order + 10));
-    const nextCategory = {
-      id,
-      label,
-      emoji: payload.emoji ? String(payload.emoji).trim().slice(0, 8) : undefined,
-      description: normalizeDescription(payload.description),
-      order: nextOrder,
-      subcategories: [],
-    };
-
-    return {
-      ...current,
-      productCategories: [...categories, nextCategory].sort((a, b) => a.order - b.order),
-      updatedAt: now,
-    };
-  }).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
-    if (message === "Unknown categoryId") {
-      return { __handled: true } as const;
-    }
-
-    throw error;
-  });
-
-  if (result && "__handled" in result) {
-    return NextResponse.json({ error: "Unknown categoryId" }, { status: 404 });
+    return await toResponse();
+  } catch (error: unknown) {
+    const message = toHandledError(error);
+    const status = message === "Failed to mutate categories" ? 502 : 400;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  return toResponse();
 }
 
 export async function PATCH(request: Request) {
@@ -222,86 +196,30 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid label" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-
-  const result = await mutateShopAdminConfig((current) => {
-    const categories = [...current.productCategories];
-    const categoryIndex = categories.findIndex((category) => category.id === categoryId);
-
-    if (categoryIndex < 0) {
-      throw new Error("Unknown categoryId");
-    }
-
-    const category = categories[categoryIndex];
-
+  try {
     if (subcategoryId) {
-      const subcategoryIndex = category.subcategories.findIndex((item) => item.id === subcategoryId);
-
-      if (subcategoryIndex < 0) {
-        throw new Error("Unknown subcategoryId");
-      }
-
-      const subcategory = category.subcategories[subcategoryIndex];
-      const nextSubcategory = {
-        ...subcategory,
-        label: nextLabel ?? subcategory.label,
+      await updateShopProductSubcategory(categoryId, subcategoryId, {
+        label: nextLabel,
         description:
-          payload.description === undefined
-            ? subcategory.description
-            : payload.description === null
-              ? undefined
-              : normalizeDescription(payload.description),
-        order:
-          typeof payload.order === "number" && Number.isFinite(payload.order)
-            ? Math.max(1, Math.round(payload.order))
-            : subcategory.order,
-      };
-
-      const nextSubcategories = [...category.subcategories];
-      nextSubcategories[subcategoryIndex] = nextSubcategory;
-
-      categories[categoryIndex] = {
-        ...category,
-        subcategories: nextSubcategories.sort((a, b) => a.order - b.order),
-      };
+          payload.description === undefined ? undefined : payload.description === null ? null : normalizeDescription(payload.description),
+        order: typeof payload.order === "number" && Number.isFinite(payload.order) ? Math.max(1, Math.round(payload.order)) : undefined,
+      });
     } else {
-      categories[categoryIndex] = {
-        ...category,
-        label: nextLabel ?? category.label,
-        emoji: payload.emoji === undefined ? category.emoji : payload.emoji === null ? undefined : String(payload.emoji).trim().slice(0, 8),
+      await updateShopProductCategory(categoryId, {
+        label: nextLabel,
+        emoji: payload.emoji === undefined ? undefined : payload.emoji === null ? null : String(payload.emoji).trim().slice(0, 8),
         description:
-          payload.description === undefined
-            ? category.description
-            : payload.description === null
-              ? undefined
-              : normalizeDescription(payload.description),
-        order:
-          typeof payload.order === "number" && Number.isFinite(payload.order)
-            ? Math.max(1, Math.round(payload.order))
-            : category.order,
-      };
+          payload.description === undefined ? undefined : payload.description === null ? null : normalizeDescription(payload.description),
+        order: typeof payload.order === "number" && Number.isFinite(payload.order) ? Math.max(1, Math.round(payload.order)) : undefined,
+      });
     }
 
-    return {
-      ...current,
-      productCategories: categories.sort((a, b) => a.order - b.order),
-      updatedAt: now,
-    };
-  }).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
-    if (message === "Unknown categoryId" || message === "Unknown subcategoryId") {
-      return { __handledError: message } as const;
-    }
-
-    throw error;
-  });
-
-  if (result && "__handledError" in result) {
-    return NextResponse.json({ error: result.__handledError }, { status: 404 });
+    return await toResponse();
+  } catch (error: unknown) {
+    const message = toHandledError(error);
+    const status = message === "Failed to mutate categories" ? 502 : 400;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  return toResponse();
 }
 
 export async function DELETE(request: Request) {
@@ -335,74 +253,18 @@ export async function DELETE(request: Request) {
   }
 
   const subcategoryId = normalizeId(payload.subcategoryId);
-  const now = new Date().toISOString();
 
-  const result = await mutateShopAdminConfig((current) => {
-    const categories = [...current.productCategories];
-    const categoryIndex = categories.findIndex((category) => category.id === categoryId);
-
-    if (categoryIndex < 0) {
-      throw new Error("Unknown categoryId");
-    }
-
-    const productOverrides = { ...current.productOverrides };
-
+  try {
     if (subcategoryId) {
-      const category = categories[categoryIndex];
-      const exists = category.subcategories.some((item) => item.id === subcategoryId);
-
-      if (!exists) {
-        throw new Error("Unknown subcategoryId");
-      }
-
-      categories[categoryIndex] = {
-        ...category,
-        subcategories: category.subcategories.filter((item) => item.id !== subcategoryId),
-      };
-
-      Object.entries(productOverrides).forEach(([productId, override]) => {
-        if (override.categoryId === categoryId && override.subcategoryId === subcategoryId) {
-          productOverrides[productId] = { ...override, subcategoryId: undefined, updatedAt: now };
-        }
-      });
+      await deleteShopProductSubcategory(categoryId, subcategoryId);
     } else {
-      if (categories.length <= 1) {
-        throw new Error("Cannot delete last category");
-      }
-
-      categories.splice(categoryIndex, 1);
-
-      Object.entries(productOverrides).forEach(([productId, override]) => {
-        if (override.categoryId === categoryId) {
-          productOverrides[productId] = {
-            ...override,
-            categoryId: undefined,
-            subcategoryId: undefined,
-            updatedAt: now,
-          };
-        }
-      });
+      await deleteShopProductCategory(categoryId);
     }
 
-    return {
-      ...current,
-      productCategories: categories.sort((a, b) => a.order - b.order),
-      productOverrides,
-      updatedAt: now,
-    };
-  }).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
-    if (message === "Unknown categoryId" || message === "Unknown subcategoryId" || message === "Cannot delete last category") {
-      return { __handledError: message } as const;
-    }
-
-    throw error;
-  });
-
-  if (result && "__handledError" in result) {
-    return NextResponse.json({ error: result.__handledError }, { status: 400 });
+    return await toResponse();
+  } catch (error: unknown) {
+    const message = toHandledError(error);
+    const status = message === "Failed to mutate categories" ? 502 : 400;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  return toResponse();
 }

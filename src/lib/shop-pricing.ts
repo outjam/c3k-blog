@@ -7,14 +7,17 @@ export interface PromoRule {
   discountValue: number;
 }
 
-export const PROMO_RULES: PromoRule[] = [
-  { code: "CLAY10", label: "Скидка 10%", discountType: "percent", discountValue: 10 },
-  { code: "C3K15", label: "Скидка 15%", discountType: "percent", discountValue: 15 },
-  { code: "STARS5", label: "Скидка 5%", discountType: "percent", discountValue: 5 },
-];
+export const PROMO_RULES: PromoRule[] = [];
 
-export const DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS = 1200;
-export const DEFAULT_DELIVERY_FEE_STARS_CENTS = 1;
+const parseMoneyEnv = (value: string | undefined): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+};
+
+export const DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS = parseMoneyEnv(
+  process.env.NEXT_PUBLIC_DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS,
+);
+export const DEFAULT_DELIVERY_FEE_STARS_CENTS = parseMoneyEnv(process.env.NEXT_PUBLIC_DEFAULT_DELIVERY_FEE_STARS_CENTS);
 
 export const findPromoRule = (value: string, rules: PromoRule[] = PROMO_RULES): PromoRule | null => {
   const normalized = value.trim().toUpperCase();

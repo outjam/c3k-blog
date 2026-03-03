@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PostCard } from "@/components/post-card";
-import type { BlogPost } from "@/data/posts";
+import type { BlogPost } from "@/types/blog";
 import { readBookmarkedPostSlugs, toggleBookmarkedPost } from "@/lib/post-bookmarks";
 
 import styles from "./page.module.scss";

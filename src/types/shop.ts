@@ -1,4 +1,4 @@
-export type ShopCategory = "figurine" | "vase" | "mug" | "lamp" | "plate";
+export type ShopCategory = string;
 export type DeliveryMethod = "yandex_go" | "cdek";
 export type PromoDiscountType = "percent" | "fixed";
 export type ShopAdminRole = "owner" | "admin" | "orders" | "catalog" | "support";
@@ -133,7 +133,7 @@ export interface ShopAdminConfig {
   productRecords: Record<string, ShopProduct>;
   productOverrides: Record<string, ShopProductOverride>;
   productCategories: ShopProductCategory[];
-  blogPostRecords: Record<string, import("@/data/posts").BlogPost>;
+  blogPostRecords: Record<string, import("@/types/blog").BlogPost>;
   hiddenPostSlugs: string[];
   promoCodes: ShopPromoCode[];
   settings: ShopAppSettings;

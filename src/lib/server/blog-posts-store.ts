@@ -1,5 +1,5 @@
 import { getPostgresHttpConfig, postgresTableRequest } from "@/lib/server/postgres-http";
-import type { BlogPost, PostContentBlock, PostImage } from "@/data/posts";
+import type { BlogPost, PostContentBlock, PostImage } from "@/types/blog";
 
 interface BlogPostDbRow {
   slug?: string;

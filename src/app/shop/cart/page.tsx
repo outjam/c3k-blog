@@ -70,7 +70,7 @@ export default function ShopCartPage() {
   const [checkoutErrors, setCheckoutErrors] = useState<CheckoutValidationErrors>({});
   const [isPaying, setIsPaying] = useState(false);
   const [isRequestingPhone, setIsRequestingPhone] = useState(false);
-  const [canRequestPhone, setCanRequestPhone] = useState(false);
+  const [canRequestPhone] = useState(() => Boolean(getTelegramWebApp()?.requestContact));
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
@@ -155,20 +155,25 @@ export default function ShopCartPage() {
 
   useEffect(() => {
     const user = getTelegramWebApp()?.initDataUnsafe?.user;
-    setCanRequestPhone(Boolean(getTelegramWebApp()?.requestContact));
 
     if (!user) {
       return;
     }
 
-    setCheckout((prev) => ({
-      ...prev,
-      firstName: prev.firstName || user.first_name || "",
-      lastName: prev.lastName || user.last_name || "",
-      phone: prev.phone || user.phone_number || "",
-      email: prev.email || (user.username ? `${user.username}@telegram.local` : ""),
-      comment: prev.comment || (user.username ? `Telegram: @${user.username}` : ""),
-    }));
+    const timer = window.setTimeout(() => {
+      setCheckout((prev) => ({
+        ...prev,
+        firstName: prev.firstName || user.first_name || "",
+        lastName: prev.lastName || user.last_name || "",
+        phone: prev.phone || user.phone_number || "",
+        email: prev.email || (user.username ? `${user.username}@telegram.local` : ""),
+        comment: prev.comment || (user.username ? `Telegram: @${user.username}` : ""),
+      }));
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { getRolePermissions, hasRolePermission } from "@/lib/shop-admin-roles";
-import { DEFAULT_ADMIN_TELEGRAM_ID, getShopAdminTelegramIds } from "@/lib/shop-admin";
+import { getShopAdminOwnerTelegramId, getShopAdminTelegramIds } from "@/lib/shop-admin";
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ShopAdminMember, ShopAdminPermission, ShopAdminRole } from "@/types/shop";
 
@@ -10,7 +10,9 @@ export interface ResolvedShopAdminAccess {
 }
 
 const findStaticRole = (telegramUserId: number): ShopAdminRole | null => {
-  if (telegramUserId === DEFAULT_ADMIN_TELEGRAM_ID) {
+  const ownerId = getShopAdminOwnerTelegramId();
+
+  if (ownerId && telegramUserId === ownerId) {
     return "owner";
   }
 
@@ -66,4 +68,3 @@ export const resolveShopAdminAccess = async (telegramUserId: number): Promise<Re
 export const canAccessAdminPermission = (role: ShopAdminRole, permission: ShopAdminPermission): boolean => {
   return hasRolePermission(role, permission);
 };
-

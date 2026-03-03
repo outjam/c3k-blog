@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { MouseEventHandler } from "react";
 
 import { hapticImpact, hapticSelection } from "@/lib/telegram";
-import type { BlogPost } from "@/data/posts";
+import type { BlogPost } from "@/types/blog";
 
 import styles from "./post-card.module.scss";
 

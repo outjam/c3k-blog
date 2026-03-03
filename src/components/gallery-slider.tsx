@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 
-import type { PostImage } from "@/data/posts";
+import type { PostImage } from "@/types/blog";
 import { hapticImpact, hapticSelection } from "@/lib/telegram";
 
 import styles from "./gallery-slider.module.scss";

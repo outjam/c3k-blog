@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { motion } from "motion/react";
 
-import type { AnimationDemoId, PostContentBlock, TsxDemoId } from "@/data/posts";
+import type { AnimationDemoId, PostContentBlock, TsxDemoId } from "@/types/blog";
 import { hapticImpact } from "@/lib/telegram";
 
 import { GallerySlider } from "./gallery-slider";

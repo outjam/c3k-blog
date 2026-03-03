@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import {
@@ -167,15 +167,26 @@ export default function AdminPage() {
   const [newAdminFirstName, setNewAdminFirstName] = useState("");
   const [newAdminLastName, setNewAdminLastName] = useState("");
 
-  const hasPermission = (permission: ShopAdminPermission): boolean => {
-    return Boolean(session?.permissions?.includes(permission));
-  };
+  const hasPermission = useCallback(
+    (permission: ShopAdminPermission): boolean => {
+      return Boolean(session?.permissions?.includes(permission));
+    },
+    [session],
+  );
 
   const availableTabs = useMemo(() => {
     return TABS.filter((tab) => hasPermission(TAB_REQUIREMENTS[tab.id]));
-  }, [session]);
+  }, [hasPermission]);
 
-  const loadSession = async () => {
+  const resolvedActiveTab = useMemo<AdminTab>(() => {
+    if (availableTabs.some((tab) => tab.id === activeTab)) {
+      return activeTab;
+    }
+
+    return availableTabs[0]?.id ?? "dashboard";
+  }, [activeTab, availableTabs]);
+
+  const loadSession = useCallback(async () => {
     setSessionLoading(true);
     const sessionResponse = await fetchAdminSession();
 
@@ -188,9 +199,9 @@ export default function AdminPage() {
 
     setSession(sessionResponse.session);
     setSessionLoading(false);
-  };
+  }, []);
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!session?.isAdmin) {
       return;
     }
@@ -335,30 +346,31 @@ export default function AdminPage() {
     }
 
     setLoading(false);
-  };
+  }, [hasPermission, productCategories, session?.isAdmin]);
 
   useEffect(() => {
-    void loadSession();
-  }, []);
+    const timer = window.setTimeout(() => {
+      void loadSession();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadSession]);
 
   useEffect(() => {
     if (!session?.isAdmin) {
       return;
     }
 
-    void loadAll();
-  }, [session?.telegramUserId, session?.isAdmin]);
+    const timer = window.setTimeout(() => {
+      void loadAll();
+    }, 0);
 
-  useEffect(() => {
-    if (availableTabs.length === 0) {
-      return;
-    }
-
-    const exists = availableTabs.some((tab) => tab.id === activeTab);
-    if (!exists) {
-      setActiveTab(availableTabs[0]?.id ?? "dashboard");
-    }
-  }, [activeTab, availableTabs]);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadAll, session?.isAdmin, session?.telegramUserId]);
 
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
@@ -534,7 +546,7 @@ export default function AdminPage() {
             <button
               key={tab.id}
               type="button"
-              className={tab.id === activeTab ? styles.tabActive : styles.tab}
+              className={tab.id === resolvedActiveTab ? styles.tabActive : styles.tab}
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
@@ -542,7 +554,7 @@ export default function AdminPage() {
           ))}
         </nav>
 
-        {activeTab === "dashboard" && hasPermission("dashboard:view") ? (
+        {resolvedActiveTab === "dashboard" && hasPermission("dashboard:view") ? (
           <section className={styles.section}>
             <h2>Показатели</h2>
             <div className={styles.metrics}>
@@ -573,11 +585,11 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "orders" && hasPermission("orders:view") ? (
+        {resolvedActiveTab === "orders" && hasPermission("orders:view") ? (
           <ShopAdminOrdersPanel enabled canManage={hasPermission("orders:manage")} />
         ) : null}
 
-        {activeTab === "customers" && hasPermission("customers:view") ? (
+        {resolvedActiveTab === "customers" && hasPermission("customers:view") ? (
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2>Клиенты</h2>
@@ -607,7 +619,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "products" && hasPermission("products:view") ? (
+        {resolvedActiveTab === "products" && hasPermission("products:view") ? (
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2>Товары</h2>
@@ -841,7 +853,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "categories" && hasPermission("products:view") ? (
+        {resolvedActiveTab === "categories" && hasPermission("products:view") ? (
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2>Категории и подкатегории</h2>
@@ -1205,7 +1217,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "promos" && hasPermission("promos:view") ? (
+        {resolvedActiveTab === "promos" && hasPermission("promos:view") ? (
           <section className={styles.section}>
             <h2>Промокоды</h2>
             <div className={styles.promoCreate}>
@@ -1307,7 +1319,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "settings" && hasPermission("settings:view") ? (
+        {resolvedActiveTab === "settings" && hasPermission("settings:view") ? (
           <section className={styles.section}>
             <h2>Настройки магазина</h2>
             {settings ? (
@@ -1388,7 +1400,7 @@ export default function AdminPage() {
           </section>
         ) : null}
 
-        {activeTab === "admins" && hasPermission("admins:view") ? (
+        {resolvedActiveTab === "admins" && hasPermission("admins:view") ? (
           <section className={styles.section}>
             <h2>Администраторы и роли</h2>
             <input
