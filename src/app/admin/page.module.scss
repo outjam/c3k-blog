@@ -1,0 +1,297 @@
+.page {
+  min-height: 100%;
+  padding: 1rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-left: calc(1rem + var(--safe-area-left));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+}
+
+.card {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.85rem;
+  border-radius: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  background: var(--tg-section-bg);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.header p {
+  margin: 0.2rem 0 0;
+  color: var(--tg-hint);
+}
+
+.header button,
+.linkButton {
+  border: 0;
+  border-radius: 0.66rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  padding: 0.5rem 0.8rem;
+  font: inherit;
+  text-decoration: none;
+}
+
+.error {
+  margin: 0;
+  color: #ff5f57;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+}
+
+.tab,
+.tabActive {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.42rem 0.78rem;
+  font: inherit;
+  white-space: nowrap;
+  background: var(--card-bg);
+  color: var(--tg-text);
+}
+
+.tabActive {
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+}
+
+.section {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.72rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
+  background: var(--card-bg);
+}
+
+.section h2 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.metrics article {
+  padding: 0.62rem;
+  border-radius: 0.64rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.metrics span {
+  color: var(--tg-hint);
+  font-size: 0.76rem;
+}
+
+.metrics b {
+  color: var(--tg-text);
+  font-size: 0.98rem;
+}
+
+.statusGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.statusGrid p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--tg-hint);
+}
+
+.statusGrid b {
+  color: var(--tg-text);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.tableWrap table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.tableWrap th {
+  color: var(--tg-hint);
+  font-size: 0.74rem;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.sectionHead input {
+  min-width: 220px;
+}
+
+.productsList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.productCard {
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.62rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.productCard h3,
+.productCard p {
+  margin: 0;
+}
+
+.productCard p {
+  color: var(--tg-hint);
+  font-size: 0.78rem;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.formRow label,
+.settingsForm label {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.76rem;
+  color: var(--tg-hint);
+}
+
+.formRow input,
+.promoCreate input,
+.promoCreate select,
+.settingsForm input {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  border-radius: 0.55rem;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  padding: 0.4rem 0.52rem;
+  font: inherit;
+}
+
+.checkboxRow {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.checkboxRow label,
+.settingsForm label {
+  color: var(--tg-text);
+}
+
+.productCard button,
+.promoCreate button,
+.promoActions button,
+.settingsForm button {
+  border: 0;
+  border-radius: 0.58rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  padding: 0.46rem 0.68rem;
+  font: inherit;
+}
+
+.promoCreate {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.promoList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.promoCard {
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.58rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.promoCard h3,
+.promoCard p {
+  margin: 0;
+}
+
+.promoCard p {
+  color: var(--tg-hint);
+  font-size: 0.8rem;
+}
+
+.promoActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.danger {
+  background: #b13636 !important;
+}
+
+.settingsForm {
+  display: grid;
+  gap: 0.52rem;
+}
+
+@media (max-width: 900px) {
+  .metrics,
+  .productsList,
+  .promoList {
+    grid-template-columns: 1fr;
+  }
+
+  .promoCreate {
+    grid-template-columns: 1fr;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+}

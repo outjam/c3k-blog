@@ -10,13 +10,23 @@ import { ShopCheckoutForm } from "@/components/shop/shop-checkout-form";
 import { ShopOrderSummary } from "@/components/shop/shop-order-summary";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
 import { SHOP_CATEGORY_LABELS, SHOP_PRODUCTS } from "@/data/shop-products";
+import { fetchPublicCatalog } from "@/lib/admin-api";
+import { createShopOrder } from "@/lib/shop-orders-api";
+import { appendShopOrder } from "@/lib/shop-orders";
 import { payWithTelegramStars } from "@/lib/shop-payment";
 import { formatStarsFromCents, starsCentsToInvoiceStars } from "@/lib/stars-format";
-import { findPromoRule, getCartSubtotalStarsCents, getDeliveryFeeStarsCents, getDiscountAmountStarsCents } from "@/lib/shop-pricing";
-import { appendShopOrder } from "@/lib/shop-orders";
+import {
+  DEFAULT_DELIVERY_FEE_STARS_CENTS,
+  DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS,
+  PROMO_RULES,
+  findPromoRule,
+  getCartSubtotalStarsCents,
+  getDeliveryFeeStarsCents,
+  getDiscountAmountStarsCents,
+} from "@/lib/shop-pricing";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { getTelegramWebApp, hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
-import type { CartItem, CheckoutFormValues, ProductSort, ShopCategory } from "@/types/shop";
+import type { CartItem, CheckoutFormValues, ProductSort, ShopAppSettings, ShopCategory, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
@@ -31,6 +41,14 @@ const defaultCheckout: CheckoutFormValues = {
 };
 
 const ORDER_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const defaultCatalogSettings: ShopAppSettings = {
+  shopEnabled: true,
+  checkoutEnabled: true,
+  maintenanceMode: false,
+  defaultDeliveryFeeStarsCents: DEFAULT_DELIVERY_FEE_STARS_CENTS,
+  freeDeliveryThresholdStarsCents: DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS,
+  updatedAt: "",
+};
 
 const generateOrderCode = (): string => {
   const bytes = new Uint8Array(6);
@@ -47,7 +65,7 @@ const generateOrderCode = (): string => {
   return `${raw.slice(0, 3)}-${raw.slice(3, 6)}`;
 };
 
-const sortProducts = (items: typeof SHOP_PRODUCTS, sort: ProductSort) => {
+const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
   const list = [...items];
 
   switch (sort) {
@@ -81,7 +99,11 @@ export default function ShopPage() {
   const [canRequestPhone, setCanRequestPhone] = useState(false);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [paymentError, setPaymentError] = useState("");
-  const productsMap = useMemo(() => new Map(SHOP_PRODUCTS.map((item) => [item.id, item])), []);
+  const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>(SHOP_PRODUCTS);
+  const [promoRules, setPromoRules] = useState(PROMO_RULES);
+  const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
+  const [catalogError, setCatalogError] = useState("");
+  const productsMap = useMemo(() => new Map(catalogProducts.map((item) => [item.id, item])), [catalogProducts]);
 
   const getMaxQuantity = useCallback(
     (productId: string): number => {
@@ -123,6 +145,33 @@ export default function ShopPage() {
   }, [getMaxQuantity]);
 
   useEffect(() => {
+    let mounted = true;
+
+    void fetchPublicCatalog().then((snapshot) => {
+      if (!mounted) {
+        return;
+      }
+
+      if (snapshot.error) {
+        setCatalogError(snapshot.error);
+        return;
+      }
+
+      setCatalogProducts(snapshot.products);
+
+      setPromoRules(snapshot.promoRules);
+
+      if (snapshot.settings) {
+        setCatalogSettings(snapshot.settings);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const user = getTelegramWebApp()?.initDataUnsafe?.user;
     setCanRequestPhone(Boolean(getTelegramWebApp()?.requestContact));
 
@@ -155,7 +204,7 @@ export default function ShopPage() {
   const filteredProducts = useMemo(() => {
     const normalizedQuery = search.trim().toLowerCase();
 
-    const filtered = SHOP_PRODUCTS.filter((product) => {
+    const filtered = catalogProducts.filter((product) => {
       if (category !== "all" && product.category !== category) {
         return false;
       }
@@ -201,21 +250,30 @@ export default function ShopPage() {
     });
 
     return sortProducts(filtered, sort);
-  }, [category, inStockOnly, quickFilter, search, sort]);
+  }, [catalogProducts, category, inStockOnly, quickFilter, search, sort]);
 
-  const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(SHOP_PRODUCTS, cartItems), [cartItems]);
-  const discountStarsCents = useMemo(() => getDiscountAmountStarsCents(subtotalStarsCents, promoCode), [promoCode, subtotalStarsCents]);
+  const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(catalogProducts, cartItems), [cartItems, catalogProducts]);
+  const discountStarsCents = useMemo(
+    () => getDiscountAmountStarsCents(subtotalStarsCents, promoCode, promoRules),
+    [promoCode, promoRules, subtotalStarsCents],
+  );
   const deliveryFeeStarsCents = useMemo(
-    () => getDeliveryFeeStarsCents(subtotalStarsCents - discountStarsCents),
-    [discountStarsCents, subtotalStarsCents],
+    () =>
+      getDeliveryFeeStarsCents(subtotalStarsCents - discountStarsCents, {
+        freeDeliveryThresholdStarsCents: catalogSettings.freeDeliveryThresholdStarsCents,
+        defaultDeliveryFeeStarsCents: catalogSettings.defaultDeliveryFeeStarsCents,
+      }),
+    [catalogSettings.defaultDeliveryFeeStarsCents, catalogSettings.freeDeliveryThresholdStarsCents, discountStarsCents, subtotalStarsCents],
   );
   const totalStarsCents = Math.max(0, subtotalStarsCents - discountStarsCents + deliveryFeeStarsCents);
   const invoiceStars = starsCentsToInvoiceStars(totalStarsCents);
-  const freeDeliveryThresholdStarsCents = 1200;
+  const freeDeliveryThresholdStarsCents = catalogSettings.freeDeliveryThresholdStarsCents;
   const freeDeliveryLeftStarsCents = Math.max(freeDeliveryThresholdStarsCents - (subtotalStarsCents - discountStarsCents), 0);
-  const freeDeliveryProgress = Math.min(((subtotalStarsCents - discountStarsCents) / freeDeliveryThresholdStarsCents) * 100, 100);
+  const freeDeliveryProgress = freeDeliveryThresholdStarsCents
+    ? Math.min(((subtotalStarsCents - discountStarsCents) / freeDeliveryThresholdStarsCents) * 100, 100)
+    : 100;
 
-  const promoRule = findPromoRule(promoCode);
+  const promoRule = findPromoRule(promoCode, promoRules);
   const promoLabel = promoRule ? `${promoRule.label} активирована (${promoRule.code})` : "";
 
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -370,7 +428,7 @@ export default function ShopPage() {
     const normalized = promoCode.trim().toUpperCase();
     setPromoCode(normalized);
 
-    if (findPromoRule(normalized)) {
+    if (findPromoRule(normalized, promoRules)) {
       hapticNotification("success");
       return;
     }
@@ -387,7 +445,10 @@ export default function ShopPage() {
     hapticSelection();
   };
 
-  const canPay = Boolean(cartItems.length > 0 && checkout.firstName && checkout.lastName && checkout.phone && checkout.address);
+  const checkoutAvailable = catalogSettings.shopEnabled && catalogSettings.checkoutEnabled && !catalogSettings.maintenanceMode;
+  const canPay = Boolean(
+    checkoutAvailable && cartItems.length > 0 && checkout.firstName && checkout.lastName && checkout.phone && checkout.address,
+  );
 
   const submitPayment = async () => {
     if (!canPay || isPaying) {
@@ -417,10 +478,29 @@ export default function ShopPage() {
     }
 
     const customerName = [checkout.firstName, checkout.lastName].filter(Boolean).join(" ");
-    await appendShopOrder({
+    const telegramUser = getTelegramWebApp()?.initDataUnsafe?.user;
+    const normalizedItems = cartItems
+      .map((item) => {
+        const product = productsMap.get(item.productId);
+
+        if (!product) {
+          return null;
+        }
+
+        return {
+          productId: product.id,
+          title: product.title,
+          quantity: item.quantity,
+          priceStarsCents: product.priceStarsCents,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+    const orderCreation = await createShopOrder({
       id: orderCode,
-      createdAt: new Date().toISOString(),
-      status: "processing",
+      status: "paid",
+      invoiceStars,
+      promoCode: promoCode.trim().toUpperCase() || undefined,
       totalStarsCents,
       deliveryFeeStarsCents,
       discountStarsCents,
@@ -428,24 +508,54 @@ export default function ShopPage() {
       address: checkout.address,
       customerName,
       phone: checkout.phone,
+      email: checkout.email,
       comment: checkout.comment,
-      items: cartItems
-        .map((item) => {
-          const product = productsMap.get(item.productId);
-
-          if (!product) {
-            return null;
-          }
-
-          return {
-            productId: product.id,
-            title: product.title,
-            quantity: item.quantity,
-            priceStarsCents: product.priceStarsCents,
-          };
-        })
-        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+      items: normalizedItems,
     });
+
+    if (!orderCreation.order) {
+      const now = new Date().toISOString();
+      await appendShopOrder({
+        id: orderCode,
+        createdAt: now,
+        updatedAt: now,
+        status: "paid",
+        invoiceStars,
+        totalStarsCents,
+        deliveryFeeStarsCents,
+        discountStarsCents,
+        delivery: checkout.delivery,
+        address: checkout.address,
+        customerName,
+        phone: checkout.phone,
+        email: checkout.email,
+        comment: `${checkout.comment}\n[local-fallback] ${orderCreation.error ?? "sync failed"}`.trim(),
+        telegramUserId: telegramUser?.id ?? 0,
+        telegramUsername: telegramUser?.username,
+        telegramFirstName: telegramUser?.first_name,
+        telegramLastName: telegramUser?.last_name,
+        items: normalizedItems,
+        history: [
+          {
+            id: `${Date.now()}-local`,
+            at: now,
+            fromStatus: null,
+            toStatus: "paid",
+            actor: "user",
+            actorTelegramId: telegramUser?.id,
+            note: "Локальный fallback: сервер заказов недоступен",
+          },
+        ],
+      });
+      setPaymentError("Оплата прошла, но сервер заказов недоступен. Заказ сохранён локально.");
+      hapticNotification("warning");
+      setCartItems([]);
+      setPromoCode("");
+      setCheckout(defaultCheckout);
+      setCartOpen(false);
+      router.push("/profile?section=orders");
+      return;
+    }
 
     setCartItems([]);
     setPromoCode("");
@@ -473,6 +583,8 @@ export default function ShopPage() {
             Каталог подделок из глины: 50 товаров, фильтрация и поиск, корзина с промокодами и оформление заказа с оплатой
             в Telegram Stars.
           </p>
+          {catalogSettings.maintenanceMode ? <p className={styles.paymentError}>Режим обслуживания включен администратором.</p> : null}
+          {catalogError ? <p className={styles.paymentError}>Ошибка синхронизации каталога: {catalogError}</p> : null}
         </section>
 
         <ShopCatalogControls

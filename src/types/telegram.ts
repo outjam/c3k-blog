@@ -80,6 +80,7 @@ export interface TelegramCloudStorage {
 }
 
 export interface TelegramWebApp {
+  initData: string;
   platform: string;
   colorScheme: "light" | "dark";
   themeParams: TelegramThemeParams;

@@ -1,16 +1,15 @@
 import { notFound } from "next/navigation";
 
-import { getShopProductBySlug, SHOP_PRODUCTS } from "@/data/shop-products";
+import { getCatalogSnapshot } from "@/lib/server/shop-catalog";
 
 import { ShopProductPageClient } from "./shop-product-page-client";
 
-export function generateStaticParams() {
-  return SHOP_PRODUCTS.map((product) => ({ slug: product.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function ShopProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = getShopProductBySlug(slug);
+  const snapshot = await getCatalogSnapshot();
+  const product = snapshot.products.find((item) => item.slug === slug);
 
   if (!product) {
     notFound();

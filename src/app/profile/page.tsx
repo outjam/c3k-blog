@@ -3,22 +3,19 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import { posts } from "@/data/posts";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 import { readBookmarkedPostSlugs } from "@/lib/post-bookmarks";
+import { isShopAdminUserClient } from "@/lib/shop-admin-client";
+import { FINAL_ORDER_STATUSES, SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
+import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { readShopOrders } from "@/lib/shop-orders";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { ShopOrder } from "@/types/shop";
 
 import styles from "./page.module.scss";
-
-const ORDER_STATUS_LABELS: Record<ShopOrder["status"], string> = {
-  processing: "В обработке",
-  delivering: "В доставке",
-  completed: "Завершен",
-  payment_failed: "Ошибка оплаты",
-};
 
 export default function ProfilePage() {
   const webApp = useTelegramWebApp();
@@ -29,6 +26,8 @@ export default function ProfilePage() {
   const [selectedOrder, setSelectedOrder] = useState<ShopOrder | null>(null);
   const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
   const [focusOrdersSection, setFocusOrdersSection] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
+  const isAdmin = isShopAdminUserClient(user?.id);
 
   const fullName = useMemo(() => {
     if (!user) {
@@ -44,7 +43,7 @@ export default function ProfilePage() {
   }, [bookmarkedSlugs]);
 
   const activeOrders = useMemo(() => {
-    return orders.filter((order) => order.status !== "completed");
+    return orders.filter((order) => !FINAL_ORDER_STATUSES.has(order.status));
   }, [orders]);
 
   useEffect(() => {
@@ -59,13 +58,26 @@ export default function ProfilePage() {
       }
     });
 
-    void readShopOrders().then((nextOrders) => setOrders(nextOrders));
+    void (async () => {
+      const fromApi = await fetchMyShopOrders();
+
+      if (fromApi.orders.length > 0 || !fromApi.error) {
+        setOrders(fromApi.orders);
+        setOrdersError(fromApi.error ?? "");
+        return;
+      }
+
+      const localOrders = await readShopOrders();
+      setOrders(localOrders);
+      setOrdersError(fromApi.error ?? "");
+    })();
+
     void readBookmarkedPostSlugs().then((slugs) => setBookmarkedSlugs(slugs));
 
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -124,6 +136,8 @@ export default function ProfilePage() {
             <p>{activeOrders.length} шт.</p>
           </div>
 
+          {ordersError ? <p className={styles.warning}>Сервер заказов недоступен: {ordersError}</p> : null}
+
           {activeOrders.length === 0 ? (
             <p className={styles.emptyState}>Активных заказов пока нет.</p>
           ) : (
@@ -131,7 +145,7 @@ export default function ProfilePage() {
               {activeOrders.map((order) => (
                 <article key={order.id} className={styles.orderCard}>
                   <p className={styles.orderId}>#{order.id}</p>
-                  <p className={styles.orderStatus}>{ORDER_STATUS_LABELS[order.status]}</p>
+                  <p className={styles.orderStatus}>{SHOP_ORDER_STATUS_LABELS[order.status]}</p>
                   <p className={styles.orderMeta}>{new Date(order.createdAt).toLocaleString("ru-RU")}</p>
                   <p className={styles.orderMeta}>Итого: {formatStarsFromCents(order.totalStarsCents)} ⭐</p>
                   <p className={styles.orderMeta}>Доставка: {order.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}</p>
@@ -143,6 +157,20 @@ export default function ProfilePage() {
             </div>
           )}
         </section>
+
+        <ShopAdminOrdersPanel enabled={isAdmin} />
+
+        {isAdmin ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>
+              <h2>Администрирование</h2>
+              <p>доступ</p>
+            </div>
+            <Link href="/admin" className={styles.inlineButton}>
+              Открыть полную админку
+            </Link>
+          </section>
+        ) : null}
 
         <section className={styles.section}>
           <div className={styles.sectionHead}>
@@ -207,8 +235,9 @@ export default function ProfilePage() {
                 Закрыть
               </button>
             </header>
-            <p className={styles.orderMeta}>Статус: {ORDER_STATUS_LABELS[selectedOrder.status]}</p>
+            <p className={styles.orderMeta}>Статус: {SHOP_ORDER_STATUS_LABELS[selectedOrder.status]}</p>
             <p className={styles.orderMeta}>Адрес: {selectedOrder.address}</p>
+            <p className={styles.orderMeta}>Обновлён: {new Date(selectedOrder.updatedAt).toLocaleString("ru-RU")}</p>
 
             <div className={styles.orderItemsScroll}>
               <table>
@@ -232,6 +261,22 @@ export default function ProfilePage() {
                 </tbody>
               </table>
             </div>
+
+            {selectedOrder.history.length > 0 ? (
+              <div className={styles.orderHistory}>
+                <h4>История статусов</h4>
+                <ul>
+                  {selectedOrder.history.slice(0, 12).map((entry) => (
+                    <li key={entry.id}>
+                      {new Date(entry.at).toLocaleString("ru-RU")} ·{" "}
+                      {entry.fromStatus ? `${SHOP_ORDER_STATUS_LABELS[entry.fromStatus]} → ` : ""}
+                      {SHOP_ORDER_STATUS_LABELS[entry.toStatus]}
+                      {entry.note ? ` · ${entry.note}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}

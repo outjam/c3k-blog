@@ -1,6 +1,78 @@
 export type ShopCategory = "figurine" | "vase" | "mug" | "lamp" | "plate";
 export type DeliveryMethod = "yandex_go" | "cdek";
-export type ShopOrderStatus = "processing" | "delivering" | "completed" | "payment_failed";
+export type PromoDiscountType = "percent" | "fixed";
+export type ShopOrderStatus =
+  | "awaiting_payment"
+  | "payment_pending"
+  | "paid"
+  | "processing"
+  | "confirmed"
+  | "packed"
+  | "ready_to_ship"
+  | "shipped"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered"
+  | "completed"
+  | "cancel_requested"
+  | "cancelled_by_user"
+  | "cancelled_by_admin"
+  | "refund_requested"
+  | "refunded"
+  | "payment_failed"
+  | "failed";
+
+export type ShopOrderHistoryActor = "user" | "admin" | "system" | "bot";
+
+export interface ShopOrderHistoryItem {
+  id: string;
+  at: string;
+  fromStatus: ShopOrderStatus | null;
+  toStatus: ShopOrderStatus;
+  actor: ShopOrderHistoryActor;
+  actorTelegramId?: number;
+  note?: string;
+}
+
+export interface ShopProductOverride {
+  productId: string;
+  priceStarsCents?: number;
+  stock?: number;
+  isPublished?: boolean;
+  isFeatured?: boolean;
+  badge?: string;
+  updatedAt: string;
+}
+
+export interface ShopPromoCode {
+  code: string;
+  label: string;
+  discountType: PromoDiscountType;
+  discountValue: number;
+  minSubtotalStarsCents: number;
+  active: boolean;
+  usageLimit?: number;
+  usedCount: number;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShopAppSettings {
+  shopEnabled: boolean;
+  checkoutEnabled: boolean;
+  maintenanceMode: boolean;
+  defaultDeliveryFeeStarsCents: number;
+  freeDeliveryThresholdStarsCents: number;
+  updatedAt: string;
+}
+
+export interface ShopAdminConfig {
+  productOverrides: Record<string, ShopProductOverride>;
+  promoCodes: ShopPromoCode[];
+  settings: ShopAppSettings;
+  updatedAt: string;
+}
 
 export interface ShopProductAttribute {
   material: string;
@@ -52,7 +124,9 @@ export interface ShopOrderItem {
 export interface ShopOrder {
   id: string;
   createdAt: string;
+  updatedAt: string;
   status: ShopOrderStatus;
+  invoiceStars: number;
   totalStarsCents: number;
   deliveryFeeStarsCents: number;
   discountStarsCents: number;
@@ -60,8 +134,14 @@ export interface ShopOrder {
   address: string;
   customerName: string;
   phone: string;
+  email?: string;
   comment: string;
+  telegramUserId: number;
+  telegramUsername?: string;
+  telegramFirstName?: string;
+  telegramLastName?: string;
   items: ShopOrderItem[];
+  history: ShopOrderHistoryItem[];
 }
 
 export interface CheckoutFormValues {

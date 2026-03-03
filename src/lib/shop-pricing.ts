@@ -1,20 +1,24 @@
-import type { CartItem, ShopProduct } from "@/types/shop";
+import type { CartItem, PromoDiscountType, ShopProduct } from "@/types/shop";
 
 export interface PromoRule {
   code: string;
   label: string;
-  discountPercent: number;
+  discountType: PromoDiscountType;
+  discountValue: number;
 }
 
 export const PROMO_RULES: PromoRule[] = [
-  { code: "CLAY10", label: "Скидка 10%", discountPercent: 10 },
-  { code: "C3K15", label: "Скидка 15%", discountPercent: 15 },
-  { code: "STARS5", label: "Скидка 5%", discountPercent: 5 },
+  { code: "CLAY10", label: "Скидка 10%", discountType: "percent", discountValue: 10 },
+  { code: "C3K15", label: "Скидка 15%", discountType: "percent", discountValue: 15 },
+  { code: "STARS5", label: "Скидка 5%", discountType: "percent", discountValue: 5 },
 ];
 
-export const findPromoRule = (value: string): PromoRule | null => {
+export const DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS = 1200;
+export const DEFAULT_DELIVERY_FEE_STARS_CENTS = 1;
+
+export const findPromoRule = (value: string, rules: PromoRule[] = PROMO_RULES): PromoRule | null => {
   const normalized = value.trim().toUpperCase();
-  return PROMO_RULES.find((rule) => rule.code === normalized) ?? null;
+  return rules.find((rule) => rule.code === normalized) ?? null;
 };
 
 const toMap = (products: ShopProduct[]): Map<string, ShopProduct> => {
@@ -29,16 +33,30 @@ export const getCartSubtotalStarsCents = (products: ShopProduct[], items: CartIt
   }, 0);
 };
 
-export const getDiscountAmountStarsCents = (subtotalStarsCents: number, promoCode: string): number => {
-  const promo = findPromoRule(promoCode);
+export const getDiscountAmountStarsCents = (
+  subtotalStarsCents: number,
+  promoCode: string,
+  rules: PromoRule[] = PROMO_RULES,
+): number => {
+  const promo = findPromoRule(promoCode, rules);
 
   if (!promo) {
     return 0;
   }
 
-  return Math.round((subtotalStarsCents * promo.discountPercent) / 100);
+  if (promo.discountType === "fixed") {
+    return Math.min(subtotalStarsCents, Math.max(0, Math.round(promo.discountValue)));
+  }
+
+  return Math.min(subtotalStarsCents, Math.round((subtotalStarsCents * promo.discountValue) / 100));
 };
 
-export const getDeliveryFeeStarsCents = (subtotalAfterDiscountStarsCents: number): number => {
-  return subtotalAfterDiscountStarsCents >= 1200 ? 0 : 1;
+export const getDeliveryFeeStarsCents = (
+  subtotalAfterDiscountStarsCents: number,
+  options?: { freeDeliveryThresholdStarsCents?: number; defaultDeliveryFeeStarsCents?: number },
+): number => {
+  const threshold = Math.max(0, Math.round(options?.freeDeliveryThresholdStarsCents ?? DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS));
+  const deliveryFee = Math.max(0, Math.round(options?.defaultDeliveryFeeStarsCents ?? DEFAULT_DELIVERY_FEE_STARS_CENTS));
+
+  return subtotalAfterDiscountStarsCents >= threshold ? 0 : deliveryFee;
 };
