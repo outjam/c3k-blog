@@ -21,7 +21,6 @@ interface ProductDbRow {
   metadata?: Record<string, unknown>;
 }
 
-const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1";
 const DEFAULT_PRODUCT_IMAGE = "/posts/cover-pattern.svg";
 const DEFAULT_ATTRIBUTES: ShopProduct["attributes"] = {
   material: "Глина",
@@ -148,23 +147,17 @@ export const getCatalogSnapshot = async (): Promise<{
   const config = await readShopAdminConfig();
   const hasPostgresConfig = Boolean(getPostgresHttpConfig());
 
-  if (POSTGRES_STRICT && !hasPostgresConfig) {
-    throw new Error("Postgres strict mode is enabled, but SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are missing");
+  if (!hasPostgresConfig) {
+    throw new Error("Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  let baseProducts: ShopProduct[] = [];
+  const dbRead = await readProductsFromDb();
 
-  if (hasPostgresConfig) {
-    const dbRead = await readProductsFromDb();
-
-    if (!dbRead.ok) {
-      if (POSTGRES_STRICT) {
-        throw new Error("Failed to load products from Postgres");
-      }
-    } else if (dbRead.products.length > 0 || POSTGRES_STRICT) {
-      baseProducts = dbRead.products;
-    }
+  if (!dbRead.ok) {
+    throw new Error("Failed to load products from Postgres");
   }
+
+  const baseProducts = dbRead.products;
 
   const categories = config.productCategories;
   const categoryMap = new Map(categories.map((category) => [category.id, category]));

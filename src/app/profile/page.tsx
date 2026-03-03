@@ -13,7 +13,6 @@ import { readFavoriteProductIds } from "@/lib/product-favorites";
 import { isShopAdminUserClient } from "@/lib/shop-admin-client";
 import { FINAL_ORDER_STATUSES, SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
-import { readShopOrders } from "@/lib/shop-orders";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { ShopOrder, ShopProduct } from "@/types/shop";
 
@@ -72,15 +71,7 @@ export default function ProfilePage() {
 
     void (async () => {
       const fromApi = await fetchMyShopOrders();
-
-      if (fromApi.orders.length > 0 || !fromApi.error) {
-        setOrders(fromApi.orders);
-        setOrdersError(fromApi.error ?? "");
-        return;
-      }
-
-      const localOrders = await readShopOrders();
-      setOrders(localOrders);
+      setOrders(fromApi.orders);
       setOrdersError(fromApi.error ?? "");
     })();
 

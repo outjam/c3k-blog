@@ -75,6 +75,132 @@
   font-size: 0.82rem;
 }
 
+.social {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.95rem;
+  border-radius: var(--radius-lg);
+  background: var(--tg-section-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.socialHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.socialHeader h2 {
+  font-size: 0.95rem;
+  color: var(--tg-section-header-text);
+}
+
+.socialHeader p {
+  color: var(--subtle-text);
+  font-size: 0.82rem;
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.reactionButton {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 80%, transparent);
+  color: var(--tg-text);
+  border-radius: 999px;
+  min-height: 2rem;
+  padding: 0 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.reactionButtonActive {
+  border-color: color-mix(in srgb, var(--tg-btn) 65%, transparent);
+  background: color-mix(in srgb, var(--tg-btn) 20%, transparent);
+}
+
+.commentComposer {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.commentComposer textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 85%, transparent);
+  color: var(--tg-text);
+  padding: 0.62rem 0.7rem;
+  font: inherit;
+}
+
+.socialHint {
+  color: var(--subtle-text);
+  font-size: 0.82rem;
+}
+
+.socialError {
+  color: color-mix(in srgb, #ff6767 72%, var(--tg-text));
+  font-size: 0.82rem;
+}
+
+.commentsList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.commentCard {
+  display: grid;
+  gap: 0.35rem;
+  border-radius: 0.72rem;
+  padding: 0.62rem 0.68rem;
+  background: color-mix(in srgb, var(--tg-bg) 85%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 25%, transparent);
+}
+
+.commentCard header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.commentCard header div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.commentCard strong {
+  font-size: 0.84rem;
+}
+
+.commentCard time {
+  color: var(--subtle-text);
+  font-size: 0.72rem;
+}
+
+.commentCard p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.commentDelete {
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, #ff6767 70%, var(--tg-text));
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 @media (max-width: 640px) {
   .page {
     padding-top: 0.72rem;

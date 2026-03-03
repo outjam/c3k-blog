@@ -5,19 +5,11 @@
 ## Что внутри
 
 - Next.js 16 + React 19 + TypeScript
-- App Router + SSG для постов
-- SCSS modules + кастомный UI
-- Поддержка Telegram WebApp API:
-  - MainButton
-  - BackButton
-  - HapticFeedback
-  - нативные цвета темы Telegram (`themeParams`, включая реакцию на `themeChanged`)
-- Богатый контент постов:
-  - параграфы
-  - цитаты
-  - фото
-  - галерея-слайдер
-  - списки
+- Telegram Mini App: блог + магазин + админка
+- Платежи Telegram Stars (server-side state machine + webhook verification)
+- Postgres (Supabase) как основной production storage
+- Social для блога: комментарии и реакции (DB-backed)
+- CI quality gates: lint, typecheck, unit, integration, e2e payment, build
 
 ## Локальный запуск
 
@@ -32,10 +24,25 @@ npm run dev
 
 ## Переменные окружения
 
-Скопируй `.env.example` в `.env.local` и укажи значения:
+Скопируй `.env.example` в `.env.local` и задай значения.
 
-- `NEXT_PUBLIC_APP_URL` — публичный URL приложения (Vercel URL)
-- `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` — username бота (без `@`)
+Минимально для production:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `POSTGRES_STRICT_MODE=1`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_WEBHOOK_BASE_URL`
+- `TELEGRAM_ADMIN_KEY`
+- `TELEGRAM_WORKER_SECRET`
+- `CRON_SECRET`
+- `SHOP_ADMIN_TELEGRAM_IDS`
+
+Опционально (но рекомендуется для стабильности очередей/rate-limit/idempotency):
+
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
 
 ## Деплой на Vercel
 
@@ -62,5 +69,16 @@ npm run dev
 
 ```bash
 npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:integration
+npm run test:e2e:payment
 npm run build
 ```
+
+## Production документация
+
+- [Production Refactor Roadmap](docs/production-refactor-roadmap.md)
+- [Roadmap Улучшений 2026](docs/production-improvement-roadmap-2026.md)
+- [Release Checklist](docs/release-checklist.md)
+- [Rollback Runbook](docs/rollback-runbook.md)

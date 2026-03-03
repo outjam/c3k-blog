@@ -8,7 +8,6 @@ import {
 import { isShopAdminRole } from "@/lib/shop-admin-roles";
 import { DEFAULT_ADMIN_TELEGRAM_ID, getShopAdminTelegramIds } from "@/lib/shop-admin";
 import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
-import { executeUpstashPipeline } from "@/lib/server/upstash-store";
 import type {
   ShopAdminConfig,
   ShopAdminMember,
@@ -19,11 +18,7 @@ import type {
   ShopPromoCode,
 } from "@/types/shop";
 
-const ADMIN_CONFIG_KEY = "c3k:shop:admin-config:v1";
 const POSTGRES_ADMIN_CONFIG_KEY = "shop_admin_config_v1";
-const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1";
-
-type GlobalWithConfig = typeof globalThis & { __c3kShopAdminConfigMemory__?: ShopAdminConfig };
 
 const DEFAULT_PRODUCT_IMAGE = "/posts/cover-pattern.svg";
 const DEFAULT_PRODUCT_RATING = 0;
@@ -662,38 +657,6 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
   };
 };
 
-const readConfigFromRedis = async (): Promise<ShopAdminConfig | null> => {
-  const result = await executeUpstashPipeline([["GET", ADMIN_CONFIG_KEY]]);
-
-  if (!result) {
-    return null;
-  }
-
-  const first = result[0];
-
-  if (!first || first.error || typeof first.result !== "string") {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(first.result) as unknown;
-    return sanitizeConfig(parsed);
-  } catch {
-    return null;
-  }
-};
-
-const writeConfigToRedis = async (config: ShopAdminConfig): Promise<boolean> => {
-  const result = await executeUpstashPipeline([["SET", ADMIN_CONFIG_KEY, JSON.stringify(config)]]);
-
-  if (!result) {
-    return false;
-  }
-
-  const first = result[0];
-  return Boolean(first && !first.error);
-};
-
 interface PostgresAppStateRow {
   payload?: unknown;
   row_version?: number;
@@ -707,6 +670,12 @@ interface PostgresPutStateResult {
 
 const isPostgresEnabled = (): boolean => {
   return Boolean(getPostgresHttpConfig());
+};
+
+const requirePostgres = (): void => {
+  if (!isPostgresEnabled()) {
+    throw new Error("Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY for admin config");
+  }
 };
 
 const readConfigWithVersionFromPostgres = async (): Promise<{ config: ShopAdminConfig; rowVersion: number } | null> => {
@@ -758,70 +727,45 @@ const writeConfigToPostgres = async (
   return { ok: false, conflict };
 };
 
-const getMemoryConfig = (): ShopAdminConfig => {
-  const root = globalThis as GlobalWithConfig;
-
-  if (!root.__c3kShopAdminConfigMemory__) {
-    root.__c3kShopAdminConfigMemory__ = buildDefaultConfig();
-  }
-
-  return root.__c3kShopAdminConfigMemory__;
-};
-
 export const readShopAdminConfig = async (): Promise<ShopAdminConfig> => {
-  if (isPostgresEnabled()) {
-    const postgresConfig = await readConfigWithVersionFromPostgres();
+  requirePostgres();
+  const postgresConfig = await readConfigWithVersionFromPostgres();
 
-    if (postgresConfig) {
-      if (postgresConfig.rowVersion > 0) {
-        return postgresConfig.config;
-      }
-
-      const redisConfig = await readConfigFromRedis();
-
-      if (redisConfig) {
-        await writeConfigToPostgres(redisConfig, 0);
-        return redisConfig;
-      }
-
-      return postgresConfig.config;
-    }
-
-    if (POSTGRES_STRICT) {
-      throw new Error("Failed to read admin config from Postgres");
-    }
+  if (!postgresConfig) {
+    throw new Error("Failed to read admin config from Postgres");
   }
 
-  const redisConfig = await readConfigFromRedis();
-
-  if (redisConfig) {
-    return redisConfig;
+  if (postgresConfig.rowVersion > 0) {
+    return postgresConfig.config;
   }
 
-  return sanitizeConfig(getMemoryConfig());
+  const bootstrapped = await writeConfigToPostgres(postgresConfig.config, 0);
+
+  if (bootstrapped.ok) {
+    return postgresConfig.config;
+  }
+
+  if (!bootstrapped.conflict) {
+    throw new Error("Failed to bootstrap admin config in Postgres");
+  }
+
+  const replay = await readConfigWithVersionFromPostgres();
+
+  if (!replay || replay.rowVersion < 1) {
+    throw new Error("Failed to read bootstrapped admin config from Postgres");
+  }
+
+  return replay.config;
 };
 
 export const writeShopAdminConfig = async (config: ShopAdminConfig): Promise<ShopAdminConfig> => {
+  requirePostgres();
   const normalized = sanitizeConfig(config);
   normalized.updatedAt = new Date().toISOString();
+  const saved = await writeConfigToPostgres(normalized, null);
 
-  if (isPostgresEnabled()) {
-    const saved = await writeConfigToPostgres(normalized, null);
-
-    if (saved.ok) {
-      return normalized;
-    }
-
-    if (POSTGRES_STRICT) {
-      throw new Error("Failed to write admin config to Postgres");
-    }
-  }
-
-  const saved = await writeConfigToRedis(normalized);
-
-  if (!saved) {
-    const root = globalThis as GlobalWithConfig;
-    root.__c3kShopAdminConfigMemory__ = normalized;
+  if (!saved.ok) {
+    throw new Error("Failed to write admin config to Postgres");
   }
 
   return normalized;
@@ -830,35 +774,29 @@ export const writeShopAdminConfig = async (config: ShopAdminConfig): Promise<Sho
 export const mutateShopAdminConfig = async (
   mutate: (current: ShopAdminConfig) => ShopAdminConfig,
 ): Promise<ShopAdminConfig> => {
-  if (isPostgresEnabled()) {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const current = await readConfigWithVersionFromPostgres();
+  requirePostgres();
 
-      if (!current) {
-        break;
-      }
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const current = await readConfigWithVersionFromPostgres();
 
-      const next = sanitizeConfig(mutate(current.config));
-      next.updatedAt = new Date().toISOString();
-      const saved = await writeConfigToPostgres(next, current.rowVersion);
-
-      if (saved.ok) {
-        return next;
-      }
-
-      if (!saved.conflict) {
-        break;
-      }
+    if (!current) {
+      break;
     }
 
-    if (POSTGRES_STRICT) {
-      throw new Error("Failed to mutate admin config in Postgres");
+    const next = sanitizeConfig(mutate(current.config));
+    next.updatedAt = new Date().toISOString();
+    const saved = await writeConfigToPostgres(next, current.rowVersion);
+
+    if (saved.ok) {
+      return next;
+    }
+
+    if (!saved.conflict) {
+      break;
     }
   }
 
-  const current = await readShopAdminConfig();
-  const next = mutate(current);
-  return writeShopAdminConfig(next);
+  throw new Error("Failed to mutate admin config in Postgres");
 };
 
 export const isPromoExpired = (expiresAt: string | undefined): boolean => {

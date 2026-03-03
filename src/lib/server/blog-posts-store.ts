@@ -13,7 +13,7 @@ interface BlogPostDbRow {
   updated_at?: string;
 }
 
-const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1";
+const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1" || process.env.NODE_ENV === "production";
 
 const DEFAULT_COVER: PostImage = {
   src: "/posts/cover-pattern.svg",
