@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { fetchAdminOrders } from "@/lib/admin-api";
+import { type AdminOrdersSort, fetchAdminOrders } from "@/lib/admin-api";
 import { SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
 import { updateAdminOrderStatus } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
@@ -25,6 +25,15 @@ const STATUS_OPTIONS = Object.entries(SHOP_ORDER_STATUS_LABELS).map(([value, lab
   label,
 }));
 
+const SORT_OPTIONS: Array<{ value: AdminOrdersSort; label: string }> = [
+  { value: "updated_desc", label: "Сначала свежие" },
+  { value: "updated_asc", label: "Сначала старые" },
+  { value: "created_desc", label: "Созданные: новые" },
+  { value: "created_asc", label: "Созданные: старые" },
+  { value: "total_desc", label: "Сумма: по убыванию" },
+  { value: "total_asc", label: "Сумма: по возрастанию" },
+];
+
 const toOrderDraft = (order: ShopOrder): DraftState => {
   return { status: order.status, note: "" };
 };
@@ -35,14 +44,26 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<ShopOrderStatus | "all">("all");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<AdminOrdersSort>("updated_desc");
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalFiltered, setTotalFiltered] = useState(0);
+  const [statusCounters, setStatusCounters] = useState<Record<string, number>>({});
 
-  const loadOrders = async () => {
+  const loadOrders = async (options?: { append?: boolean }) => {
+    const append = Boolean(options?.append);
     setLoading(true);
     setError("");
 
-    const response = await fetchAdminOrders({ status: statusFilter, query });
+    const response = await fetchAdminOrders({
+      status: statusFilter,
+      query,
+      sort,
+      limit: 30,
+      cursor: append ? nextCursor : null,
+    });
 
     if (response.error) {
       setError(response.error);
@@ -50,7 +71,11 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
       return;
     }
 
-    setOrders(response.orders);
+    setOrders((prev) => (append ? [...prev, ...response.orders] : response.orders));
+    setNextCursor(response.pageInfo.nextCursor);
+    setHasMore(response.pageInfo.hasMore);
+    setTotalFiltered(response.totalFiltered);
+    setStatusCounters(response.statusCounters);
     setDrafts((prev) => {
       const next = { ...prev };
 
@@ -68,18 +93,14 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
       return;
     }
 
-    void loadOrders();
-  }, [enabled, statusFilter]);
+    const timer = window.setTimeout(() => {
+      void loadOrders({ append: false });
+    }, 0);
 
-  const summary = useMemo(() => {
-    const counters: Partial<Record<ShopOrderStatus, number>> = {};
-
-    for (const order of orders) {
-      counters[order.status] = (counters[order.status] ?? 0) + 1;
-    }
-
-    return counters;
-  }, [orders]);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [enabled, statusFilter, sort]);
 
   if (!enabled) {
     return null;
@@ -114,15 +135,28 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
             placeholder="ID, клиент, телефон, username"
           />
         </label>
+        <label>
+          Сортировка
+          <select value={sort} onChange={(event) => setSort(event.target.value as AdminOrdersSort)}>
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="button" onClick={() => void loadOrders()} disabled={loading}>
           Найти
         </button>
       </div>
 
       <div className={styles.statusRow}>
+        <span>
+          Найдено: <b>{totalFiltered}</b>
+        </span>
         {STATUS_OPTIONS.map((option) => (
           <span key={option.value}>
-            {option.label}: <b>{summary[option.value] ?? 0}</b>
+            {option.label}: <b>{statusCounters[option.value] ?? 0}</b>
           </span>
         ))}
       </div>
@@ -231,6 +265,13 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
           })}
         </div>
       )}
+      {orders.length > 0 && hasMore ? (
+        <div className={styles.head}>
+          <button type="button" onClick={() => void loadOrders({ append: true })} disabled={loading}>
+            {loading ? "Загружаем..." : "Загрузить ещё"}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

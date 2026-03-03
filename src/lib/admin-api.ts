@@ -67,6 +67,15 @@ export interface AdminSession {
   permissions: ShopAdminPermission[];
 }
 
+export type AdminOrdersSort = "updated_desc" | "updated_asc" | "created_desc" | "created_asc" | "total_desc" | "total_asc";
+
+export interface AdminOrdersPageInfo {
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  sort: AdminOrdersSort;
+}
+
 const parseApiError = async (response: Response): Promise<string> => {
   try {
     const payload = (await response.json()) as ApiErrorShape;
@@ -592,7 +601,16 @@ export const fetchPublicCatalog = async (): Promise<{
 export const fetchAdminOrders = async (params?: {
   status?: ShopOrderStatus | "all";
   query?: string;
-}): Promise<{ orders: ShopOrder[]; error?: string }> => {
+  sort?: AdminOrdersSort;
+  limit?: number;
+  cursor?: string | null;
+}): Promise<{
+  orders: ShopOrder[];
+  pageInfo: AdminOrdersPageInfo;
+  totalFiltered: number;
+  statusCounters: Record<string, number>;
+  error?: string;
+}> => {
   const search = new URLSearchParams();
 
   if (params?.status && params.status !== "all") {
@@ -603,6 +621,18 @@ export const fetchAdminOrders = async (params?: {
     search.set("query", params.query.trim());
   }
 
+  if (params?.sort) {
+    search.set("sort", params.sort);
+  }
+
+  if (typeof params?.limit === "number" && Number.isFinite(params.limit)) {
+    search.set("limit", String(Math.round(params.limit)));
+  }
+
+  if (params?.cursor) {
+    search.set("cursor", params.cursor);
+  }
+
   try {
     const response = await fetch(`/api/shop/admin/orders${search.toString() ? `?${search.toString()}` : ""}`, {
       method: "GET",
@@ -611,12 +641,40 @@ export const fetchAdminOrders = async (params?: {
     });
 
     if (!response.ok) {
-      return { orders: [], error: await parseApiError(response) };
+      return {
+        orders: [],
+        pageInfo: { limit: 30, hasMore: false, nextCursor: null, sort: params?.sort ?? "updated_desc" },
+        totalFiltered: 0,
+        statusCounters: {},
+        error: await parseApiError(response),
+      };
     }
 
-    const payload = (await response.json()) as { orders?: ShopOrder[] };
-    return { orders: payload.orders ?? [] };
+    const payload = (await response.json()) as {
+      orders?: ShopOrder[];
+      pageInfo?: Partial<AdminOrdersPageInfo>;
+      totalFiltered?: number;
+      statusCounters?: Record<string, number>;
+    };
+
+    return {
+      orders: payload.orders ?? [],
+      pageInfo: {
+        limit: Math.max(1, Math.round(Number(payload.pageInfo?.limit ?? 30))),
+        hasMore: Boolean(payload.pageInfo?.hasMore),
+        nextCursor: typeof payload.pageInfo?.nextCursor === "string" ? payload.pageInfo.nextCursor : null,
+        sort: (payload.pageInfo?.sort as AdminOrdersSort) ?? "updated_desc",
+      },
+      totalFiltered: Math.max(0, Math.round(Number(payload.totalFiltered ?? 0))),
+      statusCounters: payload.statusCounters ?? {},
+    };
   } catch {
-    return { orders: [], error: "Network error" };
+    return {
+      orders: [],
+      pageInfo: { limit: 30, hasMore: false, nextCursor: null, sort: params?.sort ?? "updated_desc" },
+      totalFiltered: 0,
+      statusCounters: {},
+      error: "Network error",
+    };
   }
 };

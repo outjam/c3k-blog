@@ -7,14 +7,14 @@ export interface TelegramInlineButton {
   icon_custom_emoji_id?: string;
 }
 
-interface TelegramMessageOptions {
+export interface TelegramMessageOptions {
   parseMode?: "HTML" | "MarkdownV2";
   buttons?: TelegramInlineButton[][];
   disableWebPagePreview?: boolean;
   messageEffectId?: string;
 }
 
-interface TelegramDocumentOptions {
+export interface TelegramDocumentOptions {
   caption?: string;
   parseMode?: "HTML" | "MarkdownV2";
   buttons?: TelegramInlineButton[][];

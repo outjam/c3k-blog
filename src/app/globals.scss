@@ -4,8 +4,6 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  user-select: none;
-  -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -39,4 +37,9 @@ textarea {
 a {
   color: var(--tg-link);
   text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--tg-link);
+  outline-offset: 2px;
 }

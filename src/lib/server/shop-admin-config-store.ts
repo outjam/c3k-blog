@@ -8,6 +8,8 @@ import {
 } from "@/lib/shop-pricing";
 import { isShopAdminRole } from "@/lib/shop-admin-roles";
 import { DEFAULT_ADMIN_TELEGRAM_ID, getShopAdminTelegramIds } from "@/lib/shop-admin";
+import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
+import { executeUpstashPipeline } from "@/lib/server/upstash-store";
 import type {
   ShopAdminConfig,
   ShopAdminMember,
@@ -19,6 +21,8 @@ import type {
 } from "@/types/shop";
 
 const ADMIN_CONFIG_KEY = "c3k:shop:admin-config:v1";
+const POSTGRES_ADMIN_CONFIG_KEY = "shop_admin_config_v1";
+const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1";
 
 type GlobalWithConfig = typeof globalThis & { __c3kShopAdminConfigMemory__?: ShopAdminConfig };
 
@@ -585,51 +589,6 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
   };
 };
 
-const getRedisConfig = (): { url: string; token: string } | null => {
-  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-
-  if (!url || !token) {
-    return null;
-  }
-
-  return { url, token };
-};
-
-interface UpstashPipelineEntry {
-  result?: unknown;
-  error?: string;
-}
-
-const executeUpstashPipeline = async (commands: Array<Array<string>>): Promise<UpstashPipelineEntry[] | null> => {
-  const config = getRedisConfig();
-
-  if (!config) {
-    return null;
-  }
-
-  try {
-    const response = await fetch(`${config.url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(commands),
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const payload = (await response.json()) as UpstashPipelineEntry[];
-    return Array.isArray(payload) ? payload : null;
-  } catch {
-    return null;
-  }
-};
-
 const readConfigFromRedis = async (): Promise<ShopAdminConfig | null> => {
   const result = await executeUpstashPipeline([["GET", ADMIN_CONFIG_KEY]]);
 
@@ -662,6 +621,70 @@ const writeConfigToRedis = async (config: ShopAdminConfig): Promise<boolean> => 
   return Boolean(first && !first.error);
 };
 
+interface PostgresAppStateRow {
+  payload?: unknown;
+  row_version?: number;
+}
+
+interface PostgresPutStateResult {
+  ok?: boolean;
+  row_version?: number | null;
+  error?: string | null;
+}
+
+const isPostgresEnabled = (): boolean => {
+  return Boolean(getPostgresHttpConfig());
+};
+
+const readConfigWithVersionFromPostgres = async (): Promise<{ config: ShopAdminConfig; rowVersion: number } | null> => {
+  const rows = await postgresRpc<PostgresAppStateRow[]>("c3k_get_app_state", {
+    p_key: POSTGRES_ADMIN_CONFIG_KEY,
+  });
+
+  if (!rows) {
+    return null;
+  }
+
+  const first = rows[0];
+
+  if (!first) {
+    return {
+      config: buildDefaultConfig(),
+      rowVersion: 0,
+    };
+  }
+
+  return {
+    config: sanitizeConfig(first.payload),
+    rowVersion: typeof first.row_version === "number" ? first.row_version : 1,
+  };
+};
+
+const writeConfigToPostgres = async (
+  config: ShopAdminConfig,
+  expectedRowVersion: number | null,
+): Promise<{ ok: true } | { ok: false; conflict: boolean }> => {
+  const rows = await postgresRpc<PostgresPutStateResult[]>("c3k_put_app_state", {
+    p_key: POSTGRES_ADMIN_CONFIG_KEY,
+    p_payload: config,
+    p_expected_row_version: expectedRowVersion,
+  });
+
+  if (!rows || !rows[0]) {
+    return { ok: false, conflict: false };
+  }
+
+  const first = rows[0];
+  const ok = Boolean(first.ok);
+  const conflict = String(first.error ?? "") === "version_conflict";
+
+  if (ok) {
+    return { ok: true };
+  }
+
+  return { ok: false, conflict };
+};
+
 const getMemoryConfig = (): ShopAdminConfig => {
   const root = globalThis as GlobalWithConfig;
 
@@ -673,6 +696,29 @@ const getMemoryConfig = (): ShopAdminConfig => {
 };
 
 export const readShopAdminConfig = async (): Promise<ShopAdminConfig> => {
+  if (isPostgresEnabled()) {
+    const postgresConfig = await readConfigWithVersionFromPostgres();
+
+    if (postgresConfig) {
+      if (postgresConfig.rowVersion > 0) {
+        return postgresConfig.config;
+      }
+
+      const redisConfig = await readConfigFromRedis();
+
+      if (redisConfig) {
+        await writeConfigToPostgres(redisConfig, 0);
+        return redisConfig;
+      }
+
+      return postgresConfig.config;
+    }
+
+    if (POSTGRES_STRICT) {
+      throw new Error("Failed to read admin config from Postgres");
+    }
+  }
+
   const redisConfig = await readConfigFromRedis();
 
   if (redisConfig) {
@@ -685,6 +731,19 @@ export const readShopAdminConfig = async (): Promise<ShopAdminConfig> => {
 export const writeShopAdminConfig = async (config: ShopAdminConfig): Promise<ShopAdminConfig> => {
   const normalized = sanitizeConfig(config);
   normalized.updatedAt = new Date().toISOString();
+
+  if (isPostgresEnabled()) {
+    const saved = await writeConfigToPostgres(normalized, null);
+
+    if (saved.ok) {
+      return normalized;
+    }
+
+    if (POSTGRES_STRICT) {
+      throw new Error("Failed to write admin config to Postgres");
+    }
+  }
+
   const saved = await writeConfigToRedis(normalized);
 
   if (!saved) {
@@ -698,6 +757,32 @@ export const writeShopAdminConfig = async (config: ShopAdminConfig): Promise<Sho
 export const mutateShopAdminConfig = async (
   mutate: (current: ShopAdminConfig) => ShopAdminConfig,
 ): Promise<ShopAdminConfig> => {
+  if (isPostgresEnabled()) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const current = await readConfigWithVersionFromPostgres();
+
+      if (!current) {
+        break;
+      }
+
+      const next = sanitizeConfig(mutate(current.config));
+      next.updatedAt = new Date().toISOString();
+      const saved = await writeConfigToPostgres(next, current.rowVersion);
+
+      if (saved.ok) {
+        return next;
+      }
+
+      if (!saved.conflict) {
+        break;
+      }
+    }
+
+    if (POSTGRES_STRICT) {
+      throw new Error("Failed to mutate admin config in Postgres");
+    }
+  }
+
   const current = await readShopAdminConfig();
   const next = mutate(current);
   return writeShopAdminConfig(next);

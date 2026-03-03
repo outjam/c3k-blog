@@ -1,6 +1,9 @@
 import { getShopAdminTelegramIds } from "@/lib/shop-admin";
 import { SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
-import { sendTelegramMessage, type TelegramInlineButton } from "@/lib/server/telegram-bot";
+import {
+  enqueueTelegramMessageNotification,
+} from "@/lib/server/telegram-notification-queue";
+import type { TelegramInlineButton } from "@/lib/server/telegram-bot";
 import type { ShopOrder, ShopOrderStatus } from "@/types/shop";
 
 const STARS_EMOJI_ID = "6028338546736107668";
@@ -117,9 +120,14 @@ export const notifyAdminsAboutNewOrder = async (order: ShopOrder, miniAppBaseUrl
 
   await Promise.all(
     adminIds.map((adminId) =>
-      sendTelegramMessage(adminId, text, {
-        parseMode: "HTML",
-        buttons: buttons.length > 0 ? buttons : undefined,
+      enqueueTelegramMessageNotification({
+        chatId: adminId,
+        text,
+        options: {
+          parseMode: "HTML",
+          buttons: buttons.length > 0 ? buttons : undefined,
+        },
+        dedupeKey: `admin:new-order:${order.id}:${adminId}`,
       }),
     ),
   );
@@ -167,9 +175,14 @@ export const notifyUserAboutStatusChange = async (
     buttons.push(secondRow);
   }
 
-  await sendTelegramMessage(order.telegramUserId, text, {
-    parseMode: "HTML",
-    buttons: buttons.length > 0 ? buttons : undefined,
+  await enqueueTelegramMessageNotification({
+    chatId: order.telegramUserId,
+    text,
+    options: {
+      parseMode: "HTML",
+      buttons: buttons.length > 0 ? buttons : undefined,
+    },
+    dedupeKey: `user:status:${order.id}:${previousStatus}->${order.status}:${order.updatedAt}`,
   });
 };
 
@@ -189,10 +202,14 @@ export const notifyAdminsAboutStatusChange = async (
 
   await Promise.all(
     adminIds.map((adminId) =>
-      sendTelegramMessage(adminId, text, {
-        parseMode: "HTML",
+      enqueueTelegramMessageNotification({
+        chatId: adminId,
+        text,
+        options: {
+          parseMode: "HTML",
+        },
+        dedupeKey: `admin:status:${order.id}:${previousStatus}->${order.status}:${adminId}:${order.updatedAt}`,
       }),
     ),
   );
 };
-

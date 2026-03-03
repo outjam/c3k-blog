@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
+import {
+  extractIdempotencyKey,
+  hashIdempotencyPayload,
+  readIdempotencyRecord,
+  saveIdempotencyRecord,
+} from "@/lib/server/idempotency-store";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 import { forbiddenResponse, getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
 
@@ -32,6 +39,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return contentTypeError;
   }
 
+  const rate = await checkRateLimit({
+    scope: "shop_order_payment_failed",
+    identifier: auth.telegramUserId,
+    limit: 30,
+    windowSec: 60,
+  });
+
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded", retryAfterSec: rate.retryAfterSec },
+      { status: 429, headers: { "retry-after": String(rate.retryAfterSec) } },
+    );
+  }
+
   const params = await context.params;
   const orderId = sanitizeOrderId(params.id);
 
@@ -45,6 +66,29 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     payload = (await request.json()) as PaymentFailedBody;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const idempotencyKey = extractIdempotencyKey(request);
+  const requestHash = hashIdempotencyPayload(payload);
+
+  if (idempotencyKey) {
+    const replay = await readIdempotencyRecord({
+      scope: "shop_order_payment_failed",
+      actor: auth.telegramUserId,
+      key: idempotencyKey,
+      requestHash,
+    });
+
+    if (replay.kind === "mismatch") {
+      return NextResponse.json({ error: "Idempotency-Key payload mismatch" }, { status: 409 });
+    }
+
+    if (replay.kind === "hit") {
+      return NextResponse.json(replay.body as object, {
+        status: replay.statusCode,
+        headers: { "x-idempotent-replay": "1" },
+      });
+    }
   }
 
   const reason = String(payload.reason ?? "").trim().slice(0, 300);
@@ -109,5 +153,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ order: updated });
+  const responseBody = { order: updated };
+
+  if (idempotencyKey) {
+    await saveIdempotencyRecord({
+      scope: "shop_order_payment_failed",
+      actor: auth.telegramUserId,
+      key: idempotencyKey,
+      requestHash,
+      statusCode: 200,
+      body: responseBody,
+      ttlSec: 60 * 60,
+    });
+  }
+
+  return NextResponse.json(responseBody);
 }

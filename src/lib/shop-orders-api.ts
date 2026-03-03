@@ -85,11 +85,14 @@ export const fetchShopOrderById = async (orderId: string): Promise<{ order: Shop
 };
 
 export const createShopOrder = async (payload: CreateOrderPayload): Promise<{ order: ShopOrder | null; error?: string }> => {
+  const idempotencyKey = `order-create:${payload.id.trim().toUpperCase()}`;
+
   try {
     const response = await fetch("/api/shop/orders", {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
         ...getTelegramAuthHeaders(),
       },
       body: JSON.stringify(payload),
@@ -112,11 +115,14 @@ export const markShopOrderPaymentFailed = async (payload: {
   providerStatus?: string;
   reason?: string;
 }): Promise<{ order: ShopOrder | null; error?: string }> => {
+  const idempotencyKey = `order-payment-failed:${payload.orderId.trim().toUpperCase()}`;
+
   try {
     const response = await fetch(`/api/shop/orders/${encodeURIComponent(payload.orderId)}/payment-failed`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
         ...getTelegramAuthHeaders(),
       },
       body: JSON.stringify({

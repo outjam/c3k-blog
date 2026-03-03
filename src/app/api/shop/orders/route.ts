@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 
+import {
+  extractIdempotencyKey,
+  hashIdempotencyPayload,
+  readIdempotencyRecord,
+  saveIdempotencyRecord,
+} from "@/lib/server/idempotency-store";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { getShopOrderById, listShopOrdersByTelegramUser, upsertShopOrder } from "@/lib/server/shop-orders-store";
 import type { DeliveryMethod, ShopOrder, ShopOrderItem } from "@/types/shop";
@@ -78,6 +85,20 @@ export async function GET(request: Request) {
     return unauthorizedResponse();
   }
 
+  const rate = await checkRateLimit({
+    scope: "shop_orders_list",
+    identifier: auth.telegramUserId,
+    limit: 120,
+    windowSec: 60,
+  });
+
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded", retryAfterSec: rate.retryAfterSec },
+      { status: 429, headers: { "retry-after": String(rate.retryAfterSec) } },
+    );
+  }
+
   const orders = await listShopOrdersByTelegramUser(auth.telegramUserId);
   return NextResponse.json({ orders });
 }
@@ -94,12 +115,49 @@ export async function POST(request: Request) {
     return contentTypeError;
   }
 
+  const rate = await checkRateLimit({
+    scope: "shop_order_create",
+    identifier: auth.telegramUserId,
+    limit: 24,
+    windowSec: 60,
+  });
+
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded", retryAfterSec: rate.retryAfterSec },
+      { status: 429, headers: { "retry-after": String(rate.retryAfterSec) } },
+    );
+  }
+
   let payload: CreateOrderBody;
 
   try {
     payload = (await request.json()) as CreateOrderBody;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const idempotencyKey = extractIdempotencyKey(request);
+  const requestHash = hashIdempotencyPayload(payload);
+
+  if (idempotencyKey) {
+    const replay = await readIdempotencyRecord({
+      scope: "shop_order_create",
+      actor: auth.telegramUserId,
+      key: idempotencyKey,
+      requestHash,
+    });
+
+    if (replay.kind === "mismatch") {
+      return NextResponse.json({ error: "Idempotency-Key payload mismatch" }, { status: 409 });
+    }
+
+    if (replay.kind === "hit") {
+      return NextResponse.json(replay.body as object, {
+        status: replay.statusCode,
+        headers: { "x-idempotent-replay": "1" },
+      });
+    }
   }
 
   const orderId = sanitizeOrderId(payload.id);
@@ -173,5 +231,19 @@ export async function POST(request: Request) {
 
   await upsertShopOrder(order);
 
-  return NextResponse.json({ order, created: true });
+  const responseBody = { order, created: true };
+
+  if (idempotencyKey) {
+    await saveIdempotencyRecord({
+      scope: "shop_order_create",
+      actor: auth.telegramUserId,
+      key: idempotencyKey,
+      requestHash,
+      statusCode: 200,
+      body: responseBody,
+      ttlSec: 60 * 60 * 6,
+    });
+  }
+
+  return NextResponse.json(responseBody);
 }

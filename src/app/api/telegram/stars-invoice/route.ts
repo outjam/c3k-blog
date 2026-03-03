@@ -3,6 +3,13 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
+import {
+  extractIdempotencyKey,
+  hashIdempotencyPayload,
+  readIdempotencyRecord,
+  saveIdempotencyRecord,
+} from "@/lib/server/idempotency-store";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
 
@@ -124,6 +131,20 @@ export async function POST(request: Request) {
     return contentTypeError;
   }
 
+  const rate = await checkRateLimit({
+    scope: "telegram_stars_invoice",
+    identifier: auth.telegramUserId,
+    limit: 18,
+    windowSec: 60,
+  });
+
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded", retryAfterSec: rate.retryAfterSec },
+      { status: 429, headers: { "retry-after": String(rate.retryAfterSec) } },
+    );
+  }
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
   if (!botToken) {
@@ -142,6 +163,29 @@ export async function POST(request: Request) {
     payload = (await request.json()) as InvoicePayload;
   } catch {
     return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+  }
+
+  const idempotencyKey = extractIdempotencyKey(request);
+  const requestHash = hashIdempotencyPayload(payload);
+
+  if (idempotencyKey) {
+    const replay = await readIdempotencyRecord({
+      scope: "telegram_stars_invoice",
+      actor: auth.telegramUserId,
+      key: idempotencyKey,
+      requestHash,
+    });
+
+    if (replay.kind === "mismatch") {
+      return NextResponse.json({ error: "Idempotency-Key payload mismatch" }, { status: 409 });
+    }
+
+    if (replay.kind === "hit") {
+      return NextResponse.json(replay.body as object, {
+        status: replay.statusCode,
+        headers: { "x-idempotent-replay": "1" },
+      });
+    }
   }
 
   const orderCode = sanitizeOrderCode(String(payload.orderId ?? ""));
@@ -309,7 +353,21 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ invoiceLink: telegramResult.result });
+    const responseBody = { invoiceLink: telegramResult.result };
+
+    if (idempotencyKey) {
+      await saveIdempotencyRecord({
+        scope: "telegram_stars_invoice",
+        actor: auth.telegramUserId,
+        key: idempotencyKey,
+        requestHash,
+        statusCode: 200,
+        body: responseBody,
+        ttlSec: 60 * 60,
+      });
+    }
+
+    return NextResponse.json(responseBody);
   } catch {
     return NextResponse.json({ error: "Failed to contact Telegram API" }, { status: 502 });
   }

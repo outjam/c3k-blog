@@ -3,11 +3,11 @@
 ## Status
 
 - [x] Этап 1 (P0): Payment hardening (первая итерация внедрена)
-- [ ] Этап 2: Data layer refactor (Postgres)
-- [ ] Этап 3: API contract & scalability
-- [ ] Этап 4: Telegram production features
+- [x] Этап 2: Data layer refactor (Postgres backend + transactional RPC)
+- [~] Этап 3: API contract & scalability (pagination/rate-limit/idempotency в ключевых API)
+- [x] Этап 4: Telegram production features (queue worker + retries/backoff + dedupe)
 - [ ] Этап 5: Social для блога
-- [ ] Этап 6: UX/A11y/Apple quality
+- [~] Этап 6: UX/A11y/Apple quality (снят global zoom/select lock + базовый focus-visible)
 - [ ] Этап 7: Quality gates
 
 ## Этап 1 (выполнено в текущей итерации)
@@ -26,6 +26,19 @@
 - Убрано локальное создание `paid` заказа на клиенте как fallback.
 
 ## Этап 2: Data layer refactor (Postgres)
+
+### Progress
+
+- Добавлен стартовый SQL baseline: `db/schema.sql`.
+- Добавлены транзакционные Postgres RPC функции:
+  - `c3k_upsert_order_snapshot`
+  - `c3k_get_order_snapshot`
+  - `c3k_list_order_snapshots`
+  - `c3k_get_app_state`
+  - `c3k_put_app_state`
+- `shop-orders-store` переведен на Postgres backend c optimistic locking и retry на version conflict.
+- `shop-admin-config-store` переведен на Postgres state store c optimistic locking.
+- Для окружений без `SUPABASE_*` сохранен fallback (Upstash/memory).
 
 ### Deliverables
 
@@ -54,6 +67,22 @@
 
 ## Этап 3: API contract & scalability
 
+### Progress
+
+- Для `GET /api/shop/admin/orders` добавлены:
+  - cursor pagination (`cursor`, `limit`)
+  - server-side сортировка (`sort`)
+  - фильтры (`status`, `query`)
+- Добавлен rate-limit на чувствительные endpoints:
+  - `GET/POST /api/shop/orders`
+  - `GET /api/shop/admin/orders`
+  - `POST /api/telegram/stars-invoice`
+  - `POST /api/shop/orders/[id]/payment-failed`
+- Добавлена поддержка `Idempotency-Key` для:
+  - `POST /api/shop/orders`
+  - `POST /api/telegram/stars-invoice`
+  - `POST /api/shop/orders/[id]/payment-failed`
+
 ### Deliverables
 
 - Ввести cursor pagination для админских списков заказов/клиентов/постов.
@@ -73,6 +102,24 @@
 - Настроить retries/backoff и дедупликацию отправок.
 - Унифицировать web_app deep links (`/orders/:id`, `/shop`).
 
+### Progress
+
+- Добавлена очередь уведомлений Telegram с persisted store и retry/backoff:
+  - `enqueueTelegramMessageNotification`
+  - `enqueueTelegramDocumentNotification`
+  - `processTelegramNotificationQueue`
+- Добавлен worker API:
+  - `GET /api/telegram/notifications/worker` (queue size)
+  - `POST /api/telegram/notifications/worker` (process batch)
+- Нотификации заказов (`new order`, `status change`, payment receipt) переключены на enqueue с dedupe key.
+
+### Required Env
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `TELEGRAM_WORKER_SECRET`
+- `POSTGRES_STRICT_MODE=1` (рекомендуется на production)
+
 ### Acceptance
 
 - Доставка уведомлений >99%, повторные попытки не создают дублей.
@@ -91,6 +138,12 @@
 - Реакция учитывается однократно на пользователя.
 
 ## Этап 6: UX/A11y/Apple quality
+
+### Progress
+
+- Убран запрет масштабирования viewport (`userScalable: false`, `maximumScale: 1`).
+- Убран global `user-select: none`.
+- Добавлены базовые `:focus-visible` стили.
 
 ### Deliverables
 

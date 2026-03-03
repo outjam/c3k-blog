@@ -23,10 +23,13 @@ const requestInvoiceLink = async ({
   productIds,
 }: Pick<PaymentRequest, "amountStars" | "orderId" | "title" | "description" | "productIds">): Promise<{ link: string | null; error?: string }> => {
   try {
+    const idempotencyKey = `stars-invoice:${orderId.trim().toUpperCase()}`;
+
     const response = await fetch("/api/telegram/stars-invoice", {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
         ...getTelegramAuthHeaders(),
       },
       body: JSON.stringify({

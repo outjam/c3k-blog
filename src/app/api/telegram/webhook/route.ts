@@ -7,7 +7,10 @@ import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
 import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
-import { sendTelegramDocument, sendTelegramMessage } from "@/lib/server/telegram-bot";
+import {
+  enqueueTelegramDocumentNotification,
+  enqueueTelegramMessageNotification,
+} from "@/lib/server/telegram-notification-queue";
 import type { TelegramInlineButton } from "@/lib/server/telegram-bot";
 import type { ShopOrder } from "@/types/shop";
 
@@ -349,19 +352,29 @@ export async function POST(request: Request) {
         appTitle: "C3K Telegram Shop",
       });
 
-      const sentCard = await sendTelegramDocument(update.message.chat.id, cardSvg, {
-        fileName: `order-${payload.orderCode}.svg`,
-        mimeType: "image/svg+xml",
-        caption: summaryText,
-        parseMode: "HTML",
-        buttons: buttons.length > 0 ? buttons : undefined,
-      });
-
-      if (!sentCard) {
-        await sendTelegramMessage(update.message.chat.id, summaryText, {
+      const queuedDocument = await enqueueTelegramDocumentNotification({
+        chatId: update.message.chat.id,
+        content: cardSvg,
+        options: {
+          fileName: `order-${payload.orderCode}.svg`,
+          mimeType: "image/svg+xml",
+          caption: summaryText,
           parseMode: "HTML",
           buttons: buttons.length > 0 ? buttons : undefined,
-          messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
+        },
+        dedupeKey: `receipt:document:${payload.orderCode}:${telegramChargeId || payloadHash}`,
+      });
+
+      if (!queuedDocument) {
+        await enqueueTelegramMessageNotification({
+          chatId: update.message.chat.id,
+          text: summaryText,
+          options: {
+            parseMode: "HTML",
+            buttons: buttons.length > 0 ? buttons : undefined,
+            messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
+          },
+          dedupeKey: `receipt:message:${payload.orderCode}:${telegramChargeId || payloadHash}`,
         });
       }
     }

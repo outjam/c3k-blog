@@ -30,7 +30,11 @@
   color: var(--tg-text);
   font: inherit;
   min-height: 2.45rem;
-  outline: none;
+}
+
+.searchInput:focus-visible {
+  outline: 2px solid var(--tg-link);
+  outline-offset: 2px;
 }
 
 .categoriesRail {
