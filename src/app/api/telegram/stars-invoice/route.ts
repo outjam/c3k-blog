@@ -19,10 +19,6 @@ interface CreateInvoiceLinkResponse {
   description?: string;
 }
 
-interface TelegramWebhookInfo {
-  url?: string;
-}
-
 interface InvoicePayload {
   amountStars?: number;
   orderId?: string;
@@ -284,23 +280,15 @@ export async function POST(request: Request) {
   }
 
   const webhookUrl = `${baseUrl}/api/telegram/webhook`;
-  const webhookInfo = await telegramRequest<TelegramWebhookInfo>(botToken, "getWebhookInfo");
+  const setWebhook = await telegramRequest<boolean>(botToken, "setWebhook", {
+    url: webhookUrl,
+    secret_token: secretToken,
+    allowed_updates: ["pre_checkout_query", "message"],
+    drop_pending_updates: false,
+  });
 
-  if (!webhookInfo.ok) {
-    return NextResponse.json({ error: webhookInfo.description ?? "Failed to read webhook info" }, { status: 502 });
-  }
-
-  if (webhookInfo.result?.url !== webhookUrl) {
-    const setWebhook = await telegramRequest<boolean>(botToken, "setWebhook", {
-      url: webhookUrl,
-      secret_token: secretToken,
-      allowed_updates: ["pre_checkout_query", "message"],
-      drop_pending_updates: false,
-    });
-
-    if (!setWebhook.ok) {
-      return NextResponse.json({ error: setWebhook.description ?? "Failed to set webhook" }, { status: 502 });
-    }
+  if (!setWebhook.ok) {
+    return NextResponse.json({ error: setWebhook.description ?? "Failed to set webhook" }, { status: 502 });
   }
 
   const telegramBody = {
