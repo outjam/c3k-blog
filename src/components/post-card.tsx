@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "motion/react";
 import type { MouseEventHandler } from "react";
 
 import { hapticImpact, hapticSelection } from "@/lib/telegram";
@@ -14,31 +13,15 @@ interface PostCardProps {
   post: BlogPost;
   layout: "large" | "small";
   reverse?: boolean;
-  isHidden?: boolean;
-  onOpen?: (post: BlogPost) => void;
   isBookmarked?: boolean;
   onToggleBookmark?: (slug: string) => void;
 }
 
-export function PostCard({
-  post,
-  layout,
-  reverse = false,
-  isHidden = false,
-  onOpen,
-  isBookmarked = false,
-  onToggleBookmark,
-}: PostCardProps) {
-  const handleClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
+export function PostCard({ post, layout, reverse = false, isBookmarked = false, onToggleBookmark }: PostCardProps) {
+  const handleCardClick = () => {
     hapticImpact("light");
-
-    if (onOpen) {
-      event.preventDefault();
-      onOpen(post);
-    }
   };
 
-  const shellId = `post-shell-${post.slug}`;
   const toggleBookmark: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -48,19 +31,11 @@ export function PostCard({
   return (
     <Link
       href={`/post/${post.slug}`}
-      data-post-card={post.slug}
-      className={`${styles.card} ${layout === "large" ? styles.cardLarge : styles.cardSmall} ${
-        reverse ? styles.cardReverse : ""
-      } ${isHidden ? styles.cardHidden : ""}`}
+      className={`${styles.card} ${layout === "large" ? styles.cardLarge : styles.cardSmall} ${reverse ? styles.cardReverse : ""}`}
       onTouchStart={() => hapticSelection()}
-      onClick={handleClick}
+      onClick={handleCardClick}
     >
-      <motion.article
-        className={styles.shell}
-        layoutId={shellId}
-        layout
-        transition={{ type: "spring", stiffness: 210, damping: 32, mass: 1.02 }}
-      >
+      <article className={styles.shell}>
         {layout === "large" ? (
           <>
             <div className={styles.largeImageWrap}>
@@ -128,7 +103,8 @@ export function PostCard({
             </div>
           </div>
         )}
-      </motion.article>
+      </article>
     </Link>
   );
 }
+

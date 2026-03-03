@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
+import { sendTelegramMessage } from "@/lib/server/telegram-bot";
+import type { TelegramInlineButton } from "@/lib/server/telegram-bot";
 import { mutateShopOrder, upsertShopOrder } from "@/lib/server/shop-orders-store";
 import type { ShopOrder } from "@/types/shop";
 
@@ -163,6 +165,10 @@ export async function POST(request: Request) {
     const baseUrl = getMiniAppBaseUrl(request);
     const shopMiniAppUrl = baseUrl ? `${baseUrl}/shop` : undefined;
     const payload = parseInvoicePayload(payment.invoice_payload);
+    const profileOrderUrl = baseUrl
+      ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payload.orderCode)}`
+      : undefined;
+    const orderMiniAppUrl = baseUrl ? `${baseUrl}/orders/${encodeURIComponent(payload.orderCode)}` : undefined;
     const orderLines = (payload.productIds.length > 0 ? payload.productIds : [""]).map((productId) =>
       `∙ ${escapeHtml(productId ? productIdToTitle(productId) : "Товар из корзины")}`,
     );
@@ -233,28 +239,44 @@ export async function POST(request: Request) {
       await notifyAdminsAboutNewOrder(fallbackOrder, baseUrl);
     }
 
-    await telegramApi(botToken, "sendMessage", {
-      chat_id: update.message.chat.id,
-      parse_mode: "HTML",
-      text:
-        `<b>Заказ № ${payload.orderCode} <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji></b>\n\n` +
+    const buttons: TelegramInlineButton[][] = [];
+
+    if (orderMiniAppUrl) {
+      buttons.push([
+        {
+          text: "Открыть заказ",
+          web_app: { url: orderMiniAppUrl },
+          icon_custom_emoji_id: OPEN_BUTTON_EMOJI_ID,
+          style: "success" as const,
+        },
+      ]);
+    }
+
+    const secondRow: TelegramInlineButton[] = [];
+
+    if (profileOrderUrl) {
+      secondRow.push({ text: "Мои заказы", web_app: { url: profileOrderUrl }, style: "default" as const });
+    }
+
+    if (shopMiniAppUrl) {
+      secondRow.push({ text: "Магазин", web_app: { url: shopMiniAppUrl }, style: "primary" as const });
+    }
+
+    if (secondRow.length > 0) {
+      buttons.push(secondRow);
+    }
+
+    await sendTelegramMessage(
+      update.message.chat.id,
+      `<b>Заказ № ${payload.orderCode} <tg-emoji emoji-id="${PAYMENT_SUCCESS_EMOJI_ID}">✅</tg-emoji></b>\n\n` +
         `${orderLines.join("\n")}\n\n` +
         `${formatAmount(payment.total_amount)} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`,
-      reply_markup: shopMiniAppUrl
-        ? {
-            inline_keyboard: [
-              [
-                {
-                  text: "Магазин",
-                  web_app: { url: shopMiniAppUrl },
-                  icon_custom_emoji_id: OPEN_BUTTON_EMOJI_ID,
-                  style: "primary",
-                },
-              ],
-            ],
-          }
-        : undefined,
-    });
+      {
+        parseMode: "HTML",
+        buttons: buttons.length > 0 ? buttons : undefined,
+        messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
+      },
+    );
   }
 
   return NextResponse.json({ ok: true });

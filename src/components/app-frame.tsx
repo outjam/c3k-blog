@@ -47,9 +47,10 @@ export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const isShop = pathname.startsWith("/shop");
-  const isProfile = pathname.startsWith("/profile");
+  const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders");
   const activeIndex = isProfile ? 2 : isShop ? 1 : 0;
-  const showTabBar = pathname === "/" || pathname.startsWith("/shop") || pathname.startsWith("/profile");
+  const showTabBar =
+    pathname === "/" || pathname.startsWith("/shop") || pathname.startsWith("/profile") || pathname.startsWith("/orders");
 
   const tabs = useMemo<TabItem[]>(() => [
     { id: "blog", label: "Блог", href: "/", icon: <BlogIcon /> },

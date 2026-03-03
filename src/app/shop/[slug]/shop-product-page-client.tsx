@@ -70,6 +70,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           <button type="button" className={styles.addButton} onClick={() => void addToCart()}>
             Добавить в корзину
           </button>
+          <button type="button" className={styles.addButton} onClick={() => router.push("/shop/cart")}>
+            Перейти в корзину
+          </button>
         </div>
       </article>
     </div>

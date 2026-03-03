@@ -1,33 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LayoutGroup, motion } from "motion/react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PostCard } from "@/components/post-card";
-import { PostPreviewModal } from "@/components/post-preview-modal";
 import { posts } from "@/data/posts";
-import { hapticImpact } from "@/lib/telegram";
 import { readBookmarkedPostSlugs, toggleBookmarkedPost } from "@/lib/post-bookmarks";
 
 import styles from "./page.module.scss";
 
 const PAGE_SIZE = 10;
 
-interface ActivePostPreview {
-  slug: string;
-  layout: "large" | "small";
-  reverse: boolean;
-}
-
 export default function Home() {
-  const [activePreview, setActivePreview] = useState<ActivePostPreview | null>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [bookmarkedSlugs, setBookmarkedSlugs] = useState<string[]>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const latestPost = posts[0];
-  const activePost = posts.find((post) => post.slug === activePreview?.slug) ?? null;
   const visiblePosts = useMemo(() => posts.slice(0, visibleCount), [visibleCount]);
   const hasMore = visibleCount < posts.length;
 
@@ -70,87 +59,51 @@ export default function Home() {
     return () => observer.disconnect();
   }, [hasMore]);
 
-  const openLatestPost = useCallback(() => {
-    hapticImpact("medium");
-    setActivePreview({
-      slug: latestPost.slug,
-      layout: "large",
-      reverse: false,
-    });
-    setIsPreviewOpen(true);
-  }, [latestPost.slug]);
-
-  const openPostPreview = useCallback((slug: string, layout: "large" | "small", reverse: boolean) => {
-    setActivePreview({ slug, layout, reverse });
-    setIsPreviewOpen(true);
-  }, []);
-
-  const closePostPreview = useCallback(() => {
-    setIsPreviewOpen(false);
-  }, []);
-
-  const handlePreviewExited = useCallback(() => {
-    setActivePreview(null);
-  }, []);
-
-  const handleToggleBookmark = useCallback((slug: string) => {
+  const handleToggleBookmark = (slug: string) => {
     void toggleBookmarkedPost(slug).then((next) => {
       setBookmarkedSlugs(next);
     });
-  }, []);
+  };
 
   return (
     <div className={styles.page}>
-      <motion.main className={styles.container} layoutScroll>
+      <main className={styles.container}>
         <section className={styles.hero}>
           <h1>C3K Blog</h1>
           <p className={styles.subtitle}>
-            Telegram WebApp журнал с мобильными паттернами, rich-медиа и длинными статьями про продуктовую разработку.
+            Telegram WebApp журнал с rich-медиа, длинными статьями и мобильным UX без модальных оверлеев.
           </p>
-          <button className={styles.fallbackButton} type="button" onClick={openLatestPost}>
+          <Link className={styles.fallbackButton} href={`/post/${latestPost.slug}`}>
             Открыть свежий пост
-          </button>
+          </Link>
         </section>
 
-        <LayoutGroup id="post-feed-modal">
-          <section className={styles.feed}>
-            {visiblePosts.map((post, index) => {
-              const absoluteIndex = index;
-              const isLarge = absoluteIndex % 5 === 2 || absoluteIndex % 7 === 0;
-              const reverse = absoluteIndex % 2 === 1;
+        <section className={styles.feed}>
+          {visiblePosts.map((post, index) => {
+            const absoluteIndex = index;
+            const isLarge = absoluteIndex % 5 === 2 || absoluteIndex % 7 === 0;
+            const reverse = absoluteIndex % 2 === 1;
 
-              return (
-                <PostCard
-                  key={post.slug}
-                  post={post}
-                  layout={isLarge ? "large" : "small"}
-                  reverse={reverse}
-                  isHidden={activePreview?.slug === post.slug && isPreviewOpen}
-                  isBookmarked={bookmarkedSlugs.includes(post.slug)}
-                  onToggleBookmark={handleToggleBookmark}
-                  onOpen={() => openPostPreview(post.slug, isLarge ? "large" : "small", reverse)}
-                />
-              );
-            })}
-          </section>
-
-          <PostPreviewModal
-            post={activePost}
-            sourceLayout={activePreview?.layout ?? "large"}
-            sourceReverse={activePreview?.reverse ?? false}
-            open={isPreviewOpen}
-            onClose={closePostPreview}
-            onExited={handlePreviewExited}
-          />
-        </LayoutGroup>
+            return (
+              <PostCard
+                key={post.slug}
+                post={post}
+                layout={isLarge ? "large" : "small"}
+                reverse={reverse}
+                isBookmarked={bookmarkedSlugs.includes(post.slug)}
+                onToggleBookmark={handleToggleBookmark}
+              />
+            );
+          })}
+        </section>
 
         {hasMore ? (
           <div ref={sentinelRef} className={styles.loadMoreHint}>
             Загрузка следующих статей...
           </div>
         ) : null}
-      </motion.main>
-
+      </main>
     </div>
   );
 }
+

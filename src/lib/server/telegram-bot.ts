@@ -11,6 +11,7 @@ interface TelegramMessageOptions {
   parseMode?: "HTML" | "MarkdownV2";
   buttons?: TelegramInlineButton[][];
   disableWebPagePreview?: boolean;
+  messageEffectId?: string;
 }
 
 interface TelegramApiResponse<T = unknown> {
@@ -18,6 +19,41 @@ interface TelegramApiResponse<T = unknown> {
   result?: T;
   description?: string;
 }
+
+const toInlineKeyboard = (
+  buttons: TelegramInlineButton[][],
+  withEnhancements: boolean,
+): Array<Array<Record<string, unknown>>> => {
+  return buttons.map((row) =>
+    row.map((button) => {
+      const normalized: Record<string, unknown> = {
+        text: button.text,
+      };
+
+      if (button.url) {
+        normalized.url = button.url;
+      }
+
+      if (button.web_app) {
+        normalized.web_app = button.web_app;
+      }
+
+      if (button.callback_data) {
+        normalized.callback_data = button.callback_data;
+      }
+
+      if (withEnhancements && button.style) {
+        normalized.style = button.style;
+      }
+
+      if (withEnhancements && button.icon_custom_emoji_id) {
+        normalized.icon_custom_emoji_id = button.icon_custom_emoji_id;
+      }
+
+      return normalized;
+    }),
+  );
+};
 
 export const telegramBotRequest = async <T = unknown>(
   method: string,
@@ -48,23 +84,47 @@ export const sendTelegramMessage = async (
   text: string,
   options?: TelegramMessageOptions,
 ): Promise<boolean> => {
-  const payload: Record<string, unknown> = {
+  const basePayload: Record<string, unknown> = {
     chat_id: chatId,
     text,
   };
 
   if (options?.parseMode) {
-    payload.parse_mode = options.parseMode;
-  }
-
-  if (options?.buttons && options.buttons.length > 0) {
-    payload.reply_markup = { inline_keyboard: options.buttons };
+    basePayload.parse_mode = options.parseMode;
   }
 
   if (typeof options?.disableWebPagePreview === "boolean") {
-    payload.disable_web_page_preview = options.disableWebPagePreview;
+    basePayload.disable_web_page_preview = options.disableWebPagePreview;
   }
 
-  const result = await telegramBotRequest("sendMessage", payload);
+  if (options?.messageEffectId?.trim()) {
+    basePayload.message_effect_id = options.messageEffectId.trim();
+  }
+
+  if (options?.buttons && options.buttons.length > 0) {
+    const richPayload = {
+      ...basePayload,
+      reply_markup: {
+        inline_keyboard: toInlineKeyboard(options.buttons, true),
+      },
+    };
+
+    const richResult = await telegramBotRequest("sendMessage", richPayload);
+
+    if (richResult.ok) {
+      return true;
+    }
+
+    const fallbackPayload = {
+      ...basePayload,
+      reply_markup: {
+        inline_keyboard: toInlineKeyboard(options.buttons, false),
+      },
+    };
+    const fallbackResult = await telegramBotRequest("sendMessage", fallbackPayload);
+    return fallbackResult.ok;
+  }
+
+  const result = await telegramBotRequest("sendMessage", basePayload);
   return result.ok;
 };

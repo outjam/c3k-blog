@@ -60,6 +60,31 @@ export const fetchMyShopOrders = async (): Promise<{ orders: ShopOrder[]; error?
   }
 };
 
+export const fetchShopOrderById = async (orderId: string): Promise<{ order: ShopOrder | null; error?: string }> => {
+  const normalizedOrderId = orderId.trim().toUpperCase();
+
+  if (!normalizedOrderId) {
+    return { order: null, error: "Invalid order id" };
+  }
+
+  try {
+    const response = await fetch(`/api/shop/orders/${encodeURIComponent(normalizedOrderId)}`, {
+      method: "GET",
+      headers: getTelegramAuthHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { order: null, error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as ApiOrdersResponse;
+    return { order: payload.order ?? null };
+  } catch {
+    return { order: null, error: "Network error" };
+  }
+};
+
 export const createShopOrder = async (payload: CreateOrderPayload): Promise<{ order: ShopOrder | null; error?: string }> => {
   try {
     const response = await fetch("/api/shop/orders", {

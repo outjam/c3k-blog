@@ -98,6 +98,10 @@
 
 .cartFab {
   position: fixed;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
   right: calc(1rem + var(--safe-area-right));
   bottom: calc(var(--safe-area-bottom) + 98px);
   z-index: 50;

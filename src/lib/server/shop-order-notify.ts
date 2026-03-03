@@ -1,9 +1,21 @@
 import { getShopAdminTelegramIds } from "@/lib/shop-admin";
 import { SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
-import { sendTelegramMessage } from "@/lib/server/telegram-bot";
+import { sendTelegramMessage, type TelegramInlineButton } from "@/lib/server/telegram-bot";
 import type { ShopOrder, ShopOrderStatus } from "@/types/shop";
 
 const STARS_EMOJI_ID = "6028338546736107668";
+const OPEN_BUTTON_EMOJI_ID = "5920332557466997677";
+
+const SUCCESS_STATUSES = new Set<ShopOrderStatus>(["paid", "delivered", "completed"]);
+const NEGATIVE_STATUSES = new Set<ShopOrderStatus>([
+  "cancel_requested",
+  "cancelled_by_user",
+  "cancelled_by_admin",
+  "refund_requested",
+  "refunded",
+  "payment_failed",
+  "failed",
+]);
 
 const escapeHtml = (value: string): string => {
   return value
@@ -36,9 +48,48 @@ const orderItemsList = (order: ShopOrder): string => {
   return items.join("\n");
 };
 
+const getOrderButtonStyle = (status: ShopOrderStatus): TelegramInlineButton["style"] => {
+  if (NEGATIVE_STATUSES.has(status)) {
+    return "destructive";
+  }
+
+  if (SUCCESS_STATUSES.has(status)) {
+    return "success";
+  }
+
+  return "primary";
+};
+
+const orderUrl = (miniAppBaseUrl: string | null, orderId: string, admin = false): string | undefined => {
+  if (!miniAppBaseUrl) {
+    return undefined;
+  }
+
+  const suffix = admin ? "?admin=1" : "";
+  return `${miniAppBaseUrl}/orders/${encodeURIComponent(orderId)}${suffix}`;
+};
+
+const profileOrdersUrl = (miniAppBaseUrl: string | null, orderId?: string): string | undefined => {
+  if (!miniAppBaseUrl) {
+    return undefined;
+  }
+
+  const search = orderId ? `?section=orders&order=${encodeURIComponent(orderId)}` : "?section=orders";
+  return `${miniAppBaseUrl}/profile${search}`;
+};
+
+const shopUrl = (miniAppBaseUrl: string | null): string | undefined => {
+  if (!miniAppBaseUrl) {
+    return undefined;
+  }
+
+  return `${miniAppBaseUrl}/shop`;
+};
+
 export const notifyAdminsAboutNewOrder = async (order: ShopOrder, miniAppBaseUrl: string | null): Promise<void> => {
   const adminIds = getShopAdminTelegramIds();
-  const shopUrl = miniAppBaseUrl ? `${miniAppBaseUrl}/profile?section=orders&admin=1` : undefined;
+  const openOrderUrl = orderUrl(miniAppBaseUrl, order.id, true);
+  const openShopUrl = shopUrl(miniAppBaseUrl);
 
   const text =
     `<b>Новый заказ № ${escapeHtml(order.id)}</b>\n` +
@@ -47,13 +98,28 @@ export const notifyAdminsAboutNewOrder = async (order: ShopOrder, miniAppBaseUrl
     `${orderItemsList(order)}\n\n` +
     `${formatStarsCents(order.totalStarsCents)} <tg-emoji emoji-id="${STARS_EMOJI_ID}">⭐</tg-emoji>`;
 
+  const buttons: TelegramInlineButton[][] = [];
+
+  if (openOrderUrl) {
+    buttons.push([
+      {
+        text: "Открыть заказ",
+        web_app: { url: openOrderUrl },
+        style: "primary",
+        icon_custom_emoji_id: OPEN_BUTTON_EMOJI_ID,
+      },
+    ]);
+  }
+
+  if (openShopUrl) {
+    buttons.push([{ text: "Магазин", web_app: { url: openShopUrl }, style: "default" }]);
+  }
+
   await Promise.all(
     adminIds.map((adminId) =>
       sendTelegramMessage(adminId, text, {
         parseMode: "HTML",
-        buttons: shopUrl
-          ? [[{ text: "Открыть админку", web_app: { url: shopUrl }, style: "primary", icon_custom_emoji_id: STARS_EMOJI_ID }]]
-          : undefined,
+        buttons: buttons.length > 0 ? buttons : undefined,
       }),
     ),
   );
@@ -65,7 +131,9 @@ export const notifyUserAboutStatusChange = async (
   miniAppBaseUrl: string | null,
   note?: string,
 ): Promise<void> => {
-  const profileUrl = miniAppBaseUrl ? `${miniAppBaseUrl}/profile?section=orders&order=${encodeURIComponent(order.id)}` : undefined;
+  const openOrderUrl = orderUrl(miniAppBaseUrl, order.id);
+  const openOrdersUrl = profileOrdersUrl(miniAppBaseUrl, order.id);
+  const openShopUrl = shopUrl(miniAppBaseUrl);
   const noteLine = note?.trim() ? `\nКомментарий: ${escapeHtml(note.trim())}` : "";
 
   const text =
@@ -73,9 +141,35 @@ export const notifyUserAboutStatusChange = async (
     `Статус: ${SHOP_ORDER_STATUS_LABELS[previousStatus]} → ${SHOP_ORDER_STATUS_LABELS[order.status]}` +
     `${noteLine}`;
 
+  const buttons: TelegramInlineButton[][] = [];
+
+  if (openOrderUrl) {
+    buttons.push([
+      {
+        text: "Открыть заказ",
+        web_app: { url: openOrderUrl },
+        style: getOrderButtonStyle(order.status),
+      },
+    ]);
+  }
+
+  const secondRow: TelegramInlineButton[] = [];
+
+  if (openOrdersUrl) {
+    secondRow.push({ text: "Мои заказы", web_app: { url: openOrdersUrl }, style: "default" });
+  }
+
+  if (openShopUrl) {
+    secondRow.push({ text: "Магазин", web_app: { url: openShopUrl }, style: "primary" });
+  }
+
+  if (secondRow.length > 0) {
+    buttons.push(secondRow);
+  }
+
   await sendTelegramMessage(order.telegramUserId, text, {
     parseMode: "HTML",
-    buttons: profileUrl ? [[{ text: "Профиль", web_app: { url: profileUrl }, style: "primary" }]] : undefined,
+    buttons: buttons.length > 0 ? buttons : undefined,
   });
 };
 
@@ -101,3 +195,4 @@ export const notifyAdminsAboutStatusChange = async (
     ),
   );
 };
+
