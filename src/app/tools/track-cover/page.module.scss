@@ -84,12 +84,14 @@
 }
 
 .profileCard {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: var(--tg-bg);
+  border-radius: var(--radius-sm);
   display: grid;
   gap: 0.24rem;
   padding: 0.65rem;
-  border-radius: var(--radius-sm);
-  background: var(--tg-bg);
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  text-align: left;
 }
 
 .profileCard h3 {
@@ -103,17 +105,15 @@
   font-size: 0.78rem;
 }
 
-.profileCard button {
-  margin-top: 0.18rem;
-  border: 0;
-  min-height: 1.95rem;
-  border-radius: 0.62rem;
-  padding: 0 0.65rem;
-  width: fit-content;
-  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
+.profileCard span {
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
   color: var(--tg-accent);
-  font-size: 0.76rem;
   font-weight: 700;
+}
+
+.profileCardActive {
+  border-color: color-mix(in srgb, var(--tg-accent) 65%, var(--tg-section-separator));
 }
 
 .search label {
@@ -166,6 +166,10 @@
   padding: 0.48rem;
   background: var(--tg-section-bg);
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+}
+
+.cardSelected {
+  border-color: color-mix(in srgb, var(--tg-accent) 70%, var(--tg-section-separator));
 }
 
 .card img {
@@ -223,8 +227,7 @@
   gap: 0.4rem;
 }
 
-.actions button,
-.actions a {
+.actions button {
   min-height: 1.95rem;
   border: 0;
   border-radius: 0.62rem;
@@ -236,7 +239,6 @@
   justify-content: center;
   background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
   color: var(--tg-accent);
-  text-decoration: none;
 }
 
 .scope h2 {
@@ -250,6 +252,25 @@
   color: var(--tg-subtitle-text);
   font-size: 0.84rem;
   line-height: 1.45;
+}
+
+.sendButton {
+  min-height: 2.5rem;
+  border: 0;
+  border-radius: 0.78rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-size: 0.87rem;
+  font-weight: 700;
+}
+
+.sendButton:disabled {
+  opacity: 0.55;
+}
+
+.sendStatus {
+  color: var(--tg-subtitle-text);
+  font-size: 0.81rem;
 }
 
 @media (max-width: 640px) {
