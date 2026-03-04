@@ -47,6 +47,7 @@ interface ProfileAudiosResponse {
 
 interface SendToChatResponse {
   ok?: boolean;
+  coverApplied?: boolean;
   error?: string;
 }
 
@@ -245,6 +246,7 @@ export default function TrackCoverPage() {
   }, []);
 
   const handleSelectAudio = (audio: TelegramProfileAudio) => {
+    hapticSelection();
     setSelectedAudioId(audio.id);
     setQuery(audio.searchQuery);
     setSendStatus("");
@@ -291,7 +293,13 @@ export default function TrackCoverPage() {
         return;
       }
 
-      setSendStatus("Файл и обложка отправлены в чат с ботом. Добавьте трек в профиль вручную.");
+      if (payload.coverApplied) {
+        setSendStatus("Трек отправлен в чат с примененной обложкой. Добавьте его в профиль вручную.");
+      } else {
+        setSendStatus(
+          "Трек отправлен, но Telegram не применил обложку к файлу. Обложка отправлена отдельным сообщением в чат.",
+        );
+      }
       hapticNotification("success");
     } catch {
       setSendStatus("Сетевая ошибка отправки в чат.");
@@ -399,7 +407,13 @@ export default function TrackCoverPage() {
                 </dl>
                 {item.previewUrl ? <audio src={item.previewUrl} controls preload="none" /> : null}
                 <div className={styles.actions}>
-                  <button type="button" onClick={() => setSelectedCoverId(item.id)}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticSelection();
+                      setSelectedCoverId(item.id);
+                    }}
+                  >
                     {isSelected ? "Обложка выбрана" : "Выбрать обложку"}
                   </button>
                   <button type="button" onClick={() => handleCopy(item.artworkUrl)}>

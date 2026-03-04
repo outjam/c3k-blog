@@ -20,6 +20,7 @@ interface TelegramBotApiAudio {
 interface UserProfileAudiosResult {
   total_count?: number;
   audios?: TelegramBotApiAudio[];
+  first_profile_audio?: TelegramBotApiAudio;
 }
 
 const normalizeTrackTitle = (value: string, fallback: string): string => {
@@ -55,13 +56,19 @@ export async function GET(request: Request) {
 
   const payload = response.result;
   const audios = Array.isArray(payload?.audios) ? payload.audios : [];
+  const firstProfileAudio = payload?.first_profile_audio;
+  const mergedAudios = firstProfileAudio ? [firstProfileAudio, ...audios] : audios;
+  const dedupedAudios = Array.from(
+    new Map(mergedAudios.map((audio) => [audio.file_unique_id || audio.file_id || "audio", audio])).values(),
+  );
 
-  const items = audios.map((audio, index) => {
+  const items = dedupedAudios.map((audio, index) => {
     const artist = normalizeTrackTitle(audio.performer ?? "", "Unknown artist");
     const title = normalizeTrackTitle(audio.title ?? "", audio.file_name ?? "Untitled track");
+    const stableIdBase = audio.file_unique_id || audio.file_id || "audio";
 
     return {
-      id: `${audio.file_unique_id || audio.file_id || "audio"}-${index}`,
+      id: `${stableIdBase}-${index}`,
       fileId: audio.file_id,
       title,
       artist,
