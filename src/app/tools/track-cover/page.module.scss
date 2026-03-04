@@ -99,6 +99,28 @@
   scroll-snap-align: start;
 }
 
+.profileArtwork,
+.profileArtworkFallback {
+  width: 56px;
+  height: 56px;
+  border-radius: 0.7rem;
+}
+
+.profileArtwork {
+  object-fit: cover;
+  display: block;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+}
+
+.profileArtworkFallback {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
 .profileCard h3 {
   color: var(--tg-text);
   font-size: 0.86rem;

@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 interface SendToChatPayload {
   audioFileId?: string;
+  audioFileName?: string;
+  audioMimeType?: string;
   title?: string;
   artist?: string;
   coverUrl?: string;
@@ -72,6 +74,133 @@ interface TelegramMethodResponse {
   description?: string;
 }
 
+interface TelegramFileInfo {
+  file_path?: string;
+  file_size?: number;
+}
+
+const decodeSyncSafeInt = (bytes: Uint8Array, offset: number): number => {
+  return (
+    ((bytes[offset] ?? 0) & 0x7f) * 0x200000 +
+    ((bytes[offset + 1] ?? 0) & 0x7f) * 0x4000 +
+    ((bytes[offset + 2] ?? 0) & 0x7f) * 0x80 +
+    ((bytes[offset + 3] ?? 0) & 0x7f)
+  );
+};
+
+const encodeSyncSafeInt = (value: number): Uint8Array => {
+  const safe = Math.max(0, Math.min(0x0fffffff, Math.floor(value)));
+  return new Uint8Array([
+    (safe >> 21) & 0x7f,
+    (safe >> 14) & 0x7f,
+    (safe >> 7) & 0x7f,
+    safe & 0x7f,
+  ]);
+};
+
+const encodeUint32BE = (value: number): Uint8Array => {
+  const safe = Math.max(0, Math.min(0xffffffff, Math.floor(value)));
+  return new Uint8Array([(safe >> 24) & 0xff, (safe >> 16) & 0xff, (safe >> 8) & 0xff, safe & 0xff]);
+};
+
+const concatBytes = (...chunks: Uint8Array[]): Uint8Array => {
+  const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return output;
+};
+
+const stripId3v2 = (audioBytes: Uint8Array): Uint8Array => {
+  if (
+    audioBytes.byteLength >= 10 &&
+    audioBytes[0] === 0x49 &&
+    audioBytes[1] === 0x44 &&
+    audioBytes[2] === 0x33
+  ) {
+    const tagSize = decodeSyncSafeInt(audioBytes, 6);
+    const totalTagSize = 10 + tagSize;
+
+    if (totalTagSize > 10 && totalTagSize < audioBytes.byteLength) {
+      return audioBytes.subarray(totalTagSize);
+    }
+  }
+
+  return audioBytes;
+};
+
+const isLikelyMp3 = (audioBytes: Uint8Array, filePath = ""): boolean => {
+  const normalizedPath = filePath.toLowerCase();
+
+  if (normalizedPath.endsWith(".mp3")) {
+    return true;
+  }
+
+  if (
+    audioBytes.byteLength >= 3 &&
+    audioBytes[0] === 0x49 &&
+    audioBytes[1] === 0x44 &&
+    audioBytes[2] === 0x33
+  ) {
+    return true;
+  }
+
+  const limit = Math.min(audioBytes.byteLength - 1, 4096);
+
+  for (let i = 0; i < limit; i += 1) {
+    if (audioBytes[i] === 0xff && (audioBytes[i + 1] & 0xe0) === 0xe0) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const embedCoverIntoMp3 = (audioBytes: Uint8Array, jpegBytes: Uint8Array): Uint8Array => {
+  const cleanAudio = stripId3v2(audioBytes);
+  const encoder = new TextEncoder();
+
+  const apicPayload = concatBytes(
+    new Uint8Array([0x00]),
+    encoder.encode("image/jpeg"),
+    new Uint8Array([0x00, 0x03, 0x00]),
+    jpegBytes,
+  );
+
+  const frameHeader = concatBytes(encoder.encode("APIC"), encodeUint32BE(apicPayload.byteLength), new Uint8Array([0x00, 0x00]));
+  const frames = concatBytes(frameHeader, apicPayload);
+  const tagHeader = concatBytes(
+    encoder.encode("ID3"),
+    new Uint8Array([0x03, 0x00, 0x00]),
+    encodeSyncSafeInt(frames.byteLength),
+  );
+
+  return concatBytes(tagHeader, frames, cleanAudio);
+};
+
+const sanitizeAudioFileName = (input: string): string => {
+  const normalized = input
+    .trim()
+    .replace(/[^\p{L}\p{N}._ -]+/gu, "_")
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+
+  if (!normalized) {
+    return "track.mp3";
+  }
+
+  if (/\.(mp3|m4a|aac|ogg|flac|wav)$/i.test(normalized)) {
+    return normalized;
+  }
+
+  return `${normalized}.mp3`;
+};
+
 const sendAudioViaMultipart = async (botToken: string, formData: FormData): Promise<TelegramMethodResponse> => {
   try {
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendAudio`, {
@@ -88,6 +217,20 @@ const sendAudioViaMultipart = async (botToken: string, formData: FormData): Prom
   } catch {
     return { ok: false, description: "Network error" };
   }
+};
+
+const downloadTelegramFileBytes = async (botToken: string, filePath: string): Promise<Uint8Array | null> => {
+  const response = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`, {
+    method: "GET",
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!response?.ok) {
+    return null;
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return bytes.byteLength > 0 ? bytes : null;
 };
 
 export async function POST(request: Request) {
@@ -126,6 +269,8 @@ export async function POST(request: Request) {
   }
 
   const audioFileId = String(payload.audioFileId ?? "").trim();
+  const audioFileName = sanitizeAudioFileName(String(payload.audioFileName ?? ""));
+  const audioMimeType = toSafeText(String(payload.audioMimeType ?? ""), 64).toLowerCase();
   const title = toSafeText(String(payload.title ?? ""), 120) || "Untitled track";
   const artist = toSafeText(String(payload.artist ?? ""), 120) || "Unknown artist";
   const coverUrl = String(payload.coverUrl ?? "").trim();
@@ -151,10 +296,16 @@ export async function POST(request: Request) {
 
   const coverCaption = [`Выбранная обложка`, `${artist} — ${title}`].join("\n");
 
-  const buildAudioForm = (withThumbnail: boolean): FormData => {
+  const buildAudioForm = (params: { withThumbnail: boolean; uploadedAudio?: Uint8Array }): FormData => {
     const formData = new FormData();
     formData.append("chat_id", String(auth.telegramUserId));
-    formData.append("audio", audioFileId);
+    if (params.uploadedAudio) {
+      const uploadedBytes = new Uint8Array(params.uploadedAudio.byteLength);
+      uploadedBytes.set(params.uploadedAudio);
+      formData.append("audio", new Blob([uploadedBytes.buffer], { type: "audio/mpeg" }), audioFileName);
+    } else {
+      formData.append("audio", audioFileId);
+    }
     formData.append("title", title);
     formData.append("performer", artist);
     formData.append("caption", "Готово. Этот трек можно добавить в профиль вручную.");
@@ -168,7 +319,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (withThumbnail && coverThumb) {
+    if (params.withThumbnail && coverThumb) {
       const thumbnailBuffer = new Uint8Array(coverThumb).buffer;
       formData.append("thumbnail", new Blob([thumbnailBuffer], { type: "image/jpeg" }), "cover.jpg");
     }
@@ -177,12 +328,40 @@ export async function POST(request: Request) {
   };
 
   let coverApplied = false;
-  let sendAudio = await sendAudioViaMultipart(botToken, buildAudioForm(true));
+  let sendAudio: TelegramMethodResponse | null = null;
+  let reuploadedAudio = false;
+
+  const mp3FromMime = audioMimeType.includes("mpeg") || audioMimeType.includes("mp3");
+  const canTryEmbed = Boolean(coverThumb) && (mp3FromMime || audioFileName.toLowerCase().endsWith(".mp3"));
+
+  if (canTryEmbed && coverThumb) {
+    const fileInfo = await telegramBotRequest<TelegramFileInfo>("getFile", { file_id: audioFileId });
+    const filePath = fileInfo.result?.file_path ?? "";
+    const downloadable = Boolean(fileInfo.ok && filePath);
+
+    if (downloadable) {
+      const sourceBytes = await downloadTelegramFileBytes(botToken, filePath);
+
+      if (sourceBytes && isLikelyMp3(sourceBytes, filePath)) {
+        const embeddedBytes = embedCoverIntoMp3(sourceBytes, coverThumb);
+        sendAudio = await sendAudioViaMultipart(botToken, buildAudioForm({ withThumbnail: false, uploadedAudio: embeddedBytes }));
+
+        if (sendAudio.ok) {
+          coverApplied = true;
+          reuploadedAudio = true;
+        }
+      }
+    }
+  }
+
+  if (!sendAudio?.ok) {
+    sendAudio = await sendAudioViaMultipart(botToken, buildAudioForm({ withThumbnail: true }));
+  }
 
   if (sendAudio.ok) {
-    coverApplied = Boolean(coverThumb);
+    coverApplied = coverApplied || (Boolean(coverThumb) && !reuploadedAudio);
   } else {
-    sendAudio = await sendAudioViaMultipart(botToken, buildAudioForm(false));
+    sendAudio = await sendAudioViaMultipart(botToken, buildAudioForm({ withThumbnail: false }));
   }
 
   if (!sendAudio.ok) {
@@ -200,14 +379,17 @@ export async function POST(request: Request) {
 
   await telegramBotRequest("sendMessage", {
     chat_id: auth.telegramUserId,
-    text: coverApplied
-      ? "Трек отправлен с выбранной обложкой. Добавьте его в профиль вручную."
-      : "Трек отправлен. Telegram не применил обложку к аудио, поэтому обложка отправлена отдельно.",
+    text: reuploadedAudio
+      ? "Трек пересобран и отправлен с новой обложкой. Добавьте его в профиль вручную."
+      : coverApplied
+        ? "Трек отправлен с выбранной обложкой. Добавьте его в профиль вручную."
+        : "Трек отправлен. Telegram не применил обложку к аудио, поэтому обложка отправлена отдельно.",
   });
 
   return NextResponse.json({
     ok: true,
     coverApplied,
+    reuploadedAudio,
     sentCover: Boolean(sendCover.ok),
     sentAudio: true,
     query,

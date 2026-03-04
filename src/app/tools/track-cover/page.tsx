@@ -37,6 +37,7 @@ interface TelegramProfileAudio {
   mimeType: string;
   fileSize: number;
   searchQuery: string;
+  artworkDataUrl?: string;
 }
 
 interface ProfileAudiosResponse {
@@ -48,6 +49,7 @@ interface ProfileAudiosResponse {
 interface SendToChatResponse {
   ok?: boolean;
   coverApplied?: boolean;
+  reuploadedAudio?: boolean;
   error?: string;
 }
 
@@ -279,6 +281,8 @@ export default function TrackCoverPage() {
         },
         body: JSON.stringify({
           audioFileId: selectedAudio.fileId,
+          audioFileName: selectedAudio.fileName,
+          audioMimeType: selectedAudio.mimeType,
           title: selectedAudio.title || selectedCover.title,
           artist: selectedAudio.artist || selectedCover.artist,
           coverUrl: selectedCover.artworkUrl,
@@ -293,7 +297,9 @@ export default function TrackCoverPage() {
         return;
       }
 
-      if (payload.coverApplied) {
+      if (payload.reuploadedAudio) {
+        setSendStatus("Трек пересобран и отправлен в чат с новой обложкой внутри файла.");
+      } else if (payload.coverApplied) {
         setSendStatus("Трек отправлен в чат с примененной обложкой. Добавьте его в профиль вручную.");
       } else {
         setSendStatus(
@@ -343,6 +349,11 @@ export default function TrackCoverPage() {
                     className={`${styles.profileCard} ${isActive ? styles.profileCardActive : ""}`}
                     onClick={() => handleSelectAudio(audio)}
                   >
+                    {audio.artworkDataUrl ? (
+                      <img className={styles.profileArtwork} src={audio.artworkDataUrl} alt={`${audio.title} cover`} loading="lazy" />
+                    ) : (
+                      <span className={styles.profileArtworkFallback}>♪</span>
+                    )}
                     <h3>{audio.title || "Без названия"}</h3>
                     <p>{audio.artist || "Неизвестный артист"}</p>
                     <small>
