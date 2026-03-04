@@ -79,11 +79,15 @@
 }
 
 .profileList {
-  display: grid;
+  display: flex;
   gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.16rem;
+  scroll-snap-type: x mandatory;
 }
 
 .profileCard {
+  flex: 0 0 min(78vw, 300px);
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
   background: var(--tg-bg);
@@ -92,6 +96,7 @@
   gap: 0.24rem;
   padding: 0.65rem;
   text-align: left;
+  scroll-snap-align: start;
 }
 
 .profileCard h3 {
@@ -154,11 +159,16 @@
 }
 
 .list {
-  display: grid;
-  gap: 0.58rem;
+  display: flex;
+  gap: 0.62rem;
+  overflow-x: auto;
+  padding-bottom: 0.18rem;
+  scroll-snap-type: x mandatory;
 }
 
 .card {
+  flex: 0 0 min(84vw, 360px);
+  scroll-snap-align: start;
   display: grid;
   grid-template-columns: 112px 1fr;
   gap: 0.62rem;
@@ -275,6 +285,7 @@
 
 @media (max-width: 640px) {
   .card {
+    flex-basis: min(86vw, 340px);
     grid-template-columns: 1fr;
   }
 

@@ -169,7 +169,8 @@ export async function POST(request: Request) {
     }
 
     if (withThumbnail && coverThumb) {
-      formData.append("thumbnail", new Blob([coverThumb.buffer], { type: "image/jpeg" }), "cover.jpg");
+      const thumbnailBuffer = new Uint8Array(coverThumb).buffer;
+      formData.append("thumbnail", new Blob([thumbnailBuffer], { type: "image/jpeg" }), "cover.jpg");
     }
 
     return formData;
