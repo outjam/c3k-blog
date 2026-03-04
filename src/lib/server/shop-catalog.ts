@@ -1,6 +1,13 @@
 import { getPostgresHttpConfig, postgresTableRequest } from "@/lib/server/postgres-http";
+import { listPublishedArtistProducts } from "@/lib/server/shop-artist-market";
 import { readShopAdminConfig, toActivePromoRules } from "@/lib/server/shop-admin-config-store";
-import type { ShopAppSettings, ShopProduct, ShopProductCategory } from "@/types/shop";
+import type {
+  ShopAppSettings,
+  ShopCatalogArtist,
+  ShopProduct,
+  ShopProductCategory,
+  ShopShowcaseCollectionView,
+} from "@/types/shop";
 
 type ProductCategory = ShopProduct["category"];
 
@@ -143,6 +150,8 @@ export const getCatalogSnapshot = async (): Promise<{
   categories: ShopProductCategory[];
   promoRules: ReturnType<typeof toActivePromoRules>;
   settings: ShopAppSettings;
+  artists: ShopCatalogArtist[];
+  showcaseCollections: ShopShowcaseCollectionView[];
 }> => {
   const config = await readShopAdminConfig();
   const hasPostgresConfig = Boolean(getPostgresHttpConfig());
@@ -158,8 +167,30 @@ export const getCatalogSnapshot = async (): Promise<{
   }
 
   const baseProducts = dbRead.products;
+  const artistProducts = listPublishedArtistProducts(config);
+  const categories = [...config.productCategories];
 
-  const categories = config.productCategories;
+  if (artistProducts.length > 0 && !categories.some((category) => category.id === "music")) {
+    const maxOrder = categories.reduce((acc, category) => Math.max(acc, category.order), 0);
+    categories.push({
+      id: "music",
+      label: "Музыка",
+      emoji: "🎵",
+      description: "Релизы артистов сообщества",
+      order: maxOrder + 10,
+      subcategories: [
+        {
+          id: "tracks",
+          label: "Треки",
+          description: "Цифровые релизы",
+          order: 10,
+        },
+      ],
+    });
+  }
+
+  categories.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, "ru-RU"));
+
   const categoryMap = new Map(categories.map((category) => [category.id, category]));
   const fallbackCategoryId = categories[0]?.id;
   const map = new Map<string, ShopProduct>(baseProducts.map((product) => [product.id, product]));
@@ -209,10 +240,76 @@ export const getCatalogSnapshot = async (): Promise<{
     })
     .filter((item): item is ShopProduct => Boolean(item));
 
+  const combinedMap = new Map<string, ShopProduct>();
+  products.forEach((product) => combinedMap.set(product.id, product));
+  artistProducts.forEach((product) => combinedMap.set(product.id, product));
+  const mergedProducts = Array.from(combinedMap.values());
+
+  const tracksByArtist = new Map<number, typeof artistProducts>();
+  artistProducts.forEach((trackProduct) => {
+    if (!trackProduct.artistTelegramUserId) {
+      return;
+    }
+
+    const current = tracksByArtist.get(trackProduct.artistTelegramUserId) ?? [];
+    current.push(trackProduct);
+    tracksByArtist.set(trackProduct.artistTelegramUserId, current);
+  });
+
+  const artists = Object.values(config.artistProfiles)
+    .filter((artist) => artist.status === "approved")
+    .map((artist) => {
+      const artistTracks = tracksByArtist.get(artist.telegramUserId) ?? [];
+      const totalSalesCount = artistTracks.reduce((acc, item) => acc + item.reviewsCount, 0);
+
+      return {
+        telegramUserId: artist.telegramUserId,
+        slug: artist.slug,
+        displayName: artist.displayName,
+        bio: artist.bio,
+        avatarUrl: artist.avatarUrl,
+        coverUrl: artist.coverUrl,
+        followersCount: artist.followersCount,
+        tracksCount: artistTracks.length,
+        totalSalesCount,
+        subscriptionEnabled: artist.subscriptionEnabled,
+        subscriptionPriceStarsCents: artist.subscriptionPriceStarsCents,
+      } satisfies ShopCatalogArtist;
+    })
+    .filter((artist) => artist.tracksCount > 0)
+    .sort((a, b) => b.totalSalesCount - a.totalSalesCount || b.followersCount - a.followersCount);
+
+  const showcaseCollections = config.showcaseCollections
+    .filter((collection) => collection.isPublished)
+    .map((collection) => {
+      const ids = [...collection.productIds, ...collection.trackIds];
+      const products = ids
+        .map((id) => combinedMap.get(id))
+        .filter((item): item is ShopProduct => Boolean(item));
+
+      if (products.length === 0) {
+        return null;
+      }
+
+      return {
+        id: collection.id,
+        title: collection.title,
+        subtitle: collection.subtitle,
+        description: collection.description,
+        coverImage: collection.coverImage,
+        order: collection.order,
+        products,
+      } satisfies ShopShowcaseCollectionView;
+    })
+    .filter((item): item is ShopShowcaseCollectionView => Boolean(item))
+    .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, "ru-RU"));
+
   return {
-    products,
+    products: mergedProducts,
     categories,
     promoRules: toActivePromoRules(config),
     settings: config.settings,
+    artists,
+    showcaseCollections,
   };
 };

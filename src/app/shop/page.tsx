@@ -11,7 +11,15 @@ import { getCartSubtotalStarsCents } from "@/lib/shop-pricing";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
-import type { CartItem, ProductSort, ShopAppSettings, ShopProduct, ShopProductCategory } from "@/types/shop";
+import type {
+  CartItem,
+  ProductSort,
+  ShopAppSettings,
+  ShopCatalogArtist,
+  ShopProduct,
+  ShopProductCategory,
+  ShopShowcaseCollectionView,
+} from "@/types/shop";
 
 import styles from "./page.module.scss";
 
@@ -54,10 +62,13 @@ export default function ShopPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
+  const [catalogArtists, setCatalogArtists] = useState<ShopCatalogArtist[]>([]);
+  const [showcaseCollections, setShowcaseCollections] = useState<ShopShowcaseCollectionView[]>([]);
   const [catalogCategories, setCatalogCategories] = useState<ShopProductCategory[]>([]);
   const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
   const [catalogError, setCatalogError] = useState("");
   const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [feedMode, setFeedMode] = useState<"all" | "tracks" | "physical">("all");
 
   const productsMap = useMemo(() => new Map(catalogProducts.map((item) => [item.id, item])), [catalogProducts]);
 
@@ -132,6 +143,8 @@ export default function ShopPage() {
       }
 
       setCatalogProducts(snapshot.products);
+      setCatalogArtists(snapshot.artists);
+      setShowcaseCollections(snapshot.showcaseCollections);
       if (snapshot.categories.length > 0) {
         setCatalogCategories(snapshot.categories);
       }
@@ -190,6 +203,14 @@ export default function ShopPage() {
     const normalizedQuery = search.trim().toLowerCase();
 
     const filtered = catalogProducts.filter((product) => {
+      if (feedMode === "tracks" && product.kind !== "digital_track") {
+        return false;
+      }
+
+      if (feedMode === "physical" && product.kind === "digital_track") {
+        return false;
+      }
+
       const productCategoryId = product.categoryId ?? product.category;
 
       if (effectiveSelectedCategoryId !== "all" && productCategoryId !== effectiveSelectedCategoryId) {
@@ -220,7 +241,7 @@ export default function ShopPage() {
         return true;
       }
 
-      const textBlob = `${product.title} ${product.subtitle} ${product.attributes.sku} ${product.attributes.collection}`.toLowerCase();
+      const textBlob = `${product.title} ${product.subtitle} ${product.attributes.sku} ${product.attributes.collection} ${product.artistName ?? ""}`.toLowerCase();
       if (!textBlob.includes(normalizedQuery)) {
         return false;
       }
@@ -241,7 +262,7 @@ export default function ShopPage() {
     });
 
     return sortProducts(filtered, sort);
-  }, [catalogProducts, effectiveSelectedCategoryId, effectiveSelectedSubcategoryId, inStockOnly, quickFilter, search, sort]);
+  }, [catalogProducts, effectiveSelectedCategoryId, effectiveSelectedSubcategoryId, feedMode, inStockOnly, quickFilter, search, sort]);
 
   const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(catalogProducts, cartItems), [cartItems, catalogProducts]);
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -249,6 +270,7 @@ export default function ShopPage() {
     Boolean(search.trim()),
     effectiveSelectedCategoryId !== "all",
     effectiveSelectedSubcategoryId !== "all",
+    feedMode !== "all",
     sort !== "popular",
     inStockOnly,
     quickFilter !== "all",
@@ -319,6 +341,7 @@ export default function ShopPage() {
     setSearch("");
     setSelectedCategoryId("all");
     setSelectedSubcategoryId("all");
+    setFeedMode("all");
     setSort("popular");
     setInStockOnly(false);
     setQuickFilter("all");
@@ -351,6 +374,13 @@ export default function ShopPage() {
     }, {});
   }, [catalogProducts]);
 
+  const tracksCount = useMemo(
+    () => catalogProducts.filter((product) => product.kind === "digital_track").length,
+    [catalogProducts],
+  );
+
+  const physicalProductsCount = catalogProducts.length - tracksCount;
+
   const handleCategoryChange = (value: string | "all") => {
     setSelectedCategoryId(value);
     setSelectedSubcategoryId("all");
@@ -362,15 +392,106 @@ export default function ShopPage() {
     hapticSelection();
   };
 
+  const handleFeedModeChange = (mode: "all" | "tracks" | "physical") => {
+    setFeedMode(mode);
+    hapticSelection();
+  };
+
   return (
     <div className={styles.page}>
       <main className={styles.container}>
         <section className={styles.hero}>
-          <p className={styles.kicker}>Clay Fake Market</p>
-          <h1>Магазин изделий из глины</h1>
-          <p>Каталог подделок из глины: поиск, фильтры, карточка товара и отдельный экран корзины с checkout.</p>
+          <p className={styles.kicker}>C3K Music Showcase</p>
+          <h1>Витрина артистов и цифровых релизов</h1>
+          <p>
+            Пользователи могут стать артистами, публиковать треки после модерации и зарабатывать через продажи,
+            донаты и подписки.
+          </p>
+          <div className={styles.heroMeta}>
+            <p>Артисты: <strong>{catalogArtists.length}</strong></p>
+            <p>Треки: <strong>{tracksCount}</strong></p>
+            <p>Товары: <strong>{physicalProductsCount}</strong></p>
+          </div>
           {catalogSettings.maintenanceMode ? <p className={styles.paymentError}>Режим обслуживания включен администратором.</p> : null}
           {catalogError ? <p className={styles.paymentError}>Ошибка синхронизации каталога: {catalogError}</p> : null}
+        </section>
+
+        {showcaseCollections.length > 0 ? (
+          <section className={styles.showcaseSection}>
+            <div className={styles.showcaseHeader}>
+              <h2>Подборки витрины</h2>
+              <p>Управляются из админки</p>
+            </div>
+
+            {showcaseCollections.map((collection) => (
+              <article key={collection.id} className={styles.showcaseCollection}>
+                <header>
+                  <h3>{collection.title}</h3>
+                  {collection.subtitle ? <p>{collection.subtitle}</p> : null}
+                </header>
+                <div className={styles.showcaseRail}>
+                  {collection.products.slice(0, 12).map((product) => (
+                    <Link key={`${collection.id}-${product.id}`} href={`/shop/${product.slug}`} className={styles.showcaseCard}>
+                      <img src={product.image} alt={product.title} loading="lazy" />
+                      <div>
+                        <strong>{product.title}</strong>
+                        <span>{formatStarsFromCents(product.priceStarsCents)} ⭐</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </section>
+        ) : null}
+
+        {catalogArtists.length > 0 ? (
+          <section className={styles.artistSection}>
+            <div className={styles.showcaseHeader}>
+              <h2>Артисты</h2>
+              <p>Поддерживайте авторов донатами и подпиской</p>
+            </div>
+            <div className={styles.artistsRail}>
+              {catalogArtists.map((artist) => (
+                <Link key={artist.telegramUserId} href={`/shop/artist/${artist.slug}`} className={styles.artistCard}>
+                  {artist.avatarUrl ? (
+                    <img src={artist.avatarUrl} alt={artist.displayName} loading="lazy" />
+                  ) : (
+                    <div className={styles.artistAvatarFallback}>{artist.displayName.slice(0, 2).toUpperCase()}</div>
+                  )}
+                  <div>
+                    <strong>{artist.displayName}</strong>
+                    <span>{artist.tracksCount} треков</span>
+                    <span>{artist.followersCount} подписчиков</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className={styles.feedModes}>
+          <button
+            type="button"
+            className={`${styles.feedModeButton} ${feedMode === "all" ? styles.feedModeButtonActive : ""}`}
+            onClick={() => handleFeedModeChange("all")}
+          >
+            Вся витрина
+          </button>
+          <button
+            type="button"
+            className={`${styles.feedModeButton} ${feedMode === "tracks" ? styles.feedModeButtonActive : ""}`}
+            onClick={() => handleFeedModeChange("tracks")}
+          >
+            Только треки
+          </button>
+          <button
+            type="button"
+            className={`${styles.feedModeButton} ${feedMode === "physical" ? styles.feedModeButtonActive : ""}`}
+            onClick={() => handleFeedModeChange("physical")}
+          >
+            Только товары
+          </button>
         </section>
 
         <ShopCatalogControls
@@ -396,13 +517,13 @@ export default function ShopPage() {
 
         <section className={styles.resultsBar}>
           <p>
-            Найдено товаров: <strong>{filteredProducts.length}</strong>
+            Найдено позиций: <strong>{filteredProducts.length}</strong>
           </p>
           <p>
             В корзине: <strong>{cartCount}</strong> · {formatStarsFromCents(subtotalStarsCents)} ⭐
           </p>
           <p>
-            Избранное: <strong>{favoriteProductIds.length}</strong>
+            Избранное: <strong>{favoriteProductIds.length}</strong> · Артистов: <strong>{catalogArtists.length}</strong>
           </p>
         </section>
 

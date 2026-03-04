@@ -8,6 +8,11 @@ import { isShopAdminRole } from "@/lib/shop-admin-roles";
 import { getShopAdminOwnerTelegramId, getShopAdminTelegramIds } from "@/lib/shop-admin";
 import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
 import type {
+  ArtistDonation,
+  ArtistProfile,
+  ArtistSubscription,
+  ArtistTrack,
+  ShowcaseCollection,
   ShopAdminConfig,
   ShopAdminMember,
   ShopAppSettings,
@@ -58,6 +63,236 @@ const normalizeSafeSlug = (value: unknown, maxLength: number): string => {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, maxLength);
+};
+
+const normalizeTelegramUserId = (value: unknown): number => {
+  const normalized = Math.round(Number(value ?? 0));
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : 0;
+};
+
+const clampInt = (value: unknown, min: number, max: number): number => {
+  const normalized = Math.round(Number(value ?? min));
+
+  if (!Number.isFinite(normalized)) {
+    return min;
+  }
+
+  return Math.max(min, Math.min(max, normalized));
+};
+
+const clampIntMin = (value: unknown, min: number): number => {
+  const normalized = Math.round(Number(value ?? min));
+
+  if (!Number.isFinite(normalized)) {
+    return min;
+  }
+
+  return Math.max(min, normalized);
+};
+
+const normalizeText = (value: unknown, maxLength: number): string => {
+  return String(value ?? "").trim().slice(0, maxLength);
+};
+
+const normalizeOptionalText = (value: unknown, maxLength: number): string | undefined => {
+  const normalized = normalizeText(value, maxLength);
+  return normalized || undefined;
+};
+
+const normalizeTrackTags = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => normalizeText(entry, 32))
+    .filter(Boolean)
+    .slice(0, 20);
+};
+
+const normalizeArtistProfileStatus = (value: unknown): ArtistProfile["status"] => {
+  return value === "approved" || value === "rejected" || value === "suspended" ? value : "pending";
+};
+
+const normalizeArtistTrackStatus = (value: unknown): ArtistTrack["status"] => {
+  return value === "pending_moderation" || value === "published" || value === "rejected" ? value : "draft";
+};
+
+const normalizeArtistSubscriptionStatus = (value: unknown): ArtistSubscription["status"] => {
+  return value === "paused" || value === "cancelled" ? value : "active";
+};
+
+const sanitizeArtistProfile = (raw: unknown, fallbackKey: string, now: string): ArtistProfile | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ArtistProfile>;
+  const telegramUserId = normalizeTelegramUserId(source.telegramUserId ?? fallbackKey);
+
+  if (!telegramUserId) {
+    return null;
+  }
+
+  const slug = normalizeSafeSlug(source.slug ?? `artist-${telegramUserId}`, 120) || `artist-${telegramUserId}`;
+  const displayName = normalizeText(source.displayName ?? `Artist ${telegramUserId}`, 120) || `Artist ${telegramUserId}`;
+  const status = normalizeArtistProfileStatus(source.status);
+
+  return {
+    telegramUserId,
+    slug,
+    displayName,
+    bio: normalizeText(source.bio, 1200),
+    avatarUrl: normalizeOptionalText(source.avatarUrl, 3000),
+    coverUrl: normalizeOptionalText(source.coverUrl, 3000),
+    status,
+    moderationNote: normalizeOptionalText(source.moderationNote, 240),
+    donationEnabled: typeof source.donationEnabled === "boolean" ? source.donationEnabled : true,
+    subscriptionEnabled: typeof source.subscriptionEnabled === "boolean" ? source.subscriptionEnabled : false,
+    subscriptionPriceStarsCents: clampIntMin(source.subscriptionPriceStarsCents, 1),
+    balanceStarsCents: clampIntMin(source.balanceStarsCents, 0),
+    lifetimeEarningsStarsCents: clampIntMin(source.lifetimeEarningsStarsCents, 0),
+    followersCount: clampIntMin(source.followersCount, 0),
+    createdAt: String(source.createdAt ?? now),
+    updatedAt: String(source.updatedAt ?? now),
+  };
+};
+
+const sanitizeArtistTrack = (raw: unknown, fallbackKey: string, now: string): ArtistTrack | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ArtistTrack>;
+  const id = normalizeSafeId(source.id ?? fallbackKey, 80);
+
+  if (!id) {
+    return null;
+  }
+
+  const artistTelegramUserId = normalizeTelegramUserId(source.artistTelegramUserId);
+
+  if (!artistTelegramUserId) {
+    return null;
+  }
+
+  const slug = normalizeSafeSlug(source.slug ?? id, 120) || id;
+  const title = normalizeText(source.title, 160) || `Трек ${id}`;
+  const audioFileId = normalizeText(source.audioFileId, 1024);
+
+  if (!audioFileId) {
+    return null;
+  }
+
+  const status = normalizeArtistTrackStatus(source.status);
+
+  return {
+    id,
+    slug,
+    artistTelegramUserId,
+    title,
+    subtitle: normalizeText(source.subtitle, 220) || "Сингл",
+    description: normalizeText(source.description, 5000),
+    coverImage: normalizeText(source.coverImage, 3000) || DEFAULT_PRODUCT_IMAGE,
+    audioFileId,
+    previewUrl: normalizeOptionalText(source.previewUrl, 3000),
+    durationSec: clampInt(source.durationSec, 0, 60 * 60 * 12),
+    genre: normalizeOptionalText(source.genre, 64),
+    tags: normalizeTrackTags(source.tags),
+    priceStarsCents: clampIntMin(source.priceStarsCents, 1),
+    status,
+    moderationNote: normalizeOptionalText(source.moderationNote, 240),
+    playsCount: clampIntMin(source.playsCount, 0),
+    salesCount: clampIntMin(source.salesCount, 0),
+    createdAt: String(source.createdAt ?? now),
+    updatedAt: String(source.updatedAt ?? now),
+    publishedAt: status === "published" ? String(source.publishedAt ?? source.updatedAt ?? now) : undefined,
+  };
+};
+
+const sanitizeShowcaseCollection = (raw: unknown, fallbackOrder: number): ShowcaseCollection | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ShowcaseCollection>;
+  const id = normalizeSafeId(source.id, 64);
+  const title = normalizeText(source.title, 120);
+
+  if (!id || !title) {
+    return null;
+  }
+
+  const productIds = Array.isArray(source.productIds)
+    ? source.productIds.map((value) => normalizeSafeId(value, 80)).filter(Boolean)
+    : [];
+  const trackIds = Array.isArray(source.trackIds)
+    ? source.trackIds.map((value) => normalizeSafeId(value, 80)).filter(Boolean)
+    : [];
+
+  return {
+    id,
+    title,
+    subtitle: normalizeOptionalText(source.subtitle, 160),
+    description: normalizeOptionalText(source.description, 500),
+    coverImage: normalizeOptionalText(source.coverImage, 3000),
+    productIds: Array.from(new Set(productIds)).slice(0, 64),
+    trackIds: Array.from(new Set(trackIds)).slice(0, 64),
+    order:
+      typeof source.order === "number" && Number.isFinite(source.order)
+        ? Math.max(1, Math.round(source.order))
+        : fallbackOrder,
+    isPublished: typeof source.isPublished === "boolean" ? source.isPublished : true,
+  };
+};
+
+const sanitizeArtistDonation = (raw: unknown, now: string): ArtistDonation | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ArtistDonation>;
+  const id = normalizeSafeId(source.id, 80);
+  const artistTelegramUserId = normalizeTelegramUserId(source.artistTelegramUserId);
+  const fromTelegramUserId = normalizeTelegramUserId(source.fromTelegramUserId);
+
+  if (!id || !artistTelegramUserId || !fromTelegramUserId) {
+    return null;
+  }
+
+  return {
+    id,
+    artistTelegramUserId,
+    fromTelegramUserId,
+    amountStarsCents: clampIntMin(source.amountStarsCents, 1),
+    message: normalizeOptionalText(source.message, 320),
+    createdAt: String(source.createdAt ?? now),
+  };
+};
+
+const sanitizeArtistSubscription = (raw: unknown, now: string): ArtistSubscription | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ArtistSubscription>;
+  const id = normalizeSafeId(source.id, 80);
+  const artistTelegramUserId = normalizeTelegramUserId(source.artistTelegramUserId);
+  const subscriberTelegramUserId = normalizeTelegramUserId(source.subscriberTelegramUserId);
+
+  if (!id || !artistTelegramUserId || !subscriberTelegramUserId) {
+    return null;
+  }
+
+  return {
+    id,
+    artistTelegramUserId,
+    subscriberTelegramUserId,
+    amountStarsCents: clampIntMin(source.amountStarsCents, 1),
+    status: normalizeArtistSubscriptionStatus(source.status),
+    startedAt: String(source.startedAt ?? now),
+    updatedAt: String(source.updatedAt ?? now),
+  };
 };
 
 const sanitizeProductSubcategory = (raw: unknown, fallbackOrder: number): ShopProductSubcategory | null => {
@@ -337,6 +572,11 @@ const buildDefaultConfig = (): ShopAdminConfig => {
     productRecords: {},
     productOverrides: {},
     productCategories: [],
+    artistProfiles: {},
+    artistTracks: {},
+    showcaseCollections: [],
+    artistDonations: [],
+    artistSubscriptions: [],
     blogPostRecords: {},
     hiddenPostSlugs: [],
     promoCodes: [],
@@ -511,6 +751,65 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
       .filter((item): item is NonNullable<typeof item> => Boolean(item)),
   );
 
+  const artistProfiles = Object.fromEntries(
+    Object.entries(row.artistProfiles ?? {})
+      .map(([key, value]) => {
+        const sanitized = sanitizeArtistProfile(value, key, now);
+
+        if (!sanitized) {
+          return null;
+        }
+
+        return [String(sanitized.telegramUserId), sanitized] as const;
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+  );
+
+  const validArtistIds = new Set(Object.keys(artistProfiles).map((value) => normalizeTelegramUserId(value)));
+
+  const artistTracks = Object.fromEntries(
+    Object.entries(row.artistTracks ?? {})
+      .map(([key, value]) => {
+        const sanitized = sanitizeArtistTrack(value, key, now);
+
+        if (!sanitized) {
+          return null;
+        }
+
+        if (!validArtistIds.has(sanitized.artistTelegramUserId)) {
+          return null;
+        }
+
+        return [sanitized.id, sanitized] as const;
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+  );
+
+  const validTrackIds = new Set(Object.keys(artistTracks));
+
+  const showcaseCollections = (Array.isArray(row.showcaseCollections) ? row.showcaseCollections : [])
+    .map((entry, index) => sanitizeShowcaseCollection(entry, (index + 1) * 10))
+    .filter((entry): entry is ShowcaseCollection => Boolean(entry))
+    .map((collection) => ({
+      ...collection,
+      trackIds: collection.trackIds.filter((trackId) => validTrackIds.has(trackId)),
+    }))
+    .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, "ru-RU"));
+
+  const artistDonations = (Array.isArray(row.artistDonations) ? row.artistDonations : [])
+    .map((entry) => sanitizeArtistDonation(entry, now))
+    .filter((entry): entry is ArtistDonation => Boolean(entry))
+    .filter((entry) => validArtistIds.has(entry.artistTelegramUserId))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5000);
+
+  const artistSubscriptions = (Array.isArray(row.artistSubscriptions) ? row.artistSubscriptions : [])
+    .map((entry) => sanitizeArtistSubscription(entry, now))
+    .filter((entry): entry is ArtistSubscription => Boolean(entry))
+    .filter((entry) => validArtistIds.has(entry.artistTelegramUserId))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 5000);
+
   const promoCodes = Array.isArray(row.promoCodes)
     ? row.promoCodes
         .map((promo) => {
@@ -562,6 +861,11 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
     productRecords,
     productOverrides,
     productCategories,
+    artistProfiles,
+    artistTracks,
+    showcaseCollections,
+    artistDonations,
+    artistSubscriptions,
     blogPostRecords,
     hiddenPostSlugs,
     promoCodes,

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
+import { applyArtistPayoutsForPaidOrder } from "@/lib/server/shop-artist-market";
 import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
 import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
@@ -281,6 +282,8 @@ export async function POST(request: Request) {
       if (promoCodeToApply) {
         await bumpPromoUsage(promoCodeToApply);
       }
+
+      await mutateShopAdminConfig((current) => applyArtistPayoutsForPaidOrder(current, updatedOrder).config);
 
       await notifyAdminsAboutNewOrder(updatedOrder, baseUrl);
 

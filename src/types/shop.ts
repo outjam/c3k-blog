@@ -16,7 +16,11 @@ export type ShopAdminPermission =
   | "settings:view"
   | "settings:manage"
   | "admins:view"
-  | "admins:manage";
+  | "admins:manage"
+  | "artists:view"
+  | "artists:manage"
+  | "showcase:view"
+  | "showcase:manage";
 export type ShopOrderStatus =
   | "created"
   | "pending_payment"
@@ -128,11 +132,107 @@ export interface ShopAdminMember {
   updatedAt: string;
 }
 
+export type ArtistProfileStatus = "pending" | "approved" | "rejected" | "suspended";
+export type ArtistTrackStatus = "draft" | "pending_moderation" | "published" | "rejected";
+export type ArtistSubscriptionStatus = "active" | "paused" | "cancelled";
+
+export interface ArtistProfile {
+  telegramUserId: number;
+  slug: string;
+  displayName: string;
+  bio: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  status: ArtistProfileStatus;
+  moderationNote?: string;
+  donationEnabled: boolean;
+  subscriptionEnabled: boolean;
+  subscriptionPriceStarsCents: number;
+  balanceStarsCents: number;
+  lifetimeEarningsStarsCents: number;
+  followersCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ArtistTrack {
+  id: string;
+  slug: string;
+  artistTelegramUserId: number;
+  title: string;
+  subtitle: string;
+  description: string;
+  coverImage: string;
+  audioFileId: string;
+  previewUrl?: string;
+  durationSec: number;
+  genre?: string;
+  tags: string[];
+  priceStarsCents: number;
+  status: ArtistTrackStatus;
+  moderationNote?: string;
+  playsCount: number;
+  salesCount: number;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+}
+
+export interface ArtistDonation {
+  id: string;
+  artistTelegramUserId: number;
+  fromTelegramUserId: number;
+  amountStarsCents: number;
+  message?: string;
+  createdAt: string;
+}
+
+export interface ArtistSubscription {
+  id: string;
+  artistTelegramUserId: number;
+  subscriberTelegramUserId: number;
+  amountStarsCents: number;
+  status: ArtistSubscriptionStatus;
+  startedAt: string;
+  updatedAt: string;
+}
+
+export interface ShowcaseCollection {
+  id: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  coverImage?: string;
+  productIds: string[];
+  trackIds: string[];
+  order: number;
+  isPublished: boolean;
+}
+
+export interface ShopCatalogArtist {
+  telegramUserId: number;
+  slug: string;
+  displayName: string;
+  bio: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  followersCount: number;
+  tracksCount: number;
+  totalSalesCount: number;
+  subscriptionEnabled: boolean;
+  subscriptionPriceStarsCents: number;
+}
+
 export interface ShopAdminConfig {
   adminMembers: ShopAdminMember[];
   productRecords: Record<string, ShopProduct>;
   productOverrides: Record<string, ShopProductOverride>;
   productCategories: ShopProductCategory[];
+  artistProfiles: Record<string, ArtistProfile>;
+  artistTracks: Record<string, ArtistTrack>;
+  showcaseCollections: ShowcaseCollection[];
+  artistDonations: ArtistDonation[];
+  artistSubscriptions: ArtistSubscription[];
   blogPostRecords: Record<string, import("@/types/blog").BlogPost>;
   hiddenPostSlugs: string[];
   promoCodes: ShopPromoCode[];
@@ -171,7 +271,24 @@ export interface ShopProduct {
   isNew: boolean;
   isHit: boolean;
   tags: string[];
+  kind?: "physical" | "digital_track";
+  artistTelegramUserId?: number;
+  artistName?: string;
+  artistSlug?: string;
+  audioFileId?: string;
+  previewUrl?: string;
+  publishedAt?: string;
   attributes: ShopProductAttribute;
+}
+
+export interface ShopShowcaseCollectionView {
+  id: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  coverImage?: string;
+  order: number;
+  products: ShopProduct[];
 }
 
 export interface CartItem {

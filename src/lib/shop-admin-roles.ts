@@ -23,6 +23,10 @@ const ALL_PERMISSIONS: ShopAdminPermission[] = [
   "settings:manage",
   "admins:view",
   "admins:manage",
+  "artists:view",
+  "artists:manage",
+  "showcase:view",
+  "showcase:manage",
 ];
 
 const ROLE_PERMISSIONS: Record<ShopAdminRole, ShopAdminPermission[]> = {
@@ -35,11 +39,15 @@ const ROLE_PERMISSIONS: Record<ShopAdminRole, ShopAdminPermission[]> = {
     "blog:manage",
     "products:view",
     "products:manage",
+    "artists:view",
+    "artists:manage",
+    "showcase:view",
+    "showcase:manage",
     "promos:view",
     "promos:manage",
     "settings:view",
   ],
-  support: ["dashboard:view", "orders:view", "customers:view", "blog:view"],
+  support: ["dashboard:view", "orders:view", "customers:view", "blog:view", "artists:view", "showcase:view"],
 };
 
 export const getRolePermissions = (role: ShopAdminRole): ShopAdminPermission[] => {

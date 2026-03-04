@@ -2,7 +2,11 @@
 
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import type {
+  ArtistProfile,
+  ArtistTrack,
+  ShowcaseCollection,
   ShopAdminMember,
+  ShopCatalogArtist,
   ShopAdminPermission,
   ShopAdminRole,
   ShopAppSettings,
@@ -11,6 +15,7 @@ import type {
   ShopProduct,
   ShopProductCategory,
   ShopPromoCode,
+  ShopShowcaseCollectionView,
 } from "@/types/shop";
 
 interface ApiErrorShape {
@@ -568,6 +573,8 @@ export const fetchPublicCatalog = async (): Promise<{
   categories: ShopProductCategory[];
   promoRules: Array<{ code: string; label: string; discountType: "percent" | "fixed"; discountValue: number }>;
   settings: ShopAppSettings | null;
+  artists: ShopCatalogArtist[];
+  showcaseCollections: ShopShowcaseCollectionView[];
   error?: string;
 }> => {
   try {
@@ -577,7 +584,15 @@ export const fetchPublicCatalog = async (): Promise<{
     });
 
     if (!response.ok) {
-      return { products: [], categories: [], promoRules: [], settings: null, error: await parseApiError(response) };
+      return {
+        products: [],
+        categories: [],
+        promoRules: [],
+        settings: null,
+        artists: [],
+        showcaseCollections: [],
+        error: await parseApiError(response),
+      };
     }
 
     const payload = (await response.json()) as {
@@ -585,6 +600,8 @@ export const fetchPublicCatalog = async (): Promise<{
       categories?: ShopProductCategory[];
       promoRules?: Array<{ code: string; label: string; discountType: "percent" | "fixed"; discountValue: number }>;
       settings?: ShopAppSettings;
+      artists?: ShopCatalogArtist[];
+      showcaseCollections?: ShopShowcaseCollectionView[];
     };
 
     return {
@@ -592,9 +609,271 @@ export const fetchPublicCatalog = async (): Promise<{
       categories: payload.categories ?? [],
       promoRules: payload.promoRules ?? [],
       settings: payload.settings ?? null,
+      artists: payload.artists ?? [],
+      showcaseCollections: payload.showcaseCollections ?? [],
     };
   } catch {
-    return { products: [], categories: [], promoRules: [], settings: null, error: "Network error" };
+    return {
+      products: [],
+      categories: [],
+      promoRules: [],
+      settings: null,
+      artists: [],
+      showcaseCollections: [],
+      error: "Network error",
+    };
+  }
+};
+
+export const fetchMyArtistProfile = async (): Promise<{
+  profile: ArtistProfile | null;
+  tracks: ArtistTrack[];
+  donations: number;
+  subscriptions: number;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/shop/artists/me", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return {
+        profile: null,
+        tracks: [],
+        donations: 0,
+        subscriptions: 0,
+        error: await parseApiError(response),
+      };
+    }
+
+    const payload = (await response.json()) as {
+      profile?: ArtistProfile | null;
+      tracks?: ArtistTrack[];
+      donations?: number;
+      subscriptions?: number;
+    };
+
+    return {
+      profile: payload.profile ?? null,
+      tracks: payload.tracks ?? [],
+      donations: Math.max(0, Math.round(Number(payload.donations ?? 0))),
+      subscriptions: Math.max(0, Math.round(Number(payload.subscriptions ?? 0))),
+    };
+  } catch {
+    return { profile: null, tracks: [], donations: 0, subscriptions: 0, error: "Network error" };
+  }
+};
+
+export const upsertMyArtistProfile = async (payload: {
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  donationEnabled?: boolean;
+  subscriptionEnabled?: boolean;
+  subscriptionPriceStarsCents?: number;
+}): Promise<{ profile: ArtistProfile | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/shop/artists/me", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { profile: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { profile?: ArtistProfile };
+    return { profile: data.profile ?? null };
+  } catch {
+    return { profile: null, error: "Network error" };
+  }
+};
+
+export const createMyArtistTrack = async (payload: {
+  title: string;
+  subtitle?: string;
+  description?: string;
+  coverImage?: string;
+  audioFileId: string;
+  previewUrl?: string;
+  durationSec?: number;
+  genre?: string;
+  tags?: string[];
+  priceStarsCents: number;
+}): Promise<{ track: ArtistTrack | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/shop/artists/me/tracks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { track: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { track?: ArtistTrack };
+    return { track: data.track ?? null };
+  } catch {
+    return { track: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminArtists = async (): Promise<{
+  profiles: ArtistProfile[];
+  tracks: ArtistTrack[];
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/artists", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { profiles: [], tracks: [], error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as { profiles?: ArtistProfile[]; tracks?: ArtistTrack[] };
+    return { profiles: payload.profiles ?? [], tracks: payload.tracks ?? [] };
+  } catch {
+    return { profiles: [], tracks: [], error: "Network error" };
+  }
+};
+
+export const patchAdminArtistModeration = async (payload: {
+  telegramUserId: number;
+  status: ArtistProfile["status"];
+  moderationNote?: string;
+}): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/artists", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: await parseApiError(response) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+};
+
+export const patchAdminTrackModeration = async (payload: {
+  trackId: string;
+  status: ArtistTrack["status"];
+  moderationNote?: string;
+}): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/artists", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: await parseApiError(response) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+};
+
+export const fetchAdminShowcaseCollections = async (): Promise<{
+  collections: ShowcaseCollection[];
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/showcase", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { collections: [], error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as { collections?: ShowcaseCollection[] };
+    return { collections: payload.collections ?? [] };
+  } catch {
+    return { collections: [], error: "Network error" };
+  }
+};
+
+export const upsertAdminShowcaseCollection = async (payload: {
+  collection: Partial<ShowcaseCollection>;
+}): Promise<{ collections: ShowcaseCollection[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/showcase", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { collections: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { collections?: ShowcaseCollection[] };
+    return { collections: data.collections ?? [] };
+  } catch {
+    return { collections: [], error: "Network error" };
+  }
+};
+
+export const deleteAdminShowcaseCollection = async (id: string): Promise<{ collections: ShowcaseCollection[]; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/showcase", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify({ id }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { collections: [], error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { collections?: ShowcaseCollection[] };
+    return { collections: data.collections ?? [] };
+  } catch {
+    return { collections: [], error: "Network error" };
   }
 };
 
