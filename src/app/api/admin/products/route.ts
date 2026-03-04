@@ -8,8 +8,8 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
-import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
-import type { ShopCategory, ShopProduct } from "@/types/shop";
+import { listShopProductCategories } from "@/lib/server/shop-taxonomy-store";
+import type { ShopProduct } from "@/types/shop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,7 +53,7 @@ interface ProductDbRow {
 }
 
 interface ProductMetadata {
-  category?: ShopCategory;
+  category?: string;
   categoryId?: string;
   subcategoryId?: string;
   isNew?: boolean;
@@ -64,16 +64,16 @@ interface ProductMetadata {
 }
 
 const DEFAULT_PRODUCT_IMAGE = "/posts/cover-pattern.svg";
-const DEFAULT_PRODUCT_CATEGORY: ShopCategory = "figurine";
+const DEFAULT_PRODUCT_CATEGORY = "uncategorized";
 const DEFAULT_ATTRIBUTES: ShopProduct["attributes"] = {
-  material: "Глина",
-  technique: "Ручная работа",
-  color: "Натуральный",
-  heightCm: 10,
-  widthCm: 10,
-  weightGr: 200,
-  collection: "Classic",
-  sku: "SKU-DEFAULT",
+  material: "",
+  technique: "",
+  color: "",
+  heightCm: 1,
+  widthCm: 1,
+  weightGr: 1,
+  collection: "",
+  sku: "",
   stock: 0,
 };
 
@@ -107,8 +107,9 @@ const normalizeSlug = (value: unknown): string => {
     .slice(0, 120);
 };
 
-const isValidCategory = (value: unknown): value is ShopCategory => {
-  return value === "figurine" || value === "vase" || value === "mug" || value === "lamp" || value === "plate";
+const normalizeCategoryCode = (value: unknown): string | undefined => {
+  const normalized = normalizeMetaId(value);
+  return normalized || undefined;
 };
 
 const toMetadata = (value: unknown): ProductMetadata => {
@@ -122,9 +123,9 @@ const toMetadata = (value: unknown): ProductMetadata => {
     : undefined;
 
   return {
-    category: isValidCategory(source.category) ? source.category : undefined,
-    categoryId: normalizeMetaId(source.categoryId),
-    subcategoryId: normalizeMetaId(source.subcategoryId),
+    category: normalizeCategoryCode(source.category),
+    categoryId: normalizeCategoryCode(source.categoryId),
+    subcategoryId: normalizeCategoryCode(source.subcategoryId),
     isNew: typeof source.isNew === "boolean" ? source.isNew : undefined,
     isHit: typeof source.isHit === "boolean" ? source.isHit : undefined,
     tags,
@@ -143,7 +144,7 @@ const toShopProduct = (row: ProductDbRow): ShopProduct | null => {
 
   const metadata = toMetadata(row.metadata);
   const attrs = metadata.attributes ?? {};
-  const category = metadata.category ?? DEFAULT_PRODUCT_CATEGORY;
+  const category = metadata.categoryId ?? metadata.category ?? DEFAULT_PRODUCT_CATEGORY;
 
   return {
     id,
@@ -173,7 +174,7 @@ const toShopProduct = (row: ProductDbRow): ShopProduct | null => {
       widthCm: Math.max(1, Math.round(Number(attrs.widthCm ?? DEFAULT_ATTRIBUTES.widthCm))),
       weightGr: Math.max(1, Math.round(Number(attrs.weightGr ?? DEFAULT_ATTRIBUTES.weightGr))),
       collection: String(attrs.collection ?? DEFAULT_ATTRIBUTES.collection).slice(0, 120),
-      sku: String(attrs.sku ?? `SKU-${id}`).slice(0, 60),
+      sku: String(attrs.sku ?? id).slice(0, 60),
       stock: Math.max(0, Math.min(9999, Math.round(Number(row.stock ?? attrs.stock ?? DEFAULT_ATTRIBUTES.stock)))),
     },
   };
@@ -201,7 +202,7 @@ const mergeProduct = (current: ShopProduct, patch: Partial<ShopProduct>): ShopPr
           : undefined,
     rating: Math.max(0, Math.min(5, Number(patch.rating ?? current.rating))),
     reviewsCount: Math.max(0, Math.round(Number(patch.reviewsCount ?? current.reviewsCount))),
-    category: isValidCategory(patch.category) ? patch.category : current.category,
+    category: normalizeCategoryCode(patch.category) ?? current.category,
     isNew: typeof patch.isNew === "boolean" ? patch.isNew : current.isNew,
     isHit: typeof patch.isHit === "boolean" ? patch.isHit : current.isHit,
     attributes: {
@@ -220,14 +221,14 @@ const mergeProduct = (current: ShopProduct, patch: Partial<ShopProduct>): ShopPr
   };
 };
 
-const createDefaultProductById = (id: string): ShopProduct => {
+const createDefaultProductById = (id: string, options?: { category?: string }): ShopProduct => {
   return {
     id,
     slug: normalizeSlug(id) || id,
     title: `Новый товар ${id}`,
     subtitle: "Новая карточка товара",
     description: "Заполните описание товара в админке.",
-    category: DEFAULT_PRODUCT_CATEGORY,
+    category: options?.category || DEFAULT_PRODUCT_CATEGORY,
     image: DEFAULT_PRODUCT_IMAGE,
     priceStarsCents: 1,
     oldPriceStarsCents: undefined,
@@ -238,7 +239,7 @@ const createDefaultProductById = (id: string): ShopProduct => {
     tags: ["new"],
     attributes: {
       ...DEFAULT_ATTRIBUTES,
-      sku: `SKU-${id.slice(0, 12).toUpperCase()}`,
+      sku: id,
       stock: 0,
     },
   };
@@ -261,11 +262,14 @@ const toDbPayload = (options: {
   categoryId?: string;
   subcategoryId?: string;
 }) => {
+  const categoryId = normalizeCategoryCode(options.categoryId ?? options.product.category);
+  const subcategoryId = normalizeCategoryCode(options.subcategoryId);
+
   const metadata: ProductMetadata = {
     ...options.baseMetadata,
-    category: options.product.category,
-    categoryId: options.categoryId,
-    subcategoryId: options.subcategoryId,
+    category: categoryId,
+    categoryId,
+    subcategoryId,
     isNew: options.product.isNew,
     isHit: options.product.isHit,
     tags: options.product.tags,
@@ -305,7 +309,7 @@ const readAllProducts = async (): Promise<ProductDbRow[] | null> => {
   const query = new URLSearchParams();
   query.set(
     "select",
-    "product_code,slug,title,subtitle,description,image_url,price_stars_cents,old_price_stars_cents,stock,is_published,is_featured,rating,reviews_count,metadata,updated_at",
+    "product_code,slug,title,subtitle,description,image_url,price_stars_cents,old_price_stars_cents,stock,is_published,is_featured,rating,reviews_count,metadata,updated_at,category_id,subcategory_id",
   );
   query.set("order", "updated_at.desc");
 
@@ -320,7 +324,7 @@ const readOneProduct = async (productId: string): Promise<ProductDbRow | null> =
   const query = new URLSearchParams();
   query.set(
     "select",
-    "product_code,slug,title,subtitle,description,image_url,price_stars_cents,old_price_stars_cents,stock,is_published,is_featured,rating,reviews_count,metadata,updated_at",
+    "product_code,slug,title,subtitle,description,image_url,price_stars_cents,old_price_stars_cents,stock,is_published,is_featured,rating,reviews_count,metadata,updated_at,category_id,subcategory_id",
   );
   query.set("product_code", `eq.${productId}`);
   query.set("limit", "1");
@@ -339,14 +343,14 @@ const readOneProduct = async (productId: string): Promise<ProductDbRow | null> =
 };
 
 const buildAdminProductsPayload = async () => {
-  const [config, rows] = await Promise.all([readShopAdminConfig(), readAllProducts()]);
+  const [categories, rows] = await Promise.all([listShopProductCategories(), readAllProducts()]);
 
   if (!rows) {
     throw new Error("Failed to read products from Postgres");
   }
 
-  const categoryMap = new Map(config.productCategories.map((category) => [category.id, category]));
-  const fallbackCategoryId = config.productCategories[0]?.id;
+  const categoryMap = new Map(categories.map((category) => [category.id, category]));
+  const fallbackCategoryId = categories[0]?.id;
 
   const products = rows
     .map((row) => {
@@ -357,20 +361,27 @@ const buildAdminProductsPayload = async () => {
       }
 
       const metadata = toMetadata(row.metadata);
-      const categoryId = metadata.categoryId && categoryMap.has(metadata.categoryId)
-        ? metadata.categoryId
-        : categoryMap.has(source.category)
-          ? source.category
-          : fallbackCategoryId;
+      const categoryIdFromMetadata = normalizeCategoryCode(metadata.categoryId);
+      const legacyCategoryId = normalizeCategoryCode(metadata.category);
+      const categoryIdFromSource = normalizeCategoryCode(source.category);
+      const categoryId = categoryIdFromMetadata && categoryMap.has(categoryIdFromMetadata)
+        ? categoryIdFromMetadata
+        : legacyCategoryId && categoryMap.has(legacyCategoryId)
+          ? legacyCategoryId
+          : categoryIdFromSource && categoryMap.has(categoryIdFromSource)
+            ? categoryIdFromSource
+            : fallbackCategoryId;
       const category = categoryId ? categoryMap.get(categoryId) : undefined;
       const subcategoryId =
-        metadata.subcategoryId && category?.subcategories.some((entry) => entry.id === metadata.subcategoryId)
-          ? metadata.subcategoryId
+        normalizeCategoryCode(metadata.subcategoryId) &&
+        category?.subcategories.some((entry) => entry.id === normalizeCategoryCode(metadata.subcategoryId))
+          ? normalizeCategoryCode(metadata.subcategoryId)
           : undefined;
       const subcategory = subcategoryId ? category?.subcategories.find((entry) => entry.id === subcategoryId) : undefined;
 
       return {
         ...source,
+        category: categoryId ?? source.category,
         categoryId,
         subcategoryId,
         categoryLabel: category?.label,
@@ -462,18 +473,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Product id already exists" }, { status: 409 });
   }
 
-  const base = createDefaultProductById(id);
+  const categories = await listShopProductCategories();
+  const categoryMap = new Map(categories.map((category) => [category.id, category]));
+  const fallbackCategoryId = categories[0]?.id;
+  const requestedCategoryId = normalizeCategoryCode(sourcePatch.categoryId ?? sourcePatch.category);
+  const categoryId =
+    requestedCategoryId && categoryMap.has(requestedCategoryId) ? requestedCategoryId : fallbackCategoryId;
+  const requestedSubcategoryId = normalizeCategoryCode(sourcePatch.subcategoryId);
+  const subcategoryId =
+    requestedSubcategoryId && categoryId && categoryMap.get(categoryId)?.subcategories.some((item) => item.id === requestedSubcategoryId)
+      ? requestedSubcategoryId
+      : undefined;
+
+  const base = createDefaultProductById(id, { category: categoryId ?? DEFAULT_PRODUCT_CATEGORY });
   const product = mergeProduct(base, {
     ...sourcePatch,
     id,
     slug: normalizeSlug(sourcePatch.slug ?? id) || id,
+    category: categoryId ?? sourcePatch.category ?? base.category,
   });
 
   const body = toDbPayload({
     product,
     isPublished: true,
     isFeatured: false,
-    categoryId: product.category,
+    categoryId,
+    subcategoryId,
   });
 
   const created = await postgresTableRequest<ProductDbRow[]>({
@@ -526,7 +551,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid productId" }, { status: 400 });
   }
 
-  const [currentRow, config] = await Promise.all([readOneProduct(productId), readShopAdminConfig()]);
+  const [currentRow, categories] = await Promise.all([readOneProduct(productId), listShopProductCategories()]);
 
   if (!currentRow) {
     return NextResponse.json({ error: "Unknown productId" }, { status: 404 });
@@ -539,7 +564,7 @@ export async function PATCH(request: Request) {
   }
 
   const currentMeta = toMetadata(currentRow.metadata);
-  const categoryMap = new Map(config.productCategories.map((category) => [category.id, category]));
+  const categoryMap = new Map(categories.map((category) => [category.id, category]));
 
   const normalizedCategoryId =
     typeof payload.categoryId === "string"
@@ -556,7 +581,7 @@ export async function PATCH(request: Request) {
 
   const nextCategoryId =
     normalizedCategoryId === undefined
-      ? currentMeta.categoryId
+      ? normalizeCategoryCode(currentMeta.categoryId ?? currentProduct.categoryId ?? currentProduct.category)
       : normalizedCategoryId === null
         ? undefined
         : normalizedCategoryId;
@@ -601,6 +626,13 @@ export async function PATCH(request: Request) {
       },
     };
   }
+
+  nextProduct = {
+    ...nextProduct,
+    category: nextCategoryId ?? nextProduct.category,
+    categoryId: nextCategoryId,
+    subcategoryId: nextSubcategoryId,
+  };
 
   const isPublished =
     typeof payload.isPublished === "boolean"

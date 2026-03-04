@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 
 interface TelegramApiResponse<T = unknown> {
   ok: boolean;
@@ -15,36 +16,6 @@ interface TelegramWebhookInfo {
   max_connections?: number;
   allowed_updates?: string[];
 }
-
-const getPublicBaseUrl = (request: Request): string | null => {
-  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL;
-
-  if (explicit) {
-    return explicit.replace(/\/+$/, "");
-  }
-
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const host = forwardedHost || request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-
-  if (host) {
-    return `${proto}://${host}`.replace(/\/+$/, "");
-  }
-
-  const nextPublicUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  if (nextPublicUrl) {
-    return nextPublicUrl.replace(/\/+$/, "");
-  }
-
-  const vercelUrl = process.env.VERCEL_URL;
-
-  if (vercelUrl) {
-    return `https://${vercelUrl}`;
-  }
-
-  return null;
-};
 
 const assertAdminAccess = (request: Request): NextResponse | null => {
   const adminKey = process.env.TELEGRAM_ADMIN_KEY;
@@ -113,7 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Missing TELEGRAM_BOT_TOKEN" }, { status: 500 });
   }
 
-  const baseUrl = getPublicBaseUrl(request);
+  const baseUrl = resolvePublicBaseUrl(request);
 
   if (!baseUrl) {
     return NextResponse.json(

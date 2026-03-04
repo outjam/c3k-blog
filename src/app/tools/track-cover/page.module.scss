@@ -1,0 +1,180 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.9rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+  padding-left: calc(1rem + var(--safe-area-left));
+}
+
+.hero,
+.search,
+.scope {
+  display: grid;
+  gap: 0.45rem;
+  border-radius: var(--radius-lg);
+  padding: 0.9rem;
+  background: var(--tg-section-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+}
+
+.hero h1 {
+  color: var(--tg-text);
+  font-size: clamp(1.05rem, 4.4vw, 1.28rem);
+}
+
+.hero p,
+.summary {
+  color: var(--tg-subtitle-text);
+  font-size: 0.85rem;
+  line-height: 1.42;
+}
+
+.search label {
+  color: var(--tg-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+}
+
+.searchRow input {
+  min-height: 2.55rem;
+  border-radius: 0.78rem;
+  border: 1px solid var(--tg-section-separator);
+  padding: 0 0.78rem;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-size: 0.88rem;
+}
+
+.searchRow button {
+  min-height: 2.55rem;
+  border: 0;
+  border-radius: 0.78rem;
+  padding: 0 0.92rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.searchRow button:disabled {
+  opacity: 0.58;
+}
+
+.list {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 0.62rem;
+  border-radius: var(--radius-md);
+  padding: 0.48rem;
+  background: var(--tg-section-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+}
+
+.card img {
+  width: 112px;
+  height: 112px;
+  border-radius: 0.72rem;
+  object-fit: cover;
+}
+
+.meta {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.meta h2 {
+  color: var(--tg-text);
+  font-size: 0.9rem;
+  line-height: 1.32;
+}
+
+.meta p {
+  color: var(--tg-subtitle-text);
+  font-size: 0.82rem;
+}
+
+.meta dl {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.meta dl div {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 0.4rem;
+}
+
+.meta dt {
+  color: var(--tg-hint);
+  font-size: 0.73rem;
+}
+
+.meta dd {
+  color: var(--tg-text);
+  font-size: 0.75rem;
+}
+
+.meta audio {
+  width: 100%;
+  min-height: 2rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.actions button,
+.actions a {
+  min-height: 1.95rem;
+  border: 0;
+  border-radius: 0.62rem;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  text-decoration: none;
+}
+
+.scope h2 {
+  color: var(--tg-text);
+  font-size: 0.93rem;
+}
+
+.scope ul {
+  display: grid;
+  gap: 0.34rem;
+  color: var(--tg-subtitle-text);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .card {
+    grid-template-columns: 1fr;
+  }
+
+  .card img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+}

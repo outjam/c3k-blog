@@ -7,6 +7,7 @@ import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
 import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
+import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 import {
   enqueueTelegramDocumentNotification,
   enqueueTelegramMessageNotification,
@@ -47,6 +48,7 @@ const PAYMENT_SUCCESS_EMOJI_ID = "5895669571058142797";
 const XTR_EMOJI_ID = "6028338546736107668";
 const OPEN_BUTTON_EMOJI_ID = "5920332557466997677";
 const PRODUCT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,79}$/;
+const ENABLE_DOCUMENT_RECEIPT = process.env.TELEGRAM_ORDER_RECEIPT_DOCUMENT === "1";
 
 const escapeHtml = (value: string): string => {
   return value
@@ -94,23 +96,6 @@ const formatAmount = (amount: number): string => {
 
 const clampStarsAmount = (value: number): number => {
   return Math.max(1, Math.round(Number(value || 1)));
-};
-
-const getMiniAppBaseUrl = (request: Request): string | null => {
-  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
-
-  if (explicit) {
-    return explicit.replace(/\/+$/, "");
-  }
-
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-
-  if (!host) {
-    return null;
-  }
-
-  return `${proto}://${host}`.replace(/\/+$/, "");
 };
 
 const telegramApi = async (botToken: string, method: string, body: Record<string, unknown>) => {
@@ -187,7 +172,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: answered });
   }
 
-  if (update.message?.successful_payment && update.message.chat?.id) {
+  if (update.message?.successful_payment) {
     const payment = update.message.successful_payment;
     const payload = parseInvoicePayload(payment.invoice_payload);
 
@@ -286,7 +271,7 @@ export async function POST(request: Request) {
     }
 
     if (!wasDuplicate) {
-      const baseUrl = getMiniAppBaseUrl(request);
+      const baseUrl = resolvePublicBaseUrl(request);
       const shopMiniAppUrl = baseUrl ? `${baseUrl}/shop` : undefined;
       const profileOrderUrl = baseUrl
         ? `${baseUrl}/profile?section=orders&order=${encodeURIComponent(payload.orderCode)}`
@@ -343,37 +328,52 @@ export async function POST(request: Request) {
         `${orderLines.join("\n")}\n\n` +
         `${formatAmount(payment.total_amount)} <tg-emoji emoji-id="${XTR_EMOJI_ID}">⭐</tg-emoji>`;
 
-      const cardSvg = buildOrderCardSvg({
-        orderId: payload.orderCode,
-        amountStars: payment.total_amount,
-        items: orderItems,
-        appTitle: "C3K Telegram Shop",
-      });
-
-      const queuedDocument = await enqueueTelegramDocumentNotification({
-        chatId: update.message.chat.id,
-        content: cardSvg,
+      await enqueueTelegramMessageNotification({
+        chatId: update.message.from?.id ?? updatedOrder.telegramUserId,
+        text: summaryText,
         options: {
-          fileName: `order-${payload.orderCode}.svg`,
-          mimeType: "image/svg+xml",
-          caption: summaryText,
           parseMode: "HTML",
           buttons: buttons.length > 0 ? buttons : undefined,
+          messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
         },
-        dedupeKey: `receipt:document:${payload.orderCode}:${telegramChargeId || payloadHash}`,
+        dedupeKey: `receipt:message:${payload.orderCode}:${telegramChargeId || payloadHash}`,
       });
 
-      if (!queuedDocument) {
-        await enqueueTelegramMessageNotification({
-          chatId: update.message.chat.id,
-          text: summaryText,
+      if (ENABLE_DOCUMENT_RECEIPT) {
+        const cardSvg = buildOrderCardSvg({
+          orderId: payload.orderCode,
+          amountStars: payment.total_amount,
+          items: orderItems,
+          appTitle: "C3K Telegram Shop",
+        });
+
+        const queuedDocument = await enqueueTelegramDocumentNotification({
+          chatId: update.message.from?.id ?? updatedOrder.telegramUserId,
+          content: cardSvg,
           options: {
+            fileName: `order-${payload.orderCode}.svg`,
+            mimeType: "image/svg+xml",
+            caption: summaryText,
             parseMode: "HTML",
             buttons: buttons.length > 0 ? buttons : undefined,
-            messageEffectId: process.env.TELEGRAM_ORDER_SUCCESS_EFFECT_ID,
           },
-          dedupeKey: `receipt:message:${payload.orderCode}:${telegramChargeId || payloadHash}`,
+          dedupeKey: `receipt:document:${payload.orderCode}:${telegramChargeId || payloadHash}`,
         });
+
+        if (!queuedDocument) {
+          await enqueueTelegramDocumentNotification({
+            chatId: update.message.from?.id ?? updatedOrder.telegramUserId,
+            content: cardSvg,
+            options: {
+              fileName: `order-${payload.orderCode}.svg`,
+              mimeType: "image/svg+xml",
+              caption: summaryText,
+              parseMode: "HTML",
+              buttons: buttons.length > 0 ? buttons : undefined,
+            },
+            dedupeKey: `receipt:document-retry:${payload.orderCode}:${telegramChargeId || payloadHash}`,
+          });
+        }
       }
     }
 

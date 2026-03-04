@@ -200,14 +200,18 @@ export const enqueueTelegramDocumentNotification = async (input: {
 };
 
 const sendJob = async (job: NotificationJob): Promise<boolean> => {
-  if (job.kind === "message") {
-    return sendTelegramMessage(job.payload.chatId, job.payload.text, job.payload.options);
+  try {
+    if (job.kind === "message") {
+      return sendTelegramMessage(job.payload.chatId, job.payload.text, job.payload.options);
+    }
+
+    const content =
+      job.payload.contentType === "utf8" ? job.payload.content : Buffer.from(job.payload.content, "base64");
+
+    return sendTelegramDocument(job.payload.chatId, content, job.payload.options);
+  } catch {
+    return false;
   }
-
-  const content =
-    job.payload.contentType === "utf8" ? job.payload.content : Buffer.from(job.payload.content, "base64");
-
-  return sendTelegramDocument(job.payload.chatId, content, job.payload.options);
 };
 
 export const processTelegramNotificationQueue = async (limit = 25): Promise<QueueStats> => {
@@ -243,6 +247,14 @@ export const processTelegramNotificationQueue = async (limit = 25): Promise<Queu
 
     if (nextAttempts >= job.maxAttempts) {
       stats.failed += 1;
+      console.error("[telegram-notify-queue] delivery failed", {
+        jobId: job.id,
+        jobKind: job.kind,
+        chatId: job.payload.chatId,
+        attempts: nextAttempts,
+        maxAttempts: job.maxAttempts,
+        dedupeKey: job.dedupeKey,
+      });
       continue;
     }
 

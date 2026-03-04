@@ -12,6 +12,7 @@ import {
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
+import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 
 interface CreateInvoiceLinkResponse {
   ok: boolean;
@@ -66,36 +67,6 @@ const buildInvoicePayload = (orderCode: string, productIds: string[]): string =>
   const productChunk = productIds.join(",");
   const payload = productChunk ? `${orderCode}|${productChunk}` : orderCode;
   return payload.slice(0, 128);
-};
-
-const getPublicBaseUrl = (request: Request): string | null => {
-  const explicit = process.env.TELEGRAM_WEBHOOK_BASE_URL;
-
-  if (explicit) {
-    return explicit.replace(/\/+$/, "");
-  }
-
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const host = forwardedHost || request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-
-  if (host) {
-    return `${proto}://${host}`.replace(/\/+$/, "");
-  }
-
-  const nextPublicUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  if (nextPublicUrl) {
-    return nextPublicUrl.replace(/\/+$/, "");
-  }
-
-  const vercelUrl = process.env.VERCEL_URL;
-
-  if (vercelUrl) {
-    return `https://${vercelUrl}`;
-  }
-
-  return null;
 };
 
 const telegramRequest = async <T,>(
@@ -270,7 +241,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const baseUrl = getPublicBaseUrl(request);
+  const baseUrl = resolvePublicBaseUrl(request);
 
   if (!baseUrl) {
     return NextResponse.json(

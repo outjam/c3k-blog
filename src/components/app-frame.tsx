@@ -14,9 +14,9 @@ interface AppFrameProps {
 }
 
 interface TabItem {
-  id: "blog" | "shop" | "profile";
+  id: "blog" | "tools" | "shop" | "profile";
   label: string;
-  href: "/" | "/shop" | "/profile";
+  href: "/" | "/tools" | "/shop" | "/profile";
   icon: React.ReactNode;
 }
 
@@ -44,19 +44,33 @@ function ShopIcon() {
   );
 }
 
+function ToolsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M4 6.25A2.25 2.25 0 0 1 6.25 4h11.5A2.25 2.25 0 0 1 20 6.25v11.5A2.25 2.25 0 0 1 17.75 20H6.25A2.25 2.25 0 0 1 4 17.75V6.25Zm2.25-.75a.75.75 0 0 0-.75.75v4.5h13v-4.5a.75.75 0 0 0-.75-.75H6.25Zm12.25 6.75h-13v5.5c0 .41.34.75.75.75h11.5a.75.75 0 0 0 .75-.75v-5.5ZM8 7.5a.75.75 0 1 0 0 1.5h2a.75.75 0 0 0 0-1.5H8Zm4.5 0a.75.75 0 1 0 0 1.5h3.5a.75.75 0 0 0 0-1.5h-3.5Zm-4.75 6a.75.75 0 1 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" />
+    </svg>
+  );
+}
+
 export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const webApp = useTelegramWebApp();
   const profilePhotoUrl = webApp?.initDataUnsafe?.user?.photo_url;
+  const isTools = pathname.startsWith("/tools");
   const isShop = pathname.startsWith("/shop");
   const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders");
-  const activeIndex = isProfile ? 2 : isShop ? 1 : 0;
+  const activeIndex = isProfile ? 3 : isShop ? 2 : isTools ? 1 : 0;
   const showTabBar =
-    pathname === "/" || pathname.startsWith("/shop") || pathname.startsWith("/profile") || pathname.startsWith("/orders");
+    pathname === "/" ||
+    pathname.startsWith("/tools") ||
+    pathname.startsWith("/shop") ||
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/orders");
 
   const tabs = useMemo<TabItem[]>(() => [
     { id: "blog", label: "Блог", href: "/", icon: <BlogIcon /> },
+    { id: "tools", label: "Инструменты", href: "/tools", icon: <ToolsIcon /> },
     { id: "shop", label: "Магазин", href: "/shop", icon: <ShopIcon /> },
     {
       id: "profile",
