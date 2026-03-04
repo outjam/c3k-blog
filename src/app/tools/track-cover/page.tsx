@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { hapticSelection } from "@/lib/telegram";
+import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 
 import styles from "./page.module.scss";
 
@@ -26,6 +27,24 @@ interface SearchResponse {
   error?: string;
 }
 
+interface TelegramProfileAudio {
+  id: string;
+  fileId: string;
+  title: string;
+  artist: string;
+  durationSec: number;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  searchQuery: string;
+}
+
+interface ProfileAudiosResponse {
+  items?: TelegramProfileAudio[];
+  totalCount?: number;
+  error?: string;
+}
+
 const toDuration = (seconds: number): string => {
   if (!Number.isFinite(seconds) || seconds <= 0) {
     return "—";
@@ -44,6 +63,18 @@ const sanitizeFileToken = (value: string): string => {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 48);
+};
+
+const formatBytes = (value: number): string => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "—";
+  }
+
+  if (value < 1024 * 1024) {
+    return `${Math.round(value / 1024)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const downloadMetadata = (item: TrackCoverItem) => {
@@ -70,8 +101,12 @@ const downloadMetadata = (item: TrackCoverItem) => {
 export default function TrackCoverPage() {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<TrackCoverItem[]>([]);
+  const [profileAudios, setProfileAudios] = useState<TelegramProfileAudio[]>([]);
+  const [profileAudiosTotal, setProfileAudiosTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingProfileAudios, setLoadingProfileAudios] = useState(false);
   const [error, setError] = useState("");
+  const [profileError, setProfileError] = useState("");
 
   const canSearch = query.trim().length >= 2;
   const summaryText = useMemo(() => {
@@ -90,8 +125,10 @@ export default function TrackCoverPage() {
     return `Найдено ${items.length} результатов`;
   }, [error, items.length, loading]);
 
-  const handleSearch = async () => {
-    if (!canSearch || loading) {
+  const runSearch = async (inputQuery: string) => {
+    const normalizedQuery = inputQuery.trim();
+
+    if (normalizedQuery.length < 2 || loading) {
       return;
     }
 
@@ -100,7 +137,7 @@ export default function TrackCoverPage() {
     hapticSelection();
 
     try {
-      const response = await fetch(`/api/tools/track-cover/search?q=${encodeURIComponent(query.trim())}`, {
+      const response = await fetch(`/api/tools/track-cover/search?q=${encodeURIComponent(normalizedQuery)}`, {
         cache: "no-store",
       });
       const payload = (await response.json()) as SearchResponse;
@@ -120,6 +157,44 @@ export default function TrackCoverPage() {
     }
   };
 
+  const handleSearch = async () => {
+    await runSearch(query);
+  };
+
+  const loadProfileAudios = async () => {
+    if (loadingProfileAudios) {
+      return;
+    }
+
+    setLoadingProfileAudios(true);
+    setProfileError("");
+
+    try {
+      const response = await fetch("/api/tools/track-cover/profile-audios?limit=50", {
+        cache: "no-store",
+        headers: getTelegramAuthHeaders(),
+      });
+      const payload = (await response.json()) as ProfileAudiosResponse;
+
+      if (!response.ok) {
+        setProfileAudios([]);
+        setProfileAudiosTotal(0);
+        setProfileError(payload.error ?? "Не удалось загрузить аудио из Telegram профиля.");
+        return;
+      }
+
+      const nextItems = Array.isArray(payload.items) ? payload.items : [];
+      setProfileAudios(nextItems);
+      setProfileAudiosTotal(Number(payload.totalCount ?? nextItems.length));
+    } catch {
+      setProfileAudios([]);
+      setProfileAudiosTotal(0);
+      setProfileError("Сетевая ошибка загрузки аудио профиля.");
+    } finally {
+      setLoadingProfileAudios(false);
+    }
+  };
+
   const handleCopy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -133,7 +208,49 @@ export default function TrackCoverPage() {
     <div className={styles.page}>
       <section className={styles.hero}>
         <h1>Track Cover Finder</h1>
-        <p>Поиск обложек треков + экспорт метаданных для дальнейшей обработки на сервере.</p>
+        <p>Поиск обложек треков + экспорт метаданных и импорт треков из Telegram Profile Audio.</p>
+      </section>
+
+      <section className={styles.profileAudios}>
+        <div className={styles.profileHeader}>
+          <div>
+            <h2>Аудио из профиля Telegram</h2>
+            <p>Источник: Bot API `getUserProfileAudios`</p>
+          </div>
+          <button type="button" onClick={loadProfileAudios} disabled={loadingProfileAudios}>
+            {loadingProfileAudios ? "Загрузка..." : "Получить треки"}
+          </button>
+        </div>
+
+        {profileError ? <p className={styles.profileError}>{profileError}</p> : null}
+
+        {profileAudios.length > 0 ? (
+          <>
+            <p className={styles.profileCount}>Треков в профиле: {profileAudiosTotal}</p>
+            <div className={styles.profileList}>
+              {profileAudios.map((audio) => (
+                <article key={audio.id} className={styles.profileCard}>
+                  <h3>{audio.title || "Без названия"}</h3>
+                  <p>{audio.artist || "Неизвестный артист"}</p>
+                  <small>
+                    {toDuration(audio.durationSec)} · {formatBytes(audio.fileSize)}
+                  </small>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery(audio.searchQuery);
+                      void runSearch(audio.searchQuery);
+                    }}
+                  >
+                    Найти обложку
+                  </button>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className={styles.profileHint}>Нажмите кнопку, чтобы запросить список треков из Telegram-профиля.</p>
+        )}
       </section>
 
       <section className={styles.search}>
