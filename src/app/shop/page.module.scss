@@ -45,6 +45,190 @@
   line-height: 1.45;
 }
 
+.heroMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.heroMeta p {
+  margin: 0;
+  padding: 0.28rem 0.52rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  font-size: 0.76rem;
+  color: var(--tg-subtitle-text);
+}
+
+.heroMeta strong {
+  color: var(--tg-text);
+}
+
+.showcaseSection,
+.artistSection {
+  display: grid;
+  gap: 0.7rem;
+  border-radius: var(--radius-lg);
+  padding: 0.92rem;
+  background: var(--tg-section-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+}
+
+.showcaseHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.showcaseHeader h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--tg-text);
+}
+
+.showcaseHeader p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.showcaseCollection {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.showcaseCollection h3 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.94rem;
+}
+
+.showcaseCollection p {
+  margin: 0.2rem 0 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.showcaseRail,
+.artistsRail {
+  display: flex;
+  gap: 0.62rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.showcaseRail::-webkit-scrollbar,
+.artistsRail::-webkit-scrollbar {
+  display: none;
+}
+
+.showcaseCard {
+  min-width: 180px;
+  max-width: 180px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 0.82rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 68%, var(--tg-section-bg));
+}
+
+.showcaseCard img {
+  display: block;
+  width: 100%;
+  height: 118px;
+  object-fit: cover;
+}
+
+.showcaseCard div {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.48rem;
+}
+
+.showcaseCard strong {
+  color: var(--tg-text);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.showcaseCard span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.73rem;
+}
+
+.artistCard {
+  min-width: 150px;
+  max-width: 150px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 0.9rem;
+  padding: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 68%, var(--tg-section-bg));
+  display: grid;
+  gap: 0.45rem;
+}
+
+.artistCard img,
+.artistAvatarFallback {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.artistAvatarFallback {
+  display: grid;
+  place-items: center;
+  color: var(--tg-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-bg));
+}
+
+.artistCard div {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.artistCard strong {
+  color: var(--tg-text);
+  font-size: 0.8rem;
+}
+
+.artistCard span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+}
+
+.feedModes {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.feedModeButton {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
+  color: var(--tg-text);
+  border-radius: 999px;
+  min-height: 2rem;
+  padding: 0 0.74rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.feedModeButtonActive {
+  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  border-color: color-mix(in srgb, var(--tg-accent) 30%, transparent);
+}
+
 .grid {
   display: grid;
   gap: 0.62rem;
@@ -140,6 +324,25 @@
 }
 
 @media (max-width: 700px) {
+  .showcaseSection,
+  .artistSection {
+    padding: 0.78rem;
+  }
+
+  .showcaseCard {
+    min-width: 150px;
+    max-width: 150px;
+  }
+
+  .showcaseCard img {
+    height: 102px;
+  }
+
+  .artistCard {
+    min-width: 132px;
+    max-width: 132px;
+  }
+
   .resultsBar {
     grid-template-columns: 1fr;
     gap: 0.3rem;

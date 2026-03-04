@@ -68,31 +68,54 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           <p className={styles.subtitle}>{product.subtitle}</p>
           <h1>{product.title}</h1>
           <p className={styles.description}>{product.description}</p>
+          {product.artistName ? (
+            <p className={styles.subtitle}>
+              Артист:{" "}
+              {product.artistSlug ? (
+                <a href={`/shop/artist/${product.artistSlug}`}>{product.artistName}</a>
+              ) : (
+                product.artistName
+              )}
+            </p>
+          ) : null}
           <p className={styles.price}>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
 
-          <dl className={styles.meta}>
-            <div>
-              <dt>SKU</dt>
-              <dd>{product.attributes.sku}</dd>
-            </div>
-            <div>
-              <dt>Коллекция</dt>
-              <dd>{product.attributes.collection}</dd>
-            </div>
-            <div>
-              <dt>Техника</dt>
-              <dd>{product.attributes.technique}</dd>
-            </div>
-            <div>
-              <dt>Размер</dt>
-              <dd>
-                {product.attributes.heightCm}×{product.attributes.widthCm} см
-              </dd>
-            </div>
-          </dl>
+          {product.kind === "digital_track" ? (
+            <dl className={styles.meta}>
+              <div>
+                <dt>Формат</dt>
+                <dd>Digital track</dd>
+              </div>
+              <div>
+                <dt>Артикул</dt>
+                <dd>{product.attributes.sku}</dd>
+              </div>
+            </dl>
+          ) : (
+            <dl className={styles.meta}>
+              <div>
+                <dt>SKU</dt>
+                <dd>{product.attributes.sku}</dd>
+              </div>
+              <div>
+                <dt>Коллекция</dt>
+                <dd>{product.attributes.collection}</dd>
+              </div>
+              <div>
+                <dt>Техника</dt>
+                <dd>{product.attributes.technique}</dd>
+              </div>
+              <div>
+                <dt>Размер</dt>
+                <dd>
+                  {product.attributes.heightCm}×{product.attributes.widthCm} см
+                </dd>
+              </div>
+            </dl>
+          )}
 
           <button type="button" className={styles.addButton} onClick={() => void addToCart()}>
-            Добавить в корзину
+            {product.kind === "digital_track" ? "Купить трек" : "Добавить в корзину"}
           </button>
           <button type="button" className={styles.addButton} onClick={toggleFavorite}>
             {isFavorite ? "Убрать из избранного" : "В избранное"}

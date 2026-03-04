@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
 import type { BlogPost } from "@/types/blog";
 import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
-import { fetchAdminSession, fetchPublicCatalog } from "@/lib/admin-api";
+import { createMyArtistTrack, fetchAdminSession, fetchMyArtistProfile, fetchPublicCatalog, upsertMyArtistProfile } from "@/lib/admin-api";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 import { readBookmarkedPostSlugs } from "@/lib/post-bookmarks";
 import { readFavoriteProductIds } from "@/lib/product-favorites";
@@ -14,7 +14,7 @@ import { isShopAdminUserClient } from "@/lib/shop-admin-client";
 import { FINAL_ORDER_STATUSES, SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import type { ShopOrder, ShopProduct } from "@/types/shop";
+import type { ArtistProfile, ArtistTrack, ShopOrder, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
@@ -34,6 +34,32 @@ export default function ProfilePage() {
   const [focusOrdersSection, setFocusOrdersSection] = useState(false);
   const [ordersError, setOrdersError] = useState("");
   const [isAdmin, setIsAdmin] = useState(isShopAdminUserClient(user?.id));
+  const [artistProfile, setArtistProfile] = useState<ArtistProfile | null>(null);
+  const [artistTracks, setArtistTracks] = useState<ArtistTrack[]>([]);
+  const [artistDonationsCount, setArtistDonationsCount] = useState(0);
+  const [artistSubscriptionsCount, setArtistSubscriptionsCount] = useState(0);
+  const [artistSaving, setArtistSaving] = useState(false);
+  const [trackSaving, setTrackSaving] = useState(false);
+  const [artistError, setArtistError] = useState("");
+  const [artistDraft, setArtistDraft] = useState({
+    displayName: "",
+    bio: "",
+    avatarUrl: "",
+    coverUrl: "",
+    donationEnabled: true,
+    subscriptionEnabled: false,
+    subscriptionPriceStarsCents: "100",
+  });
+  const [trackDraft, setTrackDraft] = useState({
+    title: "",
+    subtitle: "",
+    description: "",
+    coverImage: "",
+    audioFileId: "",
+    previewUrl: "",
+    genre: "",
+    priceStarsCents: "100",
+  });
 
   const fullName = useMemo(() => {
     if (!user) {
@@ -112,10 +138,39 @@ export default function ProfilePage() {
       }
     });
 
+    void fetchMyArtistProfile().then((response) => {
+      if (response.error) {
+        setArtistError(response.error);
+        return;
+      }
+
+      setArtistProfile(response.profile);
+      setArtistTracks(response.tracks);
+      setArtistDonationsCount(response.donations);
+      setArtistSubscriptionsCount(response.subscriptions);
+
+      if (response.profile) {
+        setArtistDraft({
+          displayName: response.profile.displayName,
+          bio: response.profile.bio,
+          avatarUrl: response.profile.avatarUrl ?? "",
+          coverUrl: response.profile.coverUrl ?? "",
+          donationEnabled: response.profile.donationEnabled,
+          subscriptionEnabled: response.profile.subscriptionEnabled,
+          subscriptionPriceStarsCents: String(response.profile.subscriptionPriceStarsCents),
+        });
+      } else {
+        setArtistDraft((prev) => ({
+          ...prev,
+          displayName: prev.displayName || fullName,
+        }));
+      }
+    });
+
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [user?.id]);
+  }, [fullName, user?.id]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -132,6 +187,79 @@ export default function ProfilePage() {
     setTheme(nextTheme);
     applyAppTheme(nextTheme);
     await saveThemePreference(nextTheme);
+  };
+
+  const submitArtistProfile = async () => {
+    setArtistSaving(true);
+    setArtistError("");
+
+    const profileResponse = await upsertMyArtistProfile({
+      displayName: artistDraft.displayName,
+      bio: artistDraft.bio,
+      avatarUrl: artistDraft.avatarUrl,
+      coverUrl: artistDraft.coverUrl,
+      donationEnabled: artistDraft.donationEnabled,
+      subscriptionEnabled: artistDraft.subscriptionEnabled,
+      subscriptionPriceStarsCents: Math.max(1, Math.round(Number(artistDraft.subscriptionPriceStarsCents || "1"))),
+    });
+
+    setArtistSaving(false);
+
+    if (profileResponse.error || !profileResponse.profile) {
+      setArtistError(profileResponse.error ?? "Не удалось сохранить профиль артиста.");
+      return;
+    }
+
+    setArtistProfile(profileResponse.profile);
+    setArtistDraft({
+      displayName: profileResponse.profile.displayName,
+      bio: profileResponse.profile.bio,
+      avatarUrl: profileResponse.profile.avatarUrl ?? "",
+      coverUrl: profileResponse.profile.coverUrl ?? "",
+      donationEnabled: profileResponse.profile.donationEnabled,
+      subscriptionEnabled: profileResponse.profile.subscriptionEnabled,
+      subscriptionPriceStarsCents: String(profileResponse.profile.subscriptionPriceStarsCents),
+    });
+  };
+
+  const submitTrack = async () => {
+    if (!artistProfile) {
+      setArtistError("Сначала создайте профиль артиста.");
+      return;
+    }
+
+    setTrackSaving(true);
+    setArtistError("");
+
+    const trackResponse = await createMyArtistTrack({
+      title: trackDraft.title,
+      subtitle: trackDraft.subtitle,
+      description: trackDraft.description,
+      coverImage: trackDraft.coverImage,
+      audioFileId: trackDraft.audioFileId,
+      previewUrl: trackDraft.previewUrl,
+      genre: trackDraft.genre,
+      priceStarsCents: Math.max(1, Math.round(Number(trackDraft.priceStarsCents || "1"))),
+    });
+
+    setTrackSaving(false);
+
+    if (trackResponse.error || !trackResponse.track) {
+      setArtistError(trackResponse.error ?? "Не удалось отправить трек на модерацию.");
+      return;
+    }
+
+    setArtistTracks((prev) => [trackResponse.track, ...prev]);
+    setTrackDraft({
+      title: "",
+      subtitle: "",
+      description: "",
+      coverImage: "",
+      audioFileId: "",
+      previewUrl: "",
+      genre: "",
+      priceStarsCents: "100",
+    });
   };
 
   return (
@@ -203,6 +331,183 @@ export default function ProfilePage() {
         </section>
 
         <ShopAdminOrdersPanel enabled={isAdmin} />
+
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2>Кабинет артиста</h2>
+            <p>{artistProfile ? artistProfile.status : "не активирован"}</p>
+          </div>
+
+          <p className={styles.emptyState}>
+            {artistProfile
+              ? "Профиль артиста активен. Добавляйте релизы, управляйте донатами и подпиской."
+              : "Станьте артистом, чтобы публиковать треки в витрине после модерации."}
+          </p>
+
+          <div className={styles.artistDraftGrid}>
+            <label>
+              Имя артиста
+              <input
+                value={artistDraft.displayName}
+                onChange={(event) => setArtistDraft((prev) => ({ ...prev, displayName: event.target.value }))}
+                placeholder="Stage name"
+              />
+            </label>
+            <label>
+              Био
+              <textarea
+                value={artistDraft.bio}
+                onChange={(event) => setArtistDraft((prev) => ({ ...prev, bio: event.target.value }))}
+                placeholder="Коротко о вас"
+              />
+            </label>
+            <label>
+              Avatar URL
+              <input
+                value={artistDraft.avatarUrl}
+                onChange={(event) => setArtistDraft((prev) => ({ ...prev, avatarUrl: event.target.value }))}
+                placeholder="https://..."
+              />
+            </label>
+            <label>
+              Cover URL
+              <input
+                value={artistDraft.coverUrl}
+                onChange={(event) => setArtistDraft((prev) => ({ ...prev, coverUrl: event.target.value }))}
+                placeholder="https://..."
+              />
+            </label>
+            <label>
+              Цена подписки (cents)
+              <input
+                type="number"
+                min={1}
+                value={artistDraft.subscriptionPriceStarsCents}
+                onChange={(event) =>
+                  setArtistDraft((prev) => ({ ...prev, subscriptionPriceStarsCents: event.target.value }))
+                }
+              />
+            </label>
+            <label className={styles.checkboxInline}>
+              <input
+                type="checkbox"
+                checked={artistDraft.donationEnabled}
+                onChange={(event) => setArtistDraft((prev) => ({ ...prev, donationEnabled: event.target.checked }))}
+              />
+              Донаты включены
+            </label>
+            <label className={styles.checkboxInline}>
+              <input
+                type="checkbox"
+                checked={artistDraft.subscriptionEnabled}
+                onChange={(event) => setArtistDraft((prev) => ({ ...prev, subscriptionEnabled: event.target.checked }))}
+              />
+              Подписка включена
+            </label>
+          </div>
+
+          <button type="button" className={styles.inlineButton} onClick={() => void submitArtistProfile()} disabled={artistSaving}>
+            {artistSaving ? "Сохраняем..." : artistProfile ? "Обновить профиль артиста" : "Стать артистом"}
+          </button>
+
+          {artistProfile ? (
+            <div className={styles.artistStats}>
+              <p>Баланс: {formatStarsFromCents(artistProfile.balanceStarsCents)} ⭐</p>
+              <p>Заработано: {formatStarsFromCents(artistProfile.lifetimeEarningsStarsCents)} ⭐</p>
+              <p>Донатов: {artistDonationsCount}</p>
+              <p>Подписок: {artistSubscriptionsCount}</p>
+            </div>
+          ) : null}
+
+          <div className={styles.artistDraftGrid}>
+            <label>
+              Название трека
+              <input
+                value={trackDraft.title}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, title: event.target.value }))}
+                placeholder="My new track"
+              />
+            </label>
+            <label>
+              Подзаголовок
+              <input
+                value={trackDraft.subtitle}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, subtitle: event.target.value }))}
+                placeholder="Single"
+              />
+            </label>
+            <label>
+              Описание
+              <textarea
+                value={trackDraft.description}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, description: event.target.value }))}
+              />
+            </label>
+            <label>
+              Cover URL
+              <input
+                value={trackDraft.coverImage}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, coverImage: event.target.value }))}
+                placeholder="https://..."
+              />
+            </label>
+            <label>
+              Telegram `audio_file_id`
+              <input
+                value={trackDraft.audioFileId}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, audioFileId: event.target.value }))}
+                placeholder="BQACAgIAAxkBAA..."
+              />
+            </label>
+            <label>
+              Preview URL
+              <input
+                value={trackDraft.previewUrl}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, previewUrl: event.target.value }))}
+                placeholder="https://..."
+              />
+            </label>
+            <label>
+              Жанр
+              <input
+                value={trackDraft.genre}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, genre: event.target.value }))}
+                placeholder="Ambient"
+              />
+            </label>
+            <label>
+              Цена (cents)
+              <input
+                type="number"
+                min={1}
+                value={trackDraft.priceStarsCents}
+                onChange={(event) => setTrackDraft((prev) => ({ ...prev, priceStarsCents: event.target.value }))}
+              />
+            </label>
+          </div>
+
+          <button type="button" className={styles.inlineButton} onClick={() => void submitTrack()} disabled={trackSaving}>
+            {trackSaving ? "Отправка..." : "Отправить трек на модерацию"}
+          </button>
+
+          {artistTracks.length > 0 ? (
+            <div className={styles.artistTracksList}>
+              {artistTracks.map((track) => (
+                <article key={track.id} className={styles.artistTrackCard}>
+                  <strong>{track.title}</strong>
+                  <p>{track.subtitle}</p>
+                  <p>
+                    Статус: {track.status} · {formatStarsFromCents(track.priceStarsCents)} ⭐
+                  </p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.emptyState}>У вас пока нет треков.</p>
+          )}
+
+          {artistError ? <p className={styles.warning}>{artistError}</p> : null}
+        </section>
 
         {isAdmin ? (
           <section className={styles.section}>

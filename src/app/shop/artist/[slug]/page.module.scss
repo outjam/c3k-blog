@@ -1,0 +1,246 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  gap: 0.8rem;
+  padding-top: 0.9rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-bottom: calc(1rem + 74px + var(--safe-area-bottom));
+  padding-left: calc(1rem + var(--safe-area-left));
+}
+
+.hero {
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+}
+
+.cover {
+  width: 100%;
+  height: 170px;
+  object-fit: cover;
+  display: block;
+}
+
+.heroBody {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.8rem;
+}
+
+.artistRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.artistRow h1 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 1.1rem;
+}
+
+.artistRow p {
+  margin: 0.3rem 0 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.82rem;
+}
+
+.avatar,
+.avatarFallback {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+}
+
+.avatar {
+  object-fit: cover;
+}
+
+.avatarFallback {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-bg));
+  color: var(--tg-text);
+  font-weight: 700;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.stats span {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-subtitle-text);
+  padding: 0.24rem 0.52rem;
+  font-size: 0.74rem;
+}
+
+.support {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.supportCard {
+  border-radius: 0.86rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.76rem;
+}
+
+.supportCard h2 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.9rem;
+}
+
+.supportCard p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.supportCard button {
+  border: 0;
+  min-height: 2.2rem;
+  border-radius: 0.66rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-weight: 700;
+}
+
+.supportCard button:disabled {
+  opacity: 0.58;
+}
+
+.supportRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.supportRow input {
+  border-radius: 0.66rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  min-height: 2.2rem;
+  padding: 0 0.56rem;
+  font: inherit;
+}
+
+.error {
+  margin: 0;
+  border-radius: 0.65rem;
+  padding: 0.52rem 0.62rem;
+  color: var(--tg-destructive-text);
+  background: color-mix(in srgb, var(--tg-destructive-text) 16%, var(--tg-section-bg));
+}
+
+.tracks {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.82rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.tracksHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.tracksHead h2 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.95rem;
+}
+
+.tracksHead a {
+  color: var(--tg-accent);
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.trackGrid {
+  display: grid;
+  gap: 0.56rem;
+}
+
+.trackCard {
+  border-radius: 0.84rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  padding: 0.58rem;
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 0.54rem;
+  align-items: center;
+}
+
+.trackCard img {
+  width: 90px;
+  height: 64px;
+  border-radius: 0.56rem;
+  object-fit: cover;
+}
+
+.trackCard h3 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.88rem;
+}
+
+.trackCard p {
+  margin: 0.24rem 0 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.75rem;
+}
+
+.trackCard strong {
+  color: var(--tg-text);
+  font-size: 0.8rem;
+}
+
+.trackCard button {
+  border: 0;
+  min-height: 2.1rem;
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-weight: 700;
+  padding: 0 0.62rem;
+}
+
+.empty {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 700px) {
+  .support {
+    grid-template-columns: 1fr;
+  }
+
+  .trackCard {
+    grid-template-columns: 1fr;
+  }
+
+  .trackCard img {
+    width: 100%;
+    height: 140px;
+  }
+}

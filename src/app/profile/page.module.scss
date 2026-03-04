@@ -376,6 +376,86 @@
   font-size: 0.78rem;
 }
 
+.artistDraftGrid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.artistDraftGrid label {
+  display: grid;
+  gap: 0.24rem;
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.artistDraftGrid input,
+.artistDraftGrid textarea {
+  border-radius: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  min-height: 2.2rem;
+  padding: 0.5rem 0.58rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.artistDraftGrid textarea {
+  min-height: 4rem;
+}
+
+.checkboxInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.checkboxInline input {
+  min-height: 1rem;
+}
+
+.artistStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.artistStats p {
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+  padding: 0.24rem 0.5rem;
+}
+
+.artistTracksList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.artistTrackCard {
+  border-radius: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.artistTrackCard strong {
+  color: var(--tg-text);
+  font-size: 0.82rem;
+}
+
+.artistTrackCard p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 0.75rem;
@@ -398,5 +478,9 @@
   .favoriteProduct img {
     width: 74px;
     height: 58px;
+  }
+
+  .artistDraftGrid {
+    grid-template-columns: 1fr;
   }
 }
