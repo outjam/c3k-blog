@@ -60,6 +60,14 @@
   justify-content: center;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .error {
   margin: 0;
   color: #ff5f57;

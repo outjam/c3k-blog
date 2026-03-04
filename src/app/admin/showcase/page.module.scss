@@ -1,0 +1,188 @@
+.page {
+  min-height: 100%;
+  padding: 0.9rem;
+  padding-top: calc(0.8rem + var(--safe-area-top));
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-left: calc(1rem + var(--safe-area-left));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+}
+
+.card {
+  max-width: 1100px;
+  margin: 0 auto;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.header h1 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 1.05rem;
+}
+
+.header p {
+  margin: 0.25rem 0 0;
+  color: var(--tg-hint);
+  font-size: 0.8rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.actions button,
+.linkButton,
+.createRow button,
+.actionsRow button {
+  border: 0;
+  min-height: 2.2rem;
+  border-radius: 0.62rem;
+  padding: 0 0.72rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error {
+  margin: 0;
+  color: var(--tg-destructive-text);
+}
+
+.empty {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+}
+
+.createRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.createRow input {
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  min-height: 2.2rem;
+  padding: 0 0.58rem;
+  font: inherit;
+}
+
+.list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.collectionCard {
+  border-radius: 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  padding: 0.62rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.collectionCard label {
+  display: grid;
+  gap: 0.24rem;
+  color: var(--tg-hint);
+  font-size: 0.74rem;
+}
+
+.collectionCard input,
+.collectionCard textarea {
+  border-radius: 0.58rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  min-height: 2.1rem;
+  padding: 0.5rem 0.56rem;
+  font: inherit;
+}
+
+.collectionCard textarea {
+  min-height: 3.8rem;
+  resize: vertical;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.actionsRow {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.danger {
+  background: color-mix(in srgb, var(--tg-destructive-text) 20%, var(--tg-section-bg));
+  color: var(--tg-destructive-text);
+}
+
+.suggestions {
+  border-radius: 0.78rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.64rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.suggestions h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--tg-text);
+}
+
+.suggestionsList {
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.suggestionsList p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
+}
+
+.suggestionsList code {
+  color: var(--tg-text);
+}
+
+@media (max-width: 760px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+  }
+}

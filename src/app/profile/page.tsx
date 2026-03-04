@@ -249,7 +249,8 @@ export default function ProfilePage() {
       return;
     }
 
-    setArtistTracks((prev) => [trackResponse.track, ...prev]);
+    const createdTrack = trackResponse.track;
+    setArtistTracks((prev) => [createdTrack, ...prev]);
     setTrackDraft({
       title: "",
       subtitle: "",

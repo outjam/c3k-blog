@@ -151,8 +151,12 @@ export async function PATCH(request: Request) {
     throw error;
   });
 
-  if (updated === "profile_not_found") {
-    return NextResponse.json({ error: "Artist profile not found" }, { status: 404 });
+  if (typeof updated === "string") {
+    if (updated === "profile_not_found") {
+      return NextResponse.json({ error: "Artist profile not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -240,16 +244,20 @@ export async function PUT(request: Request) {
     throw error;
   });
 
-  if (updated === "track_not_found") {
-    return NextResponse.json({ error: "Track not found" }, { status: 404 });
-  }
+  if (typeof updated === "string") {
+    if (updated === "track_not_found") {
+      return NextResponse.json({ error: "Track not found" }, { status: 404 });
+    }
 
-  if (updated === "profile_not_found") {
-    return NextResponse.json({ error: "Artist profile not found" }, { status: 404 });
-  }
+    if (updated === "profile_not_found") {
+      return NextResponse.json({ error: "Artist profile not found" }, { status: 404 });
+    }
 
-  if (updated === "profile_not_approved") {
-    return NextResponse.json({ error: "Artist profile must be approved before publish" }, { status: 409 });
+    if (updated === "profile_not_approved") {
+      return NextResponse.json({ error: "Artist profile must be approved before publish" }, { status: 409 });
+    }
+
+    return NextResponse.json({ error: "Failed to update track" }, { status: 500 });
   }
 
   return NextResponse.json({

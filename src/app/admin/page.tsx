@@ -526,9 +526,21 @@ export default function AdminPage() {
               Роль: <b>{session.role ? SHOP_ADMIN_ROLE_LABELS[session.role] : "—"}</b>
             </p>
           </div>
-          <button type="button" onClick={() => void loadAll()} disabled={loading}>
-            {loading ? "Обновляем..." : "Обновить всё"}
-          </button>
+          <div className={styles.headerActions}>
+            <button type="button" onClick={() => void loadAll()} disabled={loading}>
+              {loading ? "Обновляем..." : "Обновить всё"}
+            </button>
+            {hasPermission("artists:view") ? (
+              <Link href="/admin/artists" className={styles.linkButton}>
+                Артисты
+              </Link>
+            ) : null}
+            {hasPermission("showcase:view") ? (
+              <Link href="/admin/showcase" className={styles.linkButton}>
+                Подборки
+              </Link>
+            ) : null}
+          </div>
         </header>
 
         <div className={styles.permissionRow}>

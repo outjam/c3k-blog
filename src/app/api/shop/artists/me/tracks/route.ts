@@ -172,8 +172,12 @@ export async function POST(request: Request) {
     throw error;
   });
 
-  if (updated === "artist_profile_required") {
-    return NextResponse.json({ error: "Create artist profile first" }, { status: 409 });
+  if (typeof updated === "string") {
+    if (updated === "artist_profile_required") {
+      return NextResponse.json({ error: "Create artist profile first" }, { status: 409 });
+    }
+
+    return NextResponse.json({ error: "Failed to create track" }, { status: 500 });
   }
 
   const created = Object.values(updated.artistTracks)
@@ -253,8 +257,12 @@ export async function PATCH(request: Request) {
     throw error;
   });
 
-  if (updated === "track_not_found") {
-    return NextResponse.json({ error: "Track not found" }, { status: 404 });
+  if (typeof updated === "string") {
+    if (updated === "track_not_found") {
+      return NextResponse.json({ error: "Track not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: "Failed to update track" }, { status: 500 });
   }
 
   return NextResponse.json({ track: updated.artistTracks[trackId] ?? null });

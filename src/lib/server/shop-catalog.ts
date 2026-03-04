@@ -291,7 +291,7 @@ export const getCatalogSnapshot = async (): Promise<{
         return null;
       }
 
-      return {
+      const next: ShopShowcaseCollectionView = {
         id: collection.id,
         title: collection.title,
         subtitle: collection.subtitle,
@@ -299,7 +299,9 @@ export const getCatalogSnapshot = async (): Promise<{
         coverImage: collection.coverImage,
         order: collection.order,
         products,
-      } satisfies ShopShowcaseCollectionView;
+      };
+
+      return next;
     })
     .filter((item): item is ShopShowcaseCollectionView => Boolean(item))
     .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, "ru-RU"));
