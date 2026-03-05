@@ -205,30 +205,6 @@
   font-size: 0.72rem;
 }
 
-.feedModes {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.feedModeButton {
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
-  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
-  color: var(--tg-text);
-  border-radius: 999px;
-  min-height: 2rem;
-  padding: 0 0.74rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.feedModeButtonActive {
-  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-section-bg));
-  color: var(--tg-accent);
-  border-color: color-mix(in srgb, var(--tg-accent) 30%, transparent);
-}
-
 .grid {
   display: grid;
   gap: 0.62rem;

@@ -180,8 +180,8 @@ export async function POST(request: Request) {
   const items = sanitizeItems(payload.items);
   const subtotalFromItems = items.reduce((acc, item) => acc + item.priceStarsCents * item.quantity, 0);
   const discountStarsCents = clampMoney(payload.discountStarsCents);
-  const deliveryFeeStarsCents = clampMoney(payload.deliveryFeeStarsCents);
-  const totalStarsCents = Math.max(clampMoney(payload.totalStarsCents), subtotalFromItems - discountStarsCents + deliveryFeeStarsCents);
+  const deliveryFeeStarsCents = 0;
+  const totalStarsCents = Math.max(clampMoney(payload.totalStarsCents), subtotalFromItems - discountStarsCents);
   const invoiceStars = Math.max(1, Math.round(Number(payload.invoiceStars ?? Math.ceil(totalStarsCents / 100))));
   const promoCode = String(payload.promoCode ?? "")
     .trim()
@@ -197,9 +197,9 @@ export async function POST(request: Request) {
     totalStarsCents,
     deliveryFeeStarsCents,
     discountStarsCents,
-    delivery: payload.delivery === "cdek" ? "cdek" : "yandex_go",
+    delivery: "digital_download",
     promoCode: promoCode || undefined,
-    address: String(payload.address ?? "").trim().slice(0, 255),
+    address: String(payload.address ?? "").trim().slice(0, 255) || "Digital download",
     customerName: String(payload.customerName ?? "").trim().slice(0, 120),
     phone: String(payload.phone ?? "").trim().slice(0, 80),
     email: String(payload.email ?? "").trim().slice(0, 120) || undefined,

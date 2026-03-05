@@ -5,7 +5,6 @@ export interface CheckoutValidationErrors {
   lastName?: string;
   phone?: string;
   email?: string;
-  address?: string;
   comment?: string;
 }
 
@@ -25,7 +24,6 @@ export const validateCheckoutForm = (values: CheckoutFormValues): CheckoutValida
   const lastName = values.lastName.trim();
   const phone = values.phone.trim();
   const email = values.email.trim();
-  const address = values.address.trim();
   const comment = values.comment.trim();
 
   if (!firstName) {
@@ -55,12 +53,6 @@ export const validateCheckoutForm = (values: CheckoutFormValues): CheckoutValida
     errors.email = "Проверьте e-mail";
   }
 
-  if (!address) {
-    errors.address = "Введите адрес доставки";
-  } else if (address.length < 8) {
-    errors.address = "Адрес слишком короткий";
-  }
-
   if (comment.length > 300) {
     errors.comment = "Комментарий не должен превышать 300 символов";
   }
@@ -69,6 +61,5 @@ export const validateCheckoutForm = (values: CheckoutFormValues): CheckoutValida
 };
 
 export const hasCheckoutErrors = (errors: CheckoutValidationErrors): boolean => {
-  return Boolean(errors.firstName || errors.lastName || errors.phone || errors.email || errors.address || errors.comment);
+  return Boolean(errors.firstName || errors.lastName || errors.phone || errors.email || errors.comment);
 };
-

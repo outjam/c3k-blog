@@ -6,13 +6,10 @@ import { formatStarsFromCents } from "@/lib/stars-format";
 interface ShopOrderSummaryProps {
   subtotal: number;
   discount: number;
-  deliveryFee: number;
   totalStars: number;
   invoiceStars: number;
   promoCode: string;
   promoLabel: string;
-  freeDeliveryLeft: number;
-  freeDeliveryProgress: number;
   onPromoChange: (value: string) => void;
   onApplyPromo: () => void;
 }
@@ -20,13 +17,10 @@ interface ShopOrderSummaryProps {
 export function ShopOrderSummary({
   subtotal,
   discount,
-  deliveryFee,
   totalStars,
   invoiceStars,
   promoCode,
   promoLabel,
-  freeDeliveryLeft,
-  freeDeliveryProgress,
   onPromoChange,
   onApplyPromo,
 }: ShopOrderSummaryProps) {
@@ -45,29 +39,14 @@ export function ShopOrderSummary({
         </button>
       </div>
       {promoLabel ? <p className={styles.promoLabel}>{promoLabel}</p> : null}
-      <div className={styles.shippingProgress}>
-        <div className={styles.shippingTrack}>
-          <span style={{ width: `${freeDeliveryProgress}%` }} />
-        </div>
-        <p>
-          {freeDeliveryLeft > 0
-            ? `До бесплатной доставки осталось ${formatStarsFromCents(freeDeliveryLeft)} ⭐`
-            : "Бесплатная доставка активна"}
-        </p>
-      </div>
-
       <dl className={styles.totals}>
         <div>
-          <dt>Товары</dt>
+          <dt>Релизы</dt>
           <dd>{formatStarsFromCents(subtotal)} ⭐</dd>
         </div>
         <div>
           <dt>Скидка</dt>
           <dd>-{formatStarsFromCents(discount)} ⭐</dd>
-        </div>
-        <div>
-          <dt>Доставка</dt>
-          <dd>{deliveryFee === 0 ? "Бесплатно" : `${formatStarsFromCents(deliveryFee)} ⭐`}</dd>
         </div>
         <div className={styles.totalRow}>
           <dt>Итого</dt>

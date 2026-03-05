@@ -112,7 +112,7 @@ export async function POST(
     totalStarsCents: amountStarsCents,
     deliveryFeeStarsCents: 0,
     discountStarsCents: 0,
-    delivery: "yandex_go",
+    delivery: "digital_download",
     promoCode: undefined,
     address: "Digital support",
     customerName,

@@ -78,53 +78,32 @@ export function ShopProductCard({
         <div className={styles.body}>
           <p className={styles.subtitle}>{product.subtitle}</p>
           <p className={styles.categoryMeta}>
-            {product.categoryLabel ?? "Категория"}
-            {product.subcategoryLabel ? ` · ${product.subcategoryLabel}` : ""}
+            {product.categoryLabel ?? "Музыка"}
+            {product.subcategoryLabel ? ` · ${product.subcategoryLabel}` : " · Треки"}
           </p>
           <h3 className={styles.title}>{product.title}</h3>
           {product.artistName ? <p className={styles.artistMeta}>Артист: {product.artistName}</p> : null}
           <p className={styles.description}>{product.description}</p>
-          {product.kind === "digital_track" ? (
-            <p className={styles.socialProof}>Продаж: {product.reviewsCount}</p>
-          ) : (
-            <p className={styles.socialProof}>
-              ★ {product.rating.toFixed(1)} · {product.reviewsCount} отзывов
-            </p>
-          )}
+          <p className={styles.socialProof}>Продаж: {product.reviewsCount}</p>
 
-          {product.kind === "digital_track" ? (
-            <dl className={styles.attrs}>
-              <div>
-                <dt>Тип</dt>
-                <dd>Цифровой трек</dd>
-              </div>
-              <div>
-                <dt>Артикул</dt>
-                <dd>{product.attributes.sku}</dd>
-              </div>
-            </dl>
-          ) : (
-            <dl className={styles.attrs}>
-              <div>
-                <dt>SKU</dt>
-                <dd>{product.attributes.sku}</dd>
-              </div>
-              <div>
-                <dt>Размер</dt>
-                <dd>
-                  {product.attributes.heightCm}×{product.attributes.widthCm} см
-                </dd>
-              </div>
-              <div>
-                <dt>Вес</dt>
-                <dd>{product.attributes.weightGr} г</dd>
-              </div>
-              <div>
-                <dt>Остаток</dt>
-                <dd>{product.attributes.stock} шт</dd>
-              </div>
-            </dl>
-          )}
+          <dl className={styles.attrs}>
+            <div>
+              <dt>Формат</dt>
+              <dd>Digital track</dd>
+            </div>
+            <div>
+              <dt>Жанр</dt>
+              <dd>{product.subcategoryLabel ?? product.attributes.collection}</dd>
+            </div>
+            <div>
+              <dt>Артикул</dt>
+              <dd>{product.attributes.sku}</dd>
+            </div>
+            <div>
+              <dt>Доступ</dt>
+              <dd>Мгновенно</dd>
+            </div>
+          </dl>
 
           <div className={styles.footer}>
             <div className={styles.prices}>
@@ -144,7 +123,7 @@ export function ShopProductCard({
               </div>
             ) : (
               <button type="button" className={styles.addButton} onClick={handleAdd} disabled={product.attributes.stock < 1}>
-                {product.attributes.stock < 1 ? "Нет в наличии" : product.kind === "digital_track" ? "Купить трек" : "В корзину"}
+                {product.attributes.stock < 1 ? "Недоступно" : "В корзину"}
               </button>
             )}
           </div>

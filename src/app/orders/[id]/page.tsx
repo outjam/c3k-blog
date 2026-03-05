@@ -11,6 +11,14 @@ import type { ShopOrder } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
+const getDeliveryLabel = (delivery: ShopOrder["delivery"]): string => {
+  if (delivery === "digital_download") {
+    return "Цифровая выдача";
+  }
+
+  return "Архивный способ";
+};
+
 export default function OrderDetailsPage() {
   const params = useParams<{ id: string }>();
   const rawId = params?.id ?? "";
@@ -92,8 +100,8 @@ export default function OrderDetailsPage() {
                 <dd>{order.phone || "не указан"}</dd>
               </div>
               <div className={styles.row}>
-                <dt>Доставка</dt>
-                <dd>{order.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}</dd>
+                <dt>Выдача</dt>
+                <dd>{getDeliveryLabel(order.delivery)}</dd>
               </div>
               <div className={styles.row}>
                 <dt>Адрес</dt>

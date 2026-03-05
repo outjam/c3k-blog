@@ -17,7 +17,6 @@ import type {
   ShopAppSettings,
   ShopCatalogArtist,
   ShopProduct,
-  ShopProductCategory,
   ShopShowcaseCollectionView,
 } from "@/types/shop";
 
@@ -27,11 +26,10 @@ const defaultCatalogSettings: ShopAppSettings = {
   shopEnabled: true,
   checkoutEnabled: true,
   maintenanceMode: false,
-  defaultDeliveryFeeStarsCents: 100,
-  freeDeliveryThresholdStarsCents: 200,
+  defaultDeliveryFeeStarsCents: 0,
+  freeDeliveryThresholdStarsCents: 0,
   updatedAt: "",
 };
-const EMPTY_SUBCATEGORIES: ShopProductCategory["subcategories"] = [];
 
 const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
   const list = [...items];
@@ -53,22 +51,17 @@ const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
 
 export default function ShopPage() {
   const [search, setSearch] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | "all">("all");
-  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | "all">("all");
   const [sort, setSort] = useState<ProductSort>("popular");
   const [quickFilter, setQuickFilter] = useState<"all" | "new" | "hit" | "sale">("all");
-  const [inStockOnly, setInStockOnly] = useState(false);
   const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
   const [catalogArtists, setCatalogArtists] = useState<ShopCatalogArtist[]>([]);
   const [showcaseCollections, setShowcaseCollections] = useState<ShopShowcaseCollectionView[]>([]);
-  const [catalogCategories, setCatalogCategories] = useState<ShopProductCategory[]>([]);
   const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
   const [catalogError, setCatalogError] = useState("");
   const [catalogLoaded, setCatalogLoaded] = useState(false);
-  const [feedMode, setFeedMode] = useState<"all" | "tracks" | "physical">("all");
 
   const productsMap = useMemo(() => new Map(catalogProducts.map((item) => [item.id, item])), [catalogProducts]);
 
@@ -145,9 +138,6 @@ export default function ShopPage() {
       setCatalogProducts(snapshot.products);
       setCatalogArtists(snapshot.artists);
       setShowcaseCollections(snapshot.showcaseCollections);
-      if (snapshot.categories.length > 0) {
-        setCatalogCategories(snapshot.categories);
-      }
 
       if (snapshot.settings) {
         setCatalogSettings(snapshot.settings);
@@ -169,32 +159,6 @@ export default function ShopPage() {
     void writeShopCart({ items: cartItems, promoCode: "" });
   }, [cartItems, isCartHydrated]);
 
-  const effectiveSelectedCategoryId = useMemo<string | "all">(() => {
-    if (selectedCategoryId === "all") {
-      return "all";
-    }
-
-    return catalogCategories.some((category) => category.id === selectedCategoryId) ? selectedCategoryId : "all";
-  }, [catalogCategories, selectedCategoryId]);
-
-  const selectedCategory = useMemo(() => {
-    return effectiveSelectedCategoryId === "all"
-      ? null
-      : catalogCategories.find((category) => category.id === effectiveSelectedCategoryId) ?? null;
-  }, [catalogCategories, effectiveSelectedCategoryId]);
-
-  const visibleSubcategories = useMemo(() => {
-    return selectedCategory?.subcategories ?? EMPTY_SUBCATEGORIES;
-  }, [selectedCategory]);
-
-  const effectiveSelectedSubcategoryId = useMemo<string | "all">(() => {
-    if (effectiveSelectedCategoryId === "all" || selectedSubcategoryId === "all") {
-      return "all";
-    }
-
-    return visibleSubcategories.some((subcategory) => subcategory.id === selectedSubcategoryId) ? selectedSubcategoryId : "all";
-  }, [effectiveSelectedCategoryId, selectedSubcategoryId, visibleSubcategories]);
-
   const productQuantityMap = useMemo(() => {
     return new Map(cartItems.map((item) => [item.productId, item.quantity]));
   }, [cartItems]);
@@ -203,25 +167,7 @@ export default function ShopPage() {
     const normalizedQuery = search.trim().toLowerCase();
 
     const filtered = catalogProducts.filter((product) => {
-      if (feedMode === "tracks" && product.kind !== "digital_track") {
-        return false;
-      }
-
-      if (feedMode === "physical" && product.kind === "digital_track") {
-        return false;
-      }
-
-      const productCategoryId = product.categoryId ?? product.category;
-
-      if (effectiveSelectedCategoryId !== "all" && productCategoryId !== effectiveSelectedCategoryId) {
-        return false;
-      }
-
-      if (effectiveSelectedSubcategoryId !== "all" && product.subcategoryId !== effectiveSelectedSubcategoryId) {
-        return false;
-      }
-
-      if (inStockOnly && product.attributes.stock < 1) {
+      if (product.kind !== "digital_track") {
         return false;
       }
 
@@ -262,17 +208,13 @@ export default function ShopPage() {
     });
 
     return sortProducts(filtered, sort);
-  }, [catalogProducts, effectiveSelectedCategoryId, effectiveSelectedSubcategoryId, feedMode, inStockOnly, quickFilter, search, sort]);
+  }, [catalogProducts, quickFilter, search, sort]);
 
   const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(catalogProducts, cartItems), [cartItems, catalogProducts]);
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const activeFiltersCount = [
     Boolean(search.trim()),
-    effectiveSelectedCategoryId !== "all",
-    effectiveSelectedSubcategoryId !== "all",
-    feedMode !== "all",
     sort !== "popular",
-    inStockOnly,
     quickFilter !== "all",
   ].filter(Boolean).length;
 
@@ -339,11 +281,7 @@ export default function ShopPage() {
 
   const resetFilters = () => {
     setSearch("");
-    setSelectedCategoryId("all");
-    setSelectedSubcategoryId("all");
-    setFeedMode("all");
     setSort("popular");
-    setInStockOnly(false);
     setQuickFilter("all");
     hapticSelection();
   };
@@ -354,48 +292,10 @@ export default function ShopPage() {
     });
   };
 
-  const categoryCountMap = useMemo(() => {
-    return catalogProducts.reduce<Record<string, number>>((acc, product) => {
-      const categoryId = product.categoryId ?? product.category;
-      acc[categoryId] = (acc[categoryId] ?? 0) + 1;
-      return acc;
-    }, {});
-  }, [catalogProducts]);
-
-  const subcategoryCountMap = useMemo(() => {
-    return catalogProducts.reduce<Record<string, number>>((acc, product) => {
-      if (!product.subcategoryId) {
-        return acc;
-      }
-
-      const key = `${product.categoryId ?? product.category}:${product.subcategoryId}`;
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    }, {});
-  }, [catalogProducts]);
-
   const tracksCount = useMemo(
     () => catalogProducts.filter((product) => product.kind === "digital_track").length,
     [catalogProducts],
   );
-
-  const physicalProductsCount = catalogProducts.length - tracksCount;
-
-  const handleCategoryChange = (value: string | "all") => {
-    setSelectedCategoryId(value);
-    setSelectedSubcategoryId("all");
-    hapticSelection();
-  };
-
-  const handleSubcategoryChange = (value: string | "all") => {
-    setSelectedSubcategoryId(value);
-    hapticSelection();
-  };
-
-  const handleFeedModeChange = (mode: "all" | "tracks" | "physical") => {
-    setFeedMode(mode);
-    hapticSelection();
-  };
 
   return (
     <div className={styles.page}>
@@ -410,7 +310,7 @@ export default function ShopPage() {
           <div className={styles.heroMeta}>
             <p>Артисты: <strong>{catalogArtists.length}</strong></p>
             <p>Треки: <strong>{tracksCount}</strong></p>
-            <p>Товары: <strong>{physicalProductsCount}</strong></p>
+            <p>Формат: <strong>Digital only</strong></p>
           </div>
           {catalogSettings.maintenanceMode ? <p className={styles.paymentError}>Режим обслуживания включен администратором.</p> : null}
           {catalogError ? <p className={styles.paymentError}>Ошибка синхронизации каталога: {catalogError}</p> : null}
@@ -470,45 +370,11 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        <section className={styles.feedModes}>
-          <button
-            type="button"
-            className={`${styles.feedModeButton} ${feedMode === "all" ? styles.feedModeButtonActive : ""}`}
-            onClick={() => handleFeedModeChange("all")}
-          >
-            Вся витрина
-          </button>
-          <button
-            type="button"
-            className={`${styles.feedModeButton} ${feedMode === "tracks" ? styles.feedModeButtonActive : ""}`}
-            onClick={() => handleFeedModeChange("tracks")}
-          >
-            Только треки
-          </button>
-          <button
-            type="button"
-            className={`${styles.feedModeButton} ${feedMode === "physical" ? styles.feedModeButtonActive : ""}`}
-            onClick={() => handleFeedModeChange("physical")}
-          >
-            Только товары
-          </button>
-        </section>
-
         <ShopCatalogControls
           search={search}
           onSearchChange={setSearch}
-          selectedCategoryId={effectiveSelectedCategoryId}
-          onCategoryChange={handleCategoryChange}
-          selectedSubcategoryId={effectiveSelectedSubcategoryId}
-          onSubcategoryChange={handleSubcategoryChange}
           sort={sort}
           onSortChange={setSort}
-          inStockOnly={inStockOnly}
-          onInStockChange={setInStockOnly}
-          categories={catalogCategories}
-          categoryCountMap={categoryCountMap}
-          visibleSubcategories={visibleSubcategories}
-          subcategoryCountMap={subcategoryCountMap}
           quickFilter={quickFilter}
           onQuickFilterChange={setQuickFilter}
           activeFiltersCount={activeFiltersCount}
@@ -517,7 +383,7 @@ export default function ShopPage() {
 
         <section className={styles.resultsBar}>
           <p>
-            Найдено позиций: <strong>{filteredProducts.length}</strong>
+            Найдено релизов: <strong>{filteredProducts.length}</strong>
           </p>
           <p>
             В корзине: <strong>{cartCount}</strong> · {formatStarsFromCents(subtotalStarsCents)} ⭐

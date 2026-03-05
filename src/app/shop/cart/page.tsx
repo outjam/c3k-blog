@@ -11,12 +11,9 @@ import { validateCheckoutForm, hasCheckoutErrors, type CheckoutValidationErrors 
 import { createShopOrder, markShopOrderPaymentFailed } from "@/lib/shop-orders-api";
 import { payWithTelegramStars } from "@/lib/shop-payment";
 import {
-  DEFAULT_DELIVERY_FEE_STARS_CENTS,
-  DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS,
   PROMO_RULES,
   findPromoRule,
   getCartSubtotalStarsCents,
-  getDeliveryFeeStarsCents,
   getDiscountAmountStarsCents,
 } from "@/lib/shop-pricing";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
@@ -35,16 +32,24 @@ const defaultCheckout: CheckoutFormValues = {
   email: "",
   address: "",
   comment: "",
-  delivery: "yandex_go",
+  delivery: "digital_download",
 };
 
 const defaultCatalogSettings: ShopAppSettings = {
   shopEnabled: true,
   checkoutEnabled: true,
   maintenanceMode: false,
-  defaultDeliveryFeeStarsCents: DEFAULT_DELIVERY_FEE_STARS_CENTS,
-  freeDeliveryThresholdStarsCents: DEFAULT_FREE_DELIVERY_THRESHOLD_STARS_CENTS,
+  defaultDeliveryFeeStarsCents: 0,
+  freeDeliveryThresholdStarsCents: 0,
   updatedAt: "",
+};
+
+const CHECKOUT_ERROR_FIELDS: Partial<Record<keyof CheckoutFormValues, keyof CheckoutValidationErrors>> = {
+  firstName: "firstName",
+  lastName: "lastName",
+  phone: "phone",
+  email: "email",
+  comment: "comment",
 };
 
 const generateOrderCode = (): string => {
@@ -189,21 +194,9 @@ export default function ShopCartPage() {
     () => getDiscountAmountStarsCents(subtotalStarsCents, promoCode, promoRules),
     [promoCode, promoRules, subtotalStarsCents],
   );
-  const deliveryFeeStarsCents = useMemo(
-    () =>
-      getDeliveryFeeStarsCents(subtotalStarsCents - discountStarsCents, {
-        freeDeliveryThresholdStarsCents: catalogSettings.freeDeliveryThresholdStarsCents,
-        defaultDeliveryFeeStarsCents: catalogSettings.defaultDeliveryFeeStarsCents,
-      }),
-    [catalogSettings.defaultDeliveryFeeStarsCents, catalogSettings.freeDeliveryThresholdStarsCents, discountStarsCents, subtotalStarsCents],
-  );
-  const totalStarsCents = Math.max(0, subtotalStarsCents - discountStarsCents + deliveryFeeStarsCents);
+  const deliveryFeeStarsCents = 0;
+  const totalStarsCents = Math.max(0, subtotalStarsCents - discountStarsCents);
   const invoiceStars = starsCentsToInvoiceStars(totalStarsCents);
-  const freeDeliveryThresholdStarsCents = catalogSettings.freeDeliveryThresholdStarsCents;
-  const freeDeliveryLeftStarsCents = Math.max(freeDeliveryThresholdStarsCents - (subtotalStarsCents - discountStarsCents), 0);
-  const freeDeliveryProgress = freeDeliveryThresholdStarsCents
-    ? Math.min(((subtotalStarsCents - discountStarsCents) / freeDeliveryThresholdStarsCents) * 100, 100)
-    : 100;
 
   const promoRule = findPromoRule(promoCode, promoRules);
   const promoLabel = promoRule ? `${promoRule.label} активирована (${promoRule.code})` : "";
@@ -245,8 +238,10 @@ export default function ShopCartPage() {
   const updateCheckout = (field: keyof CheckoutFormValues, value: string) => {
     setCheckout((prev) => ({ ...prev, [field]: value }));
 
-    if (field !== "delivery" && checkoutErrors[field]) {
-      setCheckoutErrors((prev) => ({ ...prev, [field]: undefined }));
+    const errorField = CHECKOUT_ERROR_FIELDS[field];
+
+    if (errorField && checkoutErrors[errorField]) {
+      setCheckoutErrors((prev) => ({ ...prev, [errorField]: undefined }));
     }
   };
 
@@ -375,8 +370,8 @@ export default function ShopCartPage() {
       totalStarsCents,
       deliveryFeeStarsCents,
       discountStarsCents,
-      delivery: checkout.delivery,
-      address: checkout.address,
+      delivery: "digital_download",
+      address: "Digital download",
       customerName,
       phone: checkout.phone,
       email: checkout.email,
@@ -396,7 +391,7 @@ export default function ShopCartPage() {
       amountStars: invoiceStars,
       orderId: orderCode,
       title: `Заказ C3K (${cartItems.length} шт.)`,
-      description: `Оплата заказа в магазине C3K. Доставка: ${checkout.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}.`,
+      description: "Оплата цифрового аудио-релиза в C3K.",
       productIds: productIdsForInvoice,
     });
 
@@ -426,7 +421,7 @@ export default function ShopCartPage() {
         <header className={styles.head}>
           <div>
             <h1>Корзина</h1>
-            <p>Проверьте товары, заполните данные и завершите оплату в Telegram Stars.</p>
+            <p>Проверьте релизы, заполните данные и завершите оплату в Telegram Stars.</p>
           </div>
           <div className={styles.actions}>
             <Link href="/shop">В каталог</Link>
@@ -443,7 +438,7 @@ export default function ShopCartPage() {
         {cartItems.length === 0 ? (
           <section className={styles.emptyState}>
             <h2>Корзина пуста</h2>
-            <p>Добавьте товары из каталога, затем вернитесь на эту страницу для оформления заказа.</p>
+            <p>Добавьте релизы из витрины, затем вернитесь на эту страницу для оформления заказа.</p>
             <Link href="/shop">Открыть каталог</Link>
           </section>
         ) : (
@@ -486,15 +481,12 @@ export default function ShopCartPage() {
               <ShopOrderSummary
                 subtotal={subtotalStarsCents}
                 discount={discountStarsCents}
-                deliveryFee={deliveryFeeStarsCents}
                 totalStars={totalStarsCents}
                 invoiceStars={invoiceStars}
                 promoCode={promoCode}
                 promoLabel={promoLabel}
                 onPromoChange={setPromoCode}
                 onApplyPromo={applyPromo}
-                freeDeliveryLeft={freeDeliveryLeftStarsCents}
-                freeDeliveryProgress={freeDeliveryProgress}
               />
 
               <ShopCheckoutForm

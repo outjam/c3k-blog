@@ -18,6 +18,14 @@ import type { ArtistProfile, ArtistTrack, ShopOrder, ShopProduct } from "@/types
 
 import styles from "./page.module.scss";
 
+const getDeliveryLabel = (delivery: ShopOrder["delivery"]): string => {
+  if (delivery === "digital_download") {
+    return "Цифровая выдача";
+  }
+
+  return "Архивный способ";
+};
+
 export default function ProfilePage() {
   const webApp = useTelegramWebApp();
   const user = webApp?.initDataUnsafe?.user;
@@ -321,7 +329,7 @@ export default function ProfilePage() {
                   <p className={styles.orderStatus}>{SHOP_ORDER_STATUS_LABELS[order.status]}</p>
                   <p className={styles.orderMeta}>{new Date(order.createdAt).toLocaleString("ru-RU")}</p>
                   <p className={styles.orderMeta}>Итого: {formatStarsFromCents(order.totalStarsCents)} ⭐</p>
-                  <p className={styles.orderMeta}>Доставка: {order.delivery === "yandex_go" ? "Яндекс Go" : "CDEK"}</p>
+                  <p className={styles.orderMeta}>Выдача: {getDeliveryLabel(order.delivery)}</p>
                   <button type="button" className={styles.inlineButton} onClick={() => setSelectedOrder(order)}>
                     Открыть детали
                   </button>
@@ -549,13 +557,13 @@ export default function ProfilePage() {
 
         <section className={styles.section}>
           <div className={styles.sectionHead}>
-            <h2>Избранные товары</h2>
+            <h2>Избранные релизы</h2>
             <p>{favoriteProducts.length} шт.</p>
           </div>
 
           {favoriteProducts.length === 0 ? (
             <p className={styles.emptyState}>
-              {productsLoading ? "Загружаем избранные товары..." : "Добавьте товары в избранное из каталога или карточки товара."}
+              {productsLoading ? "Загружаем избранные релизы..." : "Добавьте релизы в избранное из витрины или страницы трека."}
             </p>
           ) : (
             <div className={styles.favoritesList}>
@@ -613,7 +621,7 @@ export default function ProfilePage() {
               </button>
             </header>
             <p className={styles.orderMeta}>Статус: {SHOP_ORDER_STATUS_LABELS[selectedOrder.status]}</p>
-            <p className={styles.orderMeta}>Адрес: {selectedOrder.address}</p>
+            <p className={styles.orderMeta}>Выдача: {getDeliveryLabel(selectedOrder.delivery)}</p>
             <p className={styles.orderMeta}>Обновлён: {new Date(selectedOrder.updatedAt).toLocaleString("ru-RU")}</p>
 
             <div className={styles.orderItemsScroll}>

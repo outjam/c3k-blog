@@ -1,5 +1,5 @@
 export type ShopCategory = string;
-export type DeliveryMethod = "yandex_go" | "cdek";
+export type DeliveryMethod = "digital_download" | "yandex_go" | "cdek";
 export type PromoDiscountType = "percent" | "fixed";
 export type ShopAdminRole = "owner" | "admin" | "orders" | "catalog" | "support";
 export type ShopAdminPermission =

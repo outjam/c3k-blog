@@ -84,48 +84,16 @@ export function ShopCheckoutForm({
       </div>
 
       <label>
-        Адрес доставки
-        <input
-          value={values.address}
-          onChange={(event) => onChange("address", event.target.value)}
-          placeholder="Город, улица, дом, квартира"
-          autoComplete="street-address"
-          required
-        />
-        {errors?.address ? <span className={styles.error}>{errors.address}</span> : null}
-      </label>
-
-      <label>
         Комментарий к заказу
         <textarea
           value={values.comment}
           onChange={(event) => onChange("comment", event.target.value)}
           rows={3}
           maxLength={300}
-          placeholder="Например: позвонить за 30 минут"
+          placeholder="Комментарий к цифровому заказу (необязательно)"
         />
         {errors?.comment ? <span className={styles.error}>{errors.comment}</span> : null}
       </label>
-
-      <fieldset className={styles.delivery}>
-        <legend>Способ доставки</legend>
-        <label>
-          <input
-            type="radio"
-            checked={values.delivery === "yandex_go"}
-            onChange={() => onChange("delivery", "yandex_go")}
-          />
-          Яндекс Go
-        </label>
-        <label>
-          <input
-            type="radio"
-            checked={values.delivery === "cdek"}
-            onChange={() => onChange("delivery", "cdek")}
-          />
-          CDEK
-        </label>
-      </fieldset>
     </section>
   );
 }

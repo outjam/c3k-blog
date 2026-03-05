@@ -80,42 +80,27 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           ) : null}
           <p className={styles.price}>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
 
-          {product.kind === "digital_track" ? (
-            <dl className={styles.meta}>
-              <div>
-                <dt>Формат</dt>
-                <dd>Digital track</dd>
-              </div>
-              <div>
-                <dt>Артикул</dt>
-                <dd>{product.attributes.sku}</dd>
-              </div>
-            </dl>
-          ) : (
-            <dl className={styles.meta}>
-              <div>
-                <dt>SKU</dt>
-                <dd>{product.attributes.sku}</dd>
-              </div>
-              <div>
-                <dt>Коллекция</dt>
-                <dd>{product.attributes.collection}</dd>
-              </div>
-              <div>
-                <dt>Техника</dt>
-                <dd>{product.attributes.technique}</dd>
-              </div>
-              <div>
-                <dt>Размер</dt>
-                <dd>
-                  {product.attributes.heightCm}×{product.attributes.widthCm} см
-                </dd>
-              </div>
-            </dl>
-          )}
+          <dl className={styles.meta}>
+            <div>
+              <dt>Формат</dt>
+              <dd>Digital track</dd>
+            </div>
+            <div>
+              <dt>Жанр</dt>
+              <dd>{product.subcategoryLabel ?? product.attributes.collection}</dd>
+            </div>
+            <div>
+              <dt>Артикул</dt>
+              <dd>{product.attributes.sku}</dd>
+            </div>
+            <div>
+              <dt>Доступ</dt>
+              <dd>Мгновенно после оплаты</dd>
+            </div>
+          </dl>
 
           <button type="button" className={styles.addButton} onClick={() => void addToCart()}>
-            {product.kind === "digital_track" ? "Купить трек" : "Добавить в корзину"}
+            Добавить в корзину
           </button>
           <button type="button" className={styles.addButton} onClick={toggleFavorite}>
             {isFavorite ? "Убрать из избранного" : "В избранное"}
