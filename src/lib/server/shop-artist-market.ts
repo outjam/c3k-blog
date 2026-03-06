@@ -54,17 +54,16 @@ export const toArtistTrackProduct = (track: ArtistTrack, artist: ArtistProfile |
   const categoryLabel = "Музыка";
   const subcategoryLabel = track.genre || "Треки";
   const defaultFormat = track.formats.find((entry) => entry.isDefault) ?? track.formats[0];
-  const formats = track.formats.length > 0
-    ? track.formats
-    : [
-        {
-          format: "mp3",
-          audioFileId: track.audioFileId,
-          priceStarsCents: track.priceStarsCents,
-          label: "MP3",
-          isDefault: true,
-        },
-      ];
+  const fallbackFormats: ArtistTrack["formats"] = [
+    {
+      format: "mp3",
+      audioFileId: track.audioFileId,
+      priceStarsCents: track.priceStarsCents,
+      label: "MP3",
+      isDefault: true,
+    },
+  ];
+  const formats: ArtistTrack["formats"] = track.formats.length > 0 ? track.formats : fallbackFormats;
 
   return {
     id: track.id,

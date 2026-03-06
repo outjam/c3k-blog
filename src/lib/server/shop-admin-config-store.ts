@@ -153,7 +153,7 @@ const normalizeTrackFormats = (
             isDefault: Boolean(source.isDefault),
           } satisfies ArtistTrack["formats"][number];
         })
-        .filter((entry): entry is ArtistTrack["formats"][number] => Boolean(entry))
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
         .slice(0, 8)
     : [];
 
@@ -216,7 +216,7 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
                 : index + 1,
           } satisfies ArtistTrack["releaseTracklist"][number];
         })
-        .filter((entry): entry is ArtistTrack["releaseTracklist"][number] => Boolean(entry))
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
         .slice(0, 50)
     : [];
 
