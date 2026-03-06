@@ -217,6 +217,36 @@
   font-size: 0.74rem;
 }
 
+.reactionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.reactionButton {
+  min-width: 3.3rem;
+  min-height: 2.4rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  border-radius: 0.66rem;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.34rem;
+  font-size: 0.92rem;
+}
+
+.reactionButton small {
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+}
+
+.reactionButtonActive {
+  border-color: color-mix(in srgb, var(--tg-accent) 44%, transparent);
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+}
+
 .commentComposer {
   display: grid;
   gap: 0.45rem;

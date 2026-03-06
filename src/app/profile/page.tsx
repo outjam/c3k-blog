@@ -24,11 +24,9 @@ import {
   resolveViewerKey,
   resolveViewerName,
   toggleFollowingSlug,
-  topUpWalletBalanceCents,
   writeProfileMode,
   writePurchasesVisibility,
 } from "@/lib/social-hub";
-import { topUpWalletWithTelegramStars } from "@/lib/shop-payment";
 import { FINAL_ORDER_STATUSES } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
@@ -37,8 +35,6 @@ import type { ProfileMode } from "@/types/social";
 import type { ArtistProfile, ArtistTrack, ShopCatalogArtist, ShopOrder, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
-
-const TOP_UP_PRESETS_STARS = [10, 25, 50] as const;
 
 export default function ProfilePage() {
   const { user, source, isSessionLoading, refreshSession } = useAppAuthUser();
@@ -63,8 +59,6 @@ export default function ProfilePage() {
 
   const [mode, setMode] = useState<ProfileMode>("listener");
   const [walletCents, setWalletCents] = useState(0);
-  const [walletTopupLoadingStars, setWalletTopupLoadingStars] = useState<number | null>(null);
-  const [walletTopupMessage, setWalletTopupMessage] = useState("");
   const [authHint, setAuthHint] = useState("");
   const [purchasesVisible, setPurchasesVisible] = useState(true);
   const [followingSlugs, setFollowingSlugs] = useState<string[]>([]);
@@ -287,34 +281,6 @@ export default function ProfilePage() {
     setMode(saved);
   };
 
-  const handleTopUp = async (amountStars: number) => {
-    if (!user?.id) {
-      setAuthHint("Чтобы пополнить баланс, сначала войдите через Telegram Widget.");
-      return;
-    }
-
-    setWalletTopupLoadingStars(amountStars);
-    setWalletTopupMessage("");
-
-    const payment = await topUpWalletWithTelegramStars({
-      amountStars,
-      title: "Пополнение баланса C3K",
-      description: `Пополнение внутреннего баланса на ${amountStars} Stars.`,
-    });
-
-    if (!payment.ok) {
-      setWalletTopupLoadingStars(null);
-      setWalletTopupMessage(payment.message ?? "Пополнение не завершено.");
-      return;
-    }
-
-    const creditedStarsCents = amountStars * 100;
-    const next = await topUpWalletBalanceCents(viewerKey, creditedStarsCents);
-    setWalletCents(next);
-    setWalletTopupLoadingStars(null);
-    setWalletTopupMessage(`Баланс пополнен на ${amountStars} ⭐.`);
-  };
-
   const handleTogglePurchasesVisibility = async () => {
     if (!user?.id) {
       setAuthHint("Сначала войдите через Telegram Widget, чтобы управлять приватностью.");
@@ -508,13 +474,8 @@ export default function ProfilePage() {
           <div className={styles.walletValue}>{formatStarsFromCents(walletCents)} ⭐</div>
 
           <div className={styles.walletActions}>
-            {TOP_UP_PRESETS_STARS.map((amountStars) => (
-              <button key={amountStars} type="button" onClick={() => void handleTopUp(amountStars)} disabled={walletTopupLoadingStars === amountStars}>
-                {walletTopupLoadingStars === amountStars ? "Оплата..." : `Пополнить на ${amountStars} ⭐`}
-              </button>
-            ))}
+            <Link href="/balance">Пополнить баланс</Link>
           </div>
-          {walletTopupMessage ? <p className={styles.emptyState}>{walletTopupMessage}</p> : null}
         </section>
 
         <section className={styles.section}>

@@ -61,7 +61,7 @@ export function AppFrame({ children }: AppFrameProps) {
 
   const isSearch = pathname.startsWith("/search");
   const isShop = pathname.startsWith("/shop");
-  const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders");
+  const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders") || pathname.startsWith("/balance");
   const activeIndex = isProfile ? 3 : isShop ? 2 : isSearch ? 1 : 0;
 
   const showNavigation =
@@ -69,7 +69,8 @@ export function AppFrame({ children }: AppFrameProps) {
     pathname.startsWith("/search") ||
     pathname.startsWith("/shop") ||
     pathname.startsWith("/profile") ||
-    pathname.startsWith("/orders");
+    pathname.startsWith("/orders") ||
+    pathname.startsWith("/balance");
 
   const tabs = useMemo<TabItem[]>(
     () => [

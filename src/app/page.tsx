@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { buildTelegramShareUrl, buildUnifiedFeed, readFollowingSlugs } from "@/lib/social-hub";
+import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { BlogPost } from "@/types/blog";
 import type { ShopProduct } from "@/types/shop";
@@ -33,6 +34,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [feedOnlyFollowing, setFeedOnlyFollowing] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [feedEngagement, setFeedEngagement] = useState<
+    Record<string, { reactionsCount: number; commentsCount: number }>
+  >({});
 
   useEffect(() => {
     let mounted = true;
@@ -74,6 +78,88 @@ export default function Home() {
   const feed = useMemo(() => {
     return buildUnifiedFeed({ posts, products, followingSlugs });
   }, [followingSlugs, posts, products]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const postSlugs = feed
+      .filter((item) => item.kind === "blog")
+      .map((item) => item.id.replace(/^blog:/, ""))
+      .filter(Boolean);
+    const releaseSlugs = feed
+      .filter((item) => item.kind === "release")
+      .map((item) => item.id.replace(/^release:/, ""))
+      .filter(Boolean);
+
+    if (postSlugs.length === 0 && releaseSlugs.length === 0) {
+      const timer = window.setTimeout(() => {
+        if (mounted) {
+          setFeedEngagement({});
+        }
+      }, 0);
+
+      return () => {
+        mounted = false;
+        window.clearTimeout(timer);
+      };
+    }
+
+    const query = new URLSearchParams();
+    if (postSlugs.length > 0) {
+      query.set("posts", postSlugs.join(","));
+    }
+    if (releaseSlugs.length > 0) {
+      query.set("releases", releaseSlugs.join(","));
+    }
+
+    void fetch(`/api/feed/social?${query.toString()}`, {
+      method: "GET",
+      headers: getTelegramAuthHeaders(),
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          return null;
+        }
+
+        return (await response.json()) as {
+          blog?: Record<string, { reactionsTotal?: number; commentsCount?: number }>;
+          releases?: Record<string, { reactionsTotal?: number; commentsCount?: number }>;
+        };
+      })
+      .then((payload) => {
+        if (!mounted || !payload) {
+          return;
+        }
+
+        const next: Record<string, { reactionsCount: number; commentsCount: number }> = {};
+
+        Object.entries(payload.blog ?? {}).forEach(([slug, stats]) => {
+          next[`blog:${slug}`] = {
+            reactionsCount: Math.max(0, Math.round(Number(stats?.reactionsTotal ?? 0))),
+            commentsCount: Math.max(0, Math.round(Number(stats?.commentsCount ?? 0))),
+          };
+        });
+
+        Object.entries(payload.releases ?? {}).forEach(([slug, stats]) => {
+          next[`release:${slug}`] = {
+            reactionsCount: Math.max(0, Math.round(Number(stats?.reactionsTotal ?? 0))),
+            commentsCount: Math.max(0, Math.round(Number(stats?.commentsCount ?? 0))),
+          };
+        });
+
+        setFeedEngagement(next);
+      })
+      .catch(() => {
+        if (mounted) {
+          setFeedEngagement({});
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [feed]);
 
   const filteredFeed = useMemo(() => {
     if (!feedOnlyFollowing || followingSlugs.length === 0) {
@@ -157,6 +243,7 @@ export default function Home() {
         <section className={styles.feed}>
           {visibleFeed.length > 0 ? (
             visibleFeed.map((item) => {
+              const engagement = feedEngagement[item.id];
               const absoluteUrl = appOrigin ? `${appOrigin}${item.href}` : item.href;
               const shareHref = buildTelegramShareUrl(
                 absoluteUrl,
@@ -191,8 +278,8 @@ export default function Home() {
                     </div>
 
                     <div className={styles.engagementRow}>
-                      <p>{item.reactionsCount} реакций</p>
-                      <p>{item.commentsCount} комментариев</p>
+                      <p>{engagement?.reactionsCount ?? item.reactionsCount} реакций</p>
+                      <p>{engagement?.commentsCount ?? item.commentsCount} комментариев</p>
                       {item.kind === "release" && typeof item.priceStarsCents === "number" ? (
                         <strong>{formatStarsFromCents(item.priceStarsCents)} ⭐</strong>
                       ) : null}

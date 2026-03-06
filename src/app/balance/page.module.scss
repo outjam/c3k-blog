@@ -1,0 +1,126 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  justify-items: center;
+  padding: 0.9rem;
+  padding-top: calc(0.9rem + var(--safe-area-top));
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-left: calc(1rem + var(--safe-area-left));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+}
+
+.container {
+  width: 100%;
+  max-width: 760px;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--tg-section-separator);
+  background: var(--tg-section-bg);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.header h1 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 1.05rem;
+}
+
+.header a {
+  color: color-mix(in srgb, var(--tg-accent) 74%, var(--tg-text));
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.balanceLine {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.82rem;
+}
+
+.balanceLine strong {
+  color: var(--tg-text);
+}
+
+.presetRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.presetRow button,
+.customRow button {
+  min-height: 2.6rem;
+  border: 0;
+  border-radius: 0.72rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.customRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.customRow label,
+.promoBlock label {
+  display: grid;
+  gap: 0.32rem;
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.customRow input,
+.promoBlock input {
+  min-height: 2.4rem;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font: inherit;
+  padding: 0.42rem 0.56rem;
+}
+
+.promoBlock {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.promoHint {
+  margin: 0;
+  color: var(--tg-hint);
+  font-size: 0.74rem;
+}
+
+.message {
+  margin: 0;
+  color: color-mix(in srgb, var(--tg-accent) 74%, var(--tg-text));
+  font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+  .presetRow {
+    grid-template-columns: 1fr;
+  }
+
+  .customRow {
+    grid-template-columns: 1fr;
+  }
+}
