@@ -85,7 +85,13 @@ export function useAppAuthUser() {
   }, []);
 
   useEffect(() => {
-    void refreshSession();
+    const timerId = window.setTimeout(() => {
+      void refreshSession();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
   }, [refreshSession]);
 
   const user = useMemo(() => webAppUser ?? sessionUser, [sessionUser, webAppUser]);

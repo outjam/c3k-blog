@@ -99,7 +99,13 @@ export default function AdminShowcasePage() {
   };
 
   useEffect(() => {
-    void load();
+    const timerId = window.setTimeout(() => {
+      void load();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
   }, []);
 
   const saveCollection = async (collectionId: string) => {
