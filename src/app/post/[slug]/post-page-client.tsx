@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { BackButtonController } from "@/components/back-button-controller";
@@ -15,6 +16,7 @@ import {
   setBlogReactionApi,
 } from "@/lib/blog-social-api";
 import { readBookmarkedPostSlugs, toggleBookmarkedPost } from "@/lib/post-bookmarks";
+import { profileSlugFromIdentity } from "@/lib/social-hub";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
 import { BLOG_REACTION_OPTIONS, type BlogPostSocialSnapshot, type BlogReactionType } from "@/types/blog-social";
 
@@ -264,7 +266,16 @@ export function PostPageClient({ post }: { post: BlogPost }) {
               <article key={comment.id} className={styles.commentCard}>
                 <header>
                   <div>
-                    <strong>{comment.author.firstName || comment.author.username || `#${comment.author.telegramUserId}`}</strong>
+                    <Link
+                      href={`/profile/${profileSlugFromIdentity({
+                        username: comment.author.username,
+                        telegramUserId: comment.author.telegramUserId,
+                        fallback: comment.author.firstName,
+                      })}`}
+                      className={styles.commentAuthorLink}
+                    >
+                      <strong>{comment.author.firstName || comment.author.username || `#${comment.author.telegramUserId}`}</strong>
+                    </Link>
                     <time>{new Date(comment.createdAt).toLocaleString("ru-RU")}</time>
                   </div>
                   {comment.canDelete ? (

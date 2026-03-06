@@ -182,6 +182,11 @@
   font-size: 0.84rem;
 }
 
+.commentAuthorLink {
+  color: color-mix(in srgb, var(--tg-accent) 78%, var(--tg-text));
+  text-decoration: none;
+}
+
 .commentCard time {
   color: var(--subtle-text);
   font-size: 0.72rem;

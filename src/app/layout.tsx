@@ -14,8 +14,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "C3K Blog Mini App",
-  description: "Персональный блог в формате Telegram Mini App на Next.js",
+  title: "Culture3k Social Music",
+  description: "Социальная сеть для артистов и покупателей релизов в формате Telegram Mini App",
 };
 
 export const viewport: Viewport = {

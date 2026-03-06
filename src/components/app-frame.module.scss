@@ -1,7 +1,23 @@
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 16% -8%, color-mix(in srgb, var(--tg-accent) 18%, transparent), transparent 44%),
+    radial-gradient(circle at 104% 100%, color-mix(in srgb, #ffd37c 12%, transparent), transparent 41%),
+    var(--tg-bg);
+}
+
+.shellNoNav {
+  display: block;
+}
+
+.desktopSidebar {
+  display: none;
+}
+
 .frame {
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--tg-bg);
 }
 
 .header {
@@ -12,36 +28,43 @@
   right: 0;
   left: 0;
   z-index: 40;
-  padding-top: calc(12px + var(--safe-area-top));
+  padding-top: calc(10px + var(--safe-area-top));
   padding-bottom: 10px;
-  background: color-mix(in srgb, var(--tg-header-bg) 82%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  background: color-mix(in srgb, var(--tg-header-bg) 76%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 25%, transparent);
+  gap: 0.1rem;
 }
 
 .brand {
   color: var(--tg-text);
-  font-size: 0.92rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
-  opacity: 0.92;
+  opacity: 0.88;
 }
 
 .title {
-  color: var(--tg-section-header-text);
-  font-size: 1.05rem;
-  line-height: 1.3;
+  color: color-mix(in srgb, var(--tg-accent) 58%, var(--tg-text));
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.86;
 }
 
 .content {
-  padding-top: calc(var(--app-header-height) + var(--safe-area-top) - 6px);
+  padding-top: calc(var(--app-header-height) + var(--safe-area-top) + 2px);
   padding-bottom: var(--safe-area-bottom);
 }
 
 .contentWithTabBar {
   padding-bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom));
+}
+
+.mobileTabBarWrap {
+  display: block;
 }
 
 .profileAvatar {
@@ -51,4 +74,160 @@
   object-fit: cover;
   display: block;
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 45%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(240px, 280px) 1fr;
+    gap: 1rem;
+    padding: 0.9rem;
+    padding-left: calc(0.9rem + var(--safe-area-left));
+    padding-right: calc(0.9rem + var(--safe-area-right));
+    padding-bottom: calc(0.9rem + var(--safe-area-bottom));
+  }
+
+  .desktopSidebar {
+    position: sticky;
+    top: calc(0.9rem + var(--safe-area-top));
+    height: calc(100dvh - 1.8rem - var(--safe-area-top) - var(--safe-area-bottom));
+    border-radius: 1.4rem;
+    border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+    background:
+      linear-gradient(
+        160deg,
+        color-mix(in srgb, var(--tg-section-bg) 90%, transparent),
+        color-mix(in srgb, var(--tg-section-bg) 65%, var(--tg-bg))
+      );
+    box-shadow: 0 16px 44px color-mix(in srgb, #000 16%, transparent);
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+    padding: 1.1rem 1rem;
+  }
+
+  .desktopBrand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.48rem;
+    color: var(--tg-text);
+    text-decoration: none;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.82rem;
+  }
+
+  .desktopBrandDot {
+    width: 0.58rem;
+    height: 0.58rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ffd37c, color-mix(in srgb, var(--tg-accent) 72%, #99f0ff));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--tg-accent) 15%, transparent);
+  }
+
+  .desktopNav {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .desktopNavButton {
+    border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+    border-radius: 0.95rem;
+    min-height: 3rem;
+    padding: 0.5rem 0.65rem;
+    background: color-mix(in srgb, var(--tg-bg) 62%, var(--tg-section-bg));
+    color: var(--tg-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 600;
+    text-align: left;
+    transition: border-color 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+  }
+
+  .desktopNavButton:hover {
+    border-color: color-mix(in srgb, var(--tg-accent) 42%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .desktopNavButtonActive {
+    background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+    border-color: color-mix(in srgb, var(--tg-accent) 48%, transparent);
+    color: color-mix(in srgb, var(--tg-accent) 78%, var(--tg-text));
+  }
+
+  .desktopIcon {
+    width: 1.55rem;
+    height: 1.55rem;
+    display: grid;
+    place-items: center;
+  }
+
+  .desktopIcon svg {
+    width: 1.35rem;
+    height: 1.35rem;
+    fill: currentColor;
+  }
+
+  .desktopHintBox {
+    margin-top: auto;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+    background: color-mix(in srgb, var(--tg-bg) 58%, var(--tg-section-bg));
+    padding: 0.72rem;
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .desktopHintBox p {
+    margin: 0;
+    color: var(--tg-hint);
+    font-size: 0.67rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .desktopHintBox strong {
+    color: var(--tg-text);
+    font-size: 0.76rem;
+    line-height: 1.4;
+  }
+
+  .frame {
+    border-radius: 1.4rem;
+    border: 1px solid color-mix(in srgb, var(--tg-section-separator) 20%, transparent);
+    overflow: clip;
+    background: color-mix(in srgb, var(--tg-bg) 88%, transparent);
+    box-shadow: 0 16px 44px color-mix(in srgb, #000 12%, transparent);
+  }
+
+  .header {
+    left: auto;
+    right: auto;
+    top: 0.9rem;
+    width: calc(100% - 240px - 2.8rem);
+    border-radius: 1rem;
+  }
+
+  .headerNoNav {
+    width: calc(100% - 1.8rem);
+  }
+
+  .content {
+    min-height: 100%;
+    padding-bottom: 0;
+  }
+
+  .contentWithTabBar {
+    padding-bottom: 0;
+  }
+
+  .mobileTabBarWrap {
+    display: none;
+  }
+
+  .shellNoNav {
+    grid-template-columns: 1fr;
+  }
 }

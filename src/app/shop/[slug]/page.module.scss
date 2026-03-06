@@ -159,6 +159,138 @@
   font-weight: 700;
 }
 
+.socialBuySection {
+  border-radius: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 68%, var(--tg-section-bg));
+  padding: 0.58rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.socialBuySection p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.8rem;
+}
+
+.socialBuySection strong {
+  color: color-mix(in srgb, var(--tg-accent) 74%, var(--tg-text));
+}
+
+.socialBuyActions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.walletMessage {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.releaseCommentsSection {
+  border-radius: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 68%, var(--tg-section-bg));
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.releaseCommentsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.releaseCommentsHead h2 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.88rem;
+}
+
+.releaseCommentsHead p {
+  margin: 0;
+  color: var(--tg-hint);
+  font-size: 0.74rem;
+}
+
+.commentComposer {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.commentComposer textarea {
+  min-height: 4.2rem;
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font: inherit;
+  padding: 0.48rem 0.56rem;
+  resize: vertical;
+}
+
+.commentsList {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.commentCard {
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  padding: 0.52rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.commentCard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.commentCard header div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.commentCard a {
+  color: color-mix(in srgb, var(--tg-accent) 78%, var(--tg-text));
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.commentCard time {
+  color: var(--tg-hint);
+  font-size: 0.7rem;
+}
+
+.commentCard p {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.commentCard button {
+  border: 0;
+  background: transparent;
+  color: var(--tg-destructive-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.emptyComments {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 0.74rem;

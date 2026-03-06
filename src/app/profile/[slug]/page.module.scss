@@ -1,0 +1,320 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  justify-items: center;
+  padding-top: 0.95rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-bottom: calc(1rem + 78px);
+  padding-left: calc(1rem + var(--safe-area-left));
+}
+
+.container {
+  width: 100%;
+  max-width: 980px;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.hero,
+.section,
+.missing {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: var(--tg-section-bg);
+  box-shadow: var(--shadow-sm);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.62rem;
+}
+
+.hero {
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--tg-section-bg) 90%, transparent),
+      color-mix(in srgb, var(--tg-accent) 10%, var(--tg-section-bg))
+    );
+}
+
+.heroIdentity {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.62rem;
+  align-items: center;
+}
+
+.avatarImage,
+.avatarFallback {
+  width: 3.3rem;
+  height: 3.3rem;
+  border-radius: 999px;
+}
+
+.avatarImage {
+  object-fit: cover;
+}
+
+.avatarFallback {
+  display: grid;
+  place-items: center;
+  color: var(--tg-text);
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-bg));
+}
+
+.kicker {
+  margin: 0;
+  color: color-mix(in srgb, var(--tg-accent) 72%, var(--tg-text));
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+}
+
+.heroIdentity h1 {
+  margin: 0.15rem 0 0;
+  color: var(--tg-text);
+  font-size: clamp(1.08rem, 3.5vw, 1.46rem);
+}
+
+.heroIdentity p {
+  margin: 0.2rem 0 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.8rem;
+}
+
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.heroStats article {
+  border-radius: 0.84rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  padding: 0.52rem;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.heroStats span {
+  color: var(--tg-hint);
+  font-size: 0.7rem;
+}
+
+.heroStats strong {
+  color: var(--tg-text);
+  font-size: 0.88rem;
+}
+
+.bio {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.heroActions button,
+.heroActions a {
+  min-height: 2.2rem;
+  border-radius: 0.72rem;
+  padding: 0 0.72rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heroActions button {
+  border: 0;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+}
+
+.heroActions a {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  color: var(--tg-text);
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.95rem;
+}
+
+.sectionHeader p {
+  margin: 0;
+  color: var(--tg-hint);
+  font-size: 0.78rem;
+}
+
+.awardsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.46rem;
+}
+
+.awardCard {
+  border-radius: 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.awardCard p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.awardCard h3 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.8rem;
+}
+
+.awardCard span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+  line-height: 1.34;
+}
+
+.releaseGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.releaseCard {
+  border-radius: 0.84rem;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  display: grid;
+}
+
+.releaseCard img {
+  width: 100%;
+  height: 125px;
+  object-fit: cover;
+}
+
+.releaseCard div {
+  padding: 0.52rem;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.releaseCard strong {
+  color: var(--tg-text);
+  font-size: 0.8rem;
+}
+
+.releaseCard p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
+}
+
+.releaseCard span {
+  color: var(--tg-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.peopleGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.personCard {
+  border-radius: 0.76rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  padding: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.personCard strong {
+  color: var(--tg-text);
+  font-size: 0.8rem;
+}
+
+.personCard span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
+}
+
+.empty {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.82rem;
+}
+
+.missing h1 {
+  margin: 0;
+  color: var(--tg-text);
+}
+
+.missing p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+}
+
+.missing a {
+  color: var(--tg-accent);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .heroStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .awardsGrid,
+  .releaseGrid,
+  .peopleGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .page {
+    padding: 0.74rem;
+    padding-right: calc(0.74rem + var(--safe-area-right));
+    padding-left: calc(0.74rem + var(--safe-area-left));
+    padding-bottom: calc(0.82rem + 78px + var(--safe-area-bottom));
+  }
+
+  .hero,
+  .section,
+  .missing {
+    padding: 0.72rem;
+  }
+}

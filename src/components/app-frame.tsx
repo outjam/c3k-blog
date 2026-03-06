@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { hapticSelection } from "@/lib/telegram";
@@ -14,16 +15,24 @@ interface AppFrameProps {
 }
 
 interface TabItem {
-  id: "blog" | "tools" | "shop" | "profile";
+  id: "feed" | "search" | "shop" | "profile";
   label: string;
-  href: "/" | "/tools" | "/shop" | "/profile";
+  href: "/" | "/search" | "/shop" | "/profile";
   icon: React.ReactNode;
 }
 
-function BlogIcon() {
+function FeedIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M7 4.5h10a2.5 2.5 0 0 1 2.5 2.5v10A2.5 2.5 0 0 1 17 19.5H7A2.5 2.5 0 0 1 4.5 17V7A2.5 2.5 0 0 1 7 4.5Zm1 4a.75.75 0 1 0 0 1.5h8a.75.75 0 0 0 0-1.5H8Zm0 3a.75.75 0 1 0 0 1.5h8a.75.75 0 0 0 0-1.5H8Zm0 3a.75.75 0 1 0 0 1.5h5.5a.75.75 0 0 0 0-1.5H8Z" />
+      <path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 17.25V6.75Zm2.25-.75a.75.75 0 0 0-.75.75v3.75h12V6.75a.75.75 0 0 0-.75-.75H6.75Zm11.25 6h-12v5.25c0 .41.34.75.75.75h10.5a.75.75 0 0 0 .75-.75V12Zm-10 1.5a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5H8Zm5.25 0a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5h-2.75Z" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M10.5 4a6.5 6.5 0 1 1 4.74 10.95l3.4 3.4a.75.75 0 1 1-1.06 1.06l-3.4-3.4A6.5 6.5 0 0 1 10.5 4Zm0 1.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z" />
     </svg>
   );
 }
@@ -44,41 +53,38 @@ function ShopIcon() {
   );
 }
 
-function ToolsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M4 6.25A2.25 2.25 0 0 1 6.25 4h11.5A2.25 2.25 0 0 1 20 6.25v11.5A2.25 2.25 0 0 1 17.75 20H6.25A2.25 2.25 0 0 1 4 17.75V6.25Zm2.25-.75a.75.75 0 0 0-.75.75v4.5h13v-4.5a.75.75 0 0 0-.75-.75H6.25Zm12.25 6.75h-13v5.5c0 .41.34.75.75.75h11.5a.75.75 0 0 0 .75-.75v-5.5ZM8 7.5a.75.75 0 1 0 0 1.5h2a.75.75 0 0 0 0-1.5H8Zm4.5 0a.75.75 0 1 0 0 1.5h3.5a.75.75 0 0 0 0-1.5h-3.5Zm-4.75 6a.75.75 0 1 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" />
-    </svg>
-  );
-}
-
 export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAppAuthUser();
   const profilePhotoUrl = user?.photo_url;
-  const isTools = pathname.startsWith("/tools");
+
+  const isSearch = pathname.startsWith("/search");
   const isShop = pathname.startsWith("/shop");
   const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders");
-  const activeIndex = isProfile ? 3 : isShop ? 2 : isTools ? 1 : 0;
-  const showTabBar =
+  const activeIndex = isProfile ? 3 : isShop ? 2 : isSearch ? 1 : 0;
+
+  const showNavigation =
     pathname === "/" ||
-    pathname.startsWith("/tools") ||
+    pathname.startsWith("/search") ||
     pathname.startsWith("/shop") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/orders");
 
-  const tabs = useMemo<TabItem[]>(() => [
-    { id: "blog", label: "Блог", href: "/", icon: <BlogIcon /> },
-    { id: "tools", label: "Инструменты", href: "/tools", icon: <ToolsIcon /> },
-    { id: "shop", label: "Магазин", href: "/shop", icon: <ShopIcon /> },
-    {
-      id: "profile",
-      label: "Профиль",
-      href: "/profile",
-      icon: profilePhotoUrl ? <img src={profilePhotoUrl} alt="" className={styles.profileAvatar} /> : <ProfileIcon />,
-    },
-  ], [profilePhotoUrl]);
+  const tabs = useMemo<TabItem[]>(
+    () => [
+      { id: "feed", label: "Лента", href: "/", icon: <FeedIcon /> },
+      { id: "search", label: "Поиск", href: "/search", icon: <SearchIcon /> },
+      { id: "shop", label: "Релизы", href: "/shop", icon: <ShopIcon /> },
+      {
+        id: "profile",
+        label: "Профиль",
+        href: "/profile",
+        icon: profilePhotoUrl ? <img src={profilePhotoUrl} alt="" className={styles.profileAvatar} /> : <ProfileIcon />,
+      },
+    ],
+    [profilePhotoUrl],
+  );
 
   const navigateTo = (index: number) => {
     const nextTab = tabs[index];
@@ -94,17 +100,49 @@ export function AppFrame({ children }: AppFrameProps) {
   };
 
   return (
-    <div className={styles.frame}>
-      <header className={styles.header}>
-          <p className={styles.brand}>Culture3k</p>
-          {/* <h2 className={styles.title}>{sectionTitle}</h2> */}
-      </header>
+    <div className={`${styles.shell} ${showNavigation ? "" : styles.shellNoNav}`}>
+      {showNavigation ? (
+        <aside className={styles.desktopSidebar}>
+          <Link className={styles.desktopBrand} href="/">
+            <span className={styles.desktopBrandDot} />
+            <span>Culture3k</span>
+          </Link>
 
-      <main className={`${styles.content} ${showTabBar ? styles.contentWithTabBar : ""}`}>
-        {children}
-      </main>
+          <nav className={styles.desktopNav} aria-label="Основная навигация desktop">
+            {tabs.map((tab, index) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`${styles.desktopNavButton} ${index === activeIndex ? styles.desktopNavButtonActive : ""}`}
+                onClick={() => navigateTo(index)}
+              >
+                <span className={styles.desktopIcon}>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </nav>
 
-      {showTabBar ? <MiniTabBar activeIndex={activeIndex} items={tabs} onChange={navigateTo} /> : null}
+          <div className={styles.desktopHintBox}>
+            <p>Social + Music Commerce</p>
+            <strong>Показывайте награды, делитесь покупками, поддерживайте артистов.</strong>
+          </div>
+        </aside>
+      ) : null}
+
+      <div className={styles.frame}>
+        <header className={`${styles.header} ${showNavigation ? "" : styles.headerNoNav}`}>
+          <p className={styles.brand}>Culture3k Network</p>
+          <p className={styles.title}>Elite Music Community</p>
+        </header>
+
+        <main className={`${styles.content} ${showNavigation ? styles.contentWithTabBar : ""}`}>{children}</main>
+
+        {showNavigation ? (
+          <div className={styles.mobileTabBarWrap}>
+            <MiniTabBar activeIndex={activeIndex} items={tabs} onChange={navigateTo} />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

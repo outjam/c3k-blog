@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import { markShopOrderPaymentFailed } from "@/lib/shop-orders-api";
 import { payWithTelegramStars } from "@/lib/shop-payment";
+import { readWalletBalanceCents, resolveViewerKey, spendWalletBalanceCents } from "@/lib/social-hub";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents, starsCentsToInvoiceStars } from "@/lib/stars-format";
 import { hapticNotification, hapticSelection } from "@/lib/telegram";
@@ -32,6 +34,8 @@ interface SupportPayload {
 
 export function ShopArtistPageClient({ slug }: { slug: string }) {
   const router = useRouter();
+  const { user } = useAppAuthUser();
+  const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const [artist, setArtist] = useState<ArtistProfile | null>(null);
   const [tracks, setTracks] = useState<ShopProduct[]>([]);
   const [stats, setStats] = useState({ donationsTotal: 0, activeSubscribers: 0 });
@@ -40,6 +44,8 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
   const [donationAmount, setDonationAmount] = useState("100");
   const [isPayingDonation, setIsPayingDonation] = useState(false);
   const [isPayingSubscription, setIsPayingSubscription] = useState(false);
+  const [walletBalanceCents, setWalletBalanceCents] = useState(0);
+  const [walletSupportMessage, setWalletSupportMessage] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -89,6 +95,20 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
     };
   }, [slug]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    void readWalletBalanceCents(viewerKey).then((balance) => {
+      if (mounted) {
+        setWalletBalanceCents(balance);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [viewerKey]);
+
   const donationAmountCents = useMemo(() => {
     const parsed = Math.round(Number(donationAmount));
     if (!Number.isFinite(parsed)) {
@@ -110,6 +130,37 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
       ...cart,
       items: nextItems,
     });
+    hapticNotification("success");
+  };
+
+  const runWalletSupport = async (kind: "donation" | "subscription") => {
+    if (!artist) {
+      return;
+    }
+
+    const amountCents =
+      kind === "donation" ? Math.max(1, donationAmountCents) : Math.max(1, artist.subscriptionPriceStarsCents);
+
+    setWalletSupportMessage("");
+
+    const payment = await spendWalletBalanceCents(viewerKey, amountCents);
+
+    if (!payment.ok) {
+      setWalletSupportMessage("Недостаточно Stars на внутреннем балансе.");
+      hapticNotification("warning");
+      return;
+    }
+
+    setWalletBalanceCents(payment.balanceCents);
+
+    if (kind === "donation") {
+      setStats((prev) => ({ ...prev, donationsTotal: prev.donationsTotal + amountCents }));
+      setWalletSupportMessage("Донат отправлен с внутреннего баланса.");
+    } else {
+      setStats((prev) => ({ ...prev, activeSubscribers: prev.activeSubscribers + 1 }));
+      setWalletSupportMessage("Подписка оформлена с внутреннего баланса.");
+    }
+
     hapticNotification("success");
   };
 
@@ -229,6 +280,7 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
         <div className={styles.supportCard}>
           <h2>Поддержать донатом</h2>
           <p>Сумма в cents Stars</p>
+          <p className={styles.walletHint}>Баланс: {formatStarsFromCents(walletBalanceCents)} ⭐</p>
           <div className={styles.supportRow}>
             <input
               type="number"
@@ -240,11 +292,15 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
               {artist.donationEnabled ? (isPayingDonation ? "Оплата..." : "Донат") : "Донаты отключены"}
             </button>
           </div>
+          <button type="button" className={styles.walletAction} disabled={!artist.donationEnabled} onClick={() => void runWalletSupport("donation")}>
+            Донат с баланса
+          </button>
         </div>
 
         <div className={styles.supportCard}>
           <h2>Подписка</h2>
           <p>{formatStarsFromCents(artist.subscriptionPriceStarsCents)} ⭐ за период</p>
+          <p className={styles.walletHint}>Баланс: {formatStarsFromCents(walletBalanceCents)} ⭐</p>
           <button
             type="button"
             disabled={isPayingSubscription || !artist.subscriptionEnabled}
@@ -252,10 +308,19 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
           >
             {artist.subscriptionEnabled ? (isPayingSubscription ? "Оплата..." : "Оформить подписку") : "Подписка отключена"}
           </button>
+          <button
+            type="button"
+            className={styles.walletAction}
+            disabled={!artist.subscriptionEnabled}
+            onClick={() => void runWalletSupport("subscription")}
+          >
+            Подписка с баланса
+          </button>
         </div>
       </section>
 
       {error ? <p className={styles.error}>{error}</p> : null}
+      {walletSupportMessage ? <p className={styles.walletSupportMessage}>{walletSupportMessage}</p> : null}
 
       <section className={styles.tracks}>
         <div className={styles.tracksHead}>
