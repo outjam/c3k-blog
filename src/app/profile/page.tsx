@@ -168,12 +168,6 @@ export default function ProfilePage() {
   }, [viewerKey]);
 
   useEffect(() => {
-    if (user?.id && authHint) {
-      setAuthHint("");
-    }
-  }, [authHint, user?.id]);
-
-  useEffect(() => {
     if (isSessionLoading || !user?.id) {
       const timer = window.setTimeout(() => {
         setOrders([]);
@@ -337,7 +331,12 @@ export default function ProfilePage() {
       return;
     }
 
-    const next = await toggleFollowingSlug(slug);
+    const targetProfile = profiles.find((profile) => profile.slug === slug);
+    const next = await toggleFollowingSlug(slug, {
+      displayName: targetProfile?.displayName,
+      username: targetProfile?.username,
+      avatarUrl: targetProfile?.avatarUrl,
+    });
     setFollowingSlugs(next);
   };
 
@@ -809,6 +808,7 @@ export default function ProfilePage() {
             <h2>Вход через Telegram</h2>
             <TelegramLoginWidget
               onAuthorized={() => {
+                setAuthHint("");
                 void refreshSession();
               }}
             />
@@ -816,7 +816,7 @@ export default function ProfilePage() {
           </section>
         ) : null}
 
-        {authHint ? <p className={styles.warning}>{authHint}</p> : null}
+        {!user?.id && authHint ? <p className={styles.warning}>{authHint}</p> : null}
 
         {catalogLoading ? <p className={styles.loading}>Обновляем социальный профиль...</p> : null}
       </main>

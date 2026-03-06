@@ -133,7 +133,11 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       return;
     }
 
-    const next = await toggleFollowingSlug(profile.slug);
+    const next = await toggleFollowingSlug(profile.slug, {
+      displayName: profile.displayName,
+      username: profile.username,
+      avatarUrl: profile.avatarUrl,
+    });
     setFollowingSlugs(next);
   };
 

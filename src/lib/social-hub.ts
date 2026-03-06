@@ -1,4 +1,5 @@
 import { readPersistedString, writePersistedString } from "@/lib/telegram-persist";
+import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import type { BlogPost } from "@/types/blog";
 import type { ShopCatalogArtist, ShopProduct } from "@/types/shop";
 import type {
@@ -26,47 +27,21 @@ interface SocialHubState {
   walletCentsByUser: Record<string, number>;
   purchasesVisibleByUser: Record<string, boolean>;
   purchasedReleaseSlugsByUser: Record<string, string[]>;
+  purchasedTrackKeysByUser: Record<string, string[]>;
+  redeemedTopupPromoCodesByUser: Record<string, string[]>;
   releaseCommentsBySlug: Record<string, ReleaseComment[]>;
 }
 
 const DEFAULT_STATE: SocialHubState = {
-  followingSlugs: ["nocturne-code", "glasswave", "c3k-editorial"],
+  followingSlugs: [],
   profileModeByUser: {},
   walletCentsByUser: {},
   purchasesVisibleByUser: {},
   purchasedReleaseSlugsByUser: {},
+  purchasedTrackKeysByUser: {},
+  redeemedTopupPromoCodesByUser: {},
   releaseCommentsBySlug: {},
 };
-
-const SEEDED_LISTENERS = [
-  {
-    slug: "vinyl-fox",
-    displayName: "Vinyl Fox",
-    username: "vinylfox",
-    bio: "Коллекционирую лимитки, делаю сторис с новыми покупками.",
-    followersCount: 684,
-    followingCount: 129,
-    topGenres: ["Synthwave", "Indie Dance", "Lo-Fi"],
-  },
-  {
-    slug: "urban-scout",
-    displayName: "Urban Scout",
-    username: "urbanscout",
-    bio: "Охочусь за свежими релизами и редкими коллабами.",
-    followersCount: 932,
-    followingCount: 174,
-    topGenres: ["Hip-Hop", "Drill", "Electronic"],
-  },
-  {
-    slug: "stardust-buyer",
-    displayName: "Stardust Buyer",
-    username: "stardustbuyer",
-    bio: "Покупаю digital-эксклюзивы и поддерживаю артистов донатами.",
-    followersCount: 540,
-    followingCount: 247,
-    topGenres: ["Ambient", "Breakbeat", "Future Garage"],
-  },
-] as const;
 
 const normalizeSlug = (value: unknown): string => {
   return String(value ?? "")
@@ -97,6 +72,79 @@ const normalizeStringList = (value: unknown): string[] => {
   return value
     .map((entry) => normalizeSlug(entry))
     .filter(Boolean);
+};
+
+const normalizeTrackId = (value: unknown): string => {
+  return String(value ?? "")
+    .normalize("NFC")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё_-]+/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+};
+
+const toTrackPurchaseKey = (releaseSlug: unknown, trackId: unknown): string => {
+  const release = normalizeSlug(releaseSlug);
+  const track = normalizeTrackId(trackId);
+
+  if (!release || !track) {
+    return "";
+  }
+
+  return `${release}::${track}`;
+};
+
+const normalizeTrackPurchaseKey = (value: unknown): string => {
+  const [releaseSlug = "", trackId = ""] = String(value ?? "").split("::", 2);
+  return toTrackPurchaseKey(releaseSlug, trackId);
+};
+
+const normalizeTrackPurchaseKeyList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value
+    .map((entry) => normalizeTrackPurchaseKey(entry))
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) {
+        return false;
+      }
+
+      seen.add(entry);
+      return true;
+    });
+};
+
+const normalizePromoCode = (value: unknown): string => {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, "")
+    .slice(0, 24);
+};
+
+const normalizePromoCodeList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value
+    .map((entry) => normalizePromoCode(entry))
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) {
+        return false;
+      }
+
+      seen.add(entry);
+      return true;
+    });
 };
 
 const normalizeMode = (value: unknown): ProfileMode => {
@@ -185,6 +233,26 @@ const normalizeState = (value: unknown): SocialHubState => {
         )
       : {};
 
+  const purchasedTrackKeysByUser =
+    source.purchasedTrackKeysByUser && typeof source.purchasedTrackKeysByUser === "object"
+      ? Object.fromEntries(
+          Object.entries(source.purchasedTrackKeysByUser as Record<string, unknown>).map(([key, item]) => [
+            String(key),
+            normalizeTrackPurchaseKeyList(item),
+          ]),
+        )
+      : {};
+
+  const redeemedTopupPromoCodesByUser =
+    source.redeemedTopupPromoCodesByUser && typeof source.redeemedTopupPromoCodesByUser === "object"
+      ? Object.fromEntries(
+          Object.entries(source.redeemedTopupPromoCodesByUser as Record<string, unknown>).map(([key, item]) => [
+            String(key),
+            normalizePromoCodeList(item),
+          ]),
+        )
+      : {};
+
   const releaseCommentsBySlug =
     source.releaseCommentsBySlug && typeof source.releaseCommentsBySlug === "object"
       ? Object.fromEntries(
@@ -206,6 +274,8 @@ const normalizeState = (value: unknown): SocialHubState => {
     walletCentsByUser,
     purchasesVisibleByUser,
     purchasedReleaseSlugsByUser,
+    purchasedTrackKeysByUser,
+    redeemedTopupPromoCodesByUser,
     releaseCommentsBySlug,
   };
 };
@@ -238,20 +308,6 @@ const generateId = (): string => {
   }
 
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-};
-
-const hashToRange = (source: string, min: number, max: number): number => {
-  const safeMin = Math.min(min, max);
-  const safeMax = Math.max(min, max);
-  const span = safeMax - safeMin + 1;
-
-  let hash = 0;
-  for (let index = 0; index < source.length; index += 1) {
-    hash = (hash << 5) - hash + source.charCodeAt(index);
-    hash |= 0;
-  }
-
-  return safeMin + Math.abs(hash % span);
 };
 
 const parseDate = (value: string | undefined): number => {
@@ -381,15 +437,74 @@ export const resolveViewerName = (viewer: ViewerIdentity | null | undefined): st
 };
 
 export const readFollowingSlugs = async (): Promise<string[]> => {
+  try {
+    const response = await fetch("/api/social/follows", {
+      method: "GET",
+      headers: getTelegramAuthHeaders(),
+      cache: "no-store",
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as { followingSlugs?: unknown };
+      const remoteFollowing = normalizeStringList(payload.followingSlugs);
+      const local = await readState();
+
+      if (JSON.stringify(local.followingSlugs) !== JSON.stringify(remoteFollowing)) {
+        await writeState({
+          ...local,
+          followingSlugs: remoteFollowing,
+        });
+      }
+
+      return remoteFollowing;
+    }
+  } catch {
+    // ignore network errors and fall back to local state
+  }
+
   const state = await readState();
   return state.followingSlugs;
 };
 
-export const toggleFollowingSlug = async (slug: string): Promise<string[]> => {
+export const toggleFollowingSlug = async (
+  slug: string,
+  targetProfile?: { displayName?: string; username?: string; avatarUrl?: string },
+): Promise<string[]> => {
   const normalizedSlug = normalizeSlug(slug);
 
   if (!normalizedSlug || normalizedSlug === "guest") {
     return readFollowingSlugs();
+  }
+
+  try {
+    const response = await fetch("/api/social/follows", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...getTelegramAuthHeaders(),
+      },
+      body: JSON.stringify({
+        targetSlug: normalizedSlug,
+        targetDisplayName: targetProfile?.displayName,
+        targetUsername: targetProfile?.username,
+        targetAvatarUrl: targetProfile?.avatarUrl,
+      }),
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as { followingSlugs?: unknown };
+      const remoteFollowing = normalizeStringList(payload.followingSlugs);
+      const local = await readState();
+
+      await writeState({
+        ...local,
+        followingSlugs: remoteFollowing,
+      });
+
+      return remoteFollowing;
+    }
+  } catch {
+    // ignore network errors and fall back to local state
   }
 
   const state = await readState();
@@ -429,11 +544,11 @@ export const readWalletBalanceCents = async (viewerKey: string): Promise<number>
   const state = await readState();
   const existing = normalizeStarsCents(state.walletCentsByUser[viewerKey]);
 
-  if (existing > 0) {
+  if (Object.prototype.hasOwnProperty.call(state.walletCentsByUser, viewerKey)) {
     return existing;
   }
 
-  const initial = 7_500;
+  const initial = 0;
 
   await writeState({
     ...state,
@@ -509,6 +624,21 @@ export const writePurchasesVisibility = async (viewerKey: string, isVisible: boo
   return Boolean(isVisible);
 };
 
+const prependUniqueValues = (current: string[], values: string[]): string[] => {
+  const next = [...current];
+
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (!value || next.includes(value)) {
+      continue;
+    }
+
+    next.unshift(value);
+  }
+
+  return next;
+};
+
 export const readPurchasedReleaseSlugs = async (viewerKey: string): Promise<string[]> => {
   const state = await readState();
   return normalizeStringList(state.purchasedReleaseSlugsByUser[viewerKey]);
@@ -534,6 +664,163 @@ export const appendPurchasedReleaseSlug = async (viewerKey: string, releaseSlug:
   });
 
   return next;
+};
+
+export const readPurchasedTrackKeys = async (viewerKey: string): Promise<string[]> => {
+  const state = await readState();
+  return normalizeTrackPurchaseKeyList(state.purchasedTrackKeysByUser[viewerKey]);
+};
+
+export const toPurchasedTrackKey = (releaseSlug: string, trackId: string): string => {
+  return toTrackPurchaseKey(releaseSlug, trackId);
+};
+
+export const appendPurchasedTrackKey = async (
+  viewerKey: string,
+  releaseSlug: string,
+  trackId: string,
+): Promise<string[]> => {
+  const key = toTrackPurchaseKey(releaseSlug, trackId);
+
+  if (!key) {
+    return readPurchasedTrackKeys(viewerKey);
+  }
+
+  const state = await readState();
+  const existing = normalizeTrackPurchaseKeyList(state.purchasedTrackKeysByUser[viewerKey]);
+  const next = existing.includes(key) ? existing : [key, ...existing];
+
+  await writeState({
+    ...state,
+    purchasedTrackKeysByUser: {
+      ...state.purchasedTrackKeysByUser,
+      [viewerKey]: next,
+    },
+  });
+
+  return next;
+};
+
+export const appendPurchasedTrackKeys = async (
+  viewerKey: string,
+  releaseSlug: string,
+  trackIds: string[],
+): Promise<string[]> => {
+  const normalizedKeys = trackIds
+    .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
+    .filter(Boolean);
+
+  if (normalizedKeys.length === 0) {
+    return readPurchasedTrackKeys(viewerKey);
+  }
+
+  const state = await readState();
+  const existing = normalizeTrackPurchaseKeyList(state.purchasedTrackKeysByUser[viewerKey]);
+  const next = prependUniqueValues(existing, normalizedKeys);
+
+  await writeState({
+    ...state,
+    purchasedTrackKeysByUser: {
+      ...state.purchasedTrackKeysByUser,
+      [viewerKey]: next,
+    },
+  });
+
+  return next;
+};
+
+export const appendPurchasedReleaseWithTracks = async (
+  viewerKey: string,
+  releaseSlug: string,
+  trackIds: string[],
+): Promise<{ releaseSlugs: string[]; trackKeys: string[] }> => {
+  const normalizedReleaseSlug = normalizeSlug(releaseSlug);
+  const normalizedTrackKeys = trackIds
+    .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
+    .filter(Boolean);
+
+  if (!normalizedReleaseSlug && normalizedTrackKeys.length === 0) {
+    return {
+      releaseSlugs: await readPurchasedReleaseSlugs(viewerKey),
+      trackKeys: await readPurchasedTrackKeys(viewerKey),
+    };
+  }
+
+  const state = await readState();
+  const existingReleaseSlugs = normalizeStringList(state.purchasedReleaseSlugsByUser[viewerKey]);
+  const existingTrackKeys = normalizeTrackPurchaseKeyList(state.purchasedTrackKeysByUser[viewerKey]);
+  const nextReleaseSlugs =
+    normalizedReleaseSlug && !existingReleaseSlugs.includes(normalizedReleaseSlug)
+      ? [normalizedReleaseSlug, ...existingReleaseSlugs]
+      : existingReleaseSlugs;
+  const nextTrackKeys = prependUniqueValues(existingTrackKeys, normalizedTrackKeys);
+
+  await writeState({
+    ...state,
+    purchasedReleaseSlugsByUser: {
+      ...state.purchasedReleaseSlugsByUser,
+      [viewerKey]: nextReleaseSlugs,
+    },
+    purchasedTrackKeysByUser: {
+      ...state.purchasedTrackKeysByUser,
+      [viewerKey]: nextTrackKeys,
+    },
+  });
+
+  return {
+    releaseSlugs: nextReleaseSlugs,
+    trackKeys: nextTrackKeys,
+  };
+};
+
+export const readRedeemedTopupPromoCodes = async (viewerKey: string): Promise<string[]> => {
+  const state = await readState();
+  return normalizePromoCodeList(state.redeemedTopupPromoCodesByUser[viewerKey]);
+};
+
+export const redeemTopupPromoCode = async (
+  viewerKey: string,
+  code: string,
+): Promise<{ ok: boolean; normalizedCode: string; alreadyRedeemed: boolean; redeemedCodes: string[] }> => {
+  const normalizedCode = normalizePromoCode(code);
+
+  if (!normalizedCode) {
+    return {
+      ok: false,
+      normalizedCode: "",
+      alreadyRedeemed: false,
+      redeemedCodes: await readRedeemedTopupPromoCodes(viewerKey),
+    };
+  }
+
+  const state = await readState();
+  const existing = normalizePromoCodeList(state.redeemedTopupPromoCodesByUser[viewerKey]);
+
+  if (existing.includes(normalizedCode)) {
+    return {
+      ok: true,
+      normalizedCode,
+      alreadyRedeemed: true,
+      redeemedCodes: existing,
+    };
+  }
+
+  const next = [normalizedCode, ...existing];
+
+  await writeState({
+    ...state,
+    redeemedTopupPromoCodesByUser: {
+      ...state.redeemedTopupPromoCodesByUser,
+      [viewerKey]: next,
+    },
+  });
+
+  return {
+    ok: true,
+    normalizedCode,
+    alreadyRedeemed: false,
+    redeemedCodes: next,
+  };
 };
 
 export const readReleaseComments = async (releaseSlug: string): Promise<ReleaseComment[]> => {
@@ -634,23 +921,8 @@ export const buildPublicProfiles = (input: {
 }): PublicProfile[] => {
   const digitalReleases = input.products.filter((item) => item.kind === "digital_track");
 
-  const seededProfiles: PublicProfile[] = SEEDED_LISTENERS.map((seed, index) => ({
-    slug: seed.slug,
-    displayName: seed.displayName,
-    username: seed.username,
-    bio: seed.bio,
-    mode: "listener",
-    followersCount: seed.followersCount,
-    followingCount: seed.followingCount,
-    topGenres: [...seed.topGenres],
-    awards: buildListenerAwards(3 + index * 2, seed.followersCount),
-    purchasesVisible: true,
-    purchasedReleaseSlugs: digitalReleases.slice(index, index + 4).map((release) => release.slug),
-  }));
-
   const artistProfiles: PublicProfile[] = input.artists.map((artist) => {
     const ownReleases = digitalReleases.filter((release) => normalizeSlug(release.artistSlug) === normalizeSlug(artist.slug));
-    const isFollowed = input.followingSlugs.includes(normalizeSlug(artist.slug));
 
     return {
       slug: normalizeSlug(artist.slug),
@@ -660,8 +932,8 @@ export const buildPublicProfiles = (input: {
       coverUrl: artist.coverUrl,
       bio: artist.bio || "Артист платформы C3K.",
       mode: "artist",
-      followersCount: artist.followersCount + (isFollowed ? 1 : 0),
-      followingCount: hashToRange(`${artist.slug}-following`, 50, 360),
+      followersCount: artist.followersCount,
+      followingCount: 0,
       isVerified: true,
       topGenres: [
         ...new Set(
@@ -679,7 +951,7 @@ export const buildPublicProfiles = (input: {
 
   const bySlug = new Map<string, PublicProfile>();
 
-  [...seededProfiles, ...artistProfiles].forEach((profile) => {
+  artistProfiles.forEach((profile) => {
     const slug = normalizeSlug(profile.slug);
 
     if (!slug) {
@@ -687,6 +959,40 @@ export const buildPublicProfiles = (input: {
     }
 
     bySlug.set(slug, { ...profile, slug });
+  });
+
+  const followingListenerProfiles = Array.from(new Set(input.followingSlugs.map((slug) => normalizeSlug(slug)).filter(Boolean))).map((slug) => {
+    const existing = bySlug.get(slug);
+
+    if (existing) {
+      return existing;
+    }
+
+    const prettyName = slug
+      .split("-")
+      .filter(Boolean)
+      .map((entry) => entry.charAt(0).toUpperCase() + entry.slice(1))
+      .join(" ");
+
+    return {
+      slug,
+      displayName: prettyName || slug,
+      username: slug.startsWith("user-") ? undefined : slug,
+      bio: "Профиль пользователя Culture3k.",
+      mode: "listener",
+      followersCount: 0,
+      followingCount: 0,
+      topGenres: [],
+      awards: buildListenerAwards(0, 0),
+      purchasesVisible: false,
+      purchasedReleaseSlugs: [],
+    } satisfies PublicProfile;
+  });
+
+  followingListenerProfiles.forEach((profile) => {
+    if (!bySlug.has(profile.slug)) {
+      bySlug.set(profile.slug, profile);
+    }
   });
 
   const viewer = input.currentViewer;
@@ -700,7 +1006,7 @@ export const buildPublicProfiles = (input: {
 
     const existing = bySlug.get(viewerSlug);
     const displayName = resolveViewerName(viewer);
-    const followersCount = (existing?.followersCount ?? hashToRange(`${viewerSlug}-followers`, 10, 280)) + 1;
+    const followersCount = Math.max(0, existing?.followersCount ?? 0);
 
     bySlug.set(viewerSlug, {
       slug: viewerSlug,
@@ -715,7 +1021,7 @@ export const buildPublicProfiles = (input: {
       followersCount,
       followingCount: Math.max(input.followingSlugs.length, existing?.followingCount ?? 0),
       isVerified: existing?.isVerified,
-      topGenres: existing?.topGenres ?? ["Electronic", "Indie", "Ambient"],
+      topGenres: existing?.topGenres ?? [],
       awards: buildListenerAwards(input.currentPurchasedReleaseSlugs.length, followersCount),
       purchasesVisible: input.currentPurchasesVisible,
       purchasedReleaseSlugs: Array.from(new Set(input.currentPurchasedReleaseSlugs)),
@@ -742,7 +1048,6 @@ export const buildUnifiedFeed = (input: {
     .filter((product) => product.kind === "digital_track")
     .map((product) => {
       const authorSlug = normalizeSlug(product.artistSlug || product.artistName || "artist");
-      const sourceKey = `release-${product.slug}`;
       const publishedAt = product.publishedAt || new Date().toISOString();
 
       return {
@@ -759,14 +1064,12 @@ export const buildUnifiedFeed = (input: {
         tags: product.tags.slice(0, 4),
         priceStarsCents: product.priceStarsCents,
         isFollowedSource: followingSet.has(authorSlug),
-        reactionsCount: hashToRange(`${sourceKey}-reactions`, 8, 540),
-        commentsCount: hashToRange(`${sourceKey}-comments`, 1, 90),
+        reactionsCount: 0,
+        commentsCount: 0,
       };
     });
 
   const blogItems: UnifiedFeedItem[] = input.posts.map((post) => {
-    const sourceKey = `blog-${post.slug}`;
-
     return {
       id: `blog:${post.slug}`,
       kind: "blog",
@@ -780,8 +1083,8 @@ export const buildUnifiedFeed = (input: {
       authorSlug: "c3k-editorial",
       tags: post.tags.slice(0, 4),
       isFollowedSource: followingSet.has("c3k-editorial"),
-      reactionsCount: hashToRange(`${sourceKey}-reactions`, 10, 420),
-      commentsCount: hashToRange(`${sourceKey}-comments`, 1, 130),
+      reactionsCount: 0,
+      commentsCount: 0,
     };
   });
 
