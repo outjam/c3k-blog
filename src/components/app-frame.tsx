@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { hapticSelection } from "@/lib/telegram";
 import { MiniTabBar } from "@/components/mini-tab-bar";
-import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
+import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 
 import styles from "./app-frame.module.scss";
 
@@ -55,8 +55,8 @@ function ToolsIcon() {
 export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const webApp = useTelegramWebApp();
-  const profilePhotoUrl = webApp?.initDataUnsafe?.user?.photo_url;
+  const { user } = useAppAuthUser();
+  const profilePhotoUrl = user?.photo_url;
   const isTools = pathname.startsWith("/tools");
   const isShop = pathname.startsWith("/shop");
   const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders");

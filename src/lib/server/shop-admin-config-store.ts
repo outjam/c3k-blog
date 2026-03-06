@@ -118,6 +118,123 @@ const normalizeArtistTrackStatus = (value: unknown): ArtistTrack["status"] => {
   return value === "pending_moderation" || value === "published" || value === "rejected" ? value : "draft";
 };
 
+const normalizeArtistReleaseType = (value: unknown): ArtistTrack["releaseType"] => {
+  return value === "ep" || value === "album" ? value : "single";
+};
+
+const normalizeArtistAudioFormat = (value: unknown): ArtistTrack["formats"][number]["format"] => {
+  return value === "aac" || value === "flac" || value === "wav" || value === "alac" || value === "ogg" ? value : "mp3";
+};
+
+const normalizeTrackFormats = (
+  value: unknown,
+  fallbackAudioFileId: string,
+  fallbackPriceStarsCents: number,
+): ArtistTrack["formats"] => {
+  const fromArray = Array.isArray(value)
+    ? value
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") {
+            return null;
+          }
+
+          const source = entry as Partial<ArtistTrack["formats"][number]>;
+          const audioFileId = normalizeText(source.audioFileId, 1024);
+
+          if (!audioFileId) {
+            return null;
+          }
+
+          return {
+            format: normalizeArtistAudioFormat(source.format),
+            audioFileId,
+            priceStarsCents: clampIntMin(source.priceStarsCents, 1),
+            label: normalizeOptionalText(source.label, 64),
+            isDefault: Boolean(source.isDefault),
+          } satisfies ArtistTrack["formats"][number];
+        })
+        .filter((entry): entry is ArtistTrack["formats"][number] => Boolean(entry))
+        .slice(0, 8)
+    : [];
+
+  const uniqueByFormat = new Map<string, ArtistTrack["formats"][number]>();
+  for (const entry of fromArray) {
+    uniqueByFormat.set(entry.format, entry);
+  }
+
+  const normalized = Array.from(uniqueByFormat.values());
+  if (normalized.length === 0) {
+    return [
+      {
+        format: "mp3",
+        audioFileId: fallbackAudioFileId,
+        priceStarsCents: fallbackPriceStarsCents,
+        label: "MP3",
+        isDefault: true,
+      },
+    ];
+  }
+
+  if (!normalized.some((entry) => entry.isDefault)) {
+    normalized[0] = {
+      ...normalized[0],
+      isDefault: true,
+    };
+  }
+
+  return normalized;
+};
+
+const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): ArtistTrack["releaseTracklist"] => {
+  const fromArray = Array.isArray(value)
+    ? value
+        .map((entry, index) => {
+          if (!entry || typeof entry !== "object") {
+            return null;
+          }
+
+          const source = entry as Partial<ArtistTrack["releaseTracklist"][number]>;
+          const title = normalizeText(source.title, 180);
+
+          if (!title) {
+            return null;
+          }
+
+          const id = normalizeSafeId(source.id ?? `track-${index + 1}`, 80) || `track-${index + 1}`;
+
+          return {
+            id,
+            title,
+            durationSec:
+              typeof source.durationSec === "number" && Number.isFinite(source.durationSec)
+                ? clampInt(source.durationSec, 0, 60 * 60 * 12)
+                : undefined,
+            previewUrl: normalizeOptionalText(source.previewUrl, 3000),
+            position:
+              typeof source.position === "number" && Number.isFinite(source.position)
+                ? clampInt(source.position, 1, 999)
+                : index + 1,
+          } satisfies ArtistTrack["releaseTracklist"][number];
+        })
+        .filter((entry): entry is ArtistTrack["releaseTracklist"][number] => Boolean(entry))
+        .slice(0, 50)
+    : [];
+
+  if (fromArray.length > 0) {
+    return fromArray
+      .sort((a, b) => a.position - b.position || a.title.localeCompare(b.title, "ru-RU"))
+      .map((entry, index) => ({ ...entry, position: index + 1 }));
+  }
+
+  return [
+    {
+      id: "track-1",
+      title: fallbackTitle,
+      position: 1,
+    },
+  ];
+};
+
 const normalizeArtistSubscriptionStatus = (value: unknown): ArtistSubscription["status"] => {
   return value === "paused" || value === "cancelled" ? value : "active";
 };
@@ -185,21 +302,29 @@ const sanitizeArtistTrack = (raw: unknown, fallbackKey: string, now: string): Ar
   }
 
   const status = normalizeArtistTrackStatus(source.status);
+  const releaseType = normalizeArtistReleaseType(source.releaseType);
+  const priceStarsCents = clampIntMin(source.priceStarsCents, 1);
+  const formats = normalizeTrackFormats(source.formats, audioFileId, priceStarsCents);
+  const defaultFormat = formats.find((entry) => entry.isDefault) ?? formats[0];
+  const releaseTracklist = normalizeReleaseTracklist(source.releaseTracklist, title);
 
   return {
     id,
     slug,
     artistTelegramUserId,
     title,
+    releaseType,
     subtitle: normalizeText(source.subtitle, 220) || "Сингл",
     description: normalizeText(source.description, 5000),
     coverImage: normalizeText(source.coverImage, 3000) || DEFAULT_PRODUCT_IMAGE,
-    audioFileId,
+    formats,
+    releaseTracklist,
+    audioFileId: defaultFormat.audioFileId,
     previewUrl: normalizeOptionalText(source.previewUrl, 3000),
     durationSec: clampInt(source.durationSec, 0, 60 * 60 * 12),
     genre: normalizeOptionalText(source.genre, 64),
     tags: normalizeTrackTags(source.tags),
-    priceStarsCents: clampIntMin(source.priceStarsCents, 1),
+    priceStarsCents: defaultFormat.priceStarsCents,
     status,
     moderationNote: normalizeOptionalText(source.moderationNote, 240),
     playsCount: clampIntMin(source.playsCount, 0),

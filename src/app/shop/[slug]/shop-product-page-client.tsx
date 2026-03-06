@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BackButtonController } from "@/components/back-button-controller";
 import type { ShopProduct } from "@/types/shop";
 import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
+import { getDefaultTrackFormat, getFormatLabel, getProductPriceByFormat, getTrackFormats } from "@/lib/shop-release-format";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
@@ -16,6 +17,7 @@ import styles from "./page.module.scss";
 export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
   const [isFavorite, setIsFavorite] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState(() => getDefaultTrackFormat(product));
 
   useEffect(() => {
     let mounted = true;
@@ -33,17 +35,21 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
   const addToCart = useCallback(async () => {
     const cart = await readShopCart();
-    const exists = cart.items.find((item) => item.productId === product.id);
+    const exists = cart.items.find(
+      (item) => item.productId === product.id && (item.selectedFormat ?? "") === (selectedFormat ?? ""),
+    );
 
     const nextItems = exists
       ? cart.items.map((item) =>
-          item.productId === product.id ? { ...item, quantity: Math.min(item.quantity + 1, 99) } : item,
+          item.productId === product.id && (item.selectedFormat ?? "") === (selectedFormat ?? "")
+            ? { ...item, quantity: Math.min(item.quantity + 1, 99) }
+            : item,
         )
-      : [...cart.items, { productId: product.id, quantity: 1 }];
+      : [...cart.items, { productId: product.id, quantity: 1, selectedFormat }];
 
     await writeShopCart({ ...cart, items: nextItems });
     hapticNotification("success");
-  }, [product.id]);
+  }, [product.id, selectedFormat]);
 
   const handleBack = useCallback(() => {
     hapticImpact("light");
@@ -57,6 +63,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       hapticNotification(favorite ? "success" : "warning");
     });
   }, [product.id]);
+
+  const formats = getTrackFormats(product);
+  const selectedPriceStarsCents = getProductPriceByFormat(product, selectedFormat);
+  const releaseLabel = product.releaseType === "album" ? "Album" : product.releaseType === "ep" ? "EP" : "Single";
+  const releaseTracklist = product.releaseTracklist ?? [];
 
   return (
     <div className={styles.page}>
@@ -78,26 +89,62 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               )}
             </p>
           ) : null}
-          <p className={styles.price}>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
+          <p className={styles.price}>{formatStarsFromCents(selectedPriceStarsCents)} ⭐</p>
 
           <dl className={styles.meta}>
             <div>
-              <dt>Формат</dt>
-              <dd>Digital track</dd>
+              <dt>Релиз</dt>
+              <dd>{releaseLabel}</dd>
             </div>
             <div>
               <dt>Жанр</dt>
               <dd>{product.subcategoryLabel ?? product.attributes.collection}</dd>
             </div>
             <div>
-              <dt>Артикул</dt>
-              <dd>{product.attributes.sku}</dd>
+              <dt>Треков</dt>
+              <dd>{releaseTracklist.length || 1}</dd>
             </div>
             <div>
               <dt>Доступ</dt>
               <dd>Мгновенно после оплаты</dd>
             </div>
           </dl>
+
+          <section className={styles.formatSection}>
+            <p className={styles.sectionTitle}>Формат покупки</p>
+            <div className={styles.formatGrid}>
+              {formats.map((entry) => (
+                <button
+                  key={entry.format}
+                  type="button"
+                  className={`${styles.formatChip} ${selectedFormat === entry.format ? styles.formatChipActive : ""}`}
+                  onClick={() => setSelectedFormat(entry.format)}
+                >
+                  <span>{getFormatLabel(entry.format)}</span>
+                  <small>{formatStarsFromCents(entry.priceStarsCents)} ⭐</small>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.tracklistSection}>
+            <p className={styles.sectionTitle}>Треклист релиза</p>
+            <ol className={styles.tracklist}>
+              {releaseTracklist.length > 0 ? (
+                releaseTracklist.map((track) => (
+                  <li key={track.id}>
+                    <span>{track.title}</span>
+                    <small>{track.durationSec ? `${Math.floor(track.durationSec / 60)}:${String(track.durationSec % 60).padStart(2, "0")}` : "—:—"}</small>
+                  </li>
+                ))
+              ) : (
+                <li>
+                  <span>{product.title}</span>
+                  <small>—:—</small>
+                </li>
+              )}
+            </ol>
+          </section>
 
           <button type="button" className={styles.addButton} onClick={() => void addToCart()}>
             Добавить в корзину

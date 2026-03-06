@@ -88,16 +88,16 @@ export function ShopProductCard({
 
           <dl className={styles.attrs}>
             <div>
-              <dt>Формат</dt>
-              <dd>Digital track</dd>
+              <dt>Релиз</dt>
+              <dd>{product.releaseType === "album" ? "Album" : product.releaseType === "ep" ? "EP" : "Single"}</dd>
             </div>
             <div>
               <dt>Жанр</dt>
               <dd>{product.subcategoryLabel ?? product.attributes.collection}</dd>
             </div>
             <div>
-              <dt>Артикул</dt>
-              <dd>{product.attributes.sku}</dd>
+              <dt>Форматы</dt>
+              <dd>{product.formats?.length ? `${product.formats.length} варианта` : "1 вариант"}</dd>
             </div>
             <div>
               <dt>Доступ</dt>

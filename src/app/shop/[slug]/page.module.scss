@@ -76,6 +76,79 @@
   font-size: 0.8rem;
 }
 
+.formatSection,
+.tracklistSection {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.sectionTitle {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.formatGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.formatChip {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  border-radius: 0.66rem;
+  min-height: 2.4rem;
+  padding: 0.38rem 0.5rem;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+  display: grid;
+  justify-items: start;
+  gap: 0.08rem;
+}
+
+.formatChip span {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.formatChip small {
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+}
+
+.formatChipActive {
+  border-color: color-mix(in srgb, var(--tg-accent) 38%, transparent);
+  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
+}
+
+.tracklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.tracklist li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.42rem 0.52rem;
+  border-radius: 0.58rem;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+}
+
+.tracklist span {
+  color: var(--tg-text);
+  font-size: 0.8rem;
+}
+
+.tracklist small {
+  color: var(--tg-hint);
+  font-size: 0.72rem;
+}
+
 .addButton {
   min-height: 2.7rem;
   border: 0;
@@ -95,6 +168,10 @@
   }
 
   .meta {
+    grid-template-columns: 1fr;
+  }
+
+  .formatGrid {
     grid-template-columns: 1fr;
   }
 }

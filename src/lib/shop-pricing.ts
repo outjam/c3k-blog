@@ -1,4 +1,5 @@
 import type { CartItem, PromoDiscountType, ShopProduct } from "@/types/shop";
+import { getProductPriceByFormat } from "@/lib/shop-release-format";
 
 export interface PromoRule {
   code: string;
@@ -32,7 +33,7 @@ export const getCartSubtotalStarsCents = (products: ShopProduct[], items: CartIt
   const map = toMap(products);
   return items.reduce((acc, item) => {
     const product = map.get(item.productId);
-    return product ? acc + product.priceStarsCents * item.quantity : acc;
+    return product ? acc + getProductPriceByFormat(product, item.selectedFormat) * item.quantity : acc;
   }, 0);
 };
 

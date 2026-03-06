@@ -160,7 +160,13 @@ export default function ShopPage() {
   }, [cartItems, isCartHydrated]);
 
   const productQuantityMap = useMemo(() => {
-    return new Map(cartItems.map((item) => [item.productId, item.quantity]));
+    const next = new Map<string, number>();
+
+    for (const item of cartItems) {
+      next.set(item.productId, (next.get(item.productId) ?? 0) + item.quantity);
+    }
+
+    return next;
   }, [cartItems]);
 
   const filteredProducts = useMemo(() => {
@@ -233,14 +239,16 @@ export default function ShopPage() {
     }
 
     setCartItems((prev) => {
-      const existing = prev.find((item) => item.productId === productId);
+      const existing = prev.find((item) => item.productId === productId && !item.selectedFormat);
 
       if (!existing) {
         return [...prev, { productId, quantity: 1 }];
       }
 
       return prev.map((item) =>
-        item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) } : item,
+        item.productId === productId && !item.selectedFormat
+          ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) }
+          : item,
       );
     });
 
@@ -258,7 +266,9 @@ export default function ShopPage() {
 
     setCartItems((prev) =>
       prev.map((item) =>
-        item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) } : item,
+        item.productId === productId && !item.selectedFormat
+          ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) }
+          : item,
       ),
     );
     hapticSelection();
@@ -273,7 +283,9 @@ export default function ShopPage() {
 
     setCartItems((prev) =>
       prev
-        .map((item) => (item.productId === productId ? { ...item, quantity: Math.max(item.quantity - 1, 0) } : item))
+        .map((item) =>
+          item.productId === productId && !item.selectedFormat ? { ...item, quantity: Math.max(item.quantity - 1, 0) } : item,
+        )
         .filter((item) => item.quantity > 0),
     );
     hapticSelection();

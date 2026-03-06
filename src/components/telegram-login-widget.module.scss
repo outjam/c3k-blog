@@ -1,0 +1,35 @@
+.card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.72rem;
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+}
+
+.title {
+  color: var(--tg-text);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  color: var(--tg-subtitle-text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.widgetSlot {
+  min-height: 44px;
+}
+
+.note {
+  color: var(--tg-hint);
+  font-size: 0.76rem;
+}
+
+.error {
+  color: var(--tg-destructive-text);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}

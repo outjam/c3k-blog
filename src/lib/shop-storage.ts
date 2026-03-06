@@ -1,4 +1,5 @@
 import { getTelegramWebApp } from "@/lib/telegram";
+import { isArtistAudioFormat } from "@/lib/shop-release-format";
 import type { CartState } from "@/types/shop";
 
 export const SHOP_CART_STORAGE_KEY = "c3k-shop-cart-v1";
@@ -51,12 +52,16 @@ const normalizeState = (value: unknown): CartState => {
         .map((item) => {
           const productId = typeof item?.productId === "string" ? item.productId : "";
           const quantity = typeof item?.quantity === "number" ? Math.max(1, Math.round(item.quantity)) : 1;
+          const selectedFormat =
+            typeof item?.selectedFormat === "string" && isArtistAudioFormat(item.selectedFormat)
+              ? item.selectedFormat
+              : undefined;
 
           if (!productId) {
             return null;
           }
 
-          return { productId, quantity };
+          return { productId, quantity, selectedFormat };
         })
         .filter((item): item is NonNullable<typeof item> => Boolean(item))
     : [];

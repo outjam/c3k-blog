@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { ShopAdminOrdersPanel } from "@/components/shop/shop-admin-orders-panel";
+import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import type { BlogPost } from "@/types/blog";
-import { useTelegramWebApp } from "@/hooks/useTelegramWebApp";
-import { createMyArtistTrack, fetchAdminSession, fetchMyArtistProfile, fetchPublicCatalog, upsertMyArtistProfile } from "@/lib/admin-api";
+import { useAppAuthUser } from "@/hooks/use-app-auth-user";
+import { createMyArtistTrack, fetchMyArtistProfile, fetchPublicCatalog, upsertMyArtistProfile } from "@/lib/admin-api";
 import { applyAppTheme, readThemePreference, resolveAutoTheme, saveThemePreference, type AppTheme } from "@/lib/app-theme";
 import { readBookmarkedPostSlugs } from "@/lib/post-bookmarks";
 import { readFavoriteProductIds } from "@/lib/product-favorites";
-import { isShopAdminUserClient } from "@/lib/shop-admin-client";
 import { FINAL_ORDER_STATUSES, SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
@@ -27,9 +26,9 @@ const getDeliveryLabel = (delivery: ShopOrder["delivery"]): string => {
 };
 
 export default function ProfilePage() {
-  const webApp = useTelegramWebApp();
-  const user = webApp?.initDataUnsafe?.user;
+  const { user, webApp, source, isSessionLoading, refreshSession } = useAppAuthUser();
   const formatBool = (value: boolean | undefined): string => (value ? "да" : "нет");
+  const [isBrowserLogoutLoading, setIsBrowserLogoutLoading] = useState(false);
   const [theme, setTheme] = useState<AppTheme | null>(null);
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ShopOrder | null>(null);
@@ -41,7 +40,6 @@ export default function ProfilePage() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [focusOrdersSection, setFocusOrdersSection] = useState(false);
   const [ordersError, setOrdersError] = useState("");
-  const [isAdmin, setIsAdmin] = useState(isShopAdminUserClient(user?.id));
   const [artistProfile, setArtistProfile] = useState<ArtistProfile | null>(null);
   const [artistTracks, setArtistTracks] = useState<ArtistTrack[]>([]);
   const [artistDonationsCount, setArtistDonationsCount] = useState(0);
@@ -103,12 +101,6 @@ export default function ProfilePage() {
       }
     });
 
-    void (async () => {
-      const fromApi = await fetchMyShopOrders();
-      setOrders(fromApi.orders);
-      setOrdersError(fromApi.error ?? "");
-    })();
-
     void readBookmarkedPostSlugs().then((slugs) => setBookmarkedSlugs(slugs));
     void readFavoriteProductIds().then((ids) => setFavoriteProductIds(ids));
 
@@ -140,11 +132,31 @@ export default function ProfilePage() {
       setProductsLoading(false);
     })();
 
-    void fetchAdminSession().then((response) => {
-      if (!response.error && response.session) {
-        setIsAdmin(Boolean(response.session.isAdmin));
-      }
-    });
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isSessionLoading) {
+      return;
+    }
+
+    if (!user?.id) {
+      setOrders([]);
+      setOrdersError("");
+      setArtistProfile(null);
+      setArtistTracks([]);
+      setArtistDonationsCount(0);
+      setArtistSubscriptionsCount(0);
+      return;
+    }
+
+    void (async () => {
+      const fromApi = await fetchMyShopOrders();
+      setOrders(fromApi.orders);
+      setOrdersError(fromApi.error ?? "");
+    })();
 
     void fetchMyArtistProfile().then((response) => {
       if (response.error) {
@@ -152,6 +164,7 @@ export default function ProfilePage() {
         return;
       }
 
+      setArtistError("");
       setArtistProfile(response.profile);
       setArtistTracks(response.tracks);
       setArtistDonationsCount(response.donations);
@@ -174,11 +187,7 @@ export default function ProfilePage() {
         }));
       }
     });
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [fullName, user?.id]);
+  }, [fullName, isSessionLoading, user?.id]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -198,6 +207,11 @@ export default function ProfilePage() {
   };
 
   const submitArtistProfile = async () => {
+    if (!user?.id) {
+      setArtistError("Требуется авторизация через Telegram.");
+      return;
+    }
+
     setArtistSaving(true);
     setArtistError("");
 
@@ -231,6 +245,11 @@ export default function ProfilePage() {
   };
 
   const submitTrack = async () => {
+    if (!user?.id) {
+      setArtistError("Требуется авторизация через Telegram.");
+      return;
+    }
+
     if (!artistProfile) {
       setArtistError("Сначала создайте профиль артиста.");
       return;
@@ -271,11 +290,41 @@ export default function ProfilePage() {
     });
   };
 
+  const handleBrowserLogout = async () => {
+    setIsBrowserLogoutLoading(true);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        cache: "no-store",
+      });
+    } catch {
+      // no-op
+    } finally {
+      await refreshSession();
+      setIsBrowserLogoutLoading(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <section className={styles.card}>
         <h1 className={styles.title}>Профиль</h1>
         <p className={styles.subtitle}>Данные пользователя, активные заказы и избранные публикации.</p>
+
+        <div className={styles.authMeta}>
+          <p>
+            Авторизация:{" "}
+            <strong>
+              {source === "telegram-webapp" ? "Telegram Mini App" : source === "browser-widget" ? "Telegram Widget" : "Гость"}
+            </strong>
+          </p>
+          {source === "browser-widget" ? (
+            <button type="button" onClick={() => void handleBrowserLogout()} disabled={isBrowserLogoutLoading}>
+              {isBrowserLogoutLoading ? "Выходим..." : "Выйти"}
+            </button>
+          ) : null}
+        </div>
 
         {user?.photo_url ? (
           <img className={styles.photo} src={user.photo_url} alt={fullName} />
@@ -284,12 +333,6 @@ export default function ProfilePage() {
             {fullName.slice(0, 2).toUpperCase()}
           </div>
         )}
-
-        {isAdmin ? (
-          <Link href="/admin" className={styles.adminEntryButton}>
-            Перейти в админку
-          </Link>
-        ) : null}
 
         <div className={styles.themeBox}>
           <p className={styles.themeTitle}>Тема приложения</p>
@@ -338,8 +381,6 @@ export default function ProfilePage() {
             </div>
           )}
         </section>
-
-        <ShopAdminOrdersPanel enabled={isAdmin} />
 
         <section className={styles.section}>
           <div className={styles.sectionHead}>
@@ -518,18 +559,6 @@ export default function ProfilePage() {
           {artistError ? <p className={styles.warning}>{artistError}</p> : null}
         </section>
 
-        {isAdmin ? (
-          <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <h2>Администрирование</h2>
-              <p>доступ</p>
-            </div>
-            <Link href="/admin" className={styles.inlineButton}>
-              Открыть полную админку
-            </Link>
-          </section>
-        ) : null}
-
         <section className={styles.section}>
           <div className={styles.sectionHead}>
             <h2>Избранные посты</h2>
@@ -599,15 +628,27 @@ export default function ProfilePage() {
           </div>
           <div className={styles.row}>
             <dt>Платформа</dt>
-            <dd>{webApp?.platform ?? "недоступно"}</dd>
+            <dd>{webApp?.platform ?? "browser"}</dd>
           </div>
           <div className={styles.row}>
             <dt>Версия WebApp</dt>
-            <dd>{webApp?.version ?? "недоступно"}</dd>
+            <dd>{webApp?.version ?? "—"}</dd>
           </div>
         </dl>
 
-        {!user ? <p className={styles.warning}>Открой Mini App внутри Telegram, чтобы получить данные пользователя.</p> : null}
+        {!user && !isSessionLoading ? (
+          <TelegramLoginWidget
+            onAuthorized={() => {
+              void refreshSession();
+            }}
+          />
+        ) : null}
+
+        {!user && !isSessionLoading ? (
+          <p className={styles.warning}>
+            В браузере используйте вход через Telegram Widget. `initData` доступен только внутри Telegram Mini App.
+          </p>
+        ) : null}
       </section>
 
       {selectedOrder ? (

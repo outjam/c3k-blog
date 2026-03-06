@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 
 import { isShopAdminTelegramUser } from "@/lib/shop-admin";
 import { canAccessAdminPermission, resolveShopAdminAccess } from "@/lib/server/shop-admin-access";
+import {
+  extractCookieValue,
+  TELEGRAM_BROWSER_AUTH_COOKIE,
+  verifyTelegramBrowserSession,
+} from "@/lib/server/telegram-browser-auth";
 import { extractTelegramInitDataFromRequest, verifyTelegramInitData } from "@/lib/server/telegram-init-data";
 import type { ShopAdminPermission, ShopAdminRole } from "@/types/shop";
 
@@ -10,6 +15,7 @@ export interface ShopApiAuth {
   firstName: string;
   lastName: string;
   username: string;
+  photoUrl?: string;
   isAdmin: boolean;
 }
 
@@ -39,24 +45,41 @@ export const getShopApiAuth = (request: Request): ShopApiAuth | null => {
 
   const initData = extractTelegramInitDataFromRequest(request);
 
-  if (!initData) {
-    logShopAuthDebug("missing x-telegram-init-data header", request);
-    return null;
+  if (initData) {
+    const verified = verifyTelegramInitData(initData, botToken);
+
+    if (verified) {
+      return {
+        telegramUserId: verified.user.id,
+        firstName: verified.user.first_name ?? "",
+        lastName: verified.user.last_name ?? "",
+        username: verified.user.username ?? "",
+        photoUrl: verified.user.photo_url,
+        isAdmin: isShopAdminTelegramUser(verified.user.id),
+      };
+    }
+
+    logShopAuthDebug("invalid telegram initData signature/hash", request);
   }
 
-  const verified = verifyTelegramInitData(initData, botToken);
+  const cookieToken = extractCookieValue(request, TELEGRAM_BROWSER_AUTH_COOKIE);
+  const cookieUser = verifyTelegramBrowserSession(cookieToken, botToken);
 
-  if (!verified) {
-    logShopAuthDebug("invalid telegram initData signature/hash", request);
+  if (!cookieUser) {
+    if (!initData) {
+      logShopAuthDebug("missing x-telegram-init-data header and browser session cookie", request);
+    }
+
     return null;
   }
 
   return {
-    telegramUserId: verified.user.id,
-    firstName: verified.user.first_name ?? "",
-    lastName: verified.user.last_name ?? "",
-    username: verified.user.username ?? "",
-    isAdmin: isShopAdminTelegramUser(verified.user.id),
+    telegramUserId: cookieUser.id,
+    firstName: cookieUser.first_name ?? "",
+    lastName: cookieUser.last_name ?? "",
+    username: cookieUser.username ?? "",
+    photoUrl: cookieUser.photo_url,
+    isAdmin: isShopAdminTelegramUser(cookieUser.id),
   };
 };
 

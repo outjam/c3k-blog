@@ -135,6 +135,24 @@ export interface ShopAdminMember {
 export type ArtistProfileStatus = "pending" | "approved" | "rejected" | "suspended";
 export type ArtistTrackStatus = "draft" | "pending_moderation" | "published" | "rejected";
 export type ArtistSubscriptionStatus = "active" | "paused" | "cancelled";
+export type ArtistReleaseType = "single" | "ep" | "album";
+export type ArtistAudioFormat = "mp3" | "aac" | "flac" | "wav" | "alac" | "ogg";
+
+export interface ArtistTrackFormat {
+  format: ArtistAudioFormat;
+  audioFileId: string;
+  priceStarsCents: number;
+  label?: string;
+  isDefault?: boolean;
+}
+
+export interface ArtistReleaseTrackItem {
+  id: string;
+  title: string;
+  durationSec?: number;
+  previewUrl?: string;
+  position: number;
+}
 
 export interface ArtistProfile {
   telegramUserId: number;
@@ -160,9 +178,12 @@ export interface ArtistTrack {
   slug: string;
   artistTelegramUserId: number;
   title: string;
+  releaseType: ArtistReleaseType;
   subtitle: string;
   description: string;
   coverImage: string;
+  formats: ArtistTrackFormat[];
+  releaseTracklist: ArtistReleaseTrackItem[];
   audioFileId: string;
   previewUrl?: string;
   durationSec: number;
@@ -275,6 +296,9 @@ export interface ShopProduct {
   artistTelegramUserId?: number;
   artistName?: string;
   artistSlug?: string;
+  releaseType?: ArtistReleaseType;
+  formats?: ArtistTrackFormat[];
+  releaseTracklist?: ArtistReleaseTrackItem[];
   audioFileId?: string;
   previewUrl?: string;
   publishedAt?: string;
@@ -294,6 +318,7 @@ export interface ShopShowcaseCollectionView {
 export interface CartItem {
   productId: string;
   quantity: number;
+  selectedFormat?: ArtistAudioFormat;
 }
 
 export interface CartState {

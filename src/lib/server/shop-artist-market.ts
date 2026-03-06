@@ -53,6 +53,18 @@ export const toArtistTrackProduct = (track: ArtistTrack, artist: ArtistProfile |
   const artistName = artist?.displayName || `Artist ${track.artistTelegramUserId}`;
   const categoryLabel = "Музыка";
   const subcategoryLabel = track.genre || "Треки";
+  const defaultFormat = track.formats.find((entry) => entry.isDefault) ?? track.formats[0];
+  const formats = track.formats.length > 0
+    ? track.formats
+    : [
+        {
+          format: "mp3",
+          audioFileId: track.audioFileId,
+          priceStarsCents: track.priceStarsCents,
+          label: "MP3",
+          isDefault: true,
+        },
+      ];
 
   return {
     id: track.id,
@@ -66,7 +78,7 @@ export const toArtistTrackProduct = (track: ArtistTrack, artist: ArtistProfile |
     categoryLabel,
     subcategoryLabel,
     image: track.coverImage || DEFAULT_TRACK_IMAGE,
-    priceStarsCents: clampMoney(track.priceStarsCents || 1) || 1,
+    priceStarsCents: clampMoney(defaultFormat?.priceStarsCents ?? track.priceStarsCents ?? 1) || 1,
     rating: 5,
     reviewsCount: clampMoney(track.salesCount),
     isNew: true,
@@ -76,7 +88,10 @@ export const toArtistTrackProduct = (track: ArtistTrack, artist: ArtistProfile |
     artistTelegramUserId: track.artistTelegramUserId,
     artistName,
     artistSlug: artist?.slug,
-    audioFileId: track.audioFileId,
+    releaseType: track.releaseType,
+    formats,
+    releaseTracklist: track.releaseTracklist,
+    audioFileId: defaultFormat?.audioFileId ?? track.audioFileId,
     previewUrl: track.previewUrl,
     publishedAt: track.publishedAt,
     attributes: {
@@ -256,4 +271,3 @@ export const applyArtistPayoutsForPaidOrder = (
     touchedArtistIds: Array.from(touchedArtistIds),
   };
 };
-

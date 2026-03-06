@@ -16,6 +16,7 @@ import {
   getCartSubtotalStarsCents,
   getDiscountAmountStarsCents,
 } from "@/lib/shop-pricing";
+import { getCartItemKey, getFormatLabel, getProductPriceByFormat, isSameCartItem } from "@/lib/shop-release-format";
 import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents, starsCentsToInvoiceStars } from "@/lib/stars-format";
 import { getTelegramWebApp, hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
@@ -115,7 +116,7 @@ export default function ShopCartPage() {
           }
 
           const quantity = Math.max(1, Math.min(Math.round(item.quantity), maxQuantity));
-          return { productId: item.productId, quantity };
+          return { productId: item.productId, quantity, selectedFormat: item.selectedFormat };
         })
         .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
@@ -204,28 +205,30 @@ export default function ShopCartPage() {
   const checkoutAvailable = catalogSettings.shopEnabled && catalogSettings.checkoutEnabled && !catalogSettings.maintenanceMode;
   const canPay = checkoutAvailable && cartItems.length > 0 && !isPaying;
 
-  const increaseQty = (productId: string) => {
+  const increaseQty = (productId: string, selectedFormat?: CartItem["selectedFormat"]) => {
     const maxQuantity = getMaxQuantity(productId);
 
     setCartItems((prev) =>
       prev.map((item) =>
-        item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) } : item,
+        isSameCartItem(item, { productId, selectedFormat }) ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) } : item,
       ),
     );
     hapticSelection();
   };
 
-  const decreaseQty = (productId: string) => {
+  const decreaseQty = (productId: string, selectedFormat?: CartItem["selectedFormat"]) => {
     setCartItems((prev) =>
       prev
-        .map((item) => (item.productId === productId ? { ...item, quantity: Math.max(item.quantity - 1, 0) } : item))
+        .map((item) =>
+          isSameCartItem(item, { productId, selectedFormat }) ? { ...item, quantity: Math.max(item.quantity - 1, 0) } : item,
+        )
         .filter((item) => item.quantity > 0),
     );
     hapticSelection();
   };
 
-  const removeFromCart = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.productId !== productId));
+  const removeFromCart = (productId: string, selectedFormat?: CartItem["selectedFormat"]) => {
+    setCartItems((prev) => prev.filter((item) => !isSameCartItem(item, { productId, selectedFormat })));
     hapticImpact("soft");
   };
 
@@ -356,9 +359,9 @@ export default function ShopCartPage() {
 
         return {
           productId: product.id,
-          title: product.title,
+          title: item.selectedFormat ? `${product.title} (${getFormatLabel(item.selectedFormat)})` : product.title,
           quantity: item.quantity,
-          priceStarsCents: product.priceStarsCents,
+          priceStarsCents: getProductPriceByFormat(product, item.selectedFormat),
         };
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
@@ -454,20 +457,35 @@ export default function ShopCartPage() {
                 const maxQuantity = getMaxQuantity(product.id);
 
                 return (
-                  <article key={item.productId} className={styles.item}>
+                  <article key={getCartItemKey(item)} className={styles.item}>
                     <img src={product.image} alt={product.title} loading="lazy" />
                     <div className={styles.itemBody}>
                       <h3>{product.title}</h3>
-                      <p>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
+                      <p>
+                        {formatStarsFromCents(getProductPriceByFormat(product, item.selectedFormat))} ⭐
+                        {item.selectedFormat ? ` · ${getFormatLabel(item.selectedFormat)}` : ""}
+                      </p>
                       <div className={styles.qtyRow}>
-                        <button type="button" onClick={() => decreaseQty(product.id)} disabled={item.quantity <= 1}>
+                        <button
+                          type="button"
+                          onClick={() => decreaseQty(product.id, item.selectedFormat)}
+                          disabled={item.quantity <= 1}
+                        >
                           −
                         </button>
                         <span>{item.quantity}</span>
-                        <button type="button" onClick={() => increaseQty(product.id)} disabled={item.quantity >= maxQuantity}>
+                        <button
+                          type="button"
+                          onClick={() => increaseQty(product.id, item.selectedFormat)}
+                          disabled={item.quantity >= maxQuantity}
+                        >
                           +
                         </button>
-                        <button type="button" onClick={() => removeFromCart(product.id)} className={styles.remove}>
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(product.id, item.selectedFormat)}
+                          className={styles.remove}
+                        >
                           Удалить
                         </button>
                       </div>

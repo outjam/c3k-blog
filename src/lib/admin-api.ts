@@ -700,6 +700,7 @@ export const upsertMyArtistProfile = async (payload: {
 
 export const createMyArtistTrack = async (payload: {
   title: string;
+  releaseType?: ArtistTrack["releaseType"];
   subtitle?: string;
   description?: string;
   coverImage?: string;
@@ -709,6 +710,8 @@ export const createMyArtistTrack = async (payload: {
   genre?: string;
   tags?: string[];
   priceStarsCents: number;
+  formats?: ArtistTrack["formats"];
+  releaseTracklist?: ArtistTrack["releaseTracklist"];
 }): Promise<{ track: ArtistTrack | null; error?: string }> => {
   try {
     const response = await fetch("/api/shop/artists/me/tracks", {

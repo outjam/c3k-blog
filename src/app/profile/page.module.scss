@@ -29,6 +29,42 @@
   line-height: 1.45;
 }
 
+.authMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  padding: 0.62rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+}
+
+.authMeta p {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.authMeta strong {
+  color: var(--tg-text);
+}
+
+.authMeta button {
+  border: 0;
+  border-radius: 0.56rem;
+  min-height: 1.9rem;
+  padding: 0 0.62rem;
+  background: color-mix(in srgb, var(--tg-destructive-text) 14%, var(--tg-section-bg));
+  color: var(--tg-destructive-text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.authMeta button:disabled {
+  opacity: 0.55;
+}
+
 .photo,
 .avatar {
   width: 3.2rem;
@@ -55,20 +91,6 @@
   border-radius: var(--radius-md);
   background: var(--card-bg);
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
-}
-
-.adminEntryButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.25rem;
-  border-radius: 0.7rem;
-  border: 0;
-  text-decoration: none;
-  background: var(--tg-btn);
-  color: var(--tg-btn-text);
-  font-size: 0.82rem;
-  font-weight: 700;
 }
 
 .themeTitle {

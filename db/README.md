@@ -5,7 +5,8 @@
 1. Open Supabase SQL editor (or `psql`).
 2. Execute `db/schema.sql` as a single migration.
 3. If you migrate an existing ceramic catalog to audio-only, execute `db/supabase-audio-only-fix.sql`.
-4. Verify RPC functions exist:
+4. For demo data (artists, tracks, showcase, test orders), execute `db/supabase-seed-test-content.sql`.
+5. Verify RPC functions exist:
    - `c3k_get_app_state`
    - `c3k_put_app_state`
    - `c3k_upsert_order_snapshot`
