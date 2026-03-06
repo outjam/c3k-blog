@@ -28,6 +28,7 @@ import {
   writeProfileMode,
   writePurchasesVisibility,
 } from "@/lib/social-hub";
+import { topUpWalletWithTelegramStars } from "@/lib/shop-payment";
 import { FINAL_ORDER_STATUSES } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
@@ -37,7 +38,7 @@ import type { ArtistProfile, ArtistTrack, ShopCatalogArtist, ShopOrder, ShopProd
 
 import styles from "./page.module.scss";
 
-const TOP_UP_PRESETS = [1000, 2500, 5000] as const;
+const TOP_UP_PRESETS_STARS = [10, 25, 50] as const;
 
 export default function ProfilePage() {
   const { user, source, isSessionLoading, refreshSession } = useAppAuthUser();
@@ -62,6 +63,9 @@ export default function ProfilePage() {
 
   const [mode, setMode] = useState<ProfileMode>("listener");
   const [walletCents, setWalletCents] = useState(0);
+  const [walletTopupLoadingStars, setWalletTopupLoadingStars] = useState<number | null>(null);
+  const [walletTopupMessage, setWalletTopupMessage] = useState("");
+  const [authHint, setAuthHint] = useState("");
   const [purchasesVisible, setPurchasesVisible] = useState(true);
   const [followingSlugs, setFollowingSlugs] = useState<string[]>([]);
   const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
@@ -162,6 +166,12 @@ export default function ProfilePage() {
       mounted = false;
     };
   }, [viewerKey]);
+
+  useEffect(() => {
+    if (user?.id && authHint) {
+      setAuthHint("");
+    }
+  }, [authHint, user?.id]);
 
   useEffect(() => {
     if (isSessionLoading || !user?.id) {
@@ -270,6 +280,11 @@ export default function ProfilePage() {
   const highlightedPosts = useMemo(() => posts.slice(0, 4), [posts]);
 
   const handleModeChange = async (nextMode: ProfileMode) => {
+    if (!user?.id) {
+      setAuthHint("Для переключения режима войдите через Telegram Widget.");
+      return;
+    }
+
     if (nextMode === mode) {
       return;
     }
@@ -278,22 +293,60 @@ export default function ProfilePage() {
     setMode(saved);
   };
 
-  const handleTopUp = async (amountCents: number) => {
-    const next = await topUpWalletBalanceCents(viewerKey, amountCents);
+  const handleTopUp = async (amountStars: number) => {
+    if (!user?.id) {
+      setAuthHint("Чтобы пополнить баланс, сначала войдите через Telegram Widget.");
+      return;
+    }
+
+    setWalletTopupLoadingStars(amountStars);
+    setWalletTopupMessage("");
+
+    const payment = await topUpWalletWithTelegramStars({
+      amountStars,
+      title: "Пополнение баланса C3K",
+      description: `Пополнение внутреннего баланса на ${amountStars} Stars.`,
+    });
+
+    if (!payment.ok) {
+      setWalletTopupLoadingStars(null);
+      setWalletTopupMessage(payment.message ?? "Пополнение не завершено.");
+      return;
+    }
+
+    const creditedStarsCents = amountStars * 100;
+    const next = await topUpWalletBalanceCents(viewerKey, creditedStarsCents);
     setWalletCents(next);
+    setWalletTopupLoadingStars(null);
+    setWalletTopupMessage(`Баланс пополнен на ${amountStars} ⭐.`);
   };
 
   const handleTogglePurchasesVisibility = async () => {
+    if (!user?.id) {
+      setAuthHint("Сначала войдите через Telegram Widget, чтобы управлять приватностью.");
+      return;
+    }
+
     const next = await writePurchasesVisibility(viewerKey, !purchasesVisible);
     setPurchasesVisible(next);
   };
 
   const handleToggleFollowing = async (slug: string) => {
+    if (!user?.id) {
+      setAuthHint("Чтобы подписываться на пользователей, войдите через Telegram Widget.");
+      return;
+    }
+
     const next = await toggleFollowingSlug(slug);
     setFollowingSlugs(next);
   };
 
   const handleMockPurchase = async (slug: string) => {
+    if (!user?.id) {
+      setAuthHint("Покупки доступны только после входа через Telegram Widget.");
+      return;
+    }
+
     const next = await appendPurchasedReleaseSlug(viewerKey, slug);
     setPurchasedReleaseSlugs(next);
   };
@@ -456,12 +509,13 @@ export default function ProfilePage() {
           <div className={styles.walletValue}>{formatStarsFromCents(walletCents)} ⭐</div>
 
           <div className={styles.walletActions}>
-            {TOP_UP_PRESETS.map((amount) => (
-              <button key={amount} type="button" onClick={() => void handleTopUp(amount)}>
-                +{formatStarsFromCents(amount)} ⭐
+            {TOP_UP_PRESETS_STARS.map((amountStars) => (
+              <button key={amountStars} type="button" onClick={() => void handleTopUp(amountStars)} disabled={walletTopupLoadingStars === amountStars}>
+                {walletTopupLoadingStars === amountStars ? "Оплата..." : `Пополнить на ${amountStars} ⭐`}
               </button>
             ))}
           </div>
+          {walletTopupMessage ? <p className={styles.emptyState}>{walletTopupMessage}</p> : null}
         </section>
 
         <section className={styles.section}>
@@ -761,6 +815,8 @@ export default function ProfilePage() {
             <p className={styles.emptyState}>Без авторизации недоступны персональные покупки, баланс и публикация релизов.</p>
           </section>
         ) : null}
+
+        {authHint ? <p className={styles.warning}>{authHint}</p> : null}
 
         {catalogLoading ? <p className={styles.loading}>Обновляем социальный профиль...</p> : null}
       </main>

@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import { markShopOrderPaymentFailed } from "@/lib/shop-orders-api";
 import { payWithTelegramStars } from "@/lib/shop-payment";
 import { readWalletBalanceCents, resolveViewerKey, spendWalletBalanceCents } from "@/lib/social-hub";
-import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents, starsCentsToInvoiceStars } from "@/lib/stars-format";
 import { hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { ArtistProfile, ShopOrder, ShopProduct } from "@/types/shop";
@@ -34,7 +34,7 @@ interface SupportPayload {
 
 export function ShopArtistPageClient({ slug }: { slug: string }) {
   const router = useRouter();
-  const { user } = useAppAuthUser();
+  const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const [artist, setArtist] = useState<ArtistProfile | null>(null);
   const [tracks, setTracks] = useState<ShopProduct[]>([]);
@@ -118,23 +118,13 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
     return Math.max(1, parsed);
   }, [donationAmount]);
 
-  const addTrackToCart = async (trackId: string) => {
-    const cart = await readShopCart();
-    const existing = cart.items.find((item) => item.productId === trackId);
-
-    const nextItems = existing
-      ? cart.items.map((item) => (item.productId === trackId ? { ...item, quantity: Math.min(item.quantity + 1, 99) } : item))
-      : [...cart.items, { productId: trackId, quantity: 1 }];
-
-    await writeShopCart({
-      ...cart,
-      items: nextItems,
-    });
-    hapticNotification("success");
-  };
-
   const runWalletSupport = async (kind: "donation" | "subscription") => {
     if (!artist) {
+      return;
+    }
+
+    if (!user?.id) {
+      setWalletSupportMessage("Для поддержки артиста войдите через Telegram Widget.");
       return;
     }
 
@@ -322,6 +312,18 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
       {error ? <p className={styles.error}>{error}</p> : null}
       {walletSupportMessage ? <p className={styles.walletSupportMessage}>{walletSupportMessage}</p> : null}
 
+      {!user && !isSessionLoading ? (
+        <section className={styles.supportCard}>
+          <h2>Авторизация</h2>
+          <p>Войдите через Telegram Widget, чтобы поддерживать артистов и оформлять подписку.</p>
+          <TelegramLoginWidget
+            onAuthorized={() => {
+              void refreshSession();
+            }}
+          />
+        </section>
+      ) : null}
+
       <section className={styles.tracks}>
         <div className={styles.tracksHead}>
           <h2>Релизы артиста</h2>
@@ -343,9 +345,7 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
                   <p>{track.subtitle}</p>
                   <strong>{formatStarsFromCents(track.priceStarsCents)} ⭐</strong>
                 </div>
-                <button type="button" onClick={() => void addTrackToCart(track.id)}>
-                  В корзину
-                </button>
+                <Link href={`/shop/${track.slug}`}>Открыть релиз</Link>
               </article>
             ))}
           </div>

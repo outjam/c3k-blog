@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BackButtonController } from "@/components/back-button-controller";
+import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   addReleaseComment,
@@ -21,7 +22,6 @@ import {
 } from "@/lib/social-hub";
 import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
 import { getDefaultTrackFormat, getFormatLabel, getProductPriceByFormat, getTrackFormats } from "@/lib/shop-release-format";
-import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
 import type { ReleaseComment } from "@/types/social";
@@ -31,7 +31,7 @@ import styles from "./page.module.scss";
 
 export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
-  const { user } = useAppAuthUser();
+  const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const viewerSlug = useMemo(
     () =>
@@ -87,24 +87,6 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     };
   }, [product.id, product.slug, viewerKey]);
 
-  const addToCart = useCallback(async () => {
-    const cart = await readShopCart();
-    const exists = cart.items.find(
-      (item) => item.productId === product.id && (item.selectedFormat ?? "") === (selectedFormat ?? ""),
-    );
-
-    const nextItems = exists
-      ? cart.items.map((item) =>
-          item.productId === product.id && (item.selectedFormat ?? "") === (selectedFormat ?? "")
-            ? { ...item, quantity: Math.min(item.quantity + 1, 99) }
-            : item,
-        )
-      : [...cart.items, { productId: product.id, quantity: 1, selectedFormat }];
-
-    await writeShopCart({ ...cart, items: nextItems });
-    hapticNotification("success");
-  }, [product.id, selectedFormat]);
-
   const handleBack = useCallback(() => {
     hapticImpact("light");
     router.back();
@@ -125,6 +107,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
   const buyWithWallet = async () => {
     setWalletMessage("");
+
+    if (!user?.id) {
+      setWalletMessage("Для покупки войдите через Telegram Widget.");
+      return;
+    }
 
     const payment = await spendWalletBalanceCents(viewerKey, selectedPriceStarsCents);
 
@@ -148,6 +135,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
   const submitComment = async () => {
     if (commentSubmitting) {
+      return;
+    }
+
+    if (!user?.id) {
+      setWalletMessage("Для комментариев нужен вход через Telegram Widget.");
       return;
     }
 
@@ -276,14 +268,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
             {walletMessage ? <p className={styles.walletMessage}>{walletMessage}</p> : null}
           </section>
 
-          <button type="button" className={styles.addButton} onClick={() => void addToCart()}>
-            Добавить в корзину
-          </button>
           <button type="button" className={styles.addButton} onClick={toggleFavorite}>
             {isFavorite ? "Убрать из избранного" : "В избранное"}
-          </button>
-          <button type="button" className={styles.addButton} onClick={() => router.push("/shop/cart")}>
-            Перейти в корзину
           </button>
 
           <section className={styles.releaseCommentsSection}>
@@ -331,6 +317,17 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               )}
             </div>
           </section>
+
+          {!user && !isSessionLoading ? (
+            <section className={styles.releaseCommentsSection}>
+              <h2 className={styles.sectionTitle}>Авторизация</h2>
+              <TelegramLoginWidget
+                onAuthorized={() => {
+                  void refreshSession();
+                }}
+              />
+            </section>
+          ) : null}
         </div>
       </article>
     </div>

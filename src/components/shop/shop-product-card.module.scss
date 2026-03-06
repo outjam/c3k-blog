@@ -181,6 +181,18 @@
   opacity: 0.55;
 }
 
+.balanceOnlyBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.22rem;
+  border-radius: 0.7rem;
+  padding: 0 0.8rem;
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: color-mix(in srgb, var(--tg-accent) 80%, var(--tg-text));
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .stepper {
   display: inline-flex;
   align-items: center;

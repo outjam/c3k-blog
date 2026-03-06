@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ShopCatalogControls } from "@/components/shop/shop-catalog-controls";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
+import { TelegramLoginWidget } from "@/components/telegram-login-widget";
+import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
-import { getCartSubtotalStarsCents } from "@/lib/shop-pricing";
-import { readShopCart, writeShopCart } from "@/lib/shop-storage";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import { hapticImpact, hapticNotification, hapticSelection } from "@/lib/telegram";
+import { hapticSelection } from "@/lib/telegram";
 import type {
-  CartItem,
   ProductSort,
   ShopAppSettings,
   ShopCatalogArtist,
@@ -50,28 +49,17 @@ const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
 };
 
 export default function ShopPage() {
+  const { user, isSessionLoading, refreshSession } = useAppAuthUser();
+
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<ProductSort>("popular");
   const [quickFilter, setQuickFilter] = useState<"all" | "new" | "hit" | "sale">("all");
   const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
   const [catalogArtists, setCatalogArtists] = useState<ShopCatalogArtist[]>([]);
   const [showcaseCollections, setShowcaseCollections] = useState<ShopShowcaseCollectionView[]>([]);
   const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
   const [catalogError, setCatalogError] = useState("");
-  const [catalogLoaded, setCatalogLoaded] = useState(false);
-
-  const productsMap = useMemo(() => new Map(catalogProducts.map((item) => [item.id, item])), [catalogProducts]);
-
-  const getMaxQuantity = useCallback(
-    (productId: string): number => {
-      const stock = productsMap.get(productId)?.attributes.stock ?? 0;
-      return Math.max(0, Math.min(stock, 99));
-    },
-    [productsMap],
-  );
 
   useEffect(() => {
     let mounted = true;
@@ -88,40 +76,6 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
-    if (!catalogLoaded) {
-      return;
-    }
-
-    let mounted = true;
-
-    readShopCart().then((state) => {
-      if (!mounted) {
-        return;
-      }
-
-      const normalizedItems = state.items
-        .map((item) => {
-          const maxQuantity = getMaxQuantity(item.productId);
-
-          if (maxQuantity < 1) {
-            return null;
-          }
-
-          const quantity = Math.max(1, Math.min(Math.round(item.quantity), maxQuantity));
-          return { productId: item.productId, quantity };
-        })
-        .filter((item): item is NonNullable<typeof item> => Boolean(item));
-
-      setCartItems(normalizedItems);
-      setIsCartHydrated(true);
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, [catalogLoaded, getMaxQuantity]);
-
-  useEffect(() => {
     let mounted = true;
 
     void fetchPublicCatalog().then((snapshot) => {
@@ -131,7 +85,6 @@ export default function ShopPage() {
 
       if (snapshot.error) {
         setCatalogError(snapshot.error);
-        setCatalogLoaded(true);
         return;
       }
 
@@ -142,32 +95,12 @@ export default function ShopPage() {
       if (snapshot.settings) {
         setCatalogSettings(snapshot.settings);
       }
-
-      setCatalogLoaded(true);
     });
 
     return () => {
       mounted = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!isCartHydrated) {
-      return;
-    }
-
-    void writeShopCart({ items: cartItems, promoCode: "" });
-  }, [cartItems, isCartHydrated]);
-
-  const productQuantityMap = useMemo(() => {
-    const next = new Map<string, number>();
-
-    for (const item of cartItems) {
-      next.set(item.productId, (next.get(item.productId) ?? 0) + item.quantity);
-    }
-
-    return next;
-  }, [cartItems]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = search.trim().toLowerCase();
@@ -216,80 +149,7 @@ export default function ShopPage() {
     return sortProducts(filtered, sort);
   }, [catalogProducts, quickFilter, search, sort]);
 
-  const subtotalStarsCents = useMemo(() => getCartSubtotalStarsCents(catalogProducts, cartItems), [cartItems, catalogProducts]);
-  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const activeFiltersCount = [
-    Boolean(search.trim()),
-    sort !== "popular",
-    quickFilter !== "all",
-  ].filter(Boolean).length;
-
-  const addToCart = (productId: string) => {
-    const maxQuantity = getMaxQuantity(productId);
-    const currentQuantity = productQuantityMap.get(productId) ?? 0;
-
-    if (maxQuantity < 1) {
-      hapticNotification("warning");
-      return;
-    }
-
-    if (currentQuantity >= maxQuantity) {
-      hapticNotification("warning");
-      return;
-    }
-
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.productId === productId && !item.selectedFormat);
-
-      if (!existing) {
-        return [...prev, { productId, quantity: 1 }];
-      }
-
-      return prev.map((item) =>
-        item.productId === productId && !item.selectedFormat
-          ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) }
-          : item,
-      );
-    });
-
-    hapticImpact("light");
-  };
-
-  const increaseQty = (productId: string) => {
-    const maxQuantity = getMaxQuantity(productId);
-    const currentQuantity = productQuantityMap.get(productId) ?? 0;
-
-    if (maxQuantity < 1 || currentQuantity >= maxQuantity) {
-      hapticNotification("warning");
-      return;
-    }
-
-    setCartItems((prev) =>
-      prev.map((item) =>
-        item.productId === productId && !item.selectedFormat
-          ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity) }
-          : item,
-      ),
-    );
-    hapticSelection();
-  };
-
-  const decreaseQty = (productId: string) => {
-    const currentQuantity = productQuantityMap.get(productId) ?? 0;
-
-    if (currentQuantity <= 0) {
-      return;
-    }
-
-    setCartItems((prev) =>
-      prev
-        .map((item) =>
-          item.productId === productId && !item.selectedFormat ? { ...item, quantity: Math.max(item.quantity - 1, 0) } : item,
-        )
-        .filter((item) => item.quantity > 0),
-    );
-    hapticSelection();
-  };
+  const activeFiltersCount = [Boolean(search.trim()), sort !== "popular", quickFilter !== "all"].filter(Boolean).length;
 
   const resetFilters = () => {
     setSearch("");
@@ -316,17 +176,36 @@ export default function ShopPage() {
           <p className={styles.kicker}>C3K Music Showcase</p>
           <h1>Витрина артистов и цифровых релизов</h1>
           <p>
-            Пользователи могут стать артистами, публиковать треки после модерации и зарабатывать через продажи,
-            донаты и подписки.
+            Покупка релизов и поддержка артистов выполняются только через внутренний баланс, пополняемый Telegram Stars.
           </p>
           <div className={styles.heroMeta}>
-            <p>Артисты: <strong>{catalogArtists.length}</strong></p>
-            <p>Треки: <strong>{tracksCount}</strong></p>
-            <p>Формат: <strong>Digital only</strong></p>
+            <p>
+              Артисты: <strong>{catalogArtists.length}</strong>
+            </p>
+            <p>
+              Треки: <strong>{tracksCount}</strong>
+            </p>
+            <p>
+              Формат: <strong>Balance only</strong>
+            </p>
           </div>
           {catalogSettings.maintenanceMode ? <p className={styles.paymentError}>Режим обслуживания включен администратором.</p> : null}
           {catalogError ? <p className={styles.paymentError}>Ошибка синхронизации каталога: {catalogError}</p> : null}
         </section>
+
+        {!user && !isSessionLoading ? (
+          <section className={styles.showcaseSection}>
+            <div className={styles.showcaseHeader}>
+              <h2>Вход через Telegram</h2>
+              <p>Для покупки и донатов</p>
+            </div>
+            <TelegramLoginWidget
+              onAuthorized={() => {
+                void refreshSession();
+              }}
+            />
+          </section>
+        ) : null}
 
         {showcaseCollections.length > 0 ? (
           <section className={styles.showcaseSection}>
@@ -398,10 +277,10 @@ export default function ShopPage() {
             Найдено релизов: <strong>{filteredProducts.length}</strong>
           </p>
           <p>
-            В корзине: <strong>{cartCount}</strong> · {formatStarsFromCents(subtotalStarsCents)} ⭐
+            Избранное: <strong>{favoriteProductIds.length}</strong>
           </p>
           <p>
-            Избранное: <strong>{favoriteProductIds.length}</strong> · Артистов: <strong>{catalogArtists.length}</strong>
+            Артистов: <strong>{catalogArtists.length}</strong>
           </p>
         </section>
 
@@ -411,11 +290,6 @@ export default function ShopPage() {
               <ShopProductCard
                 key={product.id}
                 product={product}
-                quantity={productQuantityMap.get(product.id) ?? 0}
-                canIncrease={(productQuantityMap.get(product.id) ?? 0) < getMaxQuantity(product.id)}
-                onAdd={addToCart}
-                onIncrease={increaseQty}
-                onDecrease={decreaseQty}
                 onToggleFavorite={handleToggleFavorite}
                 isFavorite={favoriteProductIds.includes(product.id)}
               />
@@ -431,10 +305,6 @@ export default function ShopPage() {
           )}
         </section>
       </main>
-
-      <Link href="/shop/cart" className={styles.cartFab} onClick={() => hapticSelection()}>
-        Корзина {cartCount > 0 ? `(${cartCount})` : ""} · {formatStarsFromCents(subtotalStarsCents)} ⭐
-      </Link>
     </div>
   );
 }

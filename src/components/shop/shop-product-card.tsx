@@ -12,43 +12,15 @@ import styles from "./shop-product-card.module.scss";
 
 interface ShopProductCardProps {
   product: ShopProduct;
-  onAdd: (productId: string) => void;
-  onIncrease: (productId: string) => void;
-  onDecrease: (productId: string) => void;
   onToggleFavorite: (productId: string) => void;
   isFavorite: boolean;
-  quantity: number;
-  canIncrease: boolean;
 }
 
 export function ShopProductCard({
   product,
-  onAdd,
-  onIncrease,
-  onDecrease,
   onToggleFavorite,
   isFavorite,
-  quantity,
-  canIncrease,
 }: ShopProductCardProps) {
-  const handleAdd: MouseEventHandler<HTMLButtonElement> = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onAdd(product.id);
-  };
-
-  const handleIncrease: MouseEventHandler<HTMLButtonElement> = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onIncrease(product.id);
-  };
-
-  const handleDecrease: MouseEventHandler<HTMLButtonElement> = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onDecrease(product.id);
-  };
-
   const handleFavorite: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -111,21 +83,7 @@ export function ShopProductCard({
               {product.oldPriceStarsCents ? <p className={styles.oldPrice}>{formatStarsFromCents(product.oldPriceStarsCents)} ⭐</p> : null}
             </div>
 
-            {quantity > 0 ? (
-              <div className={styles.stepper}>
-                <button type="button" onClick={handleDecrease} aria-label="Уменьшить количество">
-                  −
-                </button>
-                <span>{quantity}</span>
-                <button type="button" onClick={handleIncrease} disabled={!canIncrease} aria-label="Увеличить количество">
-                  +
-                </button>
-              </div>
-            ) : (
-              <button type="button" className={styles.addButton} onClick={handleAdd} disabled={product.attributes.stock < 1}>
-                {product.attributes.stock < 1 ? "Недоступно" : "В корзину"}
-              </button>
-            )}
+            <span className={styles.balanceOnlyBadge}>Оплата только с баланса</span>
           </div>
         </div>
       </Link>
