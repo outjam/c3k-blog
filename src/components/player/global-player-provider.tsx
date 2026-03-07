@@ -132,17 +132,13 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
-      setCurrentTimeSec(0);
-      setDurationSec(0);
-      setIsPlaying(false);
+      shouldAutoplayRef.current = false;
       return;
     }
 
     if (audio.src !== currentTrack.sourceUrl) {
       audio.src = currentTrack.sourceUrl;
       audio.load();
-      setCurrentTimeSec(0);
-      setDurationSec(0);
     }
 
     if (shouldAutoplayRef.current) {
@@ -274,26 +270,23 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  const value = useMemo<GlobalPlayerContextValue>(
-    () => ({
-      queue,
-      currentIndex,
-      currentTrack,
-      isPlaying,
-      currentTimeSec,
-      durationSec,
-      volume,
-      playQueue,
-      enqueueTracks,
-      togglePlayback,
-      playNext,
-      playPrev,
-      seekTo,
-      setVolume,
-      clearQueue,
-    }),
-    [queue, currentIndex, currentTrack, isPlaying, currentTimeSec, durationSec, volume],
-  );
+  const value: GlobalPlayerContextValue = {
+    queue,
+    currentIndex,
+    currentTrack,
+    isPlaying,
+    currentTimeSec,
+    durationSec,
+    volume,
+    playQueue,
+    enqueueTracks,
+    togglePlayback,
+    playNext,
+    playPrev,
+    seekTo,
+    setVolume,
+    clearQueue,
+  };
 
   return (
     <GlobalPlayerContext.Provider value={value}>

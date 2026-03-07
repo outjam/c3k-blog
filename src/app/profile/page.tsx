@@ -59,31 +59,40 @@ const createTrackRowDraft = (index: number): TrackRowDraft => ({
 });
 
 const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTrackItem[] => {
-  return rows
-    .map((row, index) => {
-      const title = row.title.trim();
-      if (!title) {
-        return null;
-      }
+  return rows.reduce<ArtistReleaseTrackItem[]>((acc, row, index) => {
+    const title = row.title.trim();
+    if (!title) {
+      return acc;
+    }
 
-      const duration = Math.round(Number(row.durationSec || "0"));
-      const hasDuration = Number.isFinite(duration) && duration > 0;
+    const duration = Math.round(Number(row.durationSec || "0"));
+    const hasDuration = Number.isFinite(duration) && duration > 0;
+    const previewUrl = row.previewUrl.trim();
 
-      return {
-        id: String(row.id || `track-${index + 1}`)
+    const normalizedItem: ArtistReleaseTrackItem = {
+      id:
+        String(row.id || `track-${index + 1}`)
           .trim()
           .toLowerCase()
           .replace(/[^a-z0-9_-]/g, "-")
           .replace(/-+/g, "-")
           .replace(/^-+|-+$/g, "")
           .slice(0, 80) || `track-${index + 1}`,
-        title,
-        previewUrl: row.previewUrl.trim() || undefined,
-        durationSec: hasDuration ? Math.max(1, Math.min(60 * 60 * 12, duration)) : undefined,
-        position: index + 1,
-      } satisfies ArtistReleaseTrackItem;
-    })
-    .filter((entry): entry is ArtistReleaseTrackItem => Boolean(entry));
+      title,
+      position: index + 1,
+    };
+
+    if (previewUrl) {
+      normalizedItem.previewUrl = previewUrl;
+    }
+
+    if (hasDuration) {
+      normalizedItem.durationSec = Math.max(1, Math.min(60 * 60 * 12, duration));
+    }
+
+    acc.push(normalizedItem);
+    return acc;
+  }, []);
 };
 
 export default function ProfilePage() {
@@ -140,13 +149,13 @@ export default function ProfilePage() {
   const [profileMessage, setProfileMessage] = useState("");
   const [socialOverlay, setSocialOverlay] = useState<"followers" | "following" | null>(null);
 
-  const [userDraft, setUserDraft] = useState<UserProfileEditorPayload>({
-    displayName: "",
-    username: "",
-    avatarUrl: "",
+  const [userDraft, setUserDraft] = useState<UserProfileEditorPayload>(() => ({
+    displayName: fullName,
+    username: user?.username || "",
+    avatarUrl: user?.photo_url || "",
     coverUrl: "",
     bio: "",
-  });
+  }));
 
   const [artistDraft, setArtistDraft] = useState({
     displayName: "",
@@ -247,13 +256,6 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user?.id) {
-      setUserDraft({
-        displayName: fullName,
-        username: user?.username || "",
-        avatarUrl: user?.photo_url || "",
-        coverUrl: "",
-        bio: "",
-      });
       return;
     }
 
