@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { toArtistTrackProduct } from "@/lib/server/shop-artist-market";
+import { listFollowStatsBySlugs } from "@/lib/server/social-follow-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,9 +30,14 @@ export async function GET(
   const activeSubscribers = config.artistSubscriptions.filter(
     (entry) => entry.artistTelegramUserId === profile.telegramUserId && entry.status === "active",
   ).length;
+  const followStats = await listFollowStatsBySlugs([profile.slug]);
+  const dynamicFollowersCount = followStats[profile.slug]?.followersCount ?? profile.followersCount;
 
   return NextResponse.json({
-    artist: profile,
+    artist: {
+      ...profile,
+      followersCount: dynamicFollowersCount,
+    },
     tracks,
     stats: {
       donationsTotal,

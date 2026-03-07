@@ -1,0 +1,105 @@
+.wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom));
+  z-index: 55;
+  padding: 0 0.7rem;
+  display: grid;
+  justify-items: center;
+}
+
+.card {
+  width: min(980px, 100%);
+  border-radius: 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-sm);
+  padding: 0.5rem 0.6rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.trackMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.04rem;
+}
+
+.trackMeta strong {
+  color: var(--tg-text);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackMeta span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.controls button {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  border-radius: 999px;
+  min-height: 1.9rem;
+  min-width: 1.9rem;
+  padding: 0 0.44rem;
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.progressRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.progressRow span {
+  color: var(--tg-hint);
+  font-size: 0.66rem;
+}
+
+.progressRow input[type="range"] {
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  .wrap {
+    padding: 0 0.5rem;
+  }
+
+  .card {
+    padding: 0.44rem 0.52rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .wrap {
+    bottom: calc(0.9rem + var(--safe-area-bottom));
+    left: auto;
+    right: auto;
+    width: calc(100% - 240px - 2.8rem);
+  }
+}

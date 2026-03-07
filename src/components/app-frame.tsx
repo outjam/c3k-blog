@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { hapticSelection } from "@/lib/telegram";
 import { MiniTabBar } from "@/components/mini-tab-bar";
+import { GlobalPlayerBar } from "@/components/player/global-player-bar";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 
 import styles from "./app-frame.module.scss";
@@ -137,6 +138,8 @@ export function AppFrame({ children }: AppFrameProps) {
         </header>
 
         <main className={`${styles.content} ${showNavigation ? styles.contentWithTabBar : ""}`}>{children}</main>
+
+        <GlobalPlayerBar />
 
         {showNavigation ? (
           <div className={styles.mobileTabBarWrap}>

@@ -128,6 +128,24 @@
   gap: 0.28rem;
 }
 
+.tracklistHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.42rem;
+}
+
+.playAllButton {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  border-radius: 0.6rem;
+  min-height: 2rem;
+  padding: 0 0.56rem;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .tracklist li {
   display: flex;
   align-items: center;
@@ -137,6 +155,18 @@
   border-radius: 0.58rem;
   background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+}
+
+.trackPlayButton {
+  width: 1.8rem;
+  min-height: 1.8rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  flex-shrink: 0;
 }
 
 .tracklist span {

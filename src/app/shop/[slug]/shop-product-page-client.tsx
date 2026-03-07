@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BackButtonController } from "@/components/back-button-controller";
+import { useGlobalPlayer } from "@/components/player/global-player-provider";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
@@ -34,6 +35,7 @@ import styles from "./page.module.scss";
 
 export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
+  const { playQueue } = useGlobalPlayer();
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const appOrigin = useMemo(() => {
@@ -98,6 +100,47 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const selectedPriceStarsCents = getProductPriceByFormat(product, selectedFormat);
   const releaseLabel = product.releaseType === "album" ? "Album" : product.releaseType === "ep" ? "EP" : "Single";
   const releaseTracklist = product.releaseTracklist ?? [];
+  const releaseQueue = useMemo(() => {
+    return releaseTracklist
+      .map((track, index) => {
+        const sourceUrl = (track.previewUrl || product.previewUrl || "").trim();
+
+        if (!sourceUrl) {
+          return null;
+        }
+
+        return {
+          id: `${product.slug}:${track.id || index + 1}`,
+          title: track.title || `${product.title} #${index + 1}`,
+          artist: product.artistName || product.subtitle || "Culture3k",
+          coverUrl: product.image,
+          sourceUrl,
+          releaseSlug: product.slug,
+          durationSec: track.durationSec,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  }, [product.artistName, product.image, product.previewUrl, product.slug, product.subtitle, product.title, releaseTracklist]);
+
+  const handlePlayTrack = (index: number) => {
+    if (releaseQueue.length === 0) {
+      setWalletMessage("Для этого релиза пока нет доступных preview-ссылок.");
+      return;
+    }
+
+    const startIndex = Math.max(0, Math.min(index, releaseQueue.length - 1));
+    playQueue(releaseQueue, startIndex);
+  };
+
+  const handlePlayAll = () => {
+    if (releaseQueue.length === 0) {
+      setWalletMessage("Для этого релиза пока нет доступных preview-ссылок.");
+      return;
+    }
+
+    playQueue(releaseQueue, 0);
+  };
+
   const releaseComments = socialSnapshot?.comments ?? [];
   const releaseReactions = socialSnapshot?.reactions;
   const releaseReactionsTotal = useMemo(() => {
@@ -256,11 +299,19 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           </section>
 
           <section className={styles.tracklistSection}>
-            <p className={styles.sectionTitle}>Треклист релиза</p>
+            <div className={styles.tracklistHead}>
+              <p className={styles.sectionTitle}>Треклист релиза</p>
+              <button type="button" className={styles.playAllButton} onClick={handlePlayAll}>
+                ▶ Плей всего релиза
+              </button>
+            </div>
             <ol className={styles.tracklist}>
               {releaseTracklist.length > 0 ? (
-                releaseTracklist.map((track) => (
+                releaseTracklist.map((track, index) => (
                   <li key={track.id}>
+                    <button type="button" className={styles.trackPlayButton} onClick={() => handlePlayTrack(index)}>
+                      ▶
+                    </button>
                     <span>{track.title}</span>
                     <small>
                       {track.durationSec
@@ -271,6 +322,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 ))
               ) : (
                 <li>
+                  <button type="button" className={styles.trackPlayButton} onClick={() => handlePlayTrack(0)}>
+                    ▶
+                  </button>
                   <span>{product.title}</span>
                   <small>—:—</small>
                 </li>

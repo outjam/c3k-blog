@@ -60,7 +60,7 @@
 }
 
 .contentWithTabBar {
-  padding-bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom));
+  padding-bottom: calc(var(--app-tabbar-height) + var(--app-player-height) + var(--safe-area-bottom));
 }
 
 .mobileTabBarWrap {
@@ -220,7 +220,7 @@
   }
 
   .contentWithTabBar {
-    padding-bottom: 0;
+    padding-bottom: calc(var(--app-player-height) + 1rem);
   }
 
   .mobileTabBarWrap {

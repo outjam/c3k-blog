@@ -27,17 +27,6 @@ export interface PublicProfile {
   purchasedReleaseSlugs: string[];
 }
 
-export interface ReleaseComment {
-  id: string;
-  releaseSlug: string;
-  text: string;
-  createdAt: string;
-  authorSlug: string;
-  authorName: string;
-  authorUsername?: string;
-  authorAvatarUrl?: string;
-}
-
 export interface UnifiedFeedItem {
   id: string;
   kind: "release" | "blog";

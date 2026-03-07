@@ -12,11 +12,11 @@ import {
   upsertMyArtistProfile,
 } from "@/lib/admin-api";
 import {
-  appendPurchasedReleaseSlug,
   buildPublicProfiles,
   buildTelegramShareUrl,
+  fetchMyUserProfile,
   profileSlugFromIdentity,
-  readFollowingSlugs,
+  readFollowOverview,
   readProfileMode,
   readPurchasedReleaseSlugs,
   readPurchasesVisibility,
@@ -24,17 +24,67 @@ import {
   resolveViewerKey,
   resolveViewerName,
   toggleFollowingSlug,
+  updateMyUserProfile,
   writeProfileMode,
   writePurchasesVisibility,
+  type UserProfileEditorPayload,
 } from "@/lib/social-hub";
 import { FINAL_ORDER_STATUSES } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { BlogPost } from "@/types/blog";
 import type { ProfileMode } from "@/types/social";
-import type { ArtistProfile, ArtistTrack, ShopCatalogArtist, ShopOrder, ShopProduct } from "@/types/shop";
+import type { ArtistProfile, ArtistReleaseTrackItem, ArtistTrack, ShopCatalogArtist, ShopOrder, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
+
+interface SocialPerson {
+  slug: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
+interface TrackRowDraft {
+  id: string;
+  title: string;
+  previewUrl: string;
+  durationSec: string;
+}
+
+const createTrackRowDraft = (index: number): TrackRowDraft => ({
+  id: `track-${index}`,
+  title: "",
+  previewUrl: "",
+  durationSec: "",
+});
+
+const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTrackItem[] => {
+  return rows
+    .map((row, index) => {
+      const title = row.title.trim();
+      if (!title) {
+        return null;
+      }
+
+      const duration = Math.round(Number(row.durationSec || "0"));
+      const hasDuration = Number.isFinite(duration) && duration > 0;
+
+      return {
+        id: String(row.id || `track-${index + 1}`)
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 80) || `track-${index + 1}`,
+        title,
+        previewUrl: row.previewUrl.trim() || undefined,
+        durationSec: hasDuration ? Math.max(1, Math.min(60 * 60 * 12, duration)) : undefined,
+        position: index + 1,
+      } satisfies ArtistReleaseTrackItem;
+    })
+    .filter((entry): entry is ArtistReleaseTrackItem => Boolean(entry));
+};
 
 export default function ProfilePage() {
   const { user, source, isSessionLoading, refreshSession } = useAppAuthUser();
@@ -62,6 +112,11 @@ export default function ProfilePage() {
   const [authHint, setAuthHint] = useState("");
   const [purchasesVisible, setPurchasesVisible] = useState(true);
   const [followingSlugs, setFollowingSlugs] = useState<string[]>([]);
+  const [followerSlugs, setFollowerSlugs] = useState<string[]>([]);
+  const [followStatsBySlug, setFollowStatsBySlug] = useState<Record<string, { followersCount: number; followingCount: number }>>({});
+  const [followProfilesBySlug, setFollowProfilesBySlug] = useState<
+    Record<string, { slug: string; displayName: string; username?: string; avatarUrl?: string; coverUrl?: string; bio?: string }>
+  >({});
   const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -80,6 +135,19 @@ export default function ProfilePage() {
   const [trackSaving, setTrackSaving] = useState(false);
   const [artistError, setArtistError] = useState("");
 
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [socialOverlay, setSocialOverlay] = useState<"followers" | "following" | null>(null);
+
+  const [userDraft, setUserDraft] = useState<UserProfileEditorPayload>({
+    displayName: "",
+    username: "",
+    avatarUrl: "",
+    coverUrl: "",
+    bio: "",
+  });
+
   const [artistDraft, setArtistDraft] = useState({
     displayName: "",
     bio: "",
@@ -89,13 +157,18 @@ export default function ProfilePage() {
     subscriptionEnabled: false,
     subscriptionPriceStarsCents: "100",
   });
+
   const [trackDraft, setTrackDraft] = useState({
     title: "",
+    releaseType: "single" as ArtistTrack["releaseType"],
     subtitle: "",
+    description: "",
+    coverImage: "",
     audioFileId: "",
     previewUrl: "",
     genre: "",
     priceStarsCents: "100",
+    releaseTracklist: [createTrackRowDraft(1)],
   });
 
   useEffect(() => {
@@ -133,15 +206,23 @@ export default function ProfilePage() {
     };
   }, []);
 
+  const refreshFollowOverview = async (subjectSlugs: string[]) => {
+    const overview = await readFollowOverview(subjectSlugs);
+    setFollowingSlugs(overview.followingSlugs);
+    setFollowerSlugs(overview.followerSlugs);
+    setFollowStatsBySlug(overview.statsBySlug);
+    setFollowProfilesBySlug(overview.profilesBySlug);
+  };
+
   useEffect(() => {
     let mounted = true;
 
     void (async () => {
-      const [savedMode, balance, visibility, following, purchases] = await Promise.all([
+      const [savedMode, balance, visibility, followOverview, purchases] = await Promise.all([
         readProfileMode(viewerKey),
         readWalletBalanceCents(viewerKey),
         readPurchasesVisibility(viewerKey),
-        readFollowingSlugs(),
+        readFollowOverview([viewerSlug]),
         readPurchasedReleaseSlugs(viewerKey),
       ]);
 
@@ -152,14 +233,61 @@ export default function ProfilePage() {
       setMode(savedMode);
       setWalletCents(balance);
       setPurchasesVisible(visibility);
-      setFollowingSlugs(following);
+      setFollowingSlugs(followOverview.followingSlugs);
+      setFollowerSlugs(followOverview.followerSlugs);
+      setFollowStatsBySlug(followOverview.statsBySlug);
+      setFollowProfilesBySlug(followOverview.profilesBySlug);
       setPurchasedReleaseSlugs(purchases);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [viewerKey, viewerSlug]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setUserDraft({
+        displayName: fullName,
+        username: user?.username || "",
+        avatarUrl: user?.photo_url || "",
+        coverUrl: "",
+        bio: "",
+      });
+      return;
+    }
+
+    let mounted = true;
+
+    void fetchMyUserProfile().then((result) => {
+      if (!mounted) {
+        return;
+      }
+
+      if (result.profile) {
+        setUserDraft({
+          displayName: result.profile.displayName || fullName,
+          username: result.profile.username || user.username || "",
+          avatarUrl: result.profile.avatarUrl || user.photo_url || "",
+          coverUrl: result.profile.coverUrl || "",
+          bio: result.profile.bio || "",
+        });
+        return;
+      }
+
+      setUserDraft({
+        displayName: fullName,
+        username: user.username || "",
+        avatarUrl: user.photo_url || "",
+        coverUrl: "",
+        bio: "",
+      });
     });
 
     return () => {
       mounted = false;
     };
-  }, [viewerKey]);
+  }, [fullName, user?.id, user?.photo_url, user?.username]);
 
   useEffect(() => {
     if (isSessionLoading || !user?.id) {
@@ -237,24 +365,65 @@ export default function ProfilePage() {
       currentMode: mode,
       currentPurchasesVisible: purchasesVisible,
       currentPurchasedReleaseSlugs: allPurchasedReleaseSlugs,
+      followStatsBySlug,
+      followProfilesBySlug,
     });
-  }, [allPurchasedReleaseSlugs, artists, followingSlugs, mode, products, purchasesVisible, user]);
+  }, [allPurchasedReleaseSlugs, artists, followingSlugs, followProfilesBySlug, followStatsBySlug, mode, products, purchasesVisible, user]);
 
   const currentProfile = useMemo(() => {
     return profiles.find((profile) => profile.slug === viewerSlug) ?? null;
   }, [profiles, viewerSlug]);
 
-  const followingProfiles = useMemo(() => {
-    const set = new Set(followingSlugs);
+  const profilesBySlug = useMemo(() => {
+    return new Map(profiles.map((profile) => [profile.slug, profile]));
+  }, [profiles]);
 
-    return profiles.filter((profile) => set.has(profile.slug) && profile.slug !== viewerSlug).slice(0, 10);
-  }, [followingSlugs, profiles, viewerSlug]);
+  const followingPeople = useMemo(() => {
+    return followingSlugs
+      .filter((slug) => slug !== viewerSlug)
+      .map((slug) => {
+        const profile = profilesBySlug.get(slug);
+        if (profile) {
+          return {
+            slug: profile.slug,
+            displayName: profile.displayName,
+            avatarUrl: profile.avatarUrl,
+          } satisfies SocialPerson;
+        }
 
-  const followerProfiles = useMemo(() => {
-    const set = new Set([...followingSlugs, viewerSlug]);
+        const hint = followProfilesBySlug[slug];
+        return {
+          slug,
+          displayName: hint?.displayName || slug,
+          avatarUrl: hint?.avatarUrl,
+        } satisfies SocialPerson;
+      });
+  }, [followingSlugs, viewerSlug, profilesBySlug, followProfilesBySlug]);
 
-    return profiles.filter((profile) => !set.has(profile.slug)).slice(0, 10);
-  }, [followingSlugs, profiles, viewerSlug]);
+  const followerPeople = useMemo(() => {
+    return followerSlugs
+      .filter((slug) => slug !== viewerSlug)
+      .map((slug) => {
+        const profile = profilesBySlug.get(slug);
+        if (profile) {
+          return {
+            slug: profile.slug,
+            displayName: profile.displayName,
+            avatarUrl: profile.avatarUrl,
+          } satisfies SocialPerson;
+        }
+
+        const hint = followProfilesBySlug[slug];
+        return {
+          slug,
+          displayName: hint?.displayName || slug,
+          avatarUrl: hint?.avatarUrl,
+        } satisfies SocialPerson;
+      });
+  }, [followerSlugs, viewerSlug, profilesBySlug, followProfilesBySlug]);
+
+  const followingProfilesPreview = useMemo(() => followingPeople.slice(0, 10), [followingPeople]);
+  const followerProfilesPreview = useMemo(() => followerPeople.slice(0, 10), [followerPeople]);
 
   const activeOrders = useMemo(() => {
     return orders.filter((order) => !FINAL_ORDER_STATUSES.has(order.status));
@@ -304,21 +473,54 @@ export default function ProfilePage() {
       avatarUrl: targetProfile?.avatarUrl,
     });
     setFollowingSlugs(next);
-  };
-
-  const handleMockPurchase = async (slug: string) => {
-    if (!user?.id) {
-      setAuthHint("Покупки доступны только после входа через Telegram Widget.");
-      return;
-    }
-
-    const next = await appendPurchasedReleaseSlug(viewerKey, slug);
-    setPurchasedReleaseSlugs(next);
+    await refreshFollowOverview([viewerSlug, slug, ...next]);
   };
 
   const handleShareProfile = () => {
     const profileUrl = `${appOrigin}/profile/${viewerSlug}`;
-    window.open(buildTelegramShareUrl(profileUrl, `Смотрите мой профиль и награды в Culture3k`), "_blank", "noopener,noreferrer");
+    window.open(buildTelegramShareUrl(profileUrl, "Смотрите мой профиль и награды в Culture3k"), "_blank", "noopener,noreferrer");
+  };
+
+  const submitUserProfile = async () => {
+    if (!user?.id) {
+      setProfileMessage("Для редактирования профиля требуется вход через Telegram.");
+      return;
+    }
+
+    const payload: UserProfileEditorPayload = {
+      displayName: userDraft.displayName.trim(),
+      username: userDraft.username?.trim() || undefined,
+      avatarUrl: userDraft.avatarUrl?.trim() || undefined,
+      coverUrl: userDraft.coverUrl?.trim() || undefined,
+      bio: userDraft.bio?.trim() || undefined,
+    };
+
+    if (!payload.displayName) {
+      setProfileMessage("Имя профиля не может быть пустым.");
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileMessage("");
+
+    const result = await updateMyUserProfile(payload);
+    setProfileSaving(false);
+
+    if (result.error || !result.profile) {
+      setProfileMessage(result.error ?? "Не удалось сохранить профиль.");
+      return;
+    }
+
+    setUserDraft({
+      displayName: result.profile.displayName,
+      username: result.profile.username || "",
+      avatarUrl: result.profile.avatarUrl || "",
+      coverUrl: result.profile.coverUrl || "",
+      bio: result.profile.bio || "",
+    });
+
+    await refreshFollowOverview([viewerSlug, ...followingSlugs, ...followerSlugs]);
+    setProfileMessage("Профиль обновлён.");
   };
 
   const submitArtistProfile = async () => {
@@ -359,6 +561,30 @@ export default function ProfilePage() {
     });
   };
 
+  const updateTrackRow = (index: number, patch: Partial<TrackRowDraft>) => {
+    setTrackDraft((prev) => ({
+      ...prev,
+      releaseTracklist: prev.releaseTracklist.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
+    }));
+  };
+
+  const addTrackRow = () => {
+    setTrackDraft((prev) => ({
+      ...prev,
+      releaseTracklist: [...prev.releaseTracklist, createTrackRowDraft(prev.releaseTracklist.length + 1)],
+    }));
+  };
+
+  const removeTrackRow = (index: number) => {
+    setTrackDraft((prev) => {
+      const nextRows = prev.releaseTracklist.filter((_, rowIndex) => rowIndex !== index);
+      return {
+        ...prev,
+        releaseTracklist: nextRows.length > 0 ? nextRows : [createTrackRowDraft(1)],
+      };
+    });
+  };
+
   const submitTrack = async () => {
     if (!user?.id) {
       setArtistError("Требуется авторизация Telegram.");
@@ -370,45 +596,60 @@ export default function ProfilePage() {
       return;
     }
 
+    const normalizedTracklist = normalizeReleaseTracklistDraft(trackDraft.releaseTracklist);
+
     setTrackSaving(true);
     setArtistError("");
 
     const response = await createMyArtistTrack({
       title: trackDraft.title,
+      releaseType: trackDraft.releaseType,
       subtitle: trackDraft.subtitle,
+      description: trackDraft.description,
+      coverImage: trackDraft.coverImage || undefined,
       audioFileId: trackDraft.audioFileId,
-      previewUrl: trackDraft.previewUrl,
+      previewUrl: (trackDraft.previewUrl || normalizedTracklist[0]?.previewUrl || "").trim() || undefined,
       genre: trackDraft.genre,
       priceStarsCents: Math.max(1, Math.round(Number(trackDraft.priceStarsCents || "1"))),
+      releaseTracklist: normalizedTracklist.length > 0 ? normalizedTracklist : undefined,
     });
 
     setTrackSaving(false);
 
     if (response.error || !response.track) {
-      setArtistError(response.error ?? "Не удалось отправить трек.");
+      setArtistError(response.error ?? "Не удалось отправить релиз.");
       return;
     }
 
     setArtistTracks((prev) => [response.track as ArtistTrack, ...prev]);
     setTrackDraft({
       title: "",
+      releaseType: "single",
       subtitle: "",
+      description: "",
+      coverImage: "",
       audioFileId: "",
       previewUrl: "",
       genre: "",
       priceStarsCents: "100",
+      releaseTracklist: [createTrackRowDraft(1)],
     });
   };
+
+  const followersCount = currentProfile?.followersCount ?? followStatsBySlug[viewerSlug]?.followersCount ?? 0;
+  const socialOverlayPeople = socialOverlay === "following" ? followingPeople : followerPeople;
 
   return (
     <div className={styles.page}>
       <main className={styles.container}>
         <section className={styles.hero}>
           <div className={styles.identityRow}>
-            {user?.photo_url ? (
+            {currentProfile?.avatarUrl ? (
+              <img className={styles.avatarImage} src={currentProfile.avatarUrl} alt={currentProfile.displayName} />
+            ) : user?.photo_url ? (
               <img className={styles.avatarImage} src={user.photo_url} alt={fullName} />
             ) : (
-              <div className={styles.avatarFallback}>{fullName.slice(0, 2).toUpperCase()}</div>
+              <div className={styles.avatarFallback}>{(currentProfile?.displayName || fullName).slice(0, 2).toUpperCase()}</div>
             )}
 
             <div className={styles.identityMeta}>
@@ -440,11 +681,15 @@ export default function ProfilePage() {
           <div className={styles.heroStats}>
             <article>
               <span>Подписчики</span>
-              <strong>{currentProfile?.followersCount ?? 0}</strong>
+              <button type="button" className={styles.statButton} onClick={() => setSocialOverlay("followers")}>
+                {followersCount}
+              </button>
             </article>
             <article>
               <span>Подписки</span>
-              <strong>{followingSlugs.length}</strong>
+              <button type="button" className={styles.statButton} onClick={() => setSocialOverlay("following")}>
+                {followingSlugs.length}
+              </button>
             </article>
             <article>
               <span>Награды</span>
@@ -457,6 +702,9 @@ export default function ProfilePage() {
           </div>
 
           <div className={styles.heroActions}>
+            <button type="button" onClick={() => setProfileEditorOpen((prev) => !prev)}>
+              {profileEditorOpen ? "Скрыть редактирование" : "Редактировать профиль"}
+            </button>
             <button type="button" onClick={handleShareProfile}>
               Поделиться профилем
             </button>
@@ -464,6 +712,63 @@ export default function ProfilePage() {
             <Link href="/shop">Открыть витрину</Link>
           </div>
         </section>
+
+        {profileEditorOpen ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2>Редактирование профиля</h2>
+              <p>instagram-style card</p>
+            </div>
+
+            <div className={styles.artistFormGrid}>
+              <label>
+                Отображаемое имя
+                <input
+                  value={userDraft.displayName}
+                  onChange={(event) => setUserDraft((prev) => ({ ...prev, displayName: event.target.value }))}
+                  maxLength={120}
+                />
+              </label>
+              <label>
+                Username
+                <input
+                  value={userDraft.username ?? ""}
+                  onChange={(event) => setUserDraft((prev) => ({ ...prev, username: event.target.value }))}
+                  maxLength={64}
+                />
+              </label>
+              <label>
+                Avatar URL
+                <input
+                  value={userDraft.avatarUrl ?? ""}
+                  onChange={(event) => setUserDraft((prev) => ({ ...prev, avatarUrl: event.target.value }))}
+                  maxLength={3000}
+                />
+              </label>
+              <label>
+                Cover URL
+                <input
+                  value={userDraft.coverUrl ?? ""}
+                  onChange={(event) => setUserDraft((prev) => ({ ...prev, coverUrl: event.target.value }))}
+                  maxLength={3000}
+                />
+              </label>
+              <label>
+                Bio
+                <textarea
+                  value={userDraft.bio ?? ""}
+                  onChange={(event) => setUserDraft((prev) => ({ ...prev, bio: event.target.value }))}
+                  maxLength={500}
+                />
+              </label>
+            </div>
+
+            <button type="button" className={styles.primaryButton} onClick={() => void submitUserProfile()} disabled={profileSaving}>
+              {profileSaving ? "Сохраняем..." : "Сохранить профиль"}
+            </button>
+            {profileMessage ? <p className={styles.emptyState}>{profileMessage}</p> : null}
+          </section>
+        ) : null}
 
         <section className={styles.walletSection}>
           <div>
@@ -505,8 +810,8 @@ export default function ProfilePage() {
             <div>
               <h3>Вы подписаны</h3>
               <div className={styles.socialList}>
-                {followingProfiles.length > 0 ? (
-                  followingProfiles.map((profile) => (
+                {followingProfilesPreview.length > 0 ? (
+                  followingProfilesPreview.map((profile) => (
                     <article key={profile.slug} className={styles.personCard}>
                       <Link href={`/profile/${profile.slug}`}>{profile.displayName}</Link>
                       <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
@@ -523,14 +828,18 @@ export default function ProfilePage() {
             <div>
               <h3>Вас читают</h3>
               <div className={styles.socialList}>
-                {followerProfiles.map((profile) => (
-                  <article key={profile.slug} className={styles.personCard}>
-                    <Link href={`/profile/${profile.slug}`}>{profile.displayName}</Link>
-                    <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
-                      {followingSlugs.includes(profile.slug) ? "Подписан" : "Подписаться"}
-                    </button>
-                  </article>
-                ))}
+                {followerProfilesPreview.length > 0 ? (
+                  followerProfilesPreview.map((profile) => (
+                    <article key={profile.slug} className={styles.personCard}>
+                      <Link href={`/profile/${profile.slug}`}>{profile.displayName}</Link>
+                      <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
+                        {followingSlugs.includes(profile.slug) ? "Подписан" : "Подписаться"}
+                      </button>
+                    </article>
+                  ))
+                ) : (
+                  <p className={styles.emptyState}>Подписчиков пока нет.</p>
+                )}
               </div>
             </div>
           </div>
@@ -558,16 +867,11 @@ export default function ProfilePage() {
                     <div>
                       <Link href={`/shop/${release.slug}`}>{release.title}</Link>
                       <p>{formatStarsFromCents(release.priceStarsCents)} ⭐</p>
-                      <button type="button" onClick={() => void handleMockPurchase(release.slug)}>
-                        Поднять в витрину
-                      </button>
                     </div>
                   </article>
                 ))
               ) : (
-                <p className={styles.emptyState}>
-                  Пока пусто. Покупайте релизы и хвастайтесь коллекцией перед друзьями.
-                </p>
+                <p className={styles.emptyState}>Пока пусто. Покупайте релизы и хвастайтесь коллекцией перед друзьями.</p>
               )}
             </div>
           ) : (
@@ -704,10 +1008,37 @@ export default function ProfilePage() {
                 />
               </label>
               <label>
+                Тип релиза
+                <select
+                  value={trackDraft.releaseType}
+                  onChange={(event) =>
+                    setTrackDraft((prev) => ({ ...prev, releaseType: event.target.value as ArtistTrack["releaseType"] }))
+                  }
+                >
+                  <option value="single">Single</option>
+                  <option value="ep">EP</option>
+                  <option value="album">Album</option>
+                </select>
+              </label>
+              <label>
                 Подзаголовок
                 <input
                   value={trackDraft.subtitle}
                   onChange={(event) => setTrackDraft((prev) => ({ ...prev, subtitle: event.target.value }))}
+                />
+              </label>
+              <label>
+                Жанр
+                <input
+                  value={trackDraft.genre}
+                  onChange={(event) => setTrackDraft((prev) => ({ ...prev, genre: event.target.value }))}
+                />
+              </label>
+              <label>
+                Cover URL
+                <input
+                  value={trackDraft.coverImage}
+                  onChange={(event) => setTrackDraft((prev) => ({ ...prev, coverImage: event.target.value }))}
                 />
               </label>
               <label>
@@ -718,17 +1049,10 @@ export default function ProfilePage() {
                 />
               </label>
               <label>
-                Preview URL
+                Preview URL (общий)
                 <input
                   value={trackDraft.previewUrl}
                   onChange={(event) => setTrackDraft((prev) => ({ ...prev, previewUrl: event.target.value }))}
-                />
-              </label>
-              <label>
-                Жанр
-                <input
-                  value={trackDraft.genre}
-                  onChange={(event) => setTrackDraft((prev) => ({ ...prev, genre: event.target.value }))}
                 />
               </label>
               <label>
@@ -740,6 +1064,59 @@ export default function ProfilePage() {
                   onChange={(event) => setTrackDraft((prev) => ({ ...prev, priceStarsCents: event.target.value }))}
                 />
               </label>
+              <label>
+                Описание
+                <textarea
+                  value={trackDraft.description}
+                  onChange={(event) => setTrackDraft((prev) => ({ ...prev, description: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className={styles.tracklistEditor}>
+              <div className={styles.sectionHeader}>
+                <h2>Треклист релиза</h2>
+                <p>{trackDraft.releaseTracklist.length}</p>
+              </div>
+
+              <div className={styles.tracklistDraftList}>
+                {trackDraft.releaseTracklist.map((row, index) => (
+                  <article key={`${row.id}-${index}`} className={styles.tracklistDraftRow}>
+                    <label>
+                      Трек #{index + 1}
+                      <input
+                        value={row.title}
+                        onChange={(event) => updateTrackRow(index, { title: event.target.value })}
+                        placeholder="Название трека"
+                      />
+                    </label>
+                    <label>
+                      Preview URL
+                      <input
+                        value={row.previewUrl}
+                        onChange={(event) => updateTrackRow(index, { previewUrl: event.target.value })}
+                        placeholder="https://..."
+                      />
+                    </label>
+                    <label>
+                      Длительность (сек)
+                      <input
+                        type="number"
+                        min={0}
+                        value={row.durationSec}
+                        onChange={(event) => updateTrackRow(index, { durationSec: event.target.value })}
+                      />
+                    </label>
+                    <button type="button" onClick={() => removeTrackRow(index)}>
+                      Удалить
+                    </button>
+                  </article>
+                ))}
+              </div>
+
+              <button type="button" className={styles.primaryButton} onClick={addTrackRow}>
+                Добавить трек
+              </button>
             </div>
 
             <button type="button" className={styles.primaryButton} onClick={() => void submitTrack()} disabled={trackSaving}>
@@ -751,7 +1128,9 @@ export default function ProfilePage() {
                 {artistTracks.slice(0, 8).map((track) => (
                   <article key={track.id} className={styles.artistTrackCard}>
                     <strong>{track.title}</strong>
-                    <p>{track.subtitle || track.genre || "Single"}</p>
+                    <p>
+                      {track.subtitle || track.genre || "Single"} · {track.releaseTracklist?.length ?? 1} треков
+                    </p>
                     <span>{formatStarsFromCents(track.priceStarsCents)} ⭐</span>
                   </article>
                 ))}
@@ -781,6 +1160,38 @@ export default function ProfilePage() {
 
         {catalogLoading ? <p className={styles.loading}>Обновляем социальный профиль...</p> : null}
       </main>
+
+      {socialOverlay ? (
+        <div className={styles.socialOverlayBackdrop} onClick={() => setSocialOverlay(null)}>
+          <div className={styles.socialOverlayCard} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.sectionHeader}>
+              <h2>{socialOverlay === "following" ? "Подписки" : "Подписчики"}</h2>
+              <button type="button" className={styles.overlayCloseButton} onClick={() => setSocialOverlay(null)}>
+                Закрыть
+              </button>
+            </div>
+
+            <div className={styles.socialOverlayList}>
+              {socialOverlayPeople.length > 0 ? (
+                socialOverlayPeople.map((profile) => (
+                  <article key={profile.slug} className={styles.personCard}>
+                    <Link href={`/profile/${profile.slug}`} onClick={() => setSocialOverlay(null)}>
+                      {profile.displayName}
+                    </Link>
+                    {profile.slug !== viewerSlug ? (
+                      <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
+                        {followingSlugs.includes(profile.slug) ? "Подписан" : "Подписаться"}
+                      </button>
+                    ) : null}
+                  </article>
+                ))
+              ) : (
+                <p className={styles.emptyState}>Список пока пуст.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

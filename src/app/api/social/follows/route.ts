@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
-import { listUserFollowingSlugs, setUserFollowing } from "@/lib/server/social-follow-store";
+import { getUserFollowOverview, setUserFollowing } from "@/lib/server/social-follow-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +31,17 @@ const normalizeText = (value: unknown, maxLength: number): string => {
   return String(value ?? "").trim().slice(0, maxLength);
 };
 
+const parseSlugs = (raw: string | null): string[] => {
+  return Array.from(
+    new Set(
+      String(raw ?? "")
+        .split(",")
+        .map((entry) => normalizeSlug(entry))
+        .filter(Boolean),
+    ),
+  ).slice(0, 120);
+};
+
 export async function GET(request: Request) {
   const auth = getShopApiAuth(request);
 
@@ -52,8 +63,16 @@ export async function GET(request: Request) {
     );
   }
 
-  const followingSlugs = await listUserFollowingSlugs(auth.telegramUserId);
-  return NextResponse.json({ followingSlugs });
+  const url = new URL(request.url);
+  const subjectSlugs = parseSlugs(url.searchParams.get("slugs"));
+  const selfSlug = normalizeSlug(auth.username) || `user-${auth.telegramUserId}`;
+  const overview = await getUserFollowOverview({
+    telegramUserId: auth.telegramUserId,
+    selfSlug,
+    subjectSlugs,
+  });
+
+  return NextResponse.json(overview);
 }
 
 export async function POST(request: Request) {

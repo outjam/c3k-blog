@@ -8,7 +8,8 @@ import { fetchPublicCatalog } from "@/lib/admin-api";
 import {
   buildPublicProfiles,
   buildTelegramShareUrl,
-  readFollowingSlugs,
+  fetchFollowRelations,
+  readFollowOverview,
   readProfileMode,
   readPurchasedReleaseSlugs,
   readPurchasesVisibility,
@@ -32,6 +33,11 @@ const normalizeSlug = (value: string): string => {
     .slice(0, 64);
 };
 
+interface SocialListEntry {
+  slug: string;
+  displayName: string;
+}
+
 export function PublicProfilePageClient({ slug }: { slug: string }) {
   const { user } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
@@ -47,10 +53,20 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [artists, setArtists] = useState<ShopCatalogArtist[]>([]);
   const [followingSlugs, setFollowingSlugs] = useState<string[]>([]);
+  const [followStatsBySlug, setFollowStatsBySlug] = useState<Record<string, { followersCount: number; followingCount: number }>>({});
+  const [followProfilesBySlug, setFollowProfilesBySlug] = useState<
+    Record<string, { slug: string; displayName: string; username?: string; avatarUrl?: string; coverUrl?: string; bio?: string }>
+  >({});
   const [mode, setMode] = useState<ProfileMode>("listener");
   const [purchasesVisible, setPurchasesVisible] = useState(true);
   const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [socialOverlay, setSocialOverlay] = useState<"followers" | "following" | null>(null);
+  const [socialLoading, setSocialLoading] = useState(false);
+  const [socialFollowers, setSocialFollowers] = useState<string[]>([]);
+  const [socialFollowing, setSocialFollowing] = useState<string[]>([]);
+  const [socialProfilesBySlug, setSocialProfilesBySlug] = useState<Record<string, { displayName: string }>>({});
 
   useEffect(() => {
     let mounted = true;
@@ -58,9 +74,9 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     void (async () => {
       setLoading(true);
 
-      const [catalog, following, savedMode, visibility, purchases] = await Promise.all([
+      const [catalog, followOverview, savedMode, visibility, purchases] = await Promise.all([
         fetchPublicCatalog(),
-        readFollowingSlugs(),
+        readFollowOverview([targetSlug]),
         readProfileMode(viewerKey),
         readPurchasesVisibility(viewerKey),
         readPurchasedReleaseSlugs(viewerKey),
@@ -72,7 +88,9 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
 
       setProducts(catalog.products);
       setArtists(catalog.artists);
-      setFollowingSlugs(following);
+      setFollowingSlugs(followOverview.followingSlugs);
+      setFollowStatsBySlug(followOverview.statsBySlug);
+      setFollowProfilesBySlug(followOverview.profilesBySlug);
       setMode(savedMode);
       setPurchasesVisible(visibility);
       setPurchasedReleaseSlugs(purchases);
@@ -82,7 +100,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     return () => {
       mounted = false;
     };
-  }, [viewerKey]);
+  }, [targetSlug, viewerKey]);
 
   const profiles = useMemo(() => {
     return buildPublicProfiles({
@@ -93,8 +111,10 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       currentMode: mode,
       currentPurchasesVisible: purchasesVisible,
       currentPurchasedReleaseSlugs: purchasedReleaseSlugs,
+      followStatsBySlug,
+      followProfilesBySlug,
     });
-  }, [artists, followingSlugs, mode, products, purchasedReleaseSlugs, purchasesVisible, user]);
+  }, [artists, followingSlugs, followProfilesBySlug, followStatsBySlug, mode, products, purchasedReleaseSlugs, purchasesVisible, user]);
 
   const profile = useMemo(() => {
     return profiles.find((entry) => entry.slug === targetSlug) ?? null;
@@ -139,7 +159,56 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       avatarUrl: profile.avatarUrl,
     });
     setFollowingSlugs(next);
+
+    const [overview, relations] = await Promise.all([
+      readFollowOverview([targetSlug, profile.slug, ...next]),
+      fetchFollowRelations(targetSlug),
+    ]);
+
+    setFollowingSlugs(overview.followingSlugs);
+    setFollowStatsBySlug(overview.statsBySlug);
+    setFollowProfilesBySlug(overview.profilesBySlug);
+
+    if (relations.snapshot) {
+      setSocialFollowers(relations.snapshot.followersSlugs);
+      setSocialFollowing(relations.snapshot.followingSlugs);
+      setSocialProfilesBySlug(
+        Object.fromEntries(
+          Object.entries(relations.snapshot.profilesBySlug).map(([entrySlug, entry]) => [entrySlug, { displayName: entry.displayName }]),
+        ),
+      );
+    }
   };
+
+  const openSocialOverlay = async (mode: "followers" | "following") => {
+    setSocialOverlay(mode);
+    setSocialLoading(true);
+    const result = await fetchFollowRelations(targetSlug);
+    setSocialLoading(false);
+
+    if (!result.snapshot) {
+      setSocialFollowers([]);
+      setSocialFollowing([]);
+      setSocialProfilesBySlug({});
+      return;
+    }
+
+    setSocialFollowers(result.snapshot.followersSlugs);
+    setSocialFollowing(result.snapshot.followingSlugs);
+    setSocialProfilesBySlug(
+      Object.fromEntries(
+        Object.entries(result.snapshot.profilesBySlug).map(([entrySlug, entry]) => [entrySlug, { displayName: entry.displayName }]),
+      ),
+    );
+  };
+
+  const socialList: SocialListEntry[] = useMemo(() => {
+    const source = socialOverlay === "following" ? socialFollowing : socialFollowers;
+    return source.map((entrySlug) => ({
+      slug: entrySlug,
+      displayName: socialProfilesBySlug[entrySlug]?.displayName || followProfilesBySlug[entrySlug]?.displayName || entrySlug,
+    }));
+  }, [followProfilesBySlug, socialFollowers, socialFollowing, socialOverlay, socialProfilesBySlug]);
 
   if (loading) {
     return <div className={styles.page}>Загрузка профиля...</div>;
@@ -178,11 +247,15 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
           <div className={styles.heroStats}>
             <article>
               <span>Подписчики</span>
-              <strong>{profile.followersCount}</strong>
+              <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("followers")}>
+                {profile.followersCount}
+              </button>
             </article>
             <article>
               <span>Подписки</span>
-              <strong>{profile.followingCount}</strong>
+              <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("following")}>
+                {profile.followingCount}
+              </button>
             </article>
             <article>
               <span>Награды</span>
@@ -268,6 +341,37 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
           </div>
         </section>
       </main>
+
+      {socialOverlay ? (
+        <div className={styles.socialOverlayBackdrop} onClick={() => setSocialOverlay(null)}>
+          <div className={styles.socialOverlayCard} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.sectionHeader}>
+              <h2>{socialOverlay === "following" ? "Подписки" : "Подписчики"}</h2>
+              <button type="button" className={styles.overlayCloseButton} onClick={() => setSocialOverlay(null)}>
+                Закрыть
+              </button>
+            </div>
+
+            {socialLoading ? <p className={styles.empty}>Загрузка...</p> : null}
+
+            {!socialLoading ? (
+              <div className={styles.socialOverlayList}>
+                {socialList.length > 0 ? (
+                  socialList.map((entry) => (
+                    <article key={entry.slug} className={styles.personRow}>
+                      <Link href={`/profile/${entry.slug}`} onClick={() => setSocialOverlay(null)}>
+                        {entry.displayName}
+                      </Link>
+                    </article>
+                  ))
+                ) : (
+                  <p className={styles.empty}>Список пуст.</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

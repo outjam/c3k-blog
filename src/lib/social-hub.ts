@@ -6,7 +6,6 @@ import type {
   ProfileAward,
   ProfileMode,
   PublicProfile,
-  ReleaseComment,
   SearchBundle,
   UnifiedFeedItem,
 } from "@/types/social";
@@ -29,7 +28,36 @@ interface SocialHubState {
   purchasedReleaseSlugsByUser: Record<string, string[]>;
   purchasedTrackKeysByUser: Record<string, string[]>;
   redeemedTopupPromoCodesByUser: Record<string, string[]>;
-  releaseCommentsBySlug: Record<string, ReleaseComment[]>;
+}
+
+export interface FollowStatsEntry {
+  followersCount: number;
+  followingCount: number;
+}
+
+export interface FollowProfileEntry {
+  slug: string;
+  displayName: string;
+  username?: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  bio?: string;
+}
+
+export interface FollowOverview {
+  selfSlug: string;
+  followingSlugs: string[];
+  followerSlugs: string[];
+  statsBySlug: Record<string, FollowStatsEntry>;
+  profilesBySlug: Record<string, FollowProfileEntry>;
+}
+
+export interface FollowRelationsSnapshot {
+  slug: string;
+  followersSlugs: string[];
+  followingSlugs: string[];
+  stats: FollowStatsEntry;
+  profilesBySlug: Record<string, FollowProfileEntry>;
 }
 
 const DEFAULT_STATE: SocialHubState = {
@@ -40,7 +68,6 @@ const DEFAULT_STATE: SocialHubState = {
   purchasedReleaseSlugsByUser: {},
   purchasedTrackKeysByUser: {},
   redeemedTopupPromoCodesByUser: {},
-  releaseCommentsBySlug: {},
 };
 
 const normalizeSlug = (value: unknown): string => {
@@ -72,6 +99,76 @@ const normalizeStringList = (value: unknown): string[] => {
   return value
     .map((entry) => normalizeSlug(entry))
     .filter(Boolean);
+};
+
+const normalizeNonNegativeInt = (value: unknown): number => {
+  const parsed = Math.round(Number(value ?? 0));
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(0, parsed);
+};
+
+const normalizeFollowStatsMap = (value: unknown): Record<string, FollowStatsEntry> => {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([rawSlug, rawStats]) => {
+      const slug = normalizeSlug(rawSlug);
+      if (!slug || !rawStats || typeof rawStats !== "object") {
+        return [];
+      }
+
+      const source = rawStats as Record<string, unknown>;
+      return [
+        [
+          slug,
+          {
+            followersCount: normalizeNonNegativeInt(source.followersCount),
+            followingCount: normalizeNonNegativeInt(source.followingCount),
+          } satisfies FollowStatsEntry,
+        ],
+      ];
+    }),
+  );
+};
+
+const normalizeFollowProfilesMap = (value: unknown): Record<string, FollowProfileEntry> => {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([rawSlug, rawProfile]) => {
+      const slug = normalizeSlug(rawSlug);
+      if (!slug || !rawProfile || typeof rawProfile !== "object") {
+        return [];
+      }
+
+      const source = rawProfile as Record<string, unknown>;
+      const displayName = String(source.displayName ?? "").trim().slice(0, 120);
+      if (!displayName) {
+        return [];
+      }
+
+      return [
+        [
+          slug,
+          {
+            slug,
+            displayName,
+            username: normalizeSlug(source.username) || undefined,
+            avatarUrl: typeof source.avatarUrl === "string" ? source.avatarUrl : undefined,
+            coverUrl: typeof source.coverUrl === "string" ? source.coverUrl : undefined,
+            bio: typeof source.bio === "string" ? source.bio.slice(0, 500) : undefined,
+          } satisfies FollowProfileEntry,
+        ],
+      ];
+    }),
+  );
 };
 
 const normalizeTrackId = (value: unknown): string => {
@@ -157,36 +254,6 @@ const normalizeAwardTier = (value: unknown): ProfileAward["tier"] => {
     : "bronze";
 };
 
-const normalizeReleaseComment = (value: unknown, releaseSlug: string): ReleaseComment | null => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const source = value as Record<string, unknown>;
-  const id = String(source.id ?? "").trim();
-  const text = String(source.text ?? "").replace(/\s+/g, " ").trim().slice(0, 600);
-  const createdAt = String(source.createdAt ?? "").trim();
-  const authorSlug = normalizeSlug(source.authorSlug);
-  const authorName = String(source.authorName ?? "").trim().slice(0, 120);
-
-  if (!id || !text || !authorSlug || !authorName) {
-    return null;
-  }
-
-  const timestamp = new Date(createdAt).getTime();
-
-  return {
-    id,
-    releaseSlug,
-    text,
-    createdAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : new Date().toISOString(),
-    authorSlug,
-    authorName,
-    authorUsername: normalizeSlug(source.authorUsername) || undefined,
-    authorAvatarUrl: typeof source.authorAvatarUrl === "string" ? source.authorAvatarUrl : undefined,
-  };
-};
-
 const normalizeState = (value: unknown): SocialHubState => {
   if (!value || typeof value !== "object") {
     return DEFAULT_STATE;
@@ -253,21 +320,6 @@ const normalizeState = (value: unknown): SocialHubState => {
         )
       : {};
 
-  const releaseCommentsBySlug =
-    source.releaseCommentsBySlug && typeof source.releaseCommentsBySlug === "object"
-      ? Object.fromEntries(
-          Object.entries(source.releaseCommentsBySlug as Record<string, unknown>).map(([rawSlug, comments]) => {
-            const slug = normalizeSlug(rawSlug);
-            const list = Array.isArray(comments)
-              ? comments
-                  .map((entry) => normalizeReleaseComment(entry, slug))
-                  .filter((entry): entry is ReleaseComment => Boolean(entry))
-              : [];
-            return [slug, list];
-          }),
-        )
-      : {};
-
   return {
     followingSlugs: normalizeStringList(source.followingSlugs),
     profileModeByUser,
@@ -276,7 +328,6 @@ const normalizeState = (value: unknown): SocialHubState => {
     purchasedReleaseSlugsByUser,
     purchasedTrackKeysByUser,
     redeemedTopupPromoCodesByUser,
-    releaseCommentsBySlug,
   };
 };
 
@@ -296,18 +347,6 @@ const readState = async (): Promise<SocialHubState> => {
 
 const writeState = async (state: SocialHubState): Promise<void> => {
   await writePersistedString(SOCIAL_HUB_KEY, JSON.stringify(state));
-};
-
-const generateId = (): string => {
-  try {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-  } catch {
-    // ignore
-  }
-
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
 const parseDate = (value: string | undefined): number => {
@@ -436,17 +475,33 @@ export const resolveViewerName = (viewer: ViewerIdentity | null | undefined): st
   return "Гость";
 };
 
-export const readFollowingSlugs = async (): Promise<string[]> => {
+export const readFollowOverview = async (subjectSlugs: string[] = []): Promise<FollowOverview> => {
+  const requestedSlugs = Array.from(new Set(subjectSlugs.map((entry) => normalizeSlug(entry)).filter(Boolean))).slice(0, 120);
+  const query = new URLSearchParams();
+  if (requestedSlugs.length > 0) {
+    query.set("slugs", requestedSlugs.join(","));
+  }
+
   try {
-    const response = await fetch("/api/social/follows", {
+    const response = await fetch(`/api/social/follows${query.toString() ? `?${query.toString()}` : ""}`, {
       method: "GET",
       headers: getTelegramAuthHeaders(),
       cache: "no-store",
     });
 
     if (response.ok) {
-      const payload = (await response.json()) as { followingSlugs?: unknown };
+      const payload = (await response.json()) as {
+        selfSlug?: unknown;
+        followingSlugs?: unknown;
+        followerSlugs?: unknown;
+        statsBySlug?: unknown;
+        profilesBySlug?: unknown;
+      };
       const remoteFollowing = normalizeStringList(payload.followingSlugs);
+      const followerSlugs = normalizeStringList(payload.followerSlugs);
+      const statsBySlug = normalizeFollowStatsMap(payload.statsBySlug);
+      const profilesBySlug = normalizeFollowProfilesMap(payload.profilesBySlug);
+      const selfSlug = normalizeSlug(payload.selfSlug) || "";
       const local = await readState();
 
       if (JSON.stringify(local.followingSlugs) !== JSON.stringify(remoteFollowing)) {
@@ -456,14 +511,160 @@ export const readFollowingSlugs = async (): Promise<string[]> => {
         });
       }
 
-      return remoteFollowing;
+      return {
+        selfSlug,
+        followingSlugs: remoteFollowing,
+        followerSlugs,
+        statsBySlug,
+        profilesBySlug,
+      };
     }
   } catch {
     // ignore network errors and fall back to local state
   }
 
   const state = await readState();
-  return state.followingSlugs;
+  return {
+    selfSlug: "",
+    followingSlugs: state.followingSlugs,
+    followerSlugs: [],
+    statsBySlug: {},
+    profilesBySlug: {},
+  };
+};
+
+export const readFollowingSlugs = async (): Promise<string[]> => {
+  const overview = await readFollowOverview();
+  return overview.followingSlugs;
+};
+
+export interface UserProfileEditorPayload {
+  displayName: string;
+  username?: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  bio?: string;
+}
+
+export const fetchMyUserProfile = async (): Promise<{
+  profile: UserProfileEditorPayload | null;
+  slug: string;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/social/profile/me", {
+      method: "GET",
+      headers: getTelegramAuthHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { profile: null, slug: "", error: `HTTP ${response.status}` };
+    }
+
+    const payload = (await response.json()) as {
+      slug?: unknown;
+      profile?: {
+        displayName?: unknown;
+        username?: unknown;
+        avatarUrl?: unknown;
+        coverUrl?: unknown;
+        bio?: unknown;
+      } | null;
+    };
+
+    const profile = payload.profile
+      ? {
+          displayName: String(payload.profile.displayName ?? "").trim().slice(0, 120),
+          username: normalizeSlug(payload.profile.username) || undefined,
+          avatarUrl: typeof payload.profile.avatarUrl === "string" ? payload.profile.avatarUrl.slice(0, 3000) : undefined,
+          coverUrl: typeof payload.profile.coverUrl === "string" ? payload.profile.coverUrl.slice(0, 3000) : undefined,
+          bio: typeof payload.profile.bio === "string" ? payload.profile.bio.slice(0, 500) : undefined,
+        }
+      : null;
+
+    return {
+      profile: profile && profile.displayName ? profile : null,
+      slug: normalizeSlug(payload.slug),
+    };
+  } catch {
+    return { profile: null, slug: "", error: "Network error" };
+  }
+};
+
+export const updateMyUserProfile = async (payload: UserProfileEditorPayload): Promise<{
+  profile: UserProfileEditorPayload | null;
+  slug: string;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/social/profile/me", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        ...getTelegramAuthHeaders(),
+      },
+      cache: "no-store",
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      return { profile: null, slug: "", error: `HTTP ${response.status}` };
+    }
+
+    const result = await fetchMyUserProfile();
+    return result;
+  } catch {
+    return { profile: null, slug: "", error: "Network error" };
+  }
+};
+
+export const fetchFollowRelations = async (
+  slug: string,
+  limit = 120,
+): Promise<{ snapshot: FollowRelationsSnapshot | null; error?: string }> => {
+  const normalizedSlug = normalizeSlug(slug);
+  if (!normalizedSlug) {
+    return { snapshot: null, error: "Invalid slug" };
+  }
+
+  try {
+    const response = await fetch(
+      `/api/social/follows/relations?slug=${encodeURIComponent(normalizedSlug)}&limit=${Math.max(1, Math.min(300, Math.round(limit)))}`,
+      {
+        method: "GET",
+        headers: getTelegramAuthHeaders(),
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      return { snapshot: null, error: `HTTP ${response.status}` };
+    }
+
+    const payload = (await response.json()) as {
+      slug?: unknown;
+      followersSlugs?: unknown;
+      followingSlugs?: unknown;
+      stats?: unknown;
+      profilesBySlug?: unknown;
+    };
+
+    return {
+      snapshot: {
+        slug: normalizeSlug(payload.slug),
+        followersSlugs: normalizeStringList(payload.followersSlugs),
+        followingSlugs: normalizeStringList(payload.followingSlugs),
+        stats: {
+          followersCount: normalizeNonNegativeInt((payload.stats as Record<string, unknown> | undefined)?.followersCount),
+          followingCount: normalizeNonNegativeInt((payload.stats as Record<string, unknown> | undefined)?.followingCount),
+        },
+        profilesBySlug: normalizeFollowProfilesMap(payload.profilesBySlug),
+      },
+    };
+  } catch {
+    return { snapshot: null, error: "Network error" };
+  }
 };
 
 export const toggleFollowingSlug = async (
@@ -823,93 +1024,6 @@ export const redeemTopupPromoCode = async (
   };
 };
 
-export const readReleaseComments = async (releaseSlug: string): Promise<ReleaseComment[]> => {
-  const state = await readState();
-  const key = normalizeSlug(releaseSlug);
-
-  if (!key) {
-    return [];
-  }
-
-  const comments = state.releaseCommentsBySlug[key] ?? [];
-
-  return [...comments].sort((a, b) => parseDate(b.createdAt) - parseDate(a.createdAt));
-};
-
-export const addReleaseComment = async (input: {
-  releaseSlug: string;
-  text: string;
-  authorSlug: string;
-  authorName: string;
-  authorUsername?: string;
-  authorAvatarUrl?: string;
-}): Promise<ReleaseComment[]> => {
-  const state = await readState();
-  const key = normalizeSlug(input.releaseSlug);
-  const text = String(input.text).replace(/\s+/g, " ").trim().slice(0, 600);
-  const authorSlug = normalizeSlug(input.authorSlug);
-  const authorName = String(input.authorName).trim().slice(0, 120);
-
-  if (!key || text.length < 2 || !authorSlug || !authorName) {
-    return readReleaseComments(key);
-  }
-
-  const created: ReleaseComment = {
-    id: generateId(),
-    releaseSlug: key,
-    text,
-    createdAt: new Date().toISOString(),
-    authorSlug,
-    authorName,
-    authorUsername: normalizeSlug(input.authorUsername) || undefined,
-    authorAvatarUrl: input.authorAvatarUrl,
-  };
-
-  const current = state.releaseCommentsBySlug[key] ?? [];
-
-  await writeState({
-    ...state,
-    releaseCommentsBySlug: {
-      ...state.releaseCommentsBySlug,
-      [key]: [created, ...current],
-    },
-  });
-
-  return readReleaseComments(key);
-};
-
-export const deleteReleaseComment = async (input: {
-  releaseSlug: string;
-  commentId: string;
-  viewerSlug: string;
-}): Promise<ReleaseComment[]> => {
-  const state = await readState();
-  const key = normalizeSlug(input.releaseSlug);
-  const viewerSlug = normalizeSlug(input.viewerSlug);
-
-  if (!key || !viewerSlug) {
-    return readReleaseComments(key);
-  }
-
-  const next = (state.releaseCommentsBySlug[key] ?? []).filter((entry) => {
-    if (entry.id !== input.commentId) {
-      return true;
-    }
-
-    return normalizeSlug(entry.authorSlug) !== viewerSlug;
-  });
-
-  await writeState({
-    ...state,
-    releaseCommentsBySlug: {
-      ...state.releaseCommentsBySlug,
-      [key]: next,
-    },
-  });
-
-  return readReleaseComments(key);
-};
-
 export const buildPublicProfiles = (input: {
   artists: ShopCatalogArtist[];
   products: ShopProduct[];
@@ -918,11 +1032,51 @@ export const buildPublicProfiles = (input: {
   currentMode: ProfileMode;
   currentPurchasesVisible: boolean;
   currentPurchasedReleaseSlugs: string[];
+  followStatsBySlug?: Record<string, FollowStatsEntry>;
+  followProfilesBySlug?: Record<string, FollowProfileEntry>;
 }): PublicProfile[] => {
   const digitalReleases = input.products.filter((item) => item.kind === "digital_track");
+  const followStatsBySlug = input.followStatsBySlug ?? {};
+  const followProfilesBySlug = input.followProfilesBySlug ?? {};
+  const normalizedFollowingSlugs = Array.from(new Set(input.followingSlugs.map((slug) => normalizeSlug(slug)).filter(Boolean)));
+  const statForSlug = (slug: string): FollowStatsEntry | undefined => {
+    const normalized = normalizeSlug(slug);
+    return normalized ? followStatsBySlug[normalized] : undefined;
+  };
+  const profileHintBySlug = (slug: string): FollowProfileEntry | undefined => {
+    const normalized = normalizeSlug(slug);
+    return normalized ? followProfilesBySlug[normalized] : undefined;
+  };
+  const buildListenerProfile = (slug: string, followersCount: number, followingCount: number): PublicProfile => {
+    const hint = profileHintBySlug(slug);
+    const prettyName = slug
+      .split("-")
+      .filter(Boolean)
+      .map((entry) => entry.charAt(0).toUpperCase() + entry.slice(1))
+      .join(" ");
+
+    return {
+      slug,
+      displayName: hint?.displayName || prettyName || slug,
+      username: hint?.username || (slug.startsWith("user-") ? undefined : slug),
+      avatarUrl: hint?.avatarUrl,
+      coverUrl: hint?.coverUrl,
+      bio: hint?.bio || "Профиль пользователя Culture3k.",
+      mode: "listener",
+      followersCount: normalizeNonNegativeInt(followersCount),
+      followingCount: normalizeNonNegativeInt(followingCount),
+      topGenres: [],
+      awards: buildListenerAwards(0, normalizeNonNegativeInt(followersCount)),
+      purchasesVisible: false,
+      purchasedReleaseSlugs: [],
+    };
+  };
 
   const artistProfiles: PublicProfile[] = input.artists.map((artist) => {
     const ownReleases = digitalReleases.filter((release) => normalizeSlug(release.artistSlug) === normalizeSlug(artist.slug));
+    const dynamicStats = statForSlug(artist.slug);
+    const followersCount = dynamicStats ? dynamicStats.followersCount : artist.followersCount;
+    const followingCount = dynamicStats ? dynamicStats.followingCount : 0;
 
     return {
       slug: normalizeSlug(artist.slug),
@@ -932,8 +1086,8 @@ export const buildPublicProfiles = (input: {
       coverUrl: artist.coverUrl,
       bio: artist.bio || "Артист платформы C3K.",
       mode: "artist",
-      followersCount: artist.followersCount,
-      followingCount: 0,
+      followersCount: normalizeNonNegativeInt(followersCount),
+      followingCount: normalizeNonNegativeInt(followingCount),
       isVerified: true,
       topGenres: [
         ...new Set(
@@ -961,38 +1115,27 @@ export const buildPublicProfiles = (input: {
     bySlug.set(slug, { ...profile, slug });
   });
 
-  const followingListenerProfiles = Array.from(new Set(input.followingSlugs.map((slug) => normalizeSlug(slug)).filter(Boolean))).map((slug) => {
-    const existing = bySlug.get(slug);
-
-    if (existing) {
-      return existing;
+  Array.from(
+    new Set([
+      ...normalizedFollowingSlugs,
+      ...Object.keys(followProfilesBySlug),
+      ...Object.keys(followStatsBySlug),
+    ]),
+  ).forEach((rawSlug) => {
+    const slug = normalizeSlug(rawSlug);
+    if (!slug || bySlug.has(slug)) {
+      return;
     }
 
-    const prettyName = slug
-      .split("-")
-      .filter(Boolean)
-      .map((entry) => entry.charAt(0).toUpperCase() + entry.slice(1))
-      .join(" ");
-
-    return {
+    const dynamicStats = statForSlug(slug);
+    bySlug.set(
       slug,
-      displayName: prettyName || slug,
-      username: slug.startsWith("user-") ? undefined : slug,
-      bio: "Профиль пользователя Culture3k.",
-      mode: "listener",
-      followersCount: 0,
-      followingCount: 0,
-      topGenres: [],
-      awards: buildListenerAwards(0, 0),
-      purchasesVisible: false,
-      purchasedReleaseSlugs: [],
-    } satisfies PublicProfile;
-  });
-
-  followingListenerProfiles.forEach((profile) => {
-    if (!bySlug.has(profile.slug)) {
-      bySlug.set(profile.slug, profile);
-    }
+      buildListenerProfile(
+        slug,
+        dynamicStats?.followersCount ?? 0,
+        dynamicStats?.followingCount ?? 0,
+      ),
+    );
   });
 
   const viewer = input.currentViewer;
@@ -1006,20 +1149,25 @@ export const buildPublicProfiles = (input: {
 
     const existing = bySlug.get(viewerSlug);
     const displayName = resolveViewerName(viewer);
-    const followersCount = Math.max(0, existing?.followersCount ?? 0);
+    const dynamicStats = statForSlug(viewerSlug);
+    const followersCount = normalizeNonNegativeInt(dynamicStats?.followersCount ?? existing?.followersCount ?? 0);
+    const followingCount = normalizeNonNegativeInt(
+      dynamicStats?.followingCount ?? Math.max(normalizedFollowingSlugs.length, existing?.followingCount ?? 0),
+    );
 
     bySlug.set(viewerSlug, {
       slug: viewerSlug,
       displayName,
       username: normalizeSlug(viewer.username) || undefined,
       avatarUrl: typeof viewer.photo_url === "string" ? viewer.photo_url : existing?.avatarUrl,
-      coverUrl: existing?.coverUrl,
+      coverUrl: profileHintBySlug(viewerSlug)?.coverUrl ?? existing?.coverUrl,
       bio:
+        profileHintBySlug(viewerSlug)?.bio ||
         existing?.bio ||
         "Покупаю релизы, поддерживаю артистов и собираю награды в социальном профиле C3K.",
       mode: input.currentMode,
       followersCount,
-      followingCount: Math.max(input.followingSlugs.length, existing?.followingCount ?? 0),
+      followingCount,
       isVerified: existing?.isVerified,
       topGenres: existing?.topGenres ?? [],
       awards: buildListenerAwards(input.currentPurchasedReleaseSlugs.length, followersCount),
@@ -1027,6 +1175,34 @@ export const buildPublicProfiles = (input: {
       purchasedReleaseSlugs: Array.from(new Set(input.currentPurchasedReleaseSlugs)),
     });
   }
+
+  Object.entries(followStatsBySlug).forEach(([rawSlug, stats]) => {
+    const slug = normalizeSlug(rawSlug);
+    if (!slug) {
+      return;
+    }
+
+    const followersCount = normalizeNonNegativeInt(stats.followersCount);
+    const followingCount = normalizeNonNegativeInt(stats.followingCount);
+    const existing = bySlug.get(slug);
+
+    if (!existing) {
+      bySlug.set(slug, buildListenerProfile(slug, followersCount, followingCount));
+      return;
+    }
+
+    const next: PublicProfile = {
+      ...existing,
+      followersCount,
+      followingCount,
+    };
+
+    if (next.mode === "listener") {
+      next.awards = buildListenerAwards(next.purchasedReleaseSlugs.length, followersCount);
+    }
+
+    bySlug.set(slug, next);
+  });
 
   return Array.from(bySlug.values()).sort((a, b) => {
     if (a.mode !== b.mode) {
