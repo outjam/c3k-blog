@@ -754,6 +754,12 @@ interface SocialStateSnapshotPayload {
   redeemedTopupPromoCodes?: unknown;
 }
 
+interface SocialPublicPurchasesPayload {
+  slug?: unknown;
+  purchasesVisible?: unknown;
+  purchasedReleaseSlugs?: unknown;
+}
+
 const normalizeSocialStateSnapshotPayload = (payload: SocialStateSnapshotPayload) => {
   return {
     walletCents: normalizeStarsCents(payload.walletCents),
@@ -762,6 +768,57 @@ const normalizeSocialStateSnapshotPayload = (payload: SocialStateSnapshotPayload
     purchasedTrackKeys: normalizeTrackPurchaseKeyList(payload.purchasedTrackKeys),
     redeemedTopupPromoCodes: normalizePromoCodeList(payload.redeemedTopupPromoCodes),
   };
+};
+
+const normalizeSocialPublicPurchasesPayload = (fallbackSlug: string, payload: SocialPublicPurchasesPayload) => {
+  const purchasesVisible = typeof payload.purchasesVisible === "boolean" ? payload.purchasesVisible : false;
+  const purchasedReleaseSlugs = purchasesVisible ? normalizeStringList(payload.purchasedReleaseSlugs) : [];
+
+  return {
+    slug: normalizeSlug(payload.slug) || fallbackSlug,
+    purchasesVisible,
+    purchasedReleaseSlugs,
+  };
+};
+
+export const readPublicPurchasesBySlug = async (slug: string): Promise<{
+  slug: string;
+  purchasesVisible: boolean;
+  purchasedReleaseSlugs: string[];
+}> => {
+  const normalizedSlug = normalizeSlug(slug);
+
+  if (!normalizedSlug) {
+    return {
+      slug: "",
+      purchasesVisible: false,
+      purchasedReleaseSlugs: [],
+    };
+  }
+
+  try {
+    const response = await fetch(`/api/social/state?slug=${encodeURIComponent(normalizedSlug)}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return {
+        slug: normalizedSlug,
+        purchasesVisible: false,
+        purchasedReleaseSlugs: [],
+      };
+    }
+
+    const payload = (await response.json()) as SocialPublicPurchasesPayload;
+    return normalizeSocialPublicPurchasesPayload(normalizedSlug, payload);
+  } catch {
+    return {
+      slug: normalizedSlug,
+      purchasesVisible: false,
+      purchasedReleaseSlugs: [],
+    };
+  }
 };
 
 const readServerBackedSocialState = async (viewerKey: string) => {

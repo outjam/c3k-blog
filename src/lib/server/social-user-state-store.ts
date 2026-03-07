@@ -2,6 +2,7 @@ import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
 
 const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1" || process.env.NODE_ENV === "production";
 const SOCIAL_USER_STATE_KEY = "social_user_state_v1";
+const SOCIAL_FOLLOW_STATE_KEY = "social_follow_graph_v1";
 
 interface PostgresAppStateRow {
   payload?: unknown;
@@ -38,6 +39,11 @@ const normalizeText = (value: unknown, maxLength: number): string => {
 const normalizeUserId = (value: unknown): string => {
   const rounded = Math.round(Number(value ?? 0));
   return Number.isFinite(rounded) && rounded > 0 ? String(rounded) : "";
+};
+
+const userIdFromSlug = (slug: string): string => {
+  const match = /^user-(\d+)$/.exec(normalizeSlug(slug));
+  return match ? normalizeUserId(match[1]) : "";
 };
 
 const normalizeNonNegativeInt = (value: unknown): number => {
@@ -372,6 +378,46 @@ const resolveUserKey = (telegramUserId: number): string => {
   return normalizeUserId(telegramUserId);
 };
 
+const resolveUserKeyByProfileSlug = async (slug: string): Promise<string> => {
+  const normalizedSlug = normalizeSlug(slug);
+
+  if (!normalizedSlug) {
+    return "";
+  }
+
+  const directUserId = userIdFromSlug(normalizedSlug);
+  if (directUserId) {
+    return directUserId;
+  }
+
+  const rows = await postgresRpc<PostgresAppStateRow[]>("c3k_get_app_state", {
+    p_key: SOCIAL_FOLLOW_STATE_KEY,
+  });
+
+  const payload = rows?.[0]?.payload;
+  if (!payload || typeof payload !== "object") {
+    return "";
+  }
+
+  const slugByUserId = (payload as Record<string, unknown>).slugByUserId;
+  if (!slugByUserId || typeof slugByUserId !== "object") {
+    return "";
+  }
+
+  for (const [rawUserId, rawSlug] of Object.entries(slugByUserId as Record<string, unknown>)) {
+    const userId = normalizeUserId(rawUserId);
+    if (!userId) {
+      continue;
+    }
+
+    if (normalizeSlug(rawSlug) === normalizedSlug) {
+      return userId;
+    }
+  }
+
+  return "";
+};
+
 const buildSnapshot = (state: SocialUserState, userKey: string): SocialUserSnapshot => {
   return {
     walletCents: normalizeNonNegativeInt(state.walletCentsByUserId[userKey]),
@@ -412,6 +458,38 @@ export const getSocialUserSnapshot = async (telegramUserId: number): Promise<Soc
   }
 
   return buildSnapshot(state, userKey);
+};
+
+export const getSocialUserPublicPurchasesBySlug = async (
+  slug: string,
+): Promise<{ slug: string; purchasesVisible: boolean; purchasedReleaseSlugs: string[] } | null> => {
+  const normalizedSlug = normalizeSlug(slug);
+
+  if (!normalizedSlug) {
+    return null;
+  }
+
+  const state = await readCurrentState();
+  if (!state) {
+    return null;
+  }
+
+  const userKey = await resolveUserKeyByProfileSlug(normalizedSlug);
+  if (!userKey) {
+    return {
+      slug: normalizedSlug,
+      purchasesVisible: false,
+      purchasedReleaseSlugs: [],
+    };
+  }
+
+  const snapshot = buildSnapshot(state, userKey);
+
+  return {
+    slug: normalizedSlug,
+    purchasesVisible: snapshot.purchasesVisible,
+    purchasedReleaseSlugs: snapshot.purchasesVisible ? snapshot.purchasedReleaseSlugs : [],
+  };
 };
 
 export const topUpSocialWalletBalanceCents = async (telegramUserId: number, amountCents: number): Promise<number | null> => {

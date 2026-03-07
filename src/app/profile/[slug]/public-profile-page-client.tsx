@@ -12,6 +12,7 @@ import {
   fetchFollowRelations,
   profileSlugFromIdentity,
   readFollowOverview,
+  readPublicPurchasesBySlug,
   readProfileMode,
   readPurchasedReleaseSlugs,
   readPurchasesVisibility,
@@ -71,8 +72,10 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     Record<string, { slug: string; displayName: string; username?: string; avatarUrl?: string; coverUrl?: string; bio?: string }>
   >({});
   const [mode, setMode] = useState<ProfileMode>("listener");
-  const [purchasesVisible, setPurchasesVisible] = useState(true);
-  const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
+  const [viewerPurchasesVisible, setViewerPurchasesVisible] = useState(true);
+  const [viewerPurchasedReleaseSlugs, setViewerPurchasedReleaseSlugs] = useState<string[]>([]);
+  const [targetPurchasesVisible, setTargetPurchasesVisible] = useState(false);
+  const [targetPurchasedReleaseSlugs, setTargetPurchasedReleaseSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [socialOverlay, setSocialOverlay] = useState<"followers" | "following" | null>(null);
@@ -89,12 +92,13 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     void (async () => {
       setLoading(true);
 
-      const [catalog, followOverview, savedMode, visibility, purchases] = await Promise.all([
+      const [catalog, followOverview, savedMode, visibility, purchases, targetPublicPurchases] = await Promise.all([
         fetchPublicCatalog(),
         readFollowOverview([targetSlug]),
         readProfileMode(viewerKey),
         readPurchasesVisibility(viewerKey),
         readPurchasedReleaseSlugs(viewerKey),
+        readPublicPurchasesBySlug(targetSlug),
       ]);
 
       if (!mounted) {
@@ -107,8 +111,10 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       setFollowStatsBySlug(followOverview.statsBySlug);
       setFollowProfilesBySlug(followOverview.profilesBySlug);
       setMode(savedMode);
-      setPurchasesVisible(visibility);
-      setPurchasedReleaseSlugs(purchases);
+      setViewerPurchasesVisible(visibility);
+      setViewerPurchasedReleaseSlugs(purchases);
+      setTargetPurchasesVisible(targetPublicPurchases.purchasesVisible);
+      setTargetPurchasedReleaseSlugs(targetPublicPurchases.purchasedReleaseSlugs);
       setLoading(false);
     })();
 
@@ -124,16 +130,26 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       followingSlugs,
       currentViewer: user,
       currentMode: mode,
-      currentPurchasesVisible: purchasesVisible,
-      currentPurchasedReleaseSlugs: purchasedReleaseSlugs,
+      currentPurchasesVisible: viewerPurchasesVisible,
+      currentPurchasedReleaseSlugs: viewerPurchasedReleaseSlugs,
       followStatsBySlug,
       followProfilesBySlug,
     });
-  }, [artists, followingSlugs, followProfilesBySlug, followStatsBySlug, mode, products, purchasedReleaseSlugs, purchasesVisible, user]);
+  }, [artists, followingSlugs, followProfilesBySlug, followStatsBySlug, mode, products, user, viewerPurchasedReleaseSlugs, viewerPurchasesVisible]);
 
   const profile = useMemo(() => {
-    return profiles.find((entry) => entry.slug === targetSlug) ?? null;
-  }, [profiles, targetSlug]);
+    const resolved = profiles.find((entry) => entry.slug === targetSlug) ?? null;
+
+    if (!resolved || resolved.mode !== "listener") {
+      return resolved;
+    }
+
+    return {
+      ...resolved,
+      purchasesVisible: targetPurchasesVisible,
+      purchasedReleaseSlugs: targetPurchasedReleaseSlugs,
+    };
+  }, [profiles, targetPurchasedReleaseSlugs, targetPurchasesVisible, targetSlug]);
 
   const isFollowing = useMemo(() => {
     return followingSlugs.includes(targetSlug);

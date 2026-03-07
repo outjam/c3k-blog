@@ -7,6 +7,7 @@ import {
   appendSocialPurchasedReleaseWithTracks,
   appendSocialPurchasedTrackKey,
   appendSocialPurchasedTrackKeys,
+  getSocialUserPublicPurchasesBySlug,
   getSocialUserSnapshot,
   redeemSocialTopupPromoCode,
   setSocialPurchasesVisibility,
@@ -90,7 +91,49 @@ const serverError = (message: string) => {
   return NextResponse.json({ error: message }, { status: 502 });
 };
 
+const resolvePublicRateLimitIdentifier = (request: Request): string => {
+  const forwardedFor = request.headers.get("x-forwarded-for") ?? "";
+  const firstForwardedIp = forwardedFor
+    .split(",")
+    .map((entry) => entry.trim())
+    .find(Boolean);
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  const candidate = firstForwardedIp || realIp || "anonymous";
+
+  return candidate
+    .toLowerCase()
+    .replace(/[^a-z0-9:._-]+/g, "_")
+    .slice(0, 120);
+};
+
 export async function GET(request: Request) {
+  const searchParams = new URL(request.url).searchParams;
+  const slug = normalizeSlug(searchParams.get("slug"));
+
+  if (slug) {
+    const rate = await checkRateLimit({
+      scope: "social_state_public_get",
+      identifier: `${resolvePublicRateLimitIdentifier(request)}:${slug}`,
+      limit: 240,
+      windowSec: 60,
+    });
+
+    if (!rate.ok) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded", retryAfterSec: rate.retryAfterSec },
+        { status: 429, headers: { "retry-after": String(rate.retryAfterSec) } },
+      );
+    }
+
+    const snapshot = await getSocialUserPublicPurchasesBySlug(slug);
+
+    if (!snapshot) {
+      return serverError("Failed to load public social user state");
+    }
+
+    return NextResponse.json(snapshot);
+  }
+
   const auth = getShopApiAuth(request);
 
   if (!auth) {
