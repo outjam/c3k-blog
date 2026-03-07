@@ -1,9 +1,12 @@
 "use client";
 
 import { motion } from "motion/react";
+import Image from "next/image";
 import Link from "next/link";
-import type { MouseEventHandler } from "react";
+import { useMemo, type MouseEventHandler } from "react";
 
+import { useGlobalPlayer } from "@/components/player/global-player-provider";
+import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
 import { hapticSelection } from "@/lib/telegram";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { ShopProduct } from "@/types/shop";
@@ -21,6 +24,10 @@ export function ShopProductCard({
   onToggleFavorite,
   isFavorite,
 }: ShopProductCardProps) {
+  const { playQueue, enqueueTracks } = useGlobalPlayer();
+  const playbackQueue = useMemo(() => buildReleasePlaybackQueue(product), [product]);
+  const canPreview = playbackQueue.length > 0;
+
   const handleFavorite: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -28,11 +35,33 @@ export function ShopProductCard({
     hapticSelection();
   };
 
+  const handlePlayNow: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canPreview) {
+      return;
+    }
+
+    playQueue(playbackQueue, 0);
+    hapticSelection();
+  };
+
+  const handleEnqueue: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canPreview) {
+      return;
+    }
+
+    enqueueTracks(playbackQueue);
+    hapticSelection();
+  };
+
   return (
     <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
       <Link href={`/shop/${product.slug}`} className={styles.card}>
         <div className={styles.mediaWrap}>
-          <img src={product.image} alt={product.title} className={styles.media} loading="lazy" />
+          <Image src={product.image} alt={product.title} fill sizes="(max-width: 700px) 100vw, 188px" className={styles.media} />
           <div className={styles.badges}>
             {product.isNew ? <span className={styles.badgeNew}>NEW</span> : null}
             {product.isHit ? <span className={styles.badgeHit}>HIT</span> : null}
@@ -84,6 +113,15 @@ export function ShopProductCard({
             </div>
 
             <span className={styles.balanceOnlyBadge}>Оплата только с баланса</span>
+          </div>
+
+          <div className={styles.playerActions}>
+            <button type="button" className={styles.playerButton} onClick={handlePlayNow} disabled={!canPreview}>
+              Слушать
+            </button>
+            <button type="button" className={styles.playerButton} onClick={handleEnqueue} disabled={!canPreview}>
+              В очередь
+            </button>
           </div>
         </div>
       </Link>

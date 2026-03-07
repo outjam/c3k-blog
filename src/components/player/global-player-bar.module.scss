@@ -1,4 +1,4 @@
-.wrap {
+.miniWrap {
   position: fixed;
   left: 0;
   right: 0;
@@ -6,100 +6,409 @@
   z-index: 55;
   padding: 0 0.7rem;
   display: grid;
-  justify-items: center;
 }
 
-.card {
+.miniCard {
   width: min(980px, 100%);
-  border-radius: 0.95rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  justify-self: center;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
   background: color-mix(in srgb, var(--tg-section-bg) 88%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: var(--shadow-sm);
-  padding: 0.5rem 0.6rem;
-  display: grid;
-  gap: 0.35rem;
-}
-
-.row {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.42rem;
+  min-height: 3.75rem;
+  padding: 0.4rem 0.46rem 0.4rem 0.42rem;
 }
 
-.trackMeta {
+.miniMain {
+  border: 0;
+  background: transparent;
   min-width: 0;
   display: grid;
-  gap: 0.04rem;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+  cursor: pointer;
 }
 
-.trackMeta strong {
+.coverSmall,
+.coverSmallFallback {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.64rem;
+  flex-shrink: 0;
+}
+
+.coverSmall {
+  object-fit: cover;
+}
+
+.coverSmallFallback {
+  display: grid;
+  place-items: center;
   color: var(--tg-text);
-  font-size: 0.78rem;
+  font-size: 1rem;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-bg));
+}
+
+.miniMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.06rem;
+}
+
+.miniMeta strong {
+  color: var(--tg-text);
+  font-size: 0.82rem;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.trackMeta span {
+.miniMeta small {
   color: var(--tg-subtitle-text);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.controls {
+.miniTimeline {
+  color: var(--tg-hint);
+  font-size: 0.67rem;
+  line-height: 1.2;
+}
+
+.miniProgress {
+  display: block;
+  margin-top: 0.18rem;
+  width: 100%;
+  height: 0.24rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-separator) 45%, transparent);
+  overflow: hidden;
+}
+
+.miniProgress > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-accent) 82%, #99f0ff);
+}
+
+.miniActions {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
 }
 
-.controls button {
+.miniActions button {
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
   border-radius: 999px;
-  min-height: 1.9rem;
-  min-width: 1.9rem;
-  padding: 0 0.44rem;
+  min-height: 1.95rem;
+  min-width: 1.95rem;
+  padding: 0 0.48rem;
   background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
   color: var(--tg-text);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 700;
+}
+
+.miniActions button:disabled {
+  opacity: 0.5;
+}
+
+.fullOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  pointer-events: none;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: color-mix(in srgb, #000 55%, transparent);
+  pointer-events: auto;
+}
+
+.fullSheet {
+  position: absolute;
+  left: 0.7rem;
+  right: 0.7rem;
+  bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom) + 0.35rem);
+  width: min(980px, calc(100% - 1.4rem));
+  max-height: min(78vh, 760px);
+  overflow: auto;
+  margin: 0 auto;
+  border-radius: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 94%, var(--tg-bg));
+  box-shadow: 0 28px 56px color-mix(in srgb, #000 40%, transparent);
+  padding: 0.62rem;
+  display: grid;
+  gap: 0.58rem;
+  pointer-events: auto;
+}
+
+.handleButton {
+  border: 0;
+  background: transparent;
+  min-height: 1.15rem;
+  display: grid;
+  place-items: center;
+}
+
+.handleButton span {
+  display: block;
+  width: 3.4rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-separator) 60%, transparent);
+}
+
+.fullCoverWrap {
+  width: min(320px, 100%);
+  aspect-ratio: 1 / 1;
+  justify-self: center;
+}
+
+.coverLarge,
+.coverLargeFallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 0.95rem;
+}
+
+.coverLarge {
+  object-fit: cover;
+}
+
+.coverLargeFallback {
+  display: grid;
+  place-items: center;
+  color: var(--tg-text);
+  font-size: 2.4rem;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--tg-accent) 20%, var(--tg-bg));
+}
+
+.fullMeta {
+  display: grid;
+  justify-items: center;
+  gap: 0.08rem;
+  text-align: center;
+}
+
+.fullMeta strong {
+  color: var(--tg-text);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.fullMeta span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.86rem;
+}
+
+.fullMeta small {
+  color: var(--tg-hint);
+  font-size: 0.74rem;
 }
 
 .progressRow {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 0.3rem;
+  gap: 0.34rem;
   align-items: center;
 }
 
 .progressRow span {
   color: var(--tg-hint);
-  font-size: 0.66rem;
+  font-size: 0.72rem;
 }
 
 .progressRow input[type="range"] {
   width: 100%;
 }
 
+.mainControls {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.44rem;
+}
+
+.mainControls button {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  border-radius: 999px;
+  min-height: 2.4rem;
+  min-width: 2.4rem;
+  padding: 0 0.72rem;
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.mainControls button:disabled {
+  opacity: 0.5;
+}
+
+.mainPlay {
+  min-width: 5.1rem !important;
+  border: 0 !important;
+  background: var(--tg-btn) !important;
+  color: var(--tg-btn-text) !important;
+}
+
+.secondaryRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.volume {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.46rem;
+}
+
+.volume span {
+  color: var(--tg-hint);
+  font-size: 0.71rem;
+}
+
+.volume input[type="range"] {
+  width: 100%;
+}
+
+.secondaryActions {
+  display: inline-flex;
+  gap: 0.34rem;
+}
+
+.secondaryActions button {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  border-radius: 999px;
+  min-height: 1.82rem;
+  padding: 0 0.64rem;
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.queuePanel {
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 0.34rem;
+  border-top: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  padding-top: 0.42rem;
+}
+
+.queueItem {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--tg-bg) 68%, var(--tg-section-bg));
+  color: var(--tg-text);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "num title"
+    "num artist";
+  align-items: center;
+  justify-items: start;
+  gap: 0.08rem 0.45rem;
+  min-height: 2.35rem;
+  padding: 0.3rem 0.52rem;
+}
+
+.queueItem span {
+  grid-area: num;
+  color: var(--tg-hint);
+  font-size: 0.67rem;
+}
+
+.queueItem strong {
+  grid-area: title;
+  font-size: 0.77rem;
+  font-weight: 700;
+}
+
+.queueItem small {
+  grid-area: artist;
+  color: var(--tg-subtitle-text);
+  font-size: 0.66rem;
+}
+
+.queueItemActive {
+  border-color: color-mix(in srgb, var(--tg-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
+}
+
 @media (max-width: 700px) {
-  .wrap {
+  .miniWrap {
     padding: 0 0.5rem;
   }
 
-  .card {
-    padding: 0.44rem 0.52rem;
+  .miniCard {
+    min-height: 3.5rem;
+  }
+
+  .miniActions {
+    gap: 0.22rem;
+  }
+
+  .miniActions button {
+    min-height: 1.8rem;
+    min-width: 1.8rem;
+    padding: 0 0.38rem;
+  }
+
+  .fullSheet {
+    left: 0.5rem;
+    right: 0.5rem;
+    width: calc(100% - 1rem);
+    max-height: min(80vh, 720px);
+    padding: 0.55rem;
+  }
+
+  .secondaryRow {
+    grid-template-columns: 1fr;
+    gap: 0.34rem;
   }
 }
 
 @media (min-width: 1024px) {
-  .wrap {
+  .miniWrap {
+    left: calc(240px + 1.9rem);
+    right: 0.9rem;
     bottom: calc(0.9rem + var(--safe-area-bottom));
-    left: auto;
-    right: auto;
-    width: calc(100% - 240px - 2.8rem);
+    padding: 0;
+  }
+
+  .miniCard {
+    width: 100%;
+  }
+
+  .fullSheet {
+    left: calc(240px + 1.9rem);
+    right: 0.9rem;
+    width: auto;
+    bottom: calc(0.9rem + var(--safe-area-bottom));
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -255,7 +256,7 @@ export default function Home() {
               return (
                 <article key={item.id} className={`${styles.feedCard} ${item.kind === "release" ? styles.feedCardRelease : styles.feedCardBlog}`}>
                   <Link href={item.href} className={styles.coverWrap}>
-                    <img src={item.coverUrl} alt={item.title} loading="lazy" />
+                    <Image src={item.coverUrl} alt={item.title} fill sizes="(max-width: 880px) 100vw, 240px" className={styles.coverImage} />
                     <span className={styles.kindBadge}>{item.kind === "release" ? "REL" : "BLOG"}</span>
                   </Link>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useId } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useId } from 'react';
 import './GlassSurface.css';
 
 export interface GlassSurfaceProps {
@@ -80,7 +80,7 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
   const blueChannelRef = useRef<SVGFEDisplacementMapElement>(null);
   const gaussianBlurRef = useRef<SVGFEGaussianBlurElement>(null);
 
-  const generateDisplacementMap = () => {
+  const generateDisplacementMap = useCallback(() => {
     const rect = containerRef.current?.getBoundingClientRect();
     const actualWidth = rect?.width || 400;
     const actualHeight = rect?.height || 200;
@@ -106,13 +106,13 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
     `;
 
     return `data:image/svg+xml,${encodeURIComponent(svgContent)}`;
-  };
+  }, [blueGradId, blur, borderRadius, borderWidth, brightness, mixBlendMode, opacity, redGradId]);
 
-  const updateDisplacementMap = () => {
+  const updateDisplacementMap = useCallback(() => {
     feImageRef.current?.setAttribute('href', generateDisplacementMap());
-  };
+  }, [generateDisplacementMap]);
 
-  function supportsSVGFilters(): boolean {
+  const supportsSVGFilters = useCallback((): boolean => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
       return false;
     }
@@ -140,7 +140,7 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
     div.style.setProperty('-webkit-backdrop-filter', `url(#${filterId})`);
 
     return div.style.backdropFilter !== '' || div.style.getPropertyValue('-webkit-backdrop-filter') !== '';
-  }
+  }, [filterId]);
 
   useEffect(() => {
     updateDisplacementMap();
@@ -172,7 +172,8 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
     blueOffset,
     xChannel,
     yChannel,
-    mixBlendMode
+    mixBlendMode,
+    updateDisplacementMap
   ]);
 
   useEffect(() => {
@@ -187,11 +188,11 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
     return () => {
       resizeObserver.disconnect();
     };
-  }, []);
+  }, [updateDisplacementMap]);
 
   useEffect(() => {
     setTimeout(updateDisplacementMap, 0);
-  }, [width, height]);
+  }, [height, updateDisplacementMap, width]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -201,7 +202,7 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
     return () => {
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [supportsSVGFilters]);
 
   const containerStyle: React.CSSProperties = {
     ...style,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { type AdminOrdersSort, fetchAdminOrders } from "@/lib/admin-api";
 import { SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
@@ -52,7 +52,7 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
   const [totalFiltered, setTotalFiltered] = useState(0);
   const [statusCounters, setStatusCounters] = useState<Record<string, number>>({});
 
-  const loadOrders = async (options?: { append?: boolean }) => {
+  const loadOrders = useCallback(async (options?: { append?: boolean }) => {
     const append = Boolean(options?.append);
     setLoading(true);
     setError("");
@@ -86,7 +86,7 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
       return next;
     });
     setLoading(false);
-  };
+  }, [nextCursor, query, sort, statusFilter]);
 
   useEffect(() => {
     if (!enabled) {
@@ -100,7 +100,7 @@ export function ShopAdminOrdersPanel({ enabled, canManage = true }: ShopAdminOrd
     return () => {
       window.clearTimeout(timer);
     };
-  }, [enabled, statusFilter, sort]);
+  }, [enabled, loadOrders]);
 
   if (!enabled) {
     return null;

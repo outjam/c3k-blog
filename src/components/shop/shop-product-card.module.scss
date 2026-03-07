@@ -193,6 +193,26 @@
   font-weight: 700;
 }
 
+.playerActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.playerButton {
+  min-height: 2.12rem;
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.playerButton:disabled {
+  opacity: 0.5;
+}
+
 .stepper {
   display: inline-flex;
   align-items: center;
@@ -246,5 +266,9 @@
 
   .footer {
     align-items: center;
+  }
+
+  .playerActions {
+    grid-template-columns: 1fr;
   }
 }

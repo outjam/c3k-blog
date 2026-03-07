@@ -705,20 +705,10 @@ export const toggleFollowingSlug = async (
       return remoteFollowing;
     }
   } catch {
-    // ignore network errors and fall back to local state
+    // ignore network errors and keep the last confirmed state
   }
 
-  const state = await readState();
-  const next = state.followingSlugs.includes(normalizedSlug)
-    ? state.followingSlugs.filter((value) => value !== normalizedSlug)
-    : [normalizedSlug, ...state.followingSlugs];
-
-  await writeState({
-    ...state,
-    followingSlugs: next,
-  });
-
-  return next;
+  return readFollowingSlugs();
 };
 
 export const readProfileMode = async (viewerKey: string): Promise<ProfileMode> => {
@@ -741,7 +731,94 @@ export const writeProfileMode = async (viewerKey: string, mode: ProfileMode): Pr
   return safeMode;
 };
 
+const viewerTelegramUserIdFromKey = (viewerKey: string): number => {
+  const match = /^tg:(\d+)$/.exec(String(viewerKey).trim());
+
+  if (!match) {
+    return 0;
+  }
+
+  const userId = Math.round(Number(match[1]));
+  return Number.isFinite(userId) && userId > 0 ? userId : 0;
+};
+
+const isServerBackedViewerKey = (viewerKey: string): boolean => {
+  return viewerTelegramUserIdFromKey(viewerKey) > 0;
+};
+
+interface SocialStateSnapshotPayload {
+  walletCents?: unknown;
+  purchasesVisible?: unknown;
+  purchasedReleaseSlugs?: unknown;
+  purchasedTrackKeys?: unknown;
+  redeemedTopupPromoCodes?: unknown;
+}
+
+const normalizeSocialStateSnapshotPayload = (payload: SocialStateSnapshotPayload) => {
+  return {
+    walletCents: normalizeStarsCents(payload.walletCents),
+    purchasesVisible: typeof payload.purchasesVisible === "boolean" ? payload.purchasesVisible : true,
+    purchasedReleaseSlugs: normalizeStringList(payload.purchasedReleaseSlugs),
+    purchasedTrackKeys: normalizeTrackPurchaseKeyList(payload.purchasedTrackKeys),
+    redeemedTopupPromoCodes: normalizePromoCodeList(payload.redeemedTopupPromoCodes),
+  };
+};
+
+const readServerBackedSocialState = async (viewerKey: string) => {
+  if (!isServerBackedViewerKey(viewerKey)) {
+    return null;
+  }
+
+  try {
+    const response = await fetch("/api/social/state", {
+      method: "GET",
+      headers: getTelegramAuthHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as SocialStateSnapshotPayload;
+    return normalizeSocialStateSnapshotPayload(payload);
+  } catch {
+    return null;
+  }
+};
+
+const mutateServerBackedSocialState = async (viewerKey: string, body: Record<string, unknown>) => {
+  if (!isServerBackedViewerKey(viewerKey)) {
+    return null;
+  }
+
+  try {
+    const response = await fetch("/api/social/state", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...getTelegramAuthHeaders(),
+      },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
 export const readWalletBalanceCents = async (viewerKey: string): Promise<number> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.walletCents ?? 0;
+  }
+
   const state = await readState();
   const existing = normalizeStarsCents(state.walletCentsByUser[viewerKey]);
 
@@ -763,6 +840,21 @@ export const readWalletBalanceCents = async (viewerKey: string): Promise<number>
 };
 
 export const topUpWalletBalanceCents = async (viewerKey: string, amountCents: number): Promise<number> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const amount = Math.max(1, normalizeStarsCents(amountCents));
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "wallet_topup",
+      amountCents: amount,
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "walletCents")) {
+      return normalizeStarsCents(payload.walletCents);
+    }
+
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.walletCents ?? 0;
+  }
+
   const state = await readState();
   const current = normalizeStarsCents(state.walletCentsByUser[viewerKey]);
   const amount = Math.max(1, normalizeStarsCents(amountCents));
@@ -780,6 +872,27 @@ export const topUpWalletBalanceCents = async (viewerKey: string, amountCents: nu
 };
 
 export const spendWalletBalanceCents = async (viewerKey: string, amountCents: number): Promise<{ ok: boolean; balanceCents: number }> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const amount = Math.max(1, normalizeStarsCents(amountCents));
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "wallet_spend",
+      amountCents: amount,
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "ok")) {
+      return {
+        ok: Boolean(payload.ok),
+        balanceCents: normalizeStarsCents(payload.balanceCents),
+      };
+    }
+
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return {
+      ok: false,
+      balanceCents: snapshot?.walletCents ?? 0,
+    };
+  }
+
   const state = await readState();
   const current = normalizeStarsCents(state.walletCentsByUser[viewerKey]);
   const amount = Math.max(1, normalizeStarsCents(amountCents));
@@ -802,6 +915,11 @@ export const spendWalletBalanceCents = async (viewerKey: string, amountCents: nu
 };
 
 export const readPurchasesVisibility = async (viewerKey: string): Promise<boolean> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.purchasesVisible ?? true;
+  }
+
   const state = await readState();
 
   if (typeof state.purchasesVisibleByUser[viewerKey] === "boolean") {
@@ -812,6 +930,20 @@ export const readPurchasesVisibility = async (viewerKey: string): Promise<boolea
 };
 
 export const writePurchasesVisibility = async (viewerKey: string, isVisible: boolean): Promise<boolean> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "purchases_visibility_set",
+      isVisible: Boolean(isVisible),
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "purchasesVisible")) {
+      return Boolean(payload.purchasesVisible);
+    }
+
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.purchasesVisible ?? true;
+  }
+
   const state = await readState();
 
   await writeState({
@@ -841,11 +973,35 @@ const prependUniqueValues = (current: string[], values: string[]): string[] => {
 };
 
 export const readPurchasedReleaseSlugs = async (viewerKey: string): Promise<string[]> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.purchasedReleaseSlugs ?? [];
+  }
+
   const state = await readState();
   return normalizeStringList(state.purchasedReleaseSlugsByUser[viewerKey]);
 };
 
 export const appendPurchasedReleaseSlug = async (viewerKey: string, releaseSlug: string): Promise<string[]> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const normalizedSlug = normalizeSlug(releaseSlug);
+
+    if (!normalizedSlug) {
+      return readPurchasedReleaseSlugs(viewerKey);
+    }
+
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "release_append",
+      releaseSlug: normalizedSlug,
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "purchasedReleaseSlugs")) {
+      return normalizeStringList(payload.purchasedReleaseSlugs);
+    }
+
+    return readPurchasedReleaseSlugs(viewerKey);
+  }
+
   const normalizedSlug = normalizeSlug(releaseSlug);
 
   if (!normalizedSlug) {
@@ -868,6 +1024,11 @@ export const appendPurchasedReleaseSlug = async (viewerKey: string, releaseSlug:
 };
 
 export const readPurchasedTrackKeys = async (viewerKey: string): Promise<string[]> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.purchasedTrackKeys ?? [];
+  }
+
   const state = await readState();
   return normalizeTrackPurchaseKeyList(state.purchasedTrackKeysByUser[viewerKey]);
 };
@@ -881,6 +1042,26 @@ export const appendPurchasedTrackKey = async (
   releaseSlug: string,
   trackId: string,
 ): Promise<string[]> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const key = toTrackPurchaseKey(releaseSlug, trackId);
+
+    if (!key) {
+      return readPurchasedTrackKeys(viewerKey);
+    }
+
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "track_append",
+      releaseSlug,
+      trackId,
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "purchasedTrackKeys")) {
+      return normalizeTrackPurchaseKeyList(payload.purchasedTrackKeys);
+    }
+
+    return readPurchasedTrackKeys(viewerKey);
+  }
+
   const key = toTrackPurchaseKey(releaseSlug, trackId);
 
   if (!key) {
@@ -907,6 +1088,28 @@ export const appendPurchasedTrackKeys = async (
   releaseSlug: string,
   trackIds: string[],
 ): Promise<string[]> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const normalizedKeys = trackIds
+      .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
+      .filter(Boolean);
+
+    if (normalizedKeys.length === 0) {
+      return readPurchasedTrackKeys(viewerKey);
+    }
+
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "tracks_append",
+      releaseSlug,
+      trackIds,
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "purchasedTrackKeys")) {
+      return normalizeTrackPurchaseKeyList(payload.purchasedTrackKeys);
+    }
+
+    return readPurchasedTrackKeys(viewerKey);
+  }
+
   const normalizedKeys = trackIds
     .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
     .filter(Boolean);
@@ -935,6 +1138,42 @@ export const appendPurchasedReleaseWithTracks = async (
   releaseSlug: string,
   trackIds: string[],
 ): Promise<{ releaseSlugs: string[]; trackKeys: string[] }> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const normalizedReleaseSlug = normalizeSlug(releaseSlug);
+    const normalizedTrackKeys = trackIds
+      .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
+      .filter(Boolean);
+
+    if (!normalizedReleaseSlug && normalizedTrackKeys.length === 0) {
+      return {
+        releaseSlugs: await readPurchasedReleaseSlugs(viewerKey),
+        trackKeys: await readPurchasedTrackKeys(viewerKey),
+      };
+    }
+
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "release_with_tracks_append",
+      releaseSlug,
+      trackIds,
+    });
+
+    if (
+      payload &&
+      Object.prototype.hasOwnProperty.call(payload, "releaseSlugs") &&
+      Object.prototype.hasOwnProperty.call(payload, "trackKeys")
+    ) {
+      return {
+        releaseSlugs: normalizeStringList(payload.releaseSlugs),
+        trackKeys: normalizeTrackPurchaseKeyList(payload.trackKeys),
+      };
+    }
+
+    return {
+      releaseSlugs: await readPurchasedReleaseSlugs(viewerKey),
+      trackKeys: await readPurchasedTrackKeys(viewerKey),
+    };
+  }
+
   const normalizedReleaseSlug = normalizeSlug(releaseSlug);
   const normalizedTrackKeys = trackIds
     .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
@@ -975,6 +1214,11 @@ export const appendPurchasedReleaseWithTracks = async (
 };
 
 export const readRedeemedTopupPromoCodes = async (viewerKey: string): Promise<string[]> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.redeemedTopupPromoCodes ?? [];
+  }
+
   const state = await readState();
   return normalizePromoCodeList(state.redeemedTopupPromoCodesByUser[viewerKey]);
 };
@@ -983,6 +1227,40 @@ export const redeemTopupPromoCode = async (
   viewerKey: string,
   code: string,
 ): Promise<{ ok: boolean; normalizedCode: string; alreadyRedeemed: boolean; redeemedCodes: string[] }> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const normalizedCode = normalizePromoCode(code);
+
+    if (!normalizedCode) {
+      return {
+        ok: false,
+        normalizedCode: "",
+        alreadyRedeemed: false,
+        redeemedCodes: await readRedeemedTopupPromoCodes(viewerKey),
+      };
+    }
+
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "promo_redeem",
+      code: normalizedCode,
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "ok")) {
+      return {
+        ok: Boolean(payload.ok),
+        normalizedCode: normalizePromoCode(payload.normalizedCode),
+        alreadyRedeemed: Boolean(payload.alreadyRedeemed),
+        redeemedCodes: normalizePromoCodeList(payload.redeemedCodes),
+      };
+    }
+
+    return {
+      ok: false,
+      normalizedCode,
+      alreadyRedeemed: false,
+      redeemedCodes: await readRedeemedTopupPromoCodes(viewerKey),
+    };
+  }
+
   const normalizedCode = normalizePromoCode(code);
 
   if (!normalizedCode) {

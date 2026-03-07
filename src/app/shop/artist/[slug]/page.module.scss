@@ -204,7 +204,7 @@
   background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
   padding: 0.58rem;
   display: grid;
-  grid-template-columns: 90px 1fr auto;
+  grid-template-columns: 90px 1fr;
   gap: 0.54rem;
   align-items: center;
 }
@@ -216,24 +216,32 @@
   object-fit: cover;
 }
 
-.trackCard h3 {
+.trackMeta h3 {
   margin: 0;
   color: var(--tg-text);
   font-size: 0.88rem;
 }
 
-.trackCard p {
+.trackMeta p {
   margin: 0.24rem 0 0;
   color: var(--tg-subtitle-text);
   font-size: 0.75rem;
 }
 
-.trackCard strong {
+.trackMeta strong {
   color: var(--tg-text);
   font-size: 0.8rem;
 }
 
-.trackCard button {
+.trackActions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.trackActions button,
+.trackActions a {
   border: 0;
   min-height: 2.1rem;
   border-radius: 0.6rem;
@@ -241,6 +249,21 @@
   color: var(--tg-accent);
   font-weight: 700;
   padding: 0 0.62rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.74rem;
+}
+
+.trackActions button:disabled {
+  opacity: 0.5;
+}
+
+.trackActions a {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
 }
 
 .empty {
@@ -261,5 +284,9 @@
   .trackCard img {
     width: 100%;
     height: 140px;
+  }
+
+  .trackActions {
+    grid-template-columns: 1fr;
   }
 }

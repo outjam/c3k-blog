@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -131,7 +132,7 @@ export default function SearchPage() {
             <div className={styles.releaseGrid}>
               {bundle.releases.map((release) => (
                 <Link key={release.slug} href={`/shop/${release.slug}`} className={styles.releaseCard}>
-                  <img src={release.image} alt={release.title} loading="lazy" />
+                  <Image src={release.image} alt={release.title} width={360} height={126} />
                   <div>
                     <strong>{release.title}</strong>
                     <p>{release.artistName || release.subtitle}</p>
@@ -155,7 +156,7 @@ export default function SearchPage() {
             <div className={styles.profileGrid}>
               {bundle.artists.map((artist) => (
                 <Link key={artist.slug} href={`/profile/${artist.slug}`} className={styles.profileCard}>
-                  {artist.avatarUrl ? <img src={artist.avatarUrl} alt={artist.displayName} loading="lazy" /> : <div>{artist.displayName.slice(0, 2).toUpperCase()}</div>}
+                  {artist.avatarUrl ? <Image src={artist.avatarUrl} alt={artist.displayName} width={45} height={45} /> : <div>{artist.displayName.slice(0, 2).toUpperCase()}</div>}
                   <article>
                     <strong>{artist.displayName}</strong>
                     <p>{artist.bio}</p>
@@ -179,7 +180,7 @@ export default function SearchPage() {
             <div className={styles.profileGrid}>
               {bundle.users.map((profile) => (
                 <Link key={profile.slug} href={`/profile/${profile.slug}`} className={styles.profileCard}>
-                  {profile.avatarUrl ? <img src={profile.avatarUrl} alt={profile.displayName} loading="lazy" /> : <div>{profile.displayName.slice(0, 2).toUpperCase()}</div>}
+                  {profile.avatarUrl ? <Image src={profile.avatarUrl} alt={profile.displayName} width={45} height={45} /> : <div>{profile.displayName.slice(0, 2).toUpperCase()}</div>}
                   <article>
                     <strong>{profile.displayName}</strong>
                     <p>{profile.bio}</p>
@@ -203,7 +204,7 @@ export default function SearchPage() {
             <div className={styles.blogList}>
               {bundle.blogPosts.map((post) => (
                 <Link key={post.slug} href={`/post/${post.slug}`} className={styles.blogItem}>
-                  <img src={post.cover} alt={post.title} loading="lazy" />
+                  <Image src={post.cover} alt={post.title} width={132} height={100} />
                   <div>
                     <strong>{post.title}</strong>
                     <p>{post.excerpt}</p>

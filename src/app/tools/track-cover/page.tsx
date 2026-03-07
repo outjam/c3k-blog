@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 import { hapticNotification, hapticSelection } from "@/lib/telegram";
@@ -350,7 +351,7 @@ export default function TrackCoverPage() {
                     onClick={() => handleSelectAudio(audio)}
                   >
                     {audio.artworkDataUrl ? (
-                      <img className={styles.profileArtwork} src={audio.artworkDataUrl} alt={`${audio.title} cover`} loading="lazy" />
+                      <Image className={styles.profileArtwork} src={audio.artworkDataUrl} alt={`${audio.title} cover`} width={56} height={56} unoptimized />
                     ) : (
                       <span className={styles.profileArtworkFallback}>♪</span>
                     )}
@@ -398,7 +399,7 @@ export default function TrackCoverPage() {
 
           return (
             <article key={item.id} className={`${styles.card} ${isSelected ? styles.cardSelected : ""}`}>
-              <img src={item.artworkUrl} alt={`${item.title} cover`} loading="lazy" />
+              <Image src={item.artworkUrl} alt={`${item.title} cover`} width={112} height={112} unoptimized />
               <div className={styles.meta}>
                 <h2>{item.title}</h2>
                 <p>{item.artist}</p>

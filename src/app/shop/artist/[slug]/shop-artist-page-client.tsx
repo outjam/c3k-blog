@@ -1,11 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { useGlobalPlayer } from "@/components/player/global-player-provider";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
+import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import { markShopOrderPaymentFailed } from "@/lib/shop-orders-api";
 import { payWithTelegramStars } from "@/lib/shop-payment";
@@ -34,6 +37,7 @@ interface SupportPayload {
 
 export function ShopArtistPageClient({ slug }: { slug: string }) {
   const router = useRouter();
+  const { playQueue, enqueueTracks } = useGlobalPlayer();
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const [artist, setArtist] = useState<ArtistProfile | null>(null);
@@ -117,6 +121,10 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
 
     return Math.max(1, parsed);
   }, [donationAmount]);
+
+  const playbackQueueByTrackId = useMemo(() => {
+    return new Map(tracks.map((track) => [track.id, buildReleasePlaybackQueue(track)]));
+  }, [tracks]);
 
   const runWalletSupport = async (kind: "donation" | "subscription") => {
     if (!artist) {
@@ -228,6 +236,30 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
     }
   };
 
+  const handlePlayRelease = (trackId: string) => {
+    const queue = playbackQueueByTrackId.get(trackId) ?? [];
+    if (queue.length === 0) {
+      setError("У релиза пока нет доступных preview-ссылок.");
+      return;
+    }
+
+    setError("");
+    playQueue(queue, 0);
+    hapticSelection();
+  };
+
+  const handleQueueRelease = (trackId: string) => {
+    const queue = playbackQueueByTrackId.get(trackId) ?? [];
+    if (queue.length === 0) {
+      setError("У релиза пока нет доступных preview-ссылок.");
+      return;
+    }
+
+    setError("");
+    enqueueTracks(queue);
+    hapticSelection();
+  };
+
   if (loading) {
     return <div className={styles.page}>Загрузка артиста...</div>;
   }
@@ -244,11 +276,11 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
-        {artist.coverUrl ? <img src={artist.coverUrl} alt={artist.displayName} className={styles.cover} /> : null}
+        {artist.coverUrl ? <Image src={artist.coverUrl} alt={artist.displayName} width={1200} height={170} className={styles.cover} /> : null}
         <div className={styles.heroBody}>
           <div className={styles.artistRow}>
             {artist.avatarUrl ? (
-              <img src={artist.avatarUrl} alt={artist.displayName} className={styles.avatar} />
+              <Image src={artist.avatarUrl} alt={artist.displayName} width={48} height={48} className={styles.avatar} />
             ) : (
               <div className={styles.avatarFallback}>{artist.displayName.slice(0, 2).toUpperCase()}</div>
             )}
@@ -338,14 +370,22 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
             {tracks.map((track) => (
               <article key={track.id} className={styles.trackCard}>
                 <Link href={`/shop/${track.slug}`}>
-                  <img src={track.image} alt={track.title} loading="lazy" />
+                  <Image src={track.image} alt={track.title} width={90} height={64} />
                 </Link>
-                <div>
+                <div className={styles.trackMeta}>
                   <h3>{track.title}</h3>
                   <p>{track.subtitle}</p>
                   <strong>{formatStarsFromCents(track.priceStarsCents)} ⭐</strong>
                 </div>
-                <Link href={`/shop/${track.slug}`}>Открыть релиз</Link>
+                <div className={styles.trackActions}>
+                  <button type="button" onClick={() => handlePlayRelease(track.id)} disabled={!playbackQueueByTrackId.get(track.id)?.length}>
+                    Слушать
+                  </button>
+                  <button type="button" onClick={() => handleQueueRelease(track.id)} disabled={!playbackQueueByTrackId.get(track.id)?.length}>
+                    В очередь
+                  </button>
+                  <Link href={`/shop/${track.slug}`}>Открыть релиз</Link>
+                </div>
               </article>
             ))}
           </div>

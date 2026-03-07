@@ -10,13 +10,14 @@ import { useGlobalPlayer } from "@/components/player/global-player-provider";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
-  appendPurchasedReleaseSlug,
+  appendPurchasedReleaseWithTracks,
   buildTelegramShareUrl,
   profileSlugFromIdentity,
   readWalletBalanceCents,
   resolveViewerKey,
   spendWalletBalanceCents,
 } from "@/lib/social-hub";
+import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
 import {
   clearReleaseReactionApi,
   createReleaseCommentApi,
@@ -99,28 +100,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const formats = getTrackFormats(product);
   const selectedPriceStarsCents = getProductPriceByFormat(product, selectedFormat);
   const releaseLabel = product.releaseType === "album" ? "Album" : product.releaseType === "ep" ? "EP" : "Single";
-  const releaseTracklist = product.releaseTracklist ?? [];
+  const releaseTracklist = useMemo(() => (Array.isArray(product.releaseTracklist) ? product.releaseTracklist : []), [product.releaseTracklist]);
   const releaseQueue = useMemo(() => {
-    return releaseTracklist
-      .map((track, index) => {
-        const sourceUrl = (track.previewUrl || product.previewUrl || "").trim();
-
-        if (!sourceUrl) {
-          return null;
-        }
-
-        return {
-          id: `${product.slug}:${track.id || index + 1}`,
-          title: track.title || `${product.title} #${index + 1}`,
-          artist: product.artistName || product.subtitle || "Culture3k",
-          coverUrl: product.image,
-          sourceUrl,
-          releaseSlug: product.slug,
-          durationSec: track.durationSec,
-        };
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-  }, [product.artistName, product.image, product.previewUrl, product.slug, product.subtitle, product.title, releaseTracklist]);
+    return buildReleasePlaybackQueue(product);
+  }, [product]);
 
   const handlePlayTrack = (index: number) => {
     if (releaseQueue.length === 0) {
@@ -167,7 +150,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       return;
     }
 
-    await appendPurchasedReleaseSlug(viewerKey, product.slug);
+    await appendPurchasedReleaseWithTracks(
+      viewerKey,
+      product.slug,
+      releaseTracklist.map((track) => track.id),
+    );
     setWalletBalanceCents(payment.balanceCents);
     setWalletMessage("Покупка оформлена с внутреннего баланса. Релиз добавлен в профиль.");
     hapticNotification("success");

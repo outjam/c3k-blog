@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -41,6 +42,7 @@ import styles from "./page.module.scss";
 interface SocialPerson {
   slug: string;
   displayName: string;
+  username?: string;
   avatarUrl?: string;
 }
 
@@ -389,6 +391,7 @@ export default function ProfilePage() {
           return {
             slug: profile.slug,
             displayName: profile.displayName,
+            username: profile.username,
             avatarUrl: profile.avatarUrl,
           } satisfies SocialPerson;
         }
@@ -397,6 +400,7 @@ export default function ProfilePage() {
         return {
           slug,
           displayName: hint?.displayName || slug,
+          username: hint?.username,
           avatarUrl: hint?.avatarUrl,
         } satisfies SocialPerson;
       });
@@ -411,6 +415,7 @@ export default function ProfilePage() {
           return {
             slug: profile.slug,
             displayName: profile.displayName,
+            username: profile.username,
             avatarUrl: profile.avatarUrl,
           } satisfies SocialPerson;
         }
@@ -419,6 +424,7 @@ export default function ProfilePage() {
         return {
           slug,
           displayName: hint?.displayName || slug,
+          username: hint?.username,
           avatarUrl: hint?.avatarUrl,
         } satisfies SocialPerson;
       });
@@ -647,9 +653,9 @@ export default function ProfilePage() {
         <section className={styles.hero}>
           <div className={styles.identityRow}>
             {currentProfile?.avatarUrl ? (
-              <img className={styles.avatarImage} src={currentProfile.avatarUrl} alt={currentProfile.displayName} />
+              <Image className={styles.avatarImage} src={currentProfile.avatarUrl} alt={currentProfile.displayName} width={55} height={55} />
             ) : user?.photo_url ? (
-              <img className={styles.avatarImage} src={user.photo_url} alt={fullName} />
+              <Image className={styles.avatarImage} src={user.photo_url} alt={fullName} width={55} height={55} />
             ) : (
               <div className={styles.avatarFallback}>{(currentProfile?.displayName || fullName).slice(0, 2).toUpperCase()}</div>
             )}
@@ -719,7 +725,7 @@ export default function ProfilePage() {
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2>Редактирование профиля</h2>
-              <p>instagram-style card</p>
+              <p>Публичные данные профиля</p>
             </div>
 
             <div className={styles.artistFormGrid}>
@@ -805,7 +811,7 @@ export default function ProfilePage() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Подписки и подписчики</h2>
-            <p>social graph</p>
+            <p>Ваши связи в сети</p>
           </div>
 
           <div className={styles.socialColumns}>
@@ -815,7 +821,17 @@ export default function ProfilePage() {
                 {followingProfilesPreview.length > 0 ? (
                   followingProfilesPreview.map((profile) => (
                     <article key={profile.slug} className={styles.personCard}>
-                      <Link href={`/profile/${profile.slug}`}>{profile.displayName}</Link>
+                      <Link href={`/profile/${profile.slug}`} className={styles.personIdentity}>
+                        {profile.avatarUrl ? (
+                          <Image src={profile.avatarUrl} alt={profile.displayName} width={33} height={33} />
+                        ) : (
+                          <div className={styles.personIdentityFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
+                        )}
+                        <span>
+                          <strong>{profile.displayName}</strong>
+                          <small>@{profile.username || profile.slug}</small>
+                        </span>
+                      </Link>
                       <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
                         Отписаться
                       </button>
@@ -833,7 +849,17 @@ export default function ProfilePage() {
                 {followerProfilesPreview.length > 0 ? (
                   followerProfilesPreview.map((profile) => (
                     <article key={profile.slug} className={styles.personCard}>
-                      <Link href={`/profile/${profile.slug}`}>{profile.displayName}</Link>
+                      <Link href={`/profile/${profile.slug}`} className={styles.personIdentity}>
+                        {profile.avatarUrl ? (
+                          <Image src={profile.avatarUrl} alt={profile.displayName} width={33} height={33} />
+                        ) : (
+                          <div className={styles.personIdentityFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
+                        )}
+                        <span>
+                          <strong>{profile.displayName}</strong>
+                          <small>@{profile.username || profile.slug}</small>
+                        </span>
+                      </Link>
                       <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
                         {followingSlugs.includes(profile.slug) ? "Подписан" : "Подписаться"}
                       </button>
@@ -864,7 +890,7 @@ export default function ProfilePage() {
                 purchasedReleases.map((release) => (
                   <article key={release.slug} className={styles.releaseCard}>
                     <Link href={`/shop/${release.slug}`}>
-                      <img src={release.image} alt={release.title} loading="lazy" />
+                      <Image src={release.image} alt={release.title} width={360} height={130} />
                     </Link>
                     <div>
                       <Link href={`/shop/${release.slug}`}>{release.title}</Link>
@@ -890,7 +916,7 @@ export default function ProfilePage() {
           <div className={styles.blogList}>
             {highlightedPosts.map((post) => (
               <Link key={post.slug} href={`/post/${post.slug}`} className={styles.blogCard}>
-                <img src={post.cover.src} alt={post.title} loading="lazy" />
+                <Image src={post.cover.src} alt={post.title} width={120} height={96} />
                 <div>
                   <strong>{post.title}</strong>
                   <p>{post.excerpt}</p>
@@ -1177,8 +1203,16 @@ export default function ProfilePage() {
               {socialOverlayPeople.length > 0 ? (
                 socialOverlayPeople.map((profile) => (
                   <article key={profile.slug} className={styles.personCard}>
-                    <Link href={`/profile/${profile.slug}`} onClick={() => setSocialOverlay(null)}>
-                      {profile.displayName}
+                    <Link href={`/profile/${profile.slug}`} className={styles.personIdentity} onClick={() => setSocialOverlay(null)}>
+                      {profile.avatarUrl ? (
+                        <Image src={profile.avatarUrl} alt={profile.displayName} width={33} height={33} />
+                      ) : (
+                        <div className={styles.personIdentityFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
+                      )}
+                      <span>
+                        <strong>{profile.displayName}</strong>
+                        <small>@{profile.username || profile.slug}</small>
+                      </span>
                     </Link>
                     {profile.slug !== viewerSlug ? (
                       <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -223,7 +224,7 @@ export default function ShopPage() {
                 <div className={styles.showcaseRail}>
                   {collection.products.slice(0, 12).map((product) => (
                     <Link key={`${collection.id}-${product.id}`} href={`/shop/${product.slug}`} className={styles.showcaseCard}>
-                      <img src={product.image} alt={product.title} loading="lazy" />
+                      <Image src={product.image} alt={product.title} width={180} height={118} />
                       <div>
                         <strong>{product.title}</strong>
                         <span>{formatStarsFromCents(product.priceStarsCents)} ⭐</span>
@@ -246,7 +247,7 @@ export default function ShopPage() {
               {catalogArtists.map((artist) => (
                 <Link key={artist.telegramUserId} href={`/shop/artist/${artist.slug}`} className={styles.artistCard}>
                   {artist.avatarUrl ? (
-                    <img src={artist.avatarUrl} alt={artist.displayName} loading="lazy" />
+                    <Image src={artist.avatarUrl} alt={artist.displayName} width={42} height={42} />
                   ) : (
                     <div className={styles.artistAvatarFallback}>{artist.displayName.slice(0, 2).toUpperCase()}</div>
                   )}

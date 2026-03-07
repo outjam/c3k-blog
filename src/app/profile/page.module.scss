@@ -329,11 +329,57 @@
   gap: 0.45rem;
 }
 
-.personCard a {
+.personIdentity {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.46rem;
   color: var(--tg-text);
   text-decoration: none;
-  font-size: 0.8rem;
+}
+
+.personIdentity img,
+.personIdentityFallback {
+  width: 2.06rem;
+  height: 2.06rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.personIdentity img {
+  object-fit: cover;
+}
+
+.personIdentityFallback {
+  display: grid;
+  place-items: center;
+  color: var(--tg-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--tg-accent) 20%, var(--tg-bg));
+}
+
+.personIdentity span {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.personIdentity strong {
+  font-size: 0.78rem;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personIdentity small {
+  color: var(--tg-subtitle-text);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .personCard button {

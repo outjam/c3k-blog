@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -82,7 +83,7 @@ export function AppFrame({ children }: AppFrameProps) {
         id: "profile",
         label: "Профиль",
         href: "/profile",
-        icon: profilePhotoUrl ? <img src={profilePhotoUrl} alt="" className={styles.profileAvatar} /> : <ProfileIcon />,
+        icon: profilePhotoUrl ? <Image src={profilePhotoUrl} alt="" width={28} height={28} className={styles.profileAvatar} /> : <ProfileIcon />,
       },
     ],
     [profilePhotoUrl],

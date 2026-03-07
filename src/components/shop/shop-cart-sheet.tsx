@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
 
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { CartItem, ShopProduct } from "@/types/shop";
@@ -69,7 +70,7 @@ export function ShopCartSheet({
 
                   return (
                     <article key={item.productId} className={styles.item}>
-                      <img src={product.image} alt={product.title} loading="lazy" />
+                      <Image src={product.image} alt={product.title} width={72} height={72} />
                       <div className={styles.itemBody}>
                         <h4>{product.title}</h4>
                         <p>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>

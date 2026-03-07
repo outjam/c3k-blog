@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -458,7 +459,7 @@ export default function ShopCartPage() {
 
                 return (
                   <article key={getCartItemKey(item)} className={styles.item}>
-                    <img src={product.image} alt={product.title} loading="lazy" />
+                    <Image src={product.image} alt={product.title} width={94} height={76} />
                     <div className={styles.itemBody}>
                       <h3>{product.title}</h3>
                       <p>

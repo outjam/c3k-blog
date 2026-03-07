@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -9,6 +10,7 @@ import {
   buildPublicProfiles,
   buildTelegramShareUrl,
   fetchFollowRelations,
+  profileSlugFromIdentity,
   readFollowOverview,
   readProfileMode,
   readPurchasedReleaseSlugs,
@@ -36,11 +38,22 @@ const normalizeSlug = (value: string): string => {
 interface SocialListEntry {
   slug: string;
   displayName: string;
+  username?: string;
+  avatarUrl?: string;
 }
 
 export function PublicProfilePageClient({ slug }: { slug: string }) {
   const { user } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
+  const viewerSlug = useMemo(
+    () =>
+      profileSlugFromIdentity({
+        username: user?.username,
+        telegramUserId: user?.id,
+        fallback: "me",
+      }),
+    [user?.id, user?.username],
+  );
   const targetSlug = useMemo(() => normalizeSlug(slug), [slug]);
   const appOrigin = useMemo(() => {
     if (typeof window === "undefined") {
@@ -66,7 +79,9 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
   const [socialLoading, setSocialLoading] = useState(false);
   const [socialFollowers, setSocialFollowers] = useState<string[]>([]);
   const [socialFollowing, setSocialFollowing] = useState<string[]>([]);
-  const [socialProfilesBySlug, setSocialProfilesBySlug] = useState<Record<string, { displayName: string }>>({});
+  const [socialProfilesBySlug, setSocialProfilesBySlug] = useState<
+    Record<string, { displayName: string; username?: string; avatarUrl?: string }>
+  >({});
 
   useEffect(() => {
     let mounted = true;
@@ -160,10 +175,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     });
     setFollowingSlugs(next);
 
-    const [overview, relations] = await Promise.all([
-      readFollowOverview([targetSlug, profile.slug, ...next]),
-      fetchFollowRelations(targetSlug),
-    ]);
+    const [overview, relations] = await Promise.all([readFollowOverview([targetSlug, profile.slug, ...next]), fetchFollowRelations(targetSlug)]);
 
     setFollowingSlugs(overview.followingSlugs);
     setFollowStatsBySlug(overview.statsBySlug);
@@ -174,7 +186,46 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       setSocialFollowing(relations.snapshot.followingSlugs);
       setSocialProfilesBySlug(
         Object.fromEntries(
-          Object.entries(relations.snapshot.profilesBySlug).map(([entrySlug, entry]) => [entrySlug, { displayName: entry.displayName }]),
+          Object.entries(relations.snapshot.profilesBySlug).map(([entrySlug, entry]) => [
+            entrySlug,
+            {
+              displayName: entry.displayName,
+              username: entry.username,
+              avatarUrl: entry.avatarUrl,
+            },
+          ]),
+        ),
+      );
+    }
+  };
+
+  const handleToggleSocialListFollow = async (entry: SocialListEntry) => {
+    const next = await toggleFollowingSlug(entry.slug, {
+      displayName: entry.displayName,
+      username: entry.username,
+      avatarUrl: entry.avatarUrl,
+    });
+    setFollowingSlugs(next);
+
+    const [overview, relations] = await Promise.all([readFollowOverview([targetSlug, entry.slug, ...next]), fetchFollowRelations(targetSlug)]);
+
+    setFollowingSlugs(overview.followingSlugs);
+    setFollowStatsBySlug(overview.statsBySlug);
+    setFollowProfilesBySlug(overview.profilesBySlug);
+
+    if (relations.snapshot) {
+      setSocialFollowers(relations.snapshot.followersSlugs);
+      setSocialFollowing(relations.snapshot.followingSlugs);
+      setSocialProfilesBySlug(
+        Object.fromEntries(
+          Object.entries(relations.snapshot.profilesBySlug).map(([entrySlug, relationProfile]) => [
+            entrySlug,
+            {
+              displayName: relationProfile.displayName,
+              username: relationProfile.username,
+              avatarUrl: relationProfile.avatarUrl,
+            },
+          ]),
         ),
       );
     }
@@ -197,7 +248,14 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     setSocialFollowing(result.snapshot.followingSlugs);
     setSocialProfilesBySlug(
       Object.fromEntries(
-        Object.entries(result.snapshot.profilesBySlug).map(([entrySlug, entry]) => [entrySlug, { displayName: entry.displayName }]),
+        Object.entries(result.snapshot.profilesBySlug).map(([entrySlug, entry]) => [
+          entrySlug,
+          {
+            displayName: entry.displayName,
+            username: entry.username,
+            avatarUrl: entry.avatarUrl,
+          },
+        ]),
       ),
     );
   };
@@ -207,6 +265,8 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     return source.map((entrySlug) => ({
       slug: entrySlug,
       displayName: socialProfilesBySlug[entrySlug]?.displayName || followProfilesBySlug[entrySlug]?.displayName || entrySlug,
+      username: socialProfilesBySlug[entrySlug]?.username || followProfilesBySlug[entrySlug]?.username,
+      avatarUrl: socialProfilesBySlug[entrySlug]?.avatarUrl || followProfilesBySlug[entrySlug]?.avatarUrl,
     }));
   }, [followProfilesBySlug, socialFollowers, socialFollowing, socialOverlay, socialProfilesBySlug]);
 
@@ -232,7 +292,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
         <section className={styles.hero}>
           <div className={styles.heroIdentity}>
             {profile.avatarUrl ? (
-              <img className={styles.avatarImage} src={profile.avatarUrl} alt={profile.displayName} />
+              <Image className={styles.avatarImage} src={profile.avatarUrl} alt={profile.displayName} width={53} height={53} />
             ) : (
               <div className={styles.avatarFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
             )}
@@ -311,7 +371,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
             <div className={styles.releaseGrid}>
               {releases.map((release) => (
                 <Link key={release.slug} href={`/shop/${release.slug}`} className={styles.releaseCard}>
-                  <img src={release.image} alt={release.title} loading="lazy" />
+                  <Image src={release.image} alt={release.title} width={360} height={125} />
                   <div>
                     <strong>{release.title}</strong>
                     <p>{release.artistName || release.subtitle}</p>
@@ -359,9 +419,25 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                 {socialList.length > 0 ? (
                   socialList.map((entry) => (
                     <article key={entry.slug} className={styles.personRow}>
-                      <Link href={`/profile/${entry.slug}`} onClick={() => setSocialOverlay(null)}>
-                        {entry.displayName}
+                      <Link href={`/profile/${entry.slug}`} className={styles.personIdentity} onClick={() => setSocialOverlay(null)}>
+                        {entry.avatarUrl ? (
+                          <Image src={entry.avatarUrl} alt={entry.displayName} width={34} height={34} />
+                        ) : (
+                          <div className={styles.personIdentityFallback}>{entry.displayName.slice(0, 2).toUpperCase()}</div>
+                        )}
+                        <span>
+                          <strong>{entry.displayName}</strong>
+                          <small>@{entry.username || entry.slug}</small>
+                        </span>
                       </Link>
+
+                      {entry.slug !== viewerSlug ? (
+                        <button type="button" onClick={() => void handleToggleSocialListFollow(entry)}>
+                          {followingSlugs.includes(entry.slug) ? "Отписаться" : "Подписаться"}
+                        </button>
+                      ) : (
+                        <span className={styles.selfBadge}>Вы</span>
+                      )}
                     </article>
                   ))
                 ) : (
