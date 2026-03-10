@@ -1,28 +1,28 @@
 .miniWrap {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom));
-  z-index: 55;
-  padding: 0 0.7rem;
-  display: grid;
+  left: calc(clamp(10px, 3vw, 24px) + var(--safe-area-left));
+  right: calc(clamp(10px, 3vw, 24px) + var(--safe-area-right));
+  bottom: calc(var(--safe-area-bottom) + 4px);
+  z-index: 36;
+  max-width: 680px;
+  margin: 0 auto;
 }
 
 .miniCard {
-  width: min(980px, 100%);
-  justify-self: center;
   border-radius: 1rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
-  background: color-mix(in srgb, var(--tg-section-bg) 88%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  background: color-mix(in srgb, #0e1117 92%, var(--tg-section-bg));
+  box-shadow: 0 14px 32px color-mix(in srgb, #000 40%, transparent);
+  backdrop-filter: blur(16px) saturate(1.06);
+  -webkit-backdrop-filter: blur(16px) saturate(1.06);
+  min-height: 3.35rem;
+  padding: 0.42rem;
   display: grid;
   grid-template-columns: 1fr auto;
+  gap: 0.34rem;
   align-items: center;
-  gap: 0.42rem;
-  min-height: 3.75rem;
-  padding: 0.4rem 0.46rem 0.4rem 0.42rem;
+  position: relative;
+  overflow: hidden;
 }
 
 .miniMain {
@@ -32,16 +32,16 @@
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.52rem;
   text-align: left;
   cursor: pointer;
 }
 
 .coverSmall,
 .coverSmallFallback {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.64rem;
+  width: 2.76rem;
+  height: 2.76rem;
+  border-radius: 0.72rem;
   flex-shrink: 0;
 }
 
@@ -55,7 +55,7 @@
   color: var(--tg-text);
   font-size: 1rem;
   font-weight: 800;
-  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-bg));
+  background: color-mix(in srgb, var(--tg-accent) 24%, var(--tg-bg));
 }
 
 .miniMeta {
@@ -68,69 +68,75 @@
   color: var(--tg-text);
   font-size: 0.82rem;
   line-height: 1.2;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .miniMeta small {
   color: var(--tg-subtitle-text);
   font-size: 0.72rem;
   line-height: 1.2;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .miniTimeline {
   color: var(--tg-hint);
-  font-size: 0.67rem;
-  line-height: 1.2;
-}
-
-.miniProgress {
-  display: block;
-  margin-top: 0.18rem;
-  width: 100%;
-  height: 0.24rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-separator) 45%, transparent);
-  overflow: hidden;
-}
-
-.miniProgress > span {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-accent) 82%, #99f0ff);
+  font-size: 0.66rem;
 }
 
 .miniActions {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.24rem;
 }
 
 .miniActions button {
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
   border-radius: 999px;
-  min-height: 1.95rem;
-  min-width: 1.95rem;
-  padding: 0 0.48rem;
+  min-height: 1.9rem;
+  min-width: 1.9rem;
+  padding: 0 0.42rem;
   background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
   color: var(--tg-text);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
+.playMainMini {
+  border: 0 !important;
+  background: color-mix(in srgb, var(--tg-accent) 78%, #f4f7ff) !important;
+  color: #05070b !important;
+}
+
 .miniActions button:disabled {
-  opacity: 0.5;
+  opacity: 0.52;
+}
+
+.miniProgress {
+  position: absolute;
+  left: 0.42rem;
+  right: 0.42rem;
+  bottom: 0.12rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+}
+
+.miniProgress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #fff3c0, color-mix(in srgb, var(--tg-accent) 84%, #99f0ff));
 }
 
 .fullOverlay {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 36;
   pointer-events: none;
 }
 
@@ -138,23 +144,23 @@
   position: absolute;
   inset: 0;
   border: 0;
-  background: color-mix(in srgb, #000 55%, transparent);
+  background: color-mix(in srgb, #000 58%, transparent);
   pointer-events: auto;
 }
 
 .fullSheet {
   position: absolute;
-  left: 0.7rem;
-  right: 0.7rem;
-  bottom: calc(var(--app-tabbar-height) + var(--safe-area-bottom) + 0.35rem);
-  width: min(980px, calc(100% - 1.4rem));
-  max-height: min(78vh, 760px);
-  overflow: auto;
+  left: calc(clamp(10px, 3vw, 24px) + var(--safe-area-left));
+  right: calc(clamp(10px, 3vw, 24px) + var(--safe-area-right));
+  bottom: calc(var(--safe-area-bottom) + 4px);
+  width: min(680px, calc(100% - 2 * clamp(10px, 3vw, 24px) - var(--safe-area-left) - var(--safe-area-right)));
+  max-height: min(calc(100dvh - var(--app-tabbar-height) - var(--safe-area-bottom) - 18px), 720px);
   margin: 0 auto;
-  border-radius: 1.15rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
-  background: color-mix(in srgb, var(--tg-section-bg) 94%, var(--tg-bg));
-  box-shadow: 0 28px 56px color-mix(in srgb, #000 40%, transparent);
+  border-radius: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
+  background: color-mix(in srgb, #05070b 95%, var(--tg-bg));
+  box-shadow: 0 24px 60px color-mix(in srgb, #000 52%, transparent);
+  overflow: auto;
   padding: 0.62rem;
   display: grid;
   gap: 0.58rem;
@@ -164,17 +170,16 @@
 .handleButton {
   border: 0;
   background: transparent;
-  min-height: 1.15rem;
+  min-height: 1rem;
   display: grid;
   place-items: center;
 }
 
 .handleButton span {
-  display: block;
-  width: 3.4rem;
-  height: 0.3rem;
+  width: 3.2rem;
+  height: 0.28rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-separator) 60%, transparent);
+  background: color-mix(in srgb, var(--tg-section-separator) 55%, transparent);
 }
 
 .fullCoverWrap {
@@ -200,25 +205,24 @@
   color: var(--tg-text);
   font-size: 2.4rem;
   font-weight: 800;
-  background: color-mix(in srgb, var(--tg-accent) 20%, var(--tg-bg));
+  background: color-mix(in srgb, var(--tg-accent) 22%, var(--tg-bg));
 }
 
 .fullMeta {
   display: grid;
   justify-items: center;
-  gap: 0.08rem;
   text-align: center;
+  gap: 0.08rem;
 }
 
 .fullMeta strong {
   color: var(--tg-text);
-  font-size: 1.05rem;
-  line-height: 1.2;
+  font-size: 1.06rem;
 }
 
 .fullMeta span {
   color: var(--tg-subtitle-text);
-  font-size: 0.86rem;
+  font-size: 0.84rem;
 }
 
 .fullMeta small {
@@ -250,10 +254,10 @@
 }
 
 .mainControls button {
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
   border-radius: 999px;
-  min-height: 2.4rem;
-  min-width: 2.4rem;
+  min-height: 2.42rem;
+  min-width: 2.42rem;
   padding: 0 0.72rem;
   background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
   color: var(--tg-text);
@@ -261,15 +265,15 @@
   font-weight: 700;
 }
 
-.mainControls button:disabled {
-  opacity: 0.5;
-}
-
 .mainPlay {
-  min-width: 5.1rem !important;
+  min-width: 5.2rem !important;
   border: 0 !important;
   background: var(--tg-btn) !important;
   color: var(--tg-btn-text) !important;
+}
+
+.mainControls button:disabled {
+  opacity: 0.5;
 }
 
 .secondaryRow {
@@ -282,17 +286,13 @@
 .volume {
   display: grid;
   grid-template-columns: auto 1fr;
-  align-items: center;
   gap: 0.46rem;
+  align-items: center;
 }
 
 .volume span {
   color: var(--tg-hint);
   font-size: 0.71rem;
-}
-
-.volume input[type="range"] {
-  width: 100%;
 }
 
 .secondaryActions {
@@ -312,8 +312,7 @@
 }
 
 .queuePanel {
-  max-height: 220px;
-  overflow: auto;
+  overflow: hidden;
   display: grid;
   gap: 0.34rem;
   border-top: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
@@ -322,7 +321,7 @@
 
 .queueItem {
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
-  border-radius: 0.6rem;
+  border-radius: 0.62rem;
   background: color-mix(in srgb, var(--tg-bg) 68%, var(--tg-section-bg));
   color: var(--tg-text);
   display: grid;
@@ -362,34 +361,20 @@
 
 @media (max-width: 700px) {
   .miniWrap {
-    padding: 0 0.5rem;
-  }
-
-  .miniCard {
-    min-height: 3.5rem;
-  }
-
-  .miniActions {
-    gap: 0.22rem;
-  }
-
-  .miniActions button {
-    min-height: 1.8rem;
-    min-width: 1.8rem;
-    padding: 0 0.38rem;
+    left: calc(10px + var(--safe-area-left));
+    right: calc(10px + var(--safe-area-right));
   }
 
   .fullSheet {
-    left: 0.5rem;
-    right: 0.5rem;
-    width: calc(100% - 1rem);
-    max-height: min(80vh, 720px);
-    padding: 0.55rem;
+    left: calc(10px + var(--safe-area-left));
+    right: calc(10px + var(--safe-area-right));
+    width: calc(100% - 20px - var(--safe-area-left) - var(--safe-area-right));
+    max-height: min(calc(100dvh - var(--app-tabbar-height) - var(--safe-area-bottom) - 10px), 700px);
   }
 
   .secondaryRow {
     grid-template-columns: 1fr;
-    gap: 0.34rem;
+    gap: 0.36rem;
   }
 }
 
@@ -398,11 +383,7 @@
     left: calc(240px + 1.9rem);
     right: 0.9rem;
     bottom: calc(0.9rem + var(--safe-area-bottom));
-    padding: 0;
-  }
-
-  .miniCard {
-    width: 100%;
+    max-width: none;
   }
 
   .fullSheet {
@@ -410,5 +391,7 @@
     right: 0.9rem;
     width: auto;
     bottom: calc(0.9rem + var(--safe-area-bottom));
+    max-height: min(calc(100dvh - 1.8rem - var(--safe-area-bottom)), 760px);
   }
 }
+

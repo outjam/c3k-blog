@@ -204,6 +204,11 @@
   max-width: 72ch;
 }
 
+.tonWalletHint {
+  font-size: 0.74rem !important;
+  color: var(--tg-hint) !important;
+}
+
 .walletValue {
   color: color-mix(in srgb, var(--tg-accent) 82%, var(--tg-text));
   font-size: clamp(1.2rem, 3.2vw, 1.7rem);
@@ -232,6 +237,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.tonConnectButton {
+  display: inline-flex;
 }
 
 .sectionHeader {
@@ -439,6 +448,20 @@
   color: var(--tg-accent);
   font-size: 0.74rem;
   font-weight: 700;
+}
+
+.releaseCard small {
+  color: var(--tg-hint);
+  font-size: 0.68rem;
+}
+
+.releaseFallback {
+  height: 130px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: var(--tg-subtitle-text);
+  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-bg));
 }
 
 .blogList {

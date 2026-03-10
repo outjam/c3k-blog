@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { TonConnectButton, useTonWallet } from "@tonconnect/ui-react";
 
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
@@ -16,6 +17,8 @@ import {
   buildPublicProfiles,
   buildTelegramShareUrl,
   fetchMyUserProfile,
+  readMintedReleaseNfts,
+  readTonWalletAddress,
   profileSlugFromIdentity,
   readFollowOverview,
   readProfileMode,
@@ -28,7 +31,9 @@ import {
   updateMyUserProfile,
   writeProfileMode,
   writePurchasesVisibility,
+  writeTonWalletAddress,
   type UserProfileEditorPayload,
+  type MintedReleaseNft,
 } from "@/lib/social-hub";
 import { FINAL_ORDER_STATUSES } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
@@ -98,6 +103,7 @@ const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTra
 };
 
 export default function ProfilePage() {
+  const tonWallet = useTonWallet();
   const { user, source, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const viewerSlug = useMemo(
@@ -129,6 +135,12 @@ export default function ProfilePage() {
     Record<string, { slug: string; displayName: string; username?: string; avatarUrl?: string; coverUrl?: string; bio?: string }>
   >({});
   const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
+  const [tonWalletAddress, setTonWalletAddress] = useState("");
+  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<MintedReleaseNft[]>([]);
+  const resolvedTonWalletAddress = useMemo(
+    () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
+    [tonWallet?.account?.address, tonWalletAddress],
+  );
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [products, setProducts] = useState<ShopProduct[]>([]);
@@ -229,12 +241,14 @@ export default function ProfilePage() {
     let mounted = true;
 
     void (async () => {
-      const [savedMode, balance, visibility, followOverview, purchases] = await Promise.all([
+      const [savedMode, balance, visibility, followOverview, purchases, connectedTonWalletAddress, mintedNfts] = await Promise.all([
         readProfileMode(viewerKey),
         readWalletBalanceCents(viewerKey),
         readPurchasesVisibility(viewerKey),
         readFollowOverview([viewerSlug]),
         readPurchasedReleaseSlugs(viewerKey),
+        readTonWalletAddress(viewerKey),
+        readMintedReleaseNfts(viewerKey),
       ]);
 
       if (!mounted) {
@@ -249,12 +263,28 @@ export default function ProfilePage() {
       setFollowStatsBySlug(followOverview.statsBySlug);
       setFollowProfilesBySlug(followOverview.profilesBySlug);
       setPurchasedReleaseSlugs(purchases);
+      setTonWalletAddress(connectedTonWalletAddress);
+      setMintedReleaseNfts(mintedNfts);
     })();
 
     return () => {
       mounted = false;
     };
   }, [viewerKey, viewerSlug]);
+
+  useEffect(() => {
+    const connectedAddress = String(tonWallet?.account?.address ?? "").trim();
+
+    if (!connectedAddress) {
+      return;
+    }
+
+    if (connectedAddress === tonWalletAddress) {
+      return;
+    }
+
+    void writeTonWalletAddress(viewerKey, connectedAddress);
+  }, [tonWallet?.account?.address, tonWalletAddress, viewerKey]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -441,6 +471,14 @@ export default function ProfilePage() {
     const bySlug = new Map(products.map((item) => [item.slug, item]));
     return allPurchasedReleaseSlugs.map((slug) => bySlug.get(slug)).filter((item): item is ShopProduct => Boolean(item));
   }, [allPurchasedReleaseSlugs, products]);
+  const mintedReleaseCards = useMemo(() => {
+    const bySlug = new Map(products.map((item) => [item.slug, item]));
+
+    return mintedReleaseNfts.map((nft) => ({
+      nft,
+      release: bySlug.get(nft.releaseSlug) ?? null,
+    }));
+  }, [mintedReleaseNfts, products]);
 
   const highlightedPosts = useMemo(() => posts.slice(0, 4), [posts]);
 
@@ -782,12 +820,18 @@ export default function ProfilePage() {
           <div>
             <h2>Внутренний баланс</h2>
             <p>Баланс пополняется Telegram Stars, с него оплачиваются релизы и донаты внутри платформы.</p>
+            <p className={styles.tonWalletHint}>
+              {resolvedTonWalletAddress
+                ? `TON-кошелек: ${resolvedTonWalletAddress.slice(0, 6)}...${resolvedTonWalletAddress.slice(-6)}`
+                : "TON-кошелек не подключен"}
+            </p>
           </div>
 
           <div className={styles.walletValue}>{formatStarsFromCents(walletCents)} ⭐</div>
 
           <div className={styles.walletActions}>
             <Link href="/balance">Пополнить баланс</Link>
+            <TonConnectButton className={styles.tonConnectButton} />
           </div>
         </section>
 
@@ -904,6 +948,36 @@ export default function ProfilePage() {
             </div>
           ) : (
             <p className={styles.emptyState}>Витрина покупок скрыта. Откройте её, чтобы друзья видели вашу коллекцию.</p>
+          )}
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>NFT в TON</h2>
+            <p>{mintedReleaseCards.length}</p>
+          </div>
+
+          {mintedReleaseCards.length > 0 ? (
+            <div className={styles.releaseGrid}>
+              {mintedReleaseCards.map(({ nft, release }) => (
+                <article key={nft.id} className={styles.releaseCard}>
+                  {release ? (
+                    <Link href={`/shop/${release.slug}`}>
+                      <Image src={release.image} alt={release.title} width={360} height={130} />
+                    </Link>
+                  ) : (
+                    <div className={styles.releaseFallback}>NFT</div>
+                  )}
+                  <div>
+                    <Link href={release ? `/shop/${release.slug}` : `/shop`}>{release?.title || nft.releaseSlug}</Link>
+                    <p>NFT minted • {new Date(nft.mintedAt).toLocaleDateString("ru-RU")}</p>
+                    <small>{`${nft.ownerAddress.slice(0, 6)}...${nft.ownerAddress.slice(-6)}`}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.emptyState}>Пока нет заминченных NFT. Купите релиз и заминтите его на странице релиза.</p>
           )}
         </section>
 

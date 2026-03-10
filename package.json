@@ -15,6 +15,8 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@tonconnect/ui": "^2.4.2",
+    "@tonconnect/ui-react": "^2.4.2",
     "maath": "^0.10.8",
     "motion": "^12.34.3",
     "next": "16.1.6",

@@ -4,18 +4,23 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import { useGlobalPlayer } from "@/components/player/global-player-provider";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
-  appendPurchasedReleaseWithTracks,
   buildTelegramShareUrl,
+  mintPurchasedReleaseNft,
+  purchaseReleaseWithWallet,
   profileSlugFromIdentity,
+  readMintedReleaseNfts,
+  readPurchasedReleaseSlugs,
+  readTonWalletAddress,
   readWalletBalanceCents,
   resolveViewerKey,
-  spendWalletBalanceCents,
+  writeTonWalletAddress,
 } from "@/lib/social-hub";
 import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
 import {
@@ -37,6 +42,8 @@ import styles from "./page.module.scss";
 export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
   const { playQueue } = useGlobalPlayer();
+  const [tonConnectUI] = useTonConnectUI();
+  const tonWallet = useTonWallet();
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const appOrigin = useMemo(() => {
@@ -50,7 +57,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState(() => getDefaultTrackFormat(product));
   const [walletBalanceCents, setWalletBalanceCents] = useState(0);
+  const [ownedReleaseSlugs, setOwnedReleaseSlugs] = useState<string[]>([]);
+  const [mintedReleaseSlugs, setMintedReleaseSlugs] = useState<string[]>([]);
+  const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [walletMessage, setWalletMessage] = useState("");
+  const [minting, setMinting] = useState(false);
 
   const [socialSnapshot, setSocialSnapshot] = useState<ReleaseSocialSnapshot | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -61,21 +72,26 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   useEffect(() => {
     let mounted = true;
 
-    void readFavoriteProductIds().then((ids) => {
-      if (mounted) {
-        setIsFavorite(ids.includes(product.id));
+    void Promise.all([
+      readFavoriteProductIds(),
+      readWalletBalanceCents(viewerKey),
+      readPurchasedReleaseSlugs(viewerKey),
+      readMintedReleaseNfts(viewerKey),
+      readTonWalletAddress(viewerKey),
+      fetchReleaseSocialSnapshot(product.slug),
+    ]).then(([favoriteIds, balance, purchasedReleaseSlugs, mintedReleaseNfts, persistedTonWalletAddress, releaseSocial]) => {
+      if (!mounted) {
+        return;
       }
-    });
 
-    void readWalletBalanceCents(viewerKey).then((balance) => {
-      if (mounted) {
-        setWalletBalanceCents(balance);
-      }
-    });
+      setIsFavorite(favoriteIds.includes(product.id));
+      setWalletBalanceCents(balance);
+      setOwnedReleaseSlugs(purchasedReleaseSlugs);
+      setMintedReleaseSlugs(mintedReleaseNfts.map((entry) => entry.releaseSlug));
+      setTonWalletAddress(persistedTonWalletAddress);
 
-    void fetchReleaseSocialSnapshot(product.slug).then((result) => {
-      if (mounted && result.snapshot) {
-        setSocialSnapshot(result.snapshot);
+      if (releaseSocial.snapshot) {
+        setSocialSnapshot(releaseSocial.snapshot);
       }
     });
 
@@ -83,6 +99,20 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       mounted = false;
     };
   }, [product.id, product.slug, viewerKey]);
+
+  useEffect(() => {
+    const connectedAddress = String(tonWallet?.account?.address ?? "").trim();
+
+    if (!connectedAddress) {
+      return;
+    }
+
+    if (connectedAddress === tonWalletAddress) {
+      return;
+    }
+
+    void writeTonWalletAddress(viewerKey, connectedAddress);
+  }, [tonWallet?.account?.address, tonWalletAddress, viewerKey]);
 
   const handleBack = useCallback(() => {
     hapticImpact("light");
@@ -104,6 +134,12 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const releaseQueue = useMemo(() => {
     return buildReleasePlaybackQueue(product);
   }, [product]);
+  const isPurchased = useMemo(() => ownedReleaseSlugs.includes(product.slug), [ownedReleaseSlugs, product.slug]);
+  const isMintedInTon = useMemo(() => mintedReleaseSlugs.includes(product.slug), [mintedReleaseSlugs, product.slug]);
+  const resolvedTonWalletAddress = useMemo(
+    () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
+    [tonWallet?.account?.address, tonWalletAddress],
+  );
 
   const handlePlayTrack = (index: number) => {
     if (releaseQueue.length === 0) {
@@ -142,21 +178,119 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       return;
     }
 
-    const payment = await spendWalletBalanceCents(viewerKey, selectedPriceStarsCents);
+    if (isPurchased) {
+      setWalletMessage("Этот релиз уже куплен. Повторная покупка недоступна.");
+      return;
+    }
+
+    const payment = await purchaseReleaseWithWallet(viewerKey, {
+      releaseSlug: product.slug,
+      trackIds: releaseTracklist.map((track) => track.id),
+      amountCents: selectedPriceStarsCents,
+    });
 
     if (!payment.ok) {
-      setWalletMessage("Недостаточно средств на внутреннем балансе.");
+      setWalletBalanceCents(payment.balanceCents);
+      setOwnedReleaseSlugs(payment.releaseSlugs);
+
+      if (payment.reason === "already_owned") {
+        setWalletMessage("Этот релиз уже куплен. Повторная покупка недоступна.");
+      } else {
+        setWalletMessage("Недостаточно средств на внутреннем балансе.");
+      }
+
       hapticNotification("warning");
       return;
     }
 
-    await appendPurchasedReleaseWithTracks(
-      viewerKey,
-      product.slug,
-      releaseTracklist.map((track) => track.id),
-    );
     setWalletBalanceCents(payment.balanceCents);
+    setOwnedReleaseSlugs(payment.releaseSlugs);
     setWalletMessage("Покупка оформлена с внутреннего баланса. Релиз добавлен в профиль.");
+    hapticNotification("success");
+  };
+
+  const handleMintNft = async () => {
+    if (minting) {
+      return;
+    }
+
+    if (!user?.id) {
+      setWalletMessage("Для минта войдите через Telegram Widget.");
+      return;
+    }
+
+    if (!isPurchased) {
+      setWalletMessage("Сначала купите релиз, затем можно заминтить NFT.");
+      return;
+    }
+
+    if (isMintedInTon) {
+      setWalletMessage("NFT для этого релиза уже заминчен.");
+      return;
+    }
+
+    const connectedAddress = resolvedTonWalletAddress;
+    if (!connectedAddress) {
+      setWalletMessage("Подключите TON-кошелек через Ton Connect.");
+      return;
+    }
+
+    setMinting(true);
+    setWalletMessage("");
+
+    let txHash = "";
+
+    const mintRecipient = String(process.env.NEXT_PUBLIC_TON_MINT_ADDRESS || process.env.NEXT_PUBLIC_TON_TOPUP_ADDRESS || "").trim();
+    const mintFeeNano = Math.max(
+      1,
+      Math.round(Number(process.env.NEXT_PUBLIC_TON_MINT_FEE_NANO ?? "50000000")),
+    );
+
+    if (!mintRecipient) {
+      setMinting(false);
+      setWalletMessage("Не настроен адрес минта TON в окружении.");
+      return;
+    }
+
+    try {
+      const txResult = await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 10 * 60,
+        messages: [
+          {
+            address: mintRecipient,
+            amount: String(mintFeeNano),
+          },
+        ],
+      });
+
+      txHash = typeof txResult?.boc === "string" ? txResult.boc.slice(0, 256) : "";
+    } catch {
+      setMinting(false);
+      setWalletMessage("Минт отменен или транзакция TON не подтверждена.");
+      return;
+    }
+
+    const mintResult = await mintPurchasedReleaseNft(viewerKey, {
+      releaseSlug: product.slug,
+      ownerAddress: connectedAddress,
+      txHash,
+      collectionAddress: String(process.env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS ?? "").trim() || undefined,
+    });
+
+    setMinting(false);
+
+    if (!mintResult.ok) {
+      setWalletMessage(
+        mintResult.reason === "wallet_required"
+          ? "Для минта нужен подключенный TON-кошелек."
+          : "Нельзя заминтить релиз без покупки.",
+      );
+      return;
+    }
+
+    setMintedReleaseSlugs(mintResult.mintedReleaseNfts.map((entry) => entry.releaseSlug));
+    setTonWalletAddress(connectedAddress);
+    setWalletMessage(mintResult.alreadyMinted ? "NFT уже заминчен ранее." : "Релиз заминчен в TON и добавлен в коллекцию.");
     hapticNotification("success");
   };
 
@@ -323,15 +457,32 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
             <p>
               Внутренний баланс: <strong>{formatStarsFromCents(walletBalanceCents)} ⭐</strong>
             </p>
+            <p className={styles.purchaseState}>{isPurchased ? "Релиз уже куплен и в вашей коллекции." : "Релиз еще не куплен."}</p>
             <div className={styles.socialBuyActions}>
-              <button type="button" className={styles.addButton} onClick={buyWithWallet}>
-                Купить с баланса
+              <button type="button" className={styles.addButton} onClick={buyWithWallet} disabled={isPurchased}>
+                {isPurchased ? "Уже куплено" : "Купить с баланса"}
               </button>
               <button type="button" className={styles.addButton} onClick={sharePurchase}>
                 Поделиться покупкой в Telegram
               </button>
             </div>
             {walletMessage ? <p className={styles.walletMessage}>{walletMessage}</p> : null}
+          </section>
+
+          <section className={styles.nftSection}>
+            <div className={styles.releaseCommentsHead}>
+              <h2>Mint в TON (Gift-механика)</h2>
+              <p>{isMintedInTon ? "minted" : "off-chain"}</p>
+            </div>
+            <p>
+              Покупка хранится оффчейн в профиле. После покупки можно заминтить релиз как NFT в сети TON и держать в кошельке.
+            </p>
+            <div className={styles.nftActions}>
+              <TonConnectButton className={styles.tonConnectButton} />
+              <button type="button" className={styles.addButton} disabled={!isPurchased || isMintedInTon || minting} onClick={() => void handleMintNft()}>
+                {isMintedInTon ? "NFT уже заминчен" : minting ? "Минтим..." : "Заминтить в TON"}
+              </button>
+            </div>
           </section>
 
           <button type="button" className={styles.addButton} onClick={toggleFavorite}>

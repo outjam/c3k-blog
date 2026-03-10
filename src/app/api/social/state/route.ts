@@ -7,11 +7,16 @@ import {
   appendSocialPurchasedReleaseWithTracks,
   appendSocialPurchasedTrackKey,
   appendSocialPurchasedTrackKeys,
+  clearSocialTonWalletAddress,
   getSocialUserPublicPurchasesBySlug,
   getSocialUserSnapshot,
+  mintSocialPurchasedReleaseNft,
+  purchaseSocialReleaseWithWallet,
   redeemSocialTopupPromoCode,
   setSocialPurchasesVisibility,
+  setSocialTonWalletAddress,
   spendSocialWalletBalanceCents,
+  topUpSocialWalletBalanceFromTonCents,
   topUpSocialWalletBalanceCents,
 } from "@/lib/server/social-user-state-store";
 
@@ -26,6 +31,10 @@ interface StateMutateBody {
   trackId?: unknown;
   trackIds?: unknown;
   code?: unknown;
+  address?: unknown;
+  txHash?: unknown;
+  collectionAddress?: unknown;
+  ownerAddress?: unknown;
 }
 
 const normalizePositiveInt = (value: unknown): number => {
@@ -66,6 +75,19 @@ const normalizePromoCode = (value: unknown): string => {
     .toUpperCase()
     .replace(/[^A-Z0-9_-]/g, "")
     .slice(0, 24);
+};
+
+const normalizeTonAddress = (value: unknown): string => {
+  return String(value ?? "")
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/g, "")
+    .slice(0, 160);
+};
+
+const normalizeOptionalText = (value: unknown, maxLength: number): string | undefined => {
+  const normalized = String(value ?? "").trim().slice(0, maxLength);
+  return normalized || undefined;
 };
 
 const normalizeTrackIdList = (value: unknown): string[] => {
@@ -209,6 +231,16 @@ export async function POST(request: Request) {
 
       return NextResponse.json({ walletCents });
     }
+    case "wallet_topup_ton": {
+      const amountCents = normalizePositiveInt(payload.amountCents);
+      const result = await topUpSocialWalletBalanceFromTonCents(auth.telegramUserId, amountCents);
+
+      if (!result) {
+        return serverError("Failed to top up wallet balance from TON");
+      }
+
+      return NextResponse.json(result);
+    }
     case "wallet_spend": {
       const result = await spendSocialWalletBalanceCents(auth.telegramUserId, normalizePositiveInt(payload.amountCents));
 
@@ -226,6 +258,44 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ purchasesVisible });
+    }
+    case "ton_wallet_set": {
+      const address = normalizeTonAddress(payload.address);
+      if (!address) {
+        return NextResponse.json({ error: "address is required" }, { status: 400 });
+      }
+
+      const tonWalletAddress = await setSocialTonWalletAddress(auth.telegramUserId, address);
+      if (!tonWalletAddress) {
+        return serverError("Failed to set TON wallet address");
+      }
+
+      return NextResponse.json({ tonWalletAddress });
+    }
+    case "ton_wallet_clear": {
+      const cleared = await clearSocialTonWalletAddress(auth.telegramUserId);
+      if (!cleared) {
+        return serverError("Failed to clear TON wallet address");
+      }
+
+      return NextResponse.json({ tonWalletAddress: null });
+    }
+    case "release_wallet_purchase": {
+      const releaseSlug = normalizeSlug(payload.releaseSlug);
+      const trackIds = normalizeTrackIdList(payload.trackIds);
+      const amountCents = normalizePositiveInt(payload.amountCents);
+
+      if (!releaseSlug || amountCents < 1) {
+        return NextResponse.json({ error: "releaseSlug and amountCents are required" }, { status: 400 });
+      }
+
+      const result = await purchaseSocialReleaseWithWallet(auth.telegramUserId, releaseSlug, trackIds, amountCents);
+
+      if (!result) {
+        return serverError("Failed to purchase release with wallet");
+      }
+
+      return NextResponse.json(result);
     }
     case "release_append": {
       const releaseSlug = normalizeSlug(payload.releaseSlug);
@@ -285,6 +355,25 @@ export async function POST(request: Request) {
 
       if (!result) {
         return serverError("Failed to update purchased release with tracks");
+      }
+
+      return NextResponse.json(result);
+    }
+    case "release_nft_mint": {
+      const releaseSlug = normalizeSlug(payload.releaseSlug);
+      if (!releaseSlug) {
+        return NextResponse.json({ error: "releaseSlug is required" }, { status: 400 });
+      }
+
+      const result = await mintSocialPurchasedReleaseNft(auth.telegramUserId, {
+        releaseSlug,
+        ownerAddress: normalizeTonAddress(payload.ownerAddress),
+        txHash: normalizeOptionalText(payload.txHash, 256),
+        collectionAddress: normalizeTonAddress(payload.collectionAddress),
+      });
+
+      if (!result) {
+        return serverError("Failed to mint release NFT");
       }
 
       return NextResponse.json(result);

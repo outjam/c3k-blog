@@ -4,6 +4,7 @@ import Script from "next/script";
 
 import { AppFrame } from "@/components/app-frame";
 import { GlobalPlayerProvider } from "@/components/player/global-player-provider";
+import { TonConnectProvider } from "@/components/ton/ton-connect-provider";
 import { ScrollPositionManager } from "@/components/scroll-position-manager";
 import { TelegramMiniAppProvider } from "@/components/telegram-mini-app-provider";
 
@@ -34,10 +35,12 @@ export default function RootLayout({
       <body className={manrope.variable}>
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <TelegramMiniAppProvider>
-          <ScrollPositionManager />
-          <GlobalPlayerProvider>
-            <AppFrame>{children}</AppFrame>
-          </GlobalPlayerProvider>
+          <TonConnectProvider>
+            <ScrollPositionManager />
+            <GlobalPlayerProvider>
+              <AppFrame>{children}</AppFrame>
+            </GlobalPlayerProvider>
+          </TonConnectProvider>
         </TelegramMiniAppProvider>
       </body>
     </html>

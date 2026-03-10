@@ -2,17 +2,22 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { topUpWalletWithTelegramStars } from "@/lib/shop-payment";
 import {
+  clearTonWalletAddress,
+  readTonWalletAddress,
   readRedeemedTopupPromoCodes,
   readWalletBalanceCents,
   redeemTopupPromoCode,
   resolveViewerKey,
+  topUpWalletBalanceFromTonCents,
   topUpWalletBalanceCents,
+  writeTonWalletAddress,
 } from "@/lib/social-hub";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { PromoDiscountType } from "@/types/shop";
@@ -20,6 +25,11 @@ import type { PromoDiscountType } from "@/types/shop";
 import styles from "./page.module.scss";
 
 const PRESET_STARS = [10, 25, 50] as const;
+const TON_NANO_PER_TON = 1_000_000_000;
+const TON_TOPUP_STARS_CENTS_PER_TON = Math.max(
+  1,
+  Math.round(Number(process.env.NEXT_PUBLIC_TON_TOPUP_STARS_CENTS_PER_TON ?? "25000")),
+);
 
 interface PromoRule {
   code: string;
@@ -50,15 +60,20 @@ const calcBonusCents = (baseCents: number, rule: PromoRule | null): number => {
 };
 
 export default function BalancePage() {
+  const [tonConnectUI] = useTonConnectUI();
+  const tonWallet = useTonWallet();
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
 
   const [walletCents, setWalletCents] = useState(0);
+  const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [promoRules, setPromoRules] = useState<PromoRule[]>([]);
   const [redeemedCodes, setRedeemedCodes] = useState<string[]>([]);
   const [customStars, setCustomStars] = useState("25");
+  const [customTon, setCustomTon] = useState("0.2");
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [loadingStars, setLoadingStars] = useState<number | null>(null);
+  const [loadingTon, setLoadingTon] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -68,12 +83,14 @@ export default function BalancePage() {
       readWalletBalanceCents(viewerKey),
       fetchPublicCatalog(),
       readRedeemedTopupPromoCodes(viewerKey),
-    ]).then(([balance, catalog, redeemed]) => {
+      readTonWalletAddress(viewerKey),
+    ]).then(([balance, catalog, redeemed, persistedTonWalletAddress]) => {
       if (!mounted) {
         return;
       }
 
       setWalletCents(balance);
+      setTonWalletAddress(persistedTonWalletAddress);
       setPromoRules(
         (catalog.promoRules ?? []).map((rule) => ({
           code: normalizePromoCode(rule.code),
@@ -91,6 +108,10 @@ export default function BalancePage() {
   }, [viewerKey]);
 
   const normalizedPromoCode = useMemo(() => normalizePromoCode(promoCodeInput), [promoCodeInput]);
+  const resolvedTonWalletAddress = useMemo(
+    () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
+    [tonWallet?.account?.address, tonWalletAddress],
+  );
   const selectedPromo = useMemo(
     () => promoRules.find((rule) => rule.code === normalizedPromoCode) ?? null,
     [normalizedPromoCode, promoRules],
@@ -99,6 +120,20 @@ export default function BalancePage() {
     () => (normalizedPromoCode ? redeemedCodes.includes(normalizedPromoCode) : false),
     [normalizedPromoCode, redeemedCodes],
   );
+
+  useEffect(() => {
+    const connectedAddress = String(tonWallet?.account?.address ?? "").trim();
+
+    if (!connectedAddress) {
+      return;
+    }
+
+    if (connectedAddress === tonWalletAddress) {
+      return;
+    }
+
+    void writeTonWalletAddress(viewerKey, connectedAddress);
+  }, [tonWallet?.account?.address, tonWalletAddress, viewerKey]);
 
   const runTopUp = async (amountStars: number) => {
     if (!user?.id) {
@@ -142,6 +177,72 @@ export default function BalancePage() {
     );
   };
 
+  const runTonTopUp = async () => {
+    if (!user?.id) {
+      setMessage("Для крипто-пополнения сначала войдите через Telegram.");
+      return;
+    }
+
+    const recipientAddress = String(process.env.NEXT_PUBLIC_TON_TOPUP_ADDRESS ?? "").trim();
+    if (!recipientAddress) {
+      setMessage("Не настроен TON-адрес для пополнений.");
+      return;
+    }
+
+    const amountTon = Number(customTon);
+    if (!Number.isFinite(amountTon) || amountTon <= 0) {
+      setMessage("Введите корректную сумму TON.");
+      return;
+    }
+
+    const amountNano = Math.max(1, Math.round(amountTon * TON_NANO_PER_TON));
+    const connectedAddress = resolvedTonWalletAddress;
+    if (!connectedAddress) {
+      setMessage("Подключите TON-кошелек через Ton Connect.");
+      return;
+    }
+
+    setLoadingTon(true);
+    setMessage("");
+
+    let txHash = "";
+    try {
+      const txResult = await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 10 * 60,
+        messages: [
+          {
+            address: recipientAddress,
+            amount: String(amountNano),
+          },
+        ],
+      });
+
+      txHash = typeof txResult?.boc === "string" ? txResult.boc.slice(0, 256) : "";
+    } catch {
+      setLoadingTon(false);
+      setMessage("Транзакция TON отменена или не подтверждена.");
+      return;
+    }
+
+    const creditedCents = Math.max(1, Math.round((amountNano / TON_NANO_PER_TON) * TON_TOPUP_STARS_CENTS_PER_TON));
+    const topup = await topUpWalletBalanceFromTonCents(viewerKey, creditedCents, txHash);
+    setWalletCents(topup.walletCents);
+    setTonWalletAddress(connectedAddress);
+    setLoadingTon(false);
+    setMessage(`TON-пополнение подтверждено: +${formatStarsFromCents(topup.creditedCents)} ⭐ на внутренний баланс.`);
+  };
+
+  const disconnectTonWallet = async () => {
+    try {
+      await tonConnectUI.disconnect();
+    } catch {
+      // ignore disconnect UI errors
+    }
+
+    setTonWalletAddress("");
+    await clearTonWalletAddress(viewerKey);
+  };
+
   const customAmount = Math.max(1, Math.round(Number(customStars || "1")));
 
   return (
@@ -173,6 +274,38 @@ export default function BalancePage() {
             <button type="button" disabled={loadingStars === customAmount} onClick={() => void runTopUp(customAmount)}>
               {loadingStars === customAmount ? "Оплата..." : "Пополнить"}
             </button>
+          </div>
+
+          <div className={styles.tonBlock}>
+            <div className={styles.tonHead}>
+              <h2>TON Connect</h2>
+              <TonConnectButton className={styles.tonConnectButton} />
+            </div>
+            <p className={styles.tonHint}>
+              {resolvedTonWalletAddress
+                ? `Кошелек подключен: ${resolvedTonWalletAddress.slice(0, 6)}...${resolvedTonWalletAddress.slice(-6)}`
+                : "Подключите TON-кошелек для крипто-пополнения."}
+            </p>
+            <div className={styles.customRow}>
+              <label>
+                Сумма пополнения (TON)
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={customTon}
+                  onChange={(event) => setCustomTon(event.target.value)}
+                />
+              </label>
+              <button type="button" disabled={loadingTon} onClick={() => void runTonTopUp()}>
+                {loadingTon ? "Транзакция..." : "Пополнить через TON"}
+              </button>
+            </div>
+            {resolvedTonWalletAddress ? (
+              <button type="button" className={styles.disconnectButton} onClick={() => void disconnectTonWallet()}>
+                Отключить TON-кошелек
+              </button>
+            ) : null}
           </div>
 
           <div className={styles.promoBlock}>

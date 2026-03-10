@@ -21,7 +21,19 @@ interface SocialUserState {
   purchasedReleaseSlugsByUserId: Record<string, string[]>;
   purchasedTrackKeysByUserId: Record<string, string[]>;
   redeemedTopupPromoCodesByUserId: Record<string, string[]>;
+  tonWalletAddressByUserId: Record<string, string>;
+  mintedReleaseNftsByUserId: Record<string, SocialMintedReleaseNft[]>;
   updatedAt: string;
+}
+
+export interface SocialMintedReleaseNft {
+  id: string;
+  releaseSlug: string;
+  ownerAddress: string;
+  collectionAddress?: string;
+  txHash?: string;
+  mintedAt: string;
+  status: "minted";
 }
 
 export interface SocialUserSnapshot {
@@ -30,6 +42,8 @@ export interface SocialUserSnapshot {
   purchasedReleaseSlugs: string[];
   purchasedTrackKeys: string[];
   redeemedTopupPromoCodes: string[];
+  tonWalletAddress?: string;
+  mintedReleaseNfts: SocialMintedReleaseNft[];
 }
 
 const normalizeText = (value: unknown, maxLength: number): string => {
@@ -80,6 +94,14 @@ const normalizePromoCode = (value: unknown): string => {
     .toUpperCase()
     .replace(/[^A-Z0-9_-]/g, "")
     .slice(0, 24);
+};
+
+const normalizeTonAddress = (value: unknown): string => {
+  return String(value ?? "")
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/g, "")
+    .slice(0, 160);
 };
 
 const toTrackPurchaseKey = (releaseSlug: unknown, trackId: unknown): string => {
@@ -155,6 +177,84 @@ const normalizePromoCodeList = (value: unknown): string[] => {
     });
 };
 
+const normalizeMintedNftId = (value: unknown, fallback: string): string => {
+  const normalized = String(value ?? "")
+    .normalize("NFC")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96);
+
+  return normalized || fallback;
+};
+
+const normalizeOptionalText = (value: unknown, maxLength: number): string | undefined => {
+  const normalized = normalizeText(value, maxLength);
+  return normalized || undefined;
+};
+
+const normalizeIsoDateTime = (value: unknown, fallbackIso: string): string => {
+  const normalized = normalizeText(value, 120);
+  const timestamp = Date.parse(normalized);
+
+  if (normalized && Number.isFinite(timestamp)) {
+    return new Date(timestamp).toISOString();
+  }
+
+  return fallbackIso;
+};
+
+const normalizeMintedReleaseNft = (value: unknown): SocialMintedReleaseNft | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  const releaseSlug = normalizeSlug(source.releaseSlug);
+  const ownerAddress = normalizeTonAddress(source.ownerAddress);
+
+  if (!releaseSlug || !ownerAddress) {
+    return null;
+  }
+
+  const mintedAt = normalizeIsoDateTime(source.mintedAt, new Date().toISOString());
+  const fallbackId = `nft:${releaseSlug}:${mintedAt}`;
+  const id = normalizeMintedNftId(source.id, fallbackId);
+
+  return {
+    id,
+    releaseSlug,
+    ownerAddress,
+    collectionAddress: normalizeOptionalText(normalizeTonAddress(source.collectionAddress), 160),
+    txHash: normalizeOptionalText(source.txHash, 256),
+    mintedAt,
+    status: "minted",
+  };
+};
+
+const normalizeMintedReleaseNftList = (value: unknown): SocialMintedReleaseNft[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenByRelease = new Set<string>();
+  const normalized = value
+    .map((entry) => normalizeMintedReleaseNft(entry))
+    .filter((entry): entry is SocialMintedReleaseNft => Boolean(entry))
+    .filter((entry) => {
+      if (seenByRelease.has(entry.releaseSlug)) {
+        return false;
+      }
+
+      seenByRelease.add(entry.releaseSlug);
+      return true;
+    });
+
+  return normalized.sort((a, b) => Date.parse(b.mintedAt) - Date.parse(a.mintedAt));
+};
+
 const sanitizeState = (value: unknown): SocialUserState => {
   const now = new Date().toISOString();
 
@@ -165,6 +265,8 @@ const sanitizeState = (value: unknown): SocialUserState => {
       purchasedReleaseSlugsByUserId: {},
       purchasedTrackKeysByUserId: {},
       redeemedTopupPromoCodesByUserId: {},
+      tonWalletAddressByUserId: {},
+      mintedReleaseNftsByUserId: {},
       updatedAt: now,
     };
   }
@@ -221,12 +323,35 @@ const sanitizeState = (value: unknown): SocialUserState => {
         )
       : {};
 
+  const tonWalletAddressByUserId =
+    source.tonWalletAddressByUserId && typeof source.tonWalletAddressByUserId === "object"
+      ? Object.fromEntries(
+          Object.entries(source.tonWalletAddressByUserId as Record<string, unknown>).flatMap(([rawUserId, rawValue]) => {
+            const userId = normalizeUserId(rawUserId);
+            const address = normalizeTonAddress(rawValue);
+            return userId && address ? [[userId, address]] : [];
+          }),
+        )
+      : {};
+
+  const mintedReleaseNftsByUserId =
+    source.mintedReleaseNftsByUserId && typeof source.mintedReleaseNftsByUserId === "object"
+      ? Object.fromEntries(
+          Object.entries(source.mintedReleaseNftsByUserId as Record<string, unknown>).flatMap(([rawUserId, rawValue]) => {
+            const userId = normalizeUserId(rawUserId);
+            return userId ? [[userId, normalizeMintedReleaseNftList(rawValue)]] : [];
+          }),
+        )
+      : {};
+
   return {
     walletCentsByUserId,
     purchasesVisibleByUserId,
     purchasedReleaseSlugsByUserId,
     purchasedTrackKeysByUserId,
     redeemedTopupPromoCodesByUserId,
+    tonWalletAddressByUserId,
+    mintedReleaseNftsByUserId,
     updatedAt: normalizeText(source.updatedAt, 120) || now,
   };
 };
@@ -419,6 +544,8 @@ const resolveUserKeyByProfileSlug = async (slug: string): Promise<string> => {
 };
 
 const buildSnapshot = (state: SocialUserState, userKey: string): SocialUserSnapshot => {
+  const tonWalletAddress = normalizeTonAddress(state.tonWalletAddressByUserId[userKey]);
+
   return {
     walletCents: normalizeNonNegativeInt(state.walletCentsByUserId[userKey]),
     purchasesVisible:
@@ -426,6 +553,8 @@ const buildSnapshot = (state: SocialUserState, userKey: string): SocialUserSnaps
     purchasedReleaseSlugs: normalizeStringList(state.purchasedReleaseSlugsByUserId[userKey]),
     purchasedTrackKeys: normalizeTrackPurchaseKeyList(state.purchasedTrackKeysByUserId[userKey]),
     redeemedTopupPromoCodes: normalizePromoCodeList(state.redeemedTopupPromoCodesByUserId[userKey]),
+    tonWalletAddress: tonWalletAddress || undefined,
+    mintedReleaseNfts: normalizeMintedReleaseNftList(state.mintedReleaseNftsByUserId[userKey]),
   };
 };
 
@@ -789,5 +918,294 @@ export const redeemSocialTopupPromoCode = async (
     normalizedCode,
     alreadyRedeemed: false,
     redeemedCodes,
+  };
+};
+
+export const setSocialTonWalletAddress = async (telegramUserId: number, address: string): Promise<string | null> => {
+  const userKey = resolveUserKey(telegramUserId);
+  const normalizedAddress = normalizeTonAddress(address);
+
+  if (!userKey || !normalizedAddress) {
+    return null;
+  }
+
+  const next = await mutateState((current) => ({
+    ...current,
+    tonWalletAddressByUserId: {
+      ...current.tonWalletAddressByUserId,
+      [userKey]: normalizedAddress,
+    },
+  }));
+
+  if (!next) {
+    return null;
+  }
+
+  return buildSnapshot(next, userKey).tonWalletAddress ?? null;
+};
+
+export const clearSocialTonWalletAddress = async (telegramUserId: number): Promise<boolean | null> => {
+  const userKey = resolveUserKey(telegramUserId);
+
+  if (!userKey) {
+    return null;
+  }
+
+  const next = await mutateState((current) => {
+    const cloned = { ...current.tonWalletAddressByUserId };
+    delete cloned[userKey];
+
+    return {
+      ...current,
+      tonWalletAddressByUserId: cloned,
+    };
+  });
+
+  return Boolean(next);
+};
+
+export const topUpSocialWalletBalanceFromTonCents = async (
+  telegramUserId: number,
+  amountCents: number,
+): Promise<{ walletCents: number; creditedCents: number } | null> => {
+  const creditedCents = Math.max(1, normalizeNonNegativeInt(amountCents));
+  const walletCents = await topUpSocialWalletBalanceCents(telegramUserId, creditedCents);
+
+  if (walletCents === null) {
+    return null;
+  }
+
+  return {
+    walletCents,
+    creditedCents,
+  };
+};
+
+export const purchaseSocialReleaseWithWallet = async (
+  telegramUserId: number,
+  releaseSlug: string,
+  trackIds: string[],
+  amountCents: number,
+): Promise<
+  | {
+      ok: true;
+      balanceCents: number;
+      releaseSlugs: string[];
+      trackKeys: string[];
+    }
+  | {
+      ok: false;
+      reason: "already_owned" | "insufficient_funds";
+      balanceCents: number;
+      releaseSlugs: string[];
+      trackKeys: string[];
+    }
+  | null
+> => {
+  const userKey = resolveUserKey(telegramUserId);
+  const normalizedReleaseSlug = normalizeSlug(releaseSlug);
+  const normalizedTrackKeys = trackIds
+    .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
+    .filter(Boolean);
+  const amount = Math.max(1, normalizeNonNegativeInt(amountCents));
+
+  if (!userKey || !normalizedReleaseSlug || amount < 1) {
+    return null;
+  }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const current = await readStateWithVersion();
+
+    if (!current) {
+      break;
+    }
+
+    const snapshot = buildSnapshot(current.state, userKey);
+    const alreadyOwned = snapshot.purchasedReleaseSlugs.includes(normalizedReleaseSlug);
+
+    if (alreadyOwned) {
+      return {
+        ok: false,
+        reason: "already_owned",
+        balanceCents: snapshot.walletCents,
+        releaseSlugs: snapshot.purchasedReleaseSlugs,
+        trackKeys: snapshot.purchasedTrackKeys,
+      };
+    }
+
+    if (snapshot.walletCents < amount) {
+      return {
+        ok: false,
+        reason: "insufficient_funds",
+        balanceCents: snapshot.walletCents,
+        releaseSlugs: snapshot.purchasedReleaseSlugs,
+        trackKeys: snapshot.purchasedTrackKeys,
+      };
+    }
+
+    const nextReleaseSlugs = [normalizedReleaseSlug, ...snapshot.purchasedReleaseSlugs];
+    const nextTrackKeys = prependUniqueValues(snapshot.purchasedTrackKeys, normalizedTrackKeys);
+    const nextBalance = snapshot.walletCents - amount;
+
+    const next = sanitizeState({
+      ...current.state,
+      walletCentsByUserId: {
+        ...current.state.walletCentsByUserId,
+        [userKey]: nextBalance,
+      },
+      purchasedReleaseSlugsByUserId: {
+        ...current.state.purchasedReleaseSlugsByUserId,
+        [userKey]: nextReleaseSlugs,
+      },
+      purchasedTrackKeysByUserId: {
+        ...current.state.purchasedTrackKeysByUserId,
+        [userKey]: nextTrackKeys,
+      },
+      updatedAt: new Date().toISOString(),
+    });
+
+    const saved = await writeState(next, current.rowVersion);
+
+    if (saved.ok) {
+      return {
+        ok: true,
+        balanceCents: nextBalance,
+        releaseSlugs: nextReleaseSlugs,
+        trackKeys: nextTrackKeys,
+      };
+    }
+
+    if (!saved.conflict) {
+      break;
+    }
+  }
+
+  if (POSTGRES_STRICT) {
+    throwStrictError("Failed to purchase release with wallet in Postgres");
+  }
+
+  return null;
+};
+
+export const mintSocialPurchasedReleaseNft = async (
+  telegramUserId: number,
+  input: {
+    releaseSlug: string;
+    ownerAddress?: string;
+    txHash?: string;
+    collectionAddress?: string;
+  },
+): Promise<
+  | {
+      ok: true;
+      alreadyMinted: boolean;
+      nft: SocialMintedReleaseNft;
+      mintedReleaseNfts: SocialMintedReleaseNft[];
+    }
+  | {
+      ok: false;
+      reason: "not_purchased" | "wallet_required";
+      mintedReleaseNfts: SocialMintedReleaseNft[];
+    }
+  | null
+> => {
+  const userKey = resolveUserKey(telegramUserId);
+  const releaseSlug = normalizeSlug(input.releaseSlug);
+
+  if (!userKey || !releaseSlug) {
+    return null;
+  }
+
+  const stateBefore = await readCurrentState();
+  if (!stateBefore) {
+    return null;
+  }
+
+  const snapshotBefore = buildSnapshot(stateBefore, userKey);
+  if (!snapshotBefore.purchasedReleaseSlugs.includes(releaseSlug)) {
+    return {
+      ok: false,
+      reason: "not_purchased",
+      mintedReleaseNfts: snapshotBefore.mintedReleaseNfts,
+    };
+  }
+
+  const ownerAddressCandidate = normalizeTonAddress(input.ownerAddress);
+  const ownerAddress = ownerAddressCandidate || snapshotBefore.tonWalletAddress || "";
+  if (!ownerAddress) {
+    return {
+      ok: false,
+      reason: "wallet_required",
+      mintedReleaseNfts: snapshotBefore.mintedReleaseNfts,
+    };
+  }
+
+  const existingBefore = snapshotBefore.mintedReleaseNfts.find((entry) => entry.releaseSlug === releaseSlug);
+  if (existingBefore) {
+    return {
+      ok: true,
+      alreadyMinted: true,
+      nft: existingBefore,
+      mintedReleaseNfts: snapshotBefore.mintedReleaseNfts,
+    };
+  }
+
+  const txHash = normalizeOptionalText(input.txHash, 256);
+  const collectionAddress = normalizeOptionalText(normalizeTonAddress(input.collectionAddress), 160);
+  const createdAt = new Date().toISOString();
+  const nftIdSeed = `nft:${releaseSlug}:${createdAt}`;
+  const createdNft: SocialMintedReleaseNft = {
+    id: normalizeMintedNftId(nftIdSeed, nftIdSeed),
+    releaseSlug,
+    ownerAddress,
+    collectionAddress,
+    txHash,
+    mintedAt: createdAt,
+    status: "minted",
+  };
+
+  const next = await mutateState((current) => {
+    const snapshot = buildSnapshot(current, userKey);
+    const alreadyMintedNft = snapshot.mintedReleaseNfts.find((entry) => entry.releaseSlug === releaseSlug);
+
+    if (alreadyMintedNft || !snapshot.purchasedReleaseSlugs.includes(releaseSlug)) {
+      return current;
+    }
+
+    const nextMinted = normalizeMintedReleaseNftList([createdNft, ...snapshot.mintedReleaseNfts]);
+
+    return {
+      ...current,
+      tonWalletAddressByUserId: {
+        ...current.tonWalletAddressByUserId,
+        [userKey]: ownerAddress,
+      },
+      mintedReleaseNftsByUserId: {
+        ...current.mintedReleaseNftsByUserId,
+        [userKey]: nextMinted,
+      },
+    };
+  });
+
+  if (!next) {
+    return null;
+  }
+
+  const snapshot = buildSnapshot(next, userKey);
+  const existingNft = snapshot.mintedReleaseNfts.find((entry) => entry.releaseSlug === releaseSlug) ?? null;
+
+  if (!existingNft) {
+    return {
+      ok: false,
+      reason: "wallet_required",
+      mintedReleaseNfts: snapshot.mintedReleaseNfts,
+    };
+  }
+
+  return {
+    ok: true,
+    alreadyMinted: false,
+    nft: existingNft,
+    mintedReleaseNfts: snapshot.mintedReleaseNfts,
   };
 };

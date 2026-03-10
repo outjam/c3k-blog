@@ -103,6 +103,48 @@
   gap: 0.32rem;
 }
 
+.tonBlock {
+  border-radius: 0.74rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
+  padding: 0.66rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.tonHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.tonHead h2 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.9rem;
+}
+
+.tonConnectButton {
+  display: inline-flex;
+}
+
+.tonHint {
+  margin: 0;
+  color: var(--tg-hint);
+  font-size: 0.74rem;
+}
+
+.disconnectButton {
+  min-height: 2.2rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 42%, transparent);
+  border-radius: 0.68rem;
+  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 .promoHint {
   margin: 0;
   color: var(--tg-hint);
