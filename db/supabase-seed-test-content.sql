@@ -156,12 +156,36 @@ BEGIN
         'slug', 'midnight-glass',
         'artistTelegramUserId', 1693883,
         'title', 'Midnight Glass',
-        'subtitle', 'Single',
+        'releaseType', 'ep',
+        'subtitle', 'EP',
         'description', 'Темный синтвейв с мягким low-end.',
         'coverImage', 'https://images.unsplash.com/photo-1505740106531-4243f3831c78?auto=format&fit=crop&w=1200&q=80',
         'audioFileId', 'AQACAgIAAxkBAAIBq2demoMIDGLASS',
         'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
         'durationSec', 196,
+        'releaseTracklist', jsonb_build_array(
+          jsonb_build_object(
+            'id', 'midnight-1',
+            'title', 'Midnight Glass',
+            'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+            'durationSec', 196,
+            'position', 1
+          ),
+          jsonb_build_object(
+            'id', 'midnight-2',
+            'title', 'Glass Echo',
+            'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3',
+            'durationSec', 202,
+            'position', 2
+          ),
+          jsonb_build_object(
+            'id', 'midnight-3',
+            'title', 'Night Bloom',
+            'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3',
+            'durationSec', 188,
+            'position', 3
+          )
+        ),
         'genre', 'Synthwave',
         'tags', jsonb_build_array('night', 'synth', 'c3k'),
         'priceStarsCents', 100,
@@ -222,12 +246,43 @@ BEGIN
         'slug', 'liquid-window',
         'artistTelegramUserId', 900000101,
         'title', 'Liquid Window',
-        'subtitle', 'Single',
+        'releaseType', 'album',
+        'subtitle', 'Album',
         'description', 'Кинематографичный синт с мягкими пэдами.',
         'coverImage', 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1200&q=80',
         'audioFileId', 'AQACAgIAAxkBAAIBq2demoLIQUIDWIN',
         'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
         'durationSec', 238,
+        'releaseTracklist', jsonb_build_array(
+          jsonb_build_object(
+            'id', 'liquid-1',
+            'title', 'Liquid Window',
+            'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+            'durationSec', 238,
+            'position', 1
+          ),
+          jsonb_build_object(
+            'id', 'liquid-2',
+            'title', 'Soft Prism',
+            'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3',
+            'durationSec', 212,
+            'position', 2
+          ),
+          jsonb_build_object(
+            'id', 'liquid-3',
+            'title', 'Neon Tide',
+            'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3',
+            'durationSec', 205,
+            'position', 3
+          ),
+          jsonb_build_object(
+            'id', 'liquid-4',
+            'title', 'Crystal Fade',
+            'previewUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3',
+            'durationSec', 221,
+            'position', 4
+          )
+        ),
         'genre', 'Cinematic',
         'tags', jsonb_build_array('cinematic', 'synth'),
         'priceStarsCents', 150,

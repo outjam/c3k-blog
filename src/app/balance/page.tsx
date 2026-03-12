@@ -20,6 +20,13 @@ import {
   writeTonWalletAddress,
 } from "@/lib/social-hub";
 import { formatStarsFromCents } from "@/lib/stars-format";
+import {
+  TON_NETWORK_LABEL,
+  TON_REQUIRED_CHAIN,
+  isTonWalletOnRequiredNetwork,
+  resolveTonTransferRecipient,
+  toPreferredTonAddress,
+} from "@/lib/ton-network";
 import type { PromoDiscountType } from "@/types/shop";
 
 import styles from "./page.module.scss";
@@ -57,6 +64,10 @@ const calcBonusCents = (baseCents: number, rule: PromoRule | null): number => {
 
   const percent = Math.max(1, Math.min(100, Math.round(rule.discountValue)));
   return Math.max(0, Math.round((baseCents * percent) / 100));
+};
+
+const buildWrongTonNetworkMessage = (): string => {
+  return `Подключен кошелек не из сети ${TON_NETWORK_LABEL}. Переключите сеть и повторите.`;
 };
 
 export default function BalancePage() {
@@ -109,8 +120,8 @@ export default function BalancePage() {
 
   const normalizedPromoCode = useMemo(() => normalizePromoCode(promoCodeInput), [promoCodeInput]);
   const resolvedTonWalletAddress = useMemo(
-    () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
-    [tonWallet?.account?.address, tonWalletAddress],
+    () => toPreferredTonAddress(String(tonWallet?.account?.address ?? tonWalletAddress).trim(), tonWallet?.account?.chain),
+    [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress],
   );
   const selectedPromo = useMemo(
     () => promoRules.find((rule) => rule.code === normalizedPromoCode) ?? null,
@@ -122,7 +133,7 @@ export default function BalancePage() {
   );
 
   useEffect(() => {
-    const connectedAddress = String(tonWallet?.account?.address ?? "").trim();
+    const connectedAddress = toPreferredTonAddress(String(tonWallet?.account?.address ?? "").trim(), tonWallet?.account?.chain);
 
     if (!connectedAddress) {
       return;
@@ -133,7 +144,7 @@ export default function BalancePage() {
     }
 
     void writeTonWalletAddress(viewerKey, connectedAddress);
-  }, [tonWallet?.account?.address, tonWalletAddress, viewerKey]);
+  }, [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress, viewerKey]);
 
   const runTopUp = async (amountStars: number) => {
     if (!user?.id) {
@@ -183,12 +194,6 @@ export default function BalancePage() {
       return;
     }
 
-    const recipientAddress = String(process.env.NEXT_PUBLIC_TON_TOPUP_ADDRESS ?? "").trim();
-    if (!recipientAddress) {
-      setMessage("Не настроен TON-адрес для пополнений.");
-      return;
-    }
-
     const amountTon = Number(customTon);
     if (!Number.isFinite(amountTon) || amountTon <= 0) {
       setMessage("Введите корректную сумму TON.");
@@ -196,9 +201,25 @@ export default function BalancePage() {
     }
 
     const amountNano = Math.max(1, Math.round(amountTon * TON_NANO_PER_TON));
+    const connectedChain = String(tonWallet?.account?.chain ?? "").trim();
+    if (!isTonWalletOnRequiredNetwork(connectedChain)) {
+      setMessage(buildWrongTonNetworkMessage());
+      return;
+    }
+
     const connectedAddress = resolvedTonWalletAddress;
     if (!connectedAddress) {
       setMessage("Подключите TON-кошелек через Ton Connect.");
+      return;
+    }
+
+    const { address: recipientAddress, usedSelfFallback } = resolveTonTransferRecipient({
+      configuredAddress: String(process.env.NEXT_PUBLIC_TON_TOPUP_ADDRESS ?? ""),
+      connectedAddress,
+      connectedChain,
+    });
+    if (!recipientAddress) {
+      setMessage("Не настроен TON-адрес для пополнений.");
       return;
     }
 
@@ -209,6 +230,7 @@ export default function BalancePage() {
     try {
       const txResult = await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 10 * 60,
+        network: TON_REQUIRED_CHAIN,
         messages: [
           {
             address: recipientAddress,
@@ -224,12 +246,21 @@ export default function BalancePage() {
       return;
     }
 
-    const creditedCents = Math.max(1, Math.round((amountNano / TON_NANO_PER_TON) * TON_TOPUP_STARS_CENTS_PER_TON));
-    const topup = await topUpWalletBalanceFromTonCents(viewerKey, creditedCents, txHash);
+    const baseCents = Math.max(1, Math.round((amountNano / TON_NANO_PER_TON) * TON_TOPUP_STARS_CENTS_PER_TON));
+    const bonusCents = promoAlreadyRedeemed ? 0 : calcBonusCents(baseCents, selectedPromo);
+    const topup = await topUpWalletBalanceFromTonCents(viewerKey, baseCents + bonusCents, txHash);
     setWalletCents(topup.walletCents);
     setTonWalletAddress(connectedAddress);
+
+    if (selectedPromo && bonusCents > 0 && normalizedPromoCode && !promoAlreadyRedeemed) {
+      const redeemResult = await redeemTopupPromoCode(viewerKey, normalizedPromoCode);
+      setRedeemedCodes(redeemResult.redeemedCodes);
+    }
+
     setLoadingTon(false);
-    setMessage(`TON-пополнение подтверждено: +${formatStarsFromCents(topup.creditedCents)} ⭐ на внутренний баланс.`);
+    setMessage(
+      `TON-пополнение подтверждено: +${formatStarsFromCents(topup.creditedCents)} ⭐ на внутренний баланс.${usedSelfFallback ? " Testnet fallback: перевод выполнен на ваш же кошелек." : ""}`,
+    );
   };
 
   const disconnectTonWallet = async () => {
@@ -328,6 +359,7 @@ export default function BalancePage() {
                     {selectedPromo.discountType === "percent"
                       ? `${Math.max(1, Math.round(selectedPromo.discountValue))}%`
                       : `${formatStarsFromCents(Math.max(0, Math.round(selectedPromo.discountValue)))} ⭐`}
+                    {" · применится к следующему пополнению Stars или TON"}
                   </p>
                 )
               ) : (

@@ -102,10 +102,10 @@ BEGIN
         '900000202', jsonb_build_array('telegram-signal', 'shards')
       ),
       'purchasedTrackKeysByUserId', jsonb_build_object(
-        '1693883', jsonb_build_array('midnight-glass::track-1', 'neon-sand::track-1'),
-        '900000101', jsonb_build_array('midnight-glass::track-1', 'telegram-signal::track-1'),
-        '900000102', jsonb_build_array('liquid-window::track-1'),
-        '900000201', jsonb_build_array('midnight-glass::track-1', 'liquid-window::track-1', 'shards::track-1'),
+        '1693883', jsonb_build_array('midnight-glass::midnight-1', 'neon-sand::track-1'),
+        '900000101', jsonb_build_array('midnight-glass::midnight-1', 'telegram-signal::track-1'),
+        '900000102', jsonb_build_array('liquid-window::liquid-1'),
+        '900000201', jsonb_build_array('midnight-glass::midnight-1', 'liquid-window::liquid-1', 'shards::track-1'),
         '900000202', jsonb_build_array('telegram-signal::track-1', 'shards::track-1')
       ),
       'redeemedTopupPromoCodesByUserId', jsonb_build_object(
@@ -113,6 +113,36 @@ BEGIN
         '900000101', jsonb_build_array('WELCOME10'),
         '900000201', jsonb_build_array('SEED20'),
         '900000202', jsonb_build_array('START5')
+      ),
+      'tonWalletAddressByUserId', jsonb_build_object(
+        '1693883', 'kQBB0PJbUURYcpvTap49-F6vctE8noIE2BGyi67Kmx9Is_62',
+        '900000101', 'kQCh6BrgLzY9X3v8w6n2s2f9u2tU4xO3kD2GQxN7dY4TQf0q',
+        '900000102', 'kQCEv2v8rI1Ff3nH9A3lWv8h8o9r9f0n4tGJ4mW6lY2Y4sFh',
+        '900000201', 'kQAwx9C7q3Yv6g6o7i9J9k2s5n7d0Q8e3P2mV1hW4fY6A1bK'
+      ),
+      'mintedReleaseNftsByUserId', jsonb_build_object(
+        '1693883', jsonb_build_array(
+          jsonb_build_object(
+            'id', 'nft-midnight-1693883',
+            'releaseSlug', 'midnight-glass',
+            'ownerAddress', 'kQBB0PJbUURYcpvTap49-F6vctE8noIE2BGyi67Kmx9Is_62',
+            'collectionAddress', 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
+            'txHash', 'demo-midnight-mint-001',
+            'mintedAt', v_now,
+            'status', 'minted'
+          )
+        ),
+        '900000101', jsonb_build_array(
+          jsonb_build_object(
+            'id', 'nft-liquid-900000101',
+            'releaseSlug', 'liquid-window',
+            'ownerAddress', 'kQCh6BrgLzY9X3v8w6n2s2f9u2tU4xO3kD2GQxN7dY4TQf0q',
+            'collectionAddress', 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
+            'txHash', 'demo-liquid-mint-001',
+            'mintedAt', v_now,
+            'status', 'minted'
+          )
+        )
       ),
       'updatedAt', v_now
     ),

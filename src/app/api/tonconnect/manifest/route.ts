@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const sanitizeBaseUrl = (value: string | null): string => {
-  const fallback = "https://your-project.vercel.app";
+  const fallback = "https://c3k-blog.vercel.app";
 
   if (!value) {
     return fallback;
@@ -27,4 +27,3 @@ export async function GET(request: Request) {
     privacyPolicyUrl: `${baseUrl}/privacy`,
   });
 }
-

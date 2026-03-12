@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
+import { TonConnectButton, useTonWallet } from "@tonconnect/ui-react";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import { useGlobalPlayer } from "@/components/player/global-player-provider";
@@ -12,7 +12,6 @@ import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   buildTelegramShareUrl,
-  mintPurchasedReleaseNft,
   purchaseReleaseWithWallet,
   profileSlugFromIdentity,
   readMintedReleaseNfts,
@@ -34,15 +33,24 @@ import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-f
 import { getDefaultTrackFormat, getFormatLabel, getProductPriceByFormat, getTrackFormats } from "@/lib/shop-release-format";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
+import { mintViaSponsoredTon } from "@/lib/ton-sponsored-api";
+import {
+  TON_NETWORK_LABEL,
+  isTonWalletOnRequiredNetwork,
+  toPreferredTonAddress,
+} from "@/lib/ton-network";
 import { RELEASE_REACTION_OPTIONS, type ReleaseSocialSnapshot } from "@/types/release-social";
 import type { ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
+const buildWrongTonNetworkMessage = (): string => {
+  return `Подключен кошелек не из сети ${TON_NETWORK_LABEL}. Переключите сеть и повторите.`;
+};
+
 export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
   const { playQueue } = useGlobalPlayer();
-  const [tonConnectUI] = useTonConnectUI();
   const tonWallet = useTonWallet();
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
@@ -101,7 +109,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   }, [product.id, product.slug, viewerKey]);
 
   useEffect(() => {
-    const connectedAddress = String(tonWallet?.account?.address ?? "").trim();
+    const connectedAddress = toPreferredTonAddress(String(tonWallet?.account?.address ?? "").trim(), tonWallet?.account?.chain);
 
     if (!connectedAddress) {
       return;
@@ -112,7 +120,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     }
 
     void writeTonWalletAddress(viewerKey, connectedAddress);
-  }, [tonWallet?.account?.address, tonWalletAddress, viewerKey]);
+  }, [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress, viewerKey]);
 
   const handleBack = useCallback(() => {
     hapticImpact("light");
@@ -137,8 +145,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const isPurchased = useMemo(() => ownedReleaseSlugs.includes(product.slug), [ownedReleaseSlugs, product.slug]);
   const isMintedInTon = useMemo(() => mintedReleaseSlugs.includes(product.slug), [mintedReleaseSlugs, product.slug]);
   const resolvedTonWalletAddress = useMemo(
-    () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
-    [tonWallet?.account?.address, tonWalletAddress],
+    () => toPreferredTonAddress(String(tonWallet?.account?.address ?? tonWalletAddress).trim(), tonWallet?.account?.chain),
+    [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress],
   );
 
   const handlePlayTrack = (index: number) => {
@@ -229,6 +237,12 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       return;
     }
 
+    const connectedChain = String(tonWallet?.account?.chain ?? "").trim();
+    if (!isTonWalletOnRequiredNetwork(connectedChain)) {
+      setWalletMessage(buildWrongTonNetworkMessage());
+      return;
+    }
+
     const connectedAddress = resolvedTonWalletAddress;
     if (!connectedAddress) {
       setWalletMessage("Подключите TON-кошелек через Ton Connect.");
@@ -237,60 +251,51 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
     setMinting(true);
     setWalletMessage("");
-
-    let txHash = "";
-
-    const mintRecipient = String(process.env.NEXT_PUBLIC_TON_MINT_ADDRESS || process.env.NEXT_PUBLIC_TON_TOPUP_ADDRESS || "").trim();
-    const mintFeeNano = Math.max(
-      1,
-      Math.round(Number(process.env.NEXT_PUBLIC_TON_MINT_FEE_NANO ?? "50000000")),
-    );
-
-    if (!mintRecipient) {
-      setMinting(false);
-      setWalletMessage("Не настроен адрес минта TON в окружении.");
-      return;
-    }
-
-    try {
-      const txResult = await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 10 * 60,
-        messages: [
-          {
-            address: mintRecipient,
-            amount: String(mintFeeNano),
-          },
-        ],
-      });
-
-      txHash = typeof txResult?.boc === "string" ? txResult.boc.slice(0, 256) : "";
-    } catch {
-      setMinting(false);
-      setWalletMessage("Минт отменен или транзакция TON не подтверждена.");
-      return;
-    }
-
-    const mintResult = await mintPurchasedReleaseNft(viewerKey, {
+    const mintResult = await mintViaSponsoredTon({
       releaseSlug: product.slug,
       ownerAddress: connectedAddress,
-      txHash,
       collectionAddress: String(process.env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS ?? "").trim() || undefined,
     });
 
     setMinting(false);
 
     if (!mintResult.ok) {
+      setWalletBalanceCents(mintResult.walletCents);
+
+      if (mintResult.reason === "insufficient_funds") {
+        setWalletMessage("Недостаточно средств на внутреннем балансе для оплаты газа sponsored mint.");
+        return;
+      }
+
+      if (mintResult.reason === "relay_unavailable") {
+        setWalletMessage("Sponsored mint сейчас не настроен. Укажите sponsor wallet и адрес минта в ENV.");
+        return;
+      }
+
+      if (mintResult.reason === "relay_failed") {
+        setWalletMessage(`Ошибка TON relayer: ${mintResult.relayError ?? "не удалось отправить транзакцию"}`);
+        return;
+      }
+
+      if (mintResult.reason === "not_purchased") {
+        setWalletMessage("Нельзя заминтить релиз без покупки.");
+        return;
+      }
+
       setWalletMessage(
-        mintResult.reason === "wallet_required"
-          ? "Для минта нужен подключенный TON-кошелек."
-          : "Нельзя заминтить релиз без покупки.",
+        mintResult.reason === "wallet_required" ? "Для минта нужен подключенный TON-кошелек." : "Не удалось выполнить mint.",
       );
       return;
     }
 
+    setWalletBalanceCents(mintResult.walletCents);
     setMintedReleaseSlugs(mintResult.mintedReleaseNfts.map((entry) => entry.releaseSlug));
     setTonWalletAddress(connectedAddress);
-    setWalletMessage(mintResult.alreadyMinted ? "NFT уже заминчен ранее." : "Релиз заминчен в TON и добавлен в коллекцию.");
+    setWalletMessage(
+      mintResult.alreadyMinted
+        ? "NFT уже заминчен ранее."
+        : `Релиз заминчен в TON и добавлен в коллекцию. Списано ${formatStarsFromCents(mintResult.gasDebitedCents)} ⭐ за газ.`,
+    );
     hapticNotification("success");
   };
 
@@ -476,6 +481,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
             </div>
             <p>
               Покупка хранится оффчейн в профиле. После покупки можно заминтить релиз как NFT в сети TON и держать в кошельке.
+              Газ оплачивается спонсором, а стоимость газа списывается с вашего внутреннего баланса.
             </p>
             <div className={styles.nftActions}>
               <TonConnectButton className={styles.tonConnectButton} />
