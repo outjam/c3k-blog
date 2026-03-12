@@ -2,19 +2,20 @@
 
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 
-const resolveManifestBaseUrl = (): string => {
+const resolveManifestUrl = (): string => {
   const configured = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
-  const fallback = configured ? configured.replace(/\/+$/, "") : "https://localhost:3000";
+  const fallback = configured ? configured.replace(/\/+$/, "") : "http://localhost:3000";
 
   if (typeof window === "undefined") {
-    return fallback;
+    return `${fallback}/api/tonconnect/manifest`;
   }
 
-  return window.location.origin.replace(/\/+$/, "") || fallback;
+  const origin = window.location.origin.replace(/\/+$/, "") || fallback;
+  return `${origin}/api/tonconnect/manifest`;
 };
 
 export function TonConnectProvider({ children }: { children: React.ReactNode }) {
-  const manifestUrl = `${resolveManifestBaseUrl()}/tonconnect-manifest.json`;
+  const manifestUrl = resolveManifestUrl();
 
   return (
     <TonConnectUIProvider manifestUrl={manifestUrl}>
@@ -22,4 +23,3 @@ export function TonConnectProvider({ children }: { children: React.ReactNode }) 
     </TonConnectUIProvider>
   );
 }
-

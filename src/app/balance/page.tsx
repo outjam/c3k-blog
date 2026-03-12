@@ -28,7 +28,7 @@ const PRESET_STARS = [10, 25, 50] as const;
 const TON_NANO_PER_TON = 1_000_000_000;
 const TON_TOPUP_STARS_CENTS_PER_TON = Math.max(
   1,
-  Math.round(Number(process.env.NEXT_PUBLIC_TON_TOPUP_STARS_CENTS_PER_TON ?? "25000")),
+  Math.round(Number(process.env.NEXT_PUBLIC_TON_TOPUP_STARS_CENTS_PER_TON ?? "12000")),
 );
 
 interface PromoRule {
