@@ -8,7 +8,12 @@ import {
   topUpSocialWalletBalanceCents,
 } from "@/lib/server/social-user-state-store";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
-import { hasSponsoredRelayConfig, resolveSponsoredMintGasFeeCents, sendSponsoredMintRelay } from "@/lib/server/ton-sponsored-relay";
+import {
+  getSponsoredRelayConfigStatus,
+  hasSponsoredRelayConfig,
+  resolveSponsoredMintGasFeeCents,
+  sendSponsoredMintRelay,
+} from "@/lib/server/ton-sponsored-relay";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -139,10 +144,15 @@ export async function POST(request: Request) {
   }
 
   if (!hasSponsoredRelayConfig()) {
+    const relayConfig = getSponsoredRelayConfigStatus();
+
     return buildMintFailure({
       reason: "relay_unavailable",
       walletCents: snapshotBefore.walletCents,
-      relayError: "TON sponsor wallet or mint recipient is not configured",
+      relayError:
+        relayConfig.missing.length > 0
+          ? `Missing server env: ${relayConfig.missing.join(", ")}`
+          : "TON sponsor wallet or mint recipient is not configured",
     });
   }
 

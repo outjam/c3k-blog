@@ -268,7 +268,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       }
 
       if (mintResult.reason === "relay_unavailable") {
-        setWalletMessage("Sponsored mint сейчас не настроен. Укажите sponsor wallet и адрес минта в ENV.");
+        setWalletMessage(mintResult.relayError || "Sponsored mint сейчас не настроен на сервере.");
         return;
       }
 

@@ -15,6 +15,14 @@ interface RelayConfig {
   confirmationTimeoutMs: number;
 }
 
+export interface SponsoredRelayConfigStatus {
+  ok: boolean;
+  missing: string[];
+  network: TonNetworkMode;
+  mintRecipientAddress: string;
+  sponsorAddress?: string;
+}
+
 export interface SponsoredMintRelayInput {
   releaseSlug: string;
   telegramUserId: number;
@@ -144,9 +152,31 @@ export const resolveSponsoredMintGasFeeCents = (): number => {
   return normalizePositiveInt(process.env.TON_SPONSORED_MINT_GAS_STARS_CENTS, 2500);
 };
 
-export const hasSponsoredRelayConfig = (): boolean => {
+export const getSponsoredRelayConfigStatus = (): SponsoredRelayConfigStatus => {
   const config = resolveRelayConfig();
-  return config.sponsorMnemonicWords.length >= 12 && Boolean(config.mintRecipientAddress);
+  const missing: string[] = [];
+
+  if (config.sponsorMnemonicWords.length < 12) {
+    missing.push("TON_SPONSOR_WALLET_MNEMONIC");
+    missing.push("TON_TESTNET_WALLET_MNEMONIC");
+  }
+
+  if (!config.mintRecipientAddress) {
+    missing.push("NEXT_PUBLIC_TON_MINT_ADDRESS");
+    missing.push("NEXT_PUBLIC_TON_TOPUP_ADDRESS");
+  }
+
+  return {
+    ok: missing.length === 0,
+    missing,
+    network: config.network,
+    mintRecipientAddress: config.mintRecipientAddress,
+    sponsorAddress: config.sponsorAddress,
+  };
+};
+
+export const hasSponsoredRelayConfig = (): boolean => {
+  return getSponsoredRelayConfigStatus().ok;
 };
 
 export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Promise<SponsoredMintRelayResult> => {
