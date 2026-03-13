@@ -58,6 +58,7 @@ const buildMintFailure = (params: {
   walletCents: number;
   gasDebitedCents?: number;
   relayError?: string;
+  relayProvider?: string;
 }) => {
   return NextResponse.json({
     ok: false,
@@ -65,6 +66,7 @@ const buildMintFailure = (params: {
     walletCents: params.walletCents,
     gasDebitedCents: params.gasDebitedCents ?? 0,
     relayError: params.relayError,
+    relayProvider: params.relayProvider,
   });
 };
 
@@ -183,12 +185,16 @@ export async function POST(request: Request) {
   } catch (error) {
     await topUpSocialWalletBalanceCents(auth.telegramUserId, gasDebitedCents);
     const snapshotAfterRefund = await getSocialUserSnapshot(auth.telegramUserId);
+    const relayError = error instanceof Error ? error.message : "unknown relay error";
+    const relayProvider =
+      error && typeof error === "object" && "provider" in error ? String((error as { provider?: unknown }).provider ?? "").trim() : undefined;
 
     return buildMintFailure({
       reason: "relay_failed",
       walletCents: snapshotAfterRefund?.walletCents ?? spendResult.balanceCents,
       gasDebitedCents: 0,
-      relayError: error instanceof Error ? error.message : "unknown relay error",
+      relayError,
+      relayProvider: relayProvider || undefined,
     });
   }
 

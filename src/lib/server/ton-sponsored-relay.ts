@@ -3,6 +3,7 @@ import { mnemonicToPrivateKey } from "@ton/crypto";
 import { TonClient, TonClient4, WalletContractV4 } from "@ton/ton";
 
 type TonNetworkMode = "mainnet" | "testnet";
+type RelayProviderMode = "toncenter_v2" | "tonhub_v4";
 
 interface RelayConfig {
   network: TonNetworkMode;
@@ -17,6 +18,7 @@ interface RelayConfig {
   providerRetryCount: number;
   providerRetryDelayMs: number;
   providerMinRequestGapMs: number;
+  primaryProvider: RelayProviderMode;
 }
 
 export interface SponsoredRelayConfigStatus {
@@ -44,6 +46,11 @@ export interface SponsoredMintRelayResult {
   provider: "toncenter_v2" | "tonhub_v4";
 }
 
+type RelayError = Error & {
+  status?: number;
+  provider?: RelayProviderMode;
+};
+
 const TON_ENDPOINT_MAINNET_DEFAULT = "https://toncenter.com/api/v2/jsonRPC";
 const TON_ENDPOINT_TESTNET_DEFAULT = "https://testnet.toncenter.com/api/v2/jsonRPC";
 const TON_V4_ENDPOINT_MAINNET_DEFAULT = "https://mainnet-v4.tonhubapi.com";
@@ -56,6 +63,22 @@ const DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS = 1250;
 
 const normalizeTonNetwork = (value: unknown): TonNetworkMode => {
   return String(value ?? "").trim().toLowerCase() === "mainnet" ? "mainnet" : "testnet";
+};
+
+const normalizeRelayProviderMode = (value: unknown, fallback: RelayProviderMode): RelayProviderMode => {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "tonhub_v4" || normalized === "tonhub") {
+    return "tonhub_v4";
+  }
+
+  if (normalized === "toncenter_v2" || normalized === "toncenter") {
+    return "toncenter_v2";
+  }
+
+  return fallback;
 };
 
 const normalizeTonAddress = (value: unknown): string => {
@@ -221,9 +244,7 @@ const runWithProviderRetry = async <T>(
       lastError = error;
 
       if (!shouldRetryProviderError(error) || attempt >= options.config.providerRetryCount - 1) {
-        const wrappedError = new Error(buildProviderErrorMessage(error, options.config, options.phase)) as Error & {
-          status?: number;
-        };
+        const wrappedError = new Error(buildProviderErrorMessage(error, options.config, options.phase)) as RelayError;
         wrappedError.status = extractStatusCode(error) ?? undefined;
         throw wrappedError;
       }
@@ -233,11 +254,22 @@ const runWithProviderRetry = async <T>(
     }
   }
 
-  const wrappedError = new Error(buildProviderErrorMessage(lastError, options.config, options.phase)) as Error & {
-    status?: number;
-  };
+  const wrappedError = new Error(buildProviderErrorMessage(lastError, options.config, options.phase)) as RelayError;
   wrappedError.status = extractStatusCode(lastError) ?? undefined;
   throw wrappedError;
+};
+
+const withRelayProvider = (error: unknown, provider: RelayProviderMode): RelayError => {
+  if (error instanceof Error) {
+    const wrapped = error as RelayError;
+    wrapped.provider = provider;
+    return wrapped;
+  }
+
+  const wrapped = new Error(String(error)) as RelayError;
+  wrapped.provider = provider;
+  wrapped.status = extractStatusCode(error) ?? undefined;
+  return wrapped;
 };
 
 const waitForSeqnoIncrease = async (
@@ -296,6 +328,10 @@ const resolveRelayConfig = (): RelayConfig => {
     process.env.TON_SPONSOR_PROVIDER_MIN_REQUEST_GAP_MS,
     apiKey ? 1 : DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS,
   );
+  const primaryProvider = normalizeRelayProviderMode(
+    process.env.TON_SPONSOR_PRIMARY_PROVIDER,
+    network === "testnet" ? "tonhub_v4" : "toncenter_v2",
+  );
 
   return {
     network,
@@ -310,6 +346,7 @@ const resolveRelayConfig = (): RelayConfig => {
     providerRetryCount,
     providerRetryDelayMs,
     providerMinRequestGapMs,
+    primaryProvider,
   };
 };
 
@@ -355,10 +392,7 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
     throw new Error("TON mint recipient address is not configured");
   }
 
-  const executeRelay = async (
-    activeConfig: RelayConfig,
-    provider: "toncenter_v2" | "tonhub_v4",
-  ): Promise<SponsoredMintRelayResult> => {
+  const executeRelay = async (activeConfig: RelayConfig, provider: RelayProviderMode): Promise<SponsoredMintRelayResult> => {
     const keyPair = await mnemonicToPrivateKey(activeConfig.sponsorMnemonicWords);
     const wallet = WalletContractV4.create({
       workchain: 0,
@@ -434,20 +468,31 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
     };
   };
 
-  try {
-    return await executeRelay(config, "toncenter_v2");
-  } catch (error) {
-    if (shouldFallbackProvider(error)) {
-      return executeRelay(
-        {
-          ...config,
-          apiKey: undefined,
-          providerMinRequestGapMs: Math.max(config.providerMinRequestGapMs, DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS),
-        },
-        "tonhub_v4",
-      );
-    }
+  const providerOrder: RelayProviderMode[] =
+    config.primaryProvider === "tonhub_v4" ? ["tonhub_v4", "toncenter_v2"] : ["toncenter_v2", "tonhub_v4"];
 
-    throw error;
+  let lastError: unknown = null;
+
+  for (const provider of providerOrder) {
+    try {
+      const nextConfig =
+        provider === "toncenter_v2"
+          ? config
+          : {
+              ...config,
+              apiKey: undefined,
+              providerMinRequestGapMs: Math.max(config.providerMinRequestGapMs, DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS),
+            };
+
+      return await executeRelay(nextConfig, provider);
+    } catch (error) {
+      lastError = withRelayProvider(error, provider);
+
+      if (!shouldFallbackProvider(error)) {
+        throw lastError;
+      }
+    }
   }
+
+  throw lastError instanceof Error ? lastError : new Error("TON relay failed on all configured providers");
 };

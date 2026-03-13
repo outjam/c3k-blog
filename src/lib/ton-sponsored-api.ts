@@ -37,6 +37,7 @@ export type MintViaSponsoredTonResult =
       walletCents: number;
       gasDebitedCents: number;
       relayError?: string;
+      relayProvider?: string;
       message?: string;
     };
 
@@ -201,6 +202,7 @@ export const mintViaSponsoredTon = async (payload: MintViaSponsoredTonPayload): 
       walletCents: normalizeNonNegativeInt(result.walletCents),
       gasDebitedCents: normalizeNonNegativeInt(result.gasDebitedCents),
       relayError: String(result.relayError ?? "").trim() || undefined,
+      relayProvider: String(result.relayProvider ?? "").trim() || undefined,
       message: !response.ok ? `HTTP ${response.status}` : undefined,
     };
   } catch {
