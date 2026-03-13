@@ -18,6 +18,10 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// The app does not mint a real TON NFT yet. Keep the endpoint disabled until
+// a collection contract mint transaction is implemented.
+const TON_ONCHAIN_NFT_MINT_ENABLED = false;
+
 interface SponsoredMintBody {
   releaseSlug?: unknown;
   ownerAddress?: unknown;
@@ -142,6 +146,14 @@ export async function POST(request: Request) {
     return buildMintFailure({
       reason: "wallet_required",
       walletCents: snapshotBefore.walletCents,
+    });
+  }
+
+  if (!TON_ONCHAIN_NFT_MINT_ENABLED) {
+    return buildMintFailure({
+      reason: "relay_unavailable",
+      walletCents: snapshotBefore.walletCents,
+      relayError: "On-chain mint в TON пока не реализован: приложение еще не отправляет mint в NFT collection контракт.",
     });
   }
 

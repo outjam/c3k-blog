@@ -953,7 +953,7 @@ export default function ProfilePage() {
 
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>NFT в TON</h2>
+            <h2>Коллекция в приложении</h2>
             <p>{mintedReleaseCards.length}</p>
           </div>
 
@@ -966,18 +966,18 @@ export default function ProfilePage() {
                       <Image src={release.image} alt={release.title} width={360} height={130} />
                     </Link>
                   ) : (
-                    <div className={styles.releaseFallback}>NFT</div>
+                    <div className={styles.releaseFallback}>OFF</div>
                   )}
                   <div>
                     <Link href={release ? `/shop/${release.slug}` : `/shop`}>{release?.title || nft.releaseSlug}</Link>
-                    <p>NFT minted • {new Date(nft.mintedAt).toLocaleDateString("ru-RU")}</p>
+                    <p>Off-chain запись • {new Date(nft.mintedAt).toLocaleDateString("ru-RU")}</p>
                     <small>{`${nft.ownerAddress.slice(0, 6)}...${nft.ownerAddress.slice(-6)}`}</small>
                   </div>
                 </article>
               ))}
             </div>
           ) : (
-            <p className={styles.emptyState}>Пока нет заминченных NFT. Купите релиз и заминтите его на странице релиза.</p>
+            <p className={styles.emptyState}>Пока нет записей коллекции. Здесь появятся ваши релизы до подключения реального TON NFT mint.</p>
           )}
         </section>
 

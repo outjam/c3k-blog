@@ -44,6 +44,8 @@ import type { ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
+const TON_ONCHAIN_NFT_MINT_ENABLED = false;
+
 const buildWrongTonNetworkMessage = (): string => {
   return `Подключен кошелек не из сети ${TON_NETWORK_LABEL}. Переключите сеть и повторите.`;
 };
@@ -228,12 +230,17 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     }
 
     if (!isPurchased) {
-      setWalletMessage("Сначала купите релиз, затем можно заминтить NFT.");
+      setWalletMessage("Сначала купите релиз, затем сможете запросить on-chain mint после подключения NFT collection.");
       return;
     }
 
     if (isMintedInTon) {
-      setWalletMessage("NFT для этого релиза уже заминчен.");
+      setWalletMessage("Для этого релиза уже сохранена off-chain запись в приложении.");
+      return;
+    }
+
+    if (!TON_ONCHAIN_NFT_MINT_ENABLED) {
+      setWalletMessage("On-chain mint в TON пока не подключен. Сейчас релиз хранится только в коллекции приложения.");
       return;
     }
 
@@ -263,12 +270,12 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       setWalletBalanceCents(mintResult.walletCents);
 
       if (mintResult.reason === "insufficient_funds") {
-        setWalletMessage("Недостаточно средств на внутреннем балансе для оплаты газа sponsored mint.");
+        setWalletMessage("Недостаточно средств на внутреннем балансе для оплаты газа on-chain mint.");
         return;
       }
 
       if (mintResult.reason === "relay_unavailable") {
-        setWalletMessage(mintResult.relayError || "Sponsored mint сейчас не настроен на сервере.");
+        setWalletMessage(mintResult.relayError || "On-chain mint сейчас не настроен на сервере.");
         return;
       }
 
@@ -278,12 +285,14 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       }
 
       if (mintResult.reason === "not_purchased") {
-        setWalletMessage("Нельзя заминтить релиз без покупки.");
+        setWalletMessage("Нельзя запросить on-chain mint без покупки.");
         return;
       }
 
       setWalletMessage(
-        mintResult.reason === "wallet_required" ? "Для минта нужен подключенный TON-кошелек." : "Не удалось выполнить mint.",
+        mintResult.reason === "wallet_required"
+          ? "Для on-chain mint нужен подключенный TON-кошелек."
+          : "Не удалось выполнить on-chain mint.",
       );
       return;
     }
@@ -293,8 +302,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     setTonWalletAddress(connectedAddress);
     setWalletMessage(
       mintResult.alreadyMinted
-        ? "NFT уже заминчен ранее."
-        : `Релиз заминчен в TON и добавлен в коллекцию. Списано ${formatStarsFromCents(mintResult.gasDebitedCents)} ⭐ за газ.`,
+        ? "On-chain mint для этого релиза уже был выполнен ранее."
+        : `On-chain mint выполнен. Списано ${formatStarsFromCents(mintResult.gasDebitedCents)} ⭐ за газ.`,
     );
     hapticNotification("success");
   };
@@ -476,17 +485,22 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
           <section className={styles.nftSection}>
             <div className={styles.releaseCommentsHead}>
-              <h2>Mint в TON (Gift-механика)</h2>
-              <p>{isMintedInTon ? "minted" : "off-chain"}</p>
+              <h2>TON коллекция</h2>
+              <p>{isMintedInTon ? "off-chain record" : "coming soon"}</p>
             </div>
             <p>
-              Покупка хранится оффчейн в профиле. После покупки можно заминтить релиз как NFT в сети TON и держать в кошельке.
-              Газ оплачивается спонсором, а стоимость газа списывается с вашего внутреннего баланса.
+              Сейчас покупка хранится только в профиле приложения. Реальный on-chain mint в NFT collection контракт еще не
+              подключен, поэтому NFT в Tonkeeper после этой операции не появляется.
             </p>
             <div className={styles.nftActions}>
               <TonConnectButton className={styles.tonConnectButton} />
-              <button type="button" className={styles.addButton} disabled={!isPurchased || isMintedInTon || minting} onClick={() => void handleMintNft()}>
-                {isMintedInTon ? "NFT уже заминчен" : minting ? "Минтим..." : "Заминтить в TON"}
+              <button
+                type="button"
+                className={styles.addButton}
+                disabled={!isPurchased || isMintedInTon || minting || !TON_ONCHAIN_NFT_MINT_ENABLED}
+                onClick={() => void handleMintNft()}
+              >
+                {isMintedInTon ? "Есть off-chain запись" : minting ? "Проверяем..." : "On-chain mint скоро"}
               </button>
             </div>
           </section>
