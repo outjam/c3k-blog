@@ -13,6 +13,9 @@ interface RelayConfig {
   mintRecipientAddress: string;
   mintFeeNano: bigint;
   confirmationTimeoutMs: number;
+  providerRetryCount: number;
+  providerRetryDelayMs: number;
+  providerMinRequestGapMs: number;
 }
 
 export interface SponsoredRelayConfigStatus {
@@ -43,6 +46,9 @@ const TON_ENDPOINT_MAINNET_DEFAULT = "https://toncenter.com/api/v2/jsonRPC";
 const TON_ENDPOINT_TESTNET_DEFAULT = "https://testnet.toncenter.com/api/v2/jsonRPC";
 const ZERO_BIGINT = BigInt(0);
 const DEFAULT_MINT_FEE_NANO = BigInt("50000000");
+const DEFAULT_PROVIDER_RETRY_COUNT = 4;
+const DEFAULT_PROVIDER_RETRY_DELAY_MS = 1200;
+const DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS = 1250;
 
 const normalizeTonNetwork = (value: unknown): TonNetworkMode => {
   return String(value ?? "").trim().toLowerCase() === "mainnet" ? "mainnet" : "testnet";
@@ -94,15 +100,133 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
+const extractStatusCode = (error: unknown): number | null => {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const source = error as {
+    status?: unknown;
+    response?: {
+      status?: unknown;
+    };
+  };
+  const directStatus = Math.round(Number(source.status));
+  if (Number.isFinite(directStatus) && directStatus > 0) {
+    return directStatus;
+  }
+
+  const responseStatus = Math.round(Number(source.response?.status));
+  if (Number.isFinite(responseStatus) && responseStatus > 0) {
+    return responseStatus;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  const matched = /\bstatus code\s+(\d{3})\b/i.exec(message);
+  if (!matched) {
+    return null;
+  }
+
+  const parsed = Math.round(Number(matched[1]));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const buildProviderErrorMessage = (error: unknown, config: RelayConfig, phase: string): string => {
+  const statusCode = extractStatusCode(error);
+
+  if (statusCode === 401) {
+    return "TON provider rejected TONCENTER_API_KEY (401). Remove or replace TONCENTER_API_KEY.";
+  }
+
+  if (statusCode === 429) {
+    return `TON provider rate limit on ${phase} (429). Add TONCENTER_API_KEY or set ${
+      config.network === "mainnet" ? "TON_MAINNET_ENDPOINT" : "TON_TESTNET_ENDPOINT"
+    } to a dedicated endpoint.`;
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return `TON relay failed during ${phase}`;
+};
+
+const shouldRetryProviderError = (error: unknown): boolean => {
+  const statusCode = extractStatusCode(error);
+
+  if (statusCode === 429) {
+    return true;
+  }
+
+  if (statusCode !== null && statusCode >= 500) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return ["timeout", "temporarily unavailable", "network", "socket hang up", "econnreset"].some((entry) => message.includes(entry));
+};
+
+const runWithProviderRetry = async <T>(
+  operation: () => Promise<T>,
+  options: {
+    config: RelayConfig;
+    phase: string;
+    state?: {
+      lastRequestAt: number;
+    };
+  },
+): Promise<T> => {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < options.config.providerRetryCount; attempt += 1) {
+    try {
+      if (options.state && options.config.providerMinRequestGapMs > 0 && options.state.lastRequestAt > 0) {
+        const elapsedMs = Date.now() - options.state.lastRequestAt;
+        const waitMs = options.config.providerMinRequestGapMs - elapsedMs;
+
+        if (waitMs > 0) {
+          await sleep(waitMs);
+        }
+      }
+
+      if (options.state) {
+        options.state.lastRequestAt = Date.now();
+      }
+
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      if (!shouldRetryProviderError(error) || attempt >= options.config.providerRetryCount - 1) {
+        const wrappedError = new Error(buildProviderErrorMessage(error, options.config, options.phase)) as Error & {
+          status?: number;
+        };
+        wrappedError.status = extractStatusCode(error) ?? undefined;
+        throw wrappedError;
+      }
+
+      const backoffMs = options.config.providerRetryDelayMs * (attempt + 1);
+      await sleep(backoffMs);
+    }
+  }
+
+  const wrappedError = new Error(buildProviderErrorMessage(lastError, options.config, options.phase)) as Error & {
+    status?: number;
+  };
+  wrappedError.status = extractStatusCode(lastError) ?? undefined;
+  throw wrappedError;
+};
+
 const waitForSeqnoIncrease = async (
   wallet: OpenedContract<WalletContractV4>,
   currentSeqno: number,
   timeoutMs: number,
+  pollIntervalMs: number,
 ): Promise<boolean> => {
   const timeoutAt = Date.now() + Math.max(1_000, timeoutMs);
 
   while (Date.now() < timeoutAt) {
-    await sleep(1_100);
+    await sleep(Math.max(1_100, pollIntervalMs));
 
     try {
       const nextSeqno = await wallet.getSeqno();
@@ -135,6 +259,15 @@ const resolveRelayConfig = (): RelayConfig => {
 
   const mintFeeNano = normalizeNonNegativeBigInt(process.env.NEXT_PUBLIC_TON_MINT_FEE_NANO, DEFAULT_MINT_FEE_NANO);
   const confirmationTimeoutMs = normalizePositiveInt(process.env.TON_SPONSOR_CONFIRMATION_TIMEOUT_MS, 12_000);
+  const providerRetryCount = normalizePositiveInt(process.env.TON_SPONSOR_PROVIDER_RETRY_COUNT, DEFAULT_PROVIDER_RETRY_COUNT);
+  const providerRetryDelayMs = normalizePositiveInt(
+    process.env.TON_SPONSOR_PROVIDER_RETRY_DELAY_MS,
+    DEFAULT_PROVIDER_RETRY_DELAY_MS,
+  );
+  const providerMinRequestGapMs = normalizePositiveInt(
+    process.env.TON_SPONSOR_PROVIDER_MIN_REQUEST_GAP_MS,
+    apiKey ? 1 : DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS,
+  );
 
   return {
     network,
@@ -145,6 +278,9 @@ const resolveRelayConfig = (): RelayConfig => {
     mintRecipientAddress,
     mintFeeNano,
     confirmationTimeoutMs,
+    providerRetryCount,
+    providerRetryDelayMs,
+    providerMinRequestGapMs,
   };
 };
 
@@ -190,49 +326,89 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
     throw new Error("TON mint recipient address is not configured");
   }
 
-  const keyPair = await mnemonicToPrivateKey(config.sponsorMnemonicWords);
-  const wallet = WalletContractV4.create({
-    workchain: 0,
-    publicKey: keyPair.publicKey,
-  });
-  const client = new TonClient({
-    endpoint: config.endpoint,
-    apiKey: config.apiKey,
-  });
-  const openedWallet = client.open(wallet);
-  const seqno = await openedWallet.getSeqno();
+  const executeRelay = async (activeConfig: RelayConfig): Promise<SponsoredMintRelayResult> => {
+    const keyPair = await mnemonicToPrivateKey(activeConfig.sponsorMnemonicWords);
+    const wallet = WalletContractV4.create({
+      workchain: 0,
+      publicKey: keyPair.publicKey,
+    });
+    const client = new TonClient({
+      endpoint: activeConfig.endpoint,
+      apiKey: activeConfig.apiKey,
+    });
+    const openedWallet = client.open(wallet);
+    const providerState = { lastRequestAt: 0 };
+    const seqno = await runWithProviderRetry(() => openedWallet.getSeqno(), {
+      config: activeConfig,
+      phase: "getSeqno",
+      state: providerState,
+    });
 
-  const recipientAddress = Address.parse(config.mintRecipientAddress);
-  const normalizedOwnerAddress = normalizeTonAddress(input.ownerAddress);
-  const memo = `c3k sponsored mint | release=${input.releaseSlug} | user=${input.telegramUserId} | owner=${normalizedOwnerAddress}`.slice(
-    0,
-    240,
-  );
+    const recipientAddress = Address.parse(activeConfig.mintRecipientAddress);
+    const normalizedOwnerAddress = normalizeTonAddress(input.ownerAddress);
+    const memo = `c3k sponsored mint | release=${input.releaseSlug} | user=${input.telegramUserId} | owner=${normalizedOwnerAddress}`.slice(
+      0,
+      240,
+    );
 
-  await openedWallet.sendTransfer({
-    seqno,
-    secretKey: keyPair.secretKey,
-    messages: [
-      internal({
-        to: recipientAddress,
-        value: config.mintFeeNano,
-        body: memo,
-        bounce: false,
-      }),
-    ],
-  });
+    await runWithProviderRetry(
+      () =>
+        openedWallet.sendTransfer({
+          seqno,
+          secretKey: keyPair.secretKey,
+          messages: [
+            internal({
+              to: recipientAddress,
+              value: activeConfig.mintFeeNano,
+              body: memo,
+              bounce: false,
+            }),
+          ],
+        }),
+      {
+        config: activeConfig,
+        phase: "sendTransfer",
+        state: providerState,
+      },
+    );
 
-  const confirmed = await waitForSeqnoIncrease(openedWallet, seqno, config.confirmationTimeoutMs);
-  const sponsorAddress = config.sponsorAddress || wallet.address.toString({ testOnly: config.network === "testnet" });
-  const txHash = `sponsored:${wallet.address.toString({ testOnly: config.network === "testnet" })}:${seqno}`;
+    if (activeConfig.providerMinRequestGapMs > 0) {
+      await sleep(activeConfig.providerMinRequestGapMs);
+    }
 
-  return {
-    txHash,
-    network: config.network,
-    sponsorAddress,
-    recipientAddress: recipientAddress.toString({ testOnly: config.network === "testnet" }),
-    amountNano: config.mintFeeNano.toString(),
-    confirmed,
-    relaySeqno: seqno,
+    const confirmed = await waitForSeqnoIncrease(
+      openedWallet,
+      seqno,
+      activeConfig.confirmationTimeoutMs,
+      activeConfig.providerMinRequestGapMs,
+    );
+    const sponsorAddress = activeConfig.sponsorAddress || wallet.address.toString({ testOnly: activeConfig.network === "testnet" });
+    const txHash = `sponsored:${wallet.address.toString({ testOnly: activeConfig.network === "testnet" })}:${seqno}`;
+
+    return {
+      txHash,
+      network: activeConfig.network,
+      sponsorAddress,
+      recipientAddress: recipientAddress.toString({ testOnly: activeConfig.network === "testnet" }),
+      amountNano: activeConfig.mintFeeNano.toString(),
+      confirmed,
+      relaySeqno: seqno,
+    };
   };
+
+  try {
+    return await executeRelay(config);
+  } catch (error) {
+    if (extractStatusCode(error) === 401 && config.apiKey) {
+      const fallbackConfig: RelayConfig = {
+        ...config,
+        apiKey: undefined,
+        providerMinRequestGapMs: Math.max(config.providerMinRequestGapMs, DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS),
+      };
+
+      return executeRelay(fallbackConfig);
+    }
+
+    throw error;
+  }
 };
