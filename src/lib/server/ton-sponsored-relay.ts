@@ -144,6 +144,10 @@ const buildProviderErrorMessage = (error: unknown, config: RelayConfig, phase: s
     } to a dedicated endpoint.`;
   }
 
+  if (statusCode !== null && statusCode >= 500) {
+    return `TON provider internal error on ${phase} (${statusCode}). Retry later or switch provider endpoint.`;
+  }
+
   if (error instanceof Error && error.message.trim()) {
     return error.message;
   }
@@ -399,7 +403,9 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
   try {
     return await executeRelay(config);
   } catch (error) {
-    if (extractStatusCode(error) === 401 && config.apiKey) {
+    const statusCode = extractStatusCode(error);
+
+    if ((statusCode === 401 || (statusCode !== null && statusCode >= 500)) && config.apiKey) {
       const fallbackConfig: RelayConfig = {
         ...config,
         apiKey: undefined,
