@@ -21,6 +21,7 @@ import {
 import { useTonWallet } from "@tonconnect/ui-react";
 
 import { SegmentedTabs } from "@/components/segmented-tabs";
+import { StarsIcon } from "@/components/stars-icon";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   createMyArtistTrack,
@@ -1080,9 +1081,12 @@ export default function ProfilePage() {
             </article>
             <article>
               <span>Коллекция</span>
-              <strong title="Покупки / NFT улучшения">
+              <strong
+                className={styles.statValueCompact}
+                title="Покупки / NFT улучшения"
+              >
                 {allPurchasedReleaseSlugs.length} /{" "}
-                {onchainMintedReleaseCards.length}
+                {onchainMintedReleaseCards.length} улучшений
               </strong>
             </article>
           </div>
@@ -1095,9 +1099,18 @@ export default function ProfilePage() {
           </div>
 
           <div className={styles.heroBalance}>
-            <div className={styles.heroBalanceMeta}>
-              <span>Баланс</span>
-              <strong>{formatStarsFromCents(walletCents)} ⭐</strong>
+            <div className={styles.heroBalanceLead}>
+              <span className={styles.heroBalanceIcon} aria-hidden>
+                <StarsIcon />
+              </span>
+              <div className={styles.heroBalanceMeta}>
+                <span>Баланс</span>
+                <strong className={styles.balanceValue}>
+                  <StarsIcon className={styles.balanceValueIcon} />
+                  {formatStarsFromCents(walletCents)}
+                </strong>
+                <small>Кошелек приложения для покупок и NFT улучшений</small>
+              </div>
             </div>
             <div className={styles.heroBalanceActions}>
               <Link href="/balance">Пополнить баланс</Link>
@@ -1265,19 +1278,23 @@ export default function ProfilePage() {
                   </div>
 
                   <div className={styles.artistStats}>
-                    <span>
-                      Баланс артиста:{" "}
-                      {formatStarsFromCents(
-                        artistProfile?.balanceStarsCents ?? 0,
-                      )}{" "}
-                      ⭐
+                    <span className={styles.inlineValueWithIcon}>
+                      Баланс артиста:
+                      <strong>
+                        <StarsIcon className={styles.inlineValueIcon} />
+                        {formatStarsFromCents(
+                          artistProfile?.balanceStarsCents ?? 0,
+                        )}
+                      </strong>
                     </span>
-                    <span>
-                      Заработано:{" "}
-                      {formatStarsFromCents(
-                        artistProfile?.lifetimeEarningsStarsCents ?? 0,
-                      )}{" "}
-                      ⭐
+                    <span className={styles.inlineValueWithIcon}>
+                      Заработано:
+                      <strong>
+                        <StarsIcon className={styles.inlineValueIcon} />
+                        {formatStarsFromCents(
+                          artistProfile?.lifetimeEarningsStarsCents ?? 0,
+                        )}
+                      </strong>
                     </span>
                     <span>Донатов: {artistDonationsCount}</span>
                     <span>Подписок: {artistSubscriptionsCount}</span>
@@ -1594,8 +1611,9 @@ export default function ProfilePage() {
                             {track.subtitle || track.genre || "Сингл"} ·{" "}
                             {track.releaseTracklist?.length ?? 1} треков
                           </p>
-                          <span>
-                            {formatStarsFromCents(track.priceStarsCents)} ⭐
+                          <span className={styles.inlineValueWithIcon}>
+                            <StarsIcon className={styles.inlineValueIcon} />
+                            {formatStarsFromCents(track.priceStarsCents)}
                           </span>
                         </article>
                       ))}

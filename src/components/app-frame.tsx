@@ -17,9 +17,9 @@ interface AppFrameProps {
 }
 
 interface TabItem {
-  id: "feed" | "search" | "shop" | "profile";
+  id: "feed" | "shop" | "profile";
   label: string;
-  href: "/" | "/search" | "/shop" | "/profile";
+  href: "/" | "/shop" | "/profile";
   icon: React.ReactNode;
 }
 
@@ -27,14 +27,6 @@ function FeedIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden>
       <path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 17.25V6.75Zm2.25-.75a.75.75 0 0 0-.75.75v3.75h12V6.75a.75.75 0 0 0-.75-.75H6.75Zm11.25 6h-12v5.25c0 .41.34.75.75.75h10.5a.75.75 0 0 0 .75-.75V12Zm-10 1.5a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5H8Zm5.25 0a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5h-2.75Z" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M10.5 4a6.5 6.5 0 1 1 4.74 10.95l3.4 3.4a.75.75 0 1 1-1.06 1.06l-3.4-3.4A6.5 6.5 0 0 1 10.5 4Zm0 1.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z" />
     </svg>
   );
 }
@@ -61,16 +53,12 @@ export function AppFrame({ children }: AppFrameProps) {
   const { user } = useAppAuthUser();
   const profilePhotoUrl = user?.photo_url;
 
-  const isSearch = pathname === "/search";
   const isShop = pathname === "/shop";
   const isProfile = pathname === "/profile";
-  const activeIndex = isProfile ? 3 : isShop ? 2 : isSearch ? 1 : 0;
+  const activeIndex = isProfile ? 2 : isShop ? 1 : 0;
 
   const showNavigation =
-    pathname === "/" ||
-    pathname === "/search" ||
-    pathname === "/shop" ||
-    pathname === "/profile";
+    pathname === "/" || pathname === "/shop" || pathname === "/profile";
   const frameStyle = useMemo(
     () =>
       ({
@@ -82,7 +70,6 @@ export function AppFrame({ children }: AppFrameProps) {
   const tabs = useMemo<TabItem[]>(
     () => [
       { id: "feed", label: "Лента", href: "/", icon: <FeedIcon /> },
-      { id: "search", label: "Поиск", href: "/search", icon: <SearchIcon /> },
       { id: "shop", label: "Релизы", href: "/shop", icon: <ShopIcon /> },
       {
         id: "profile",

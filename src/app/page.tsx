@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchPublicCatalog } from "@/lib/admin-api";
+import { StarsIcon } from "@/components/stars-icon";
 import { buildTelegramShareUrl, buildUnifiedFeed, readFollowingSlugs } from "@/lib/social-hub";
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import { formatStarsFromCents } from "@/lib/stars-format";
@@ -188,10 +189,10 @@ export default function Home() {
         <section className={styles.hero}>
           <div>
             <p className={styles.kicker}>C3K Social Feed</p>
-            <h1>Лента подписок: релизы артистов + блог</h1>
+            <h1>Лента релизов и постов</h1>
             <p>
-              Здесь собираются свежие релизы и посты каналов/артистов, на которых вы подписаны. Покупки можно сразу
-              шарить в Telegram.
+              Здесь собираются новые релизы и заметки артистов, за которыми вы следите. Можно оставить поток только по
+              подпискам или раскрыть весь каталог.
             </p>
           </div>
 
@@ -225,9 +226,6 @@ export default function Home() {
             >
               Весь рынок
             </button>
-            <Link href="/search" className={styles.searchButton}>
-              Глобальный поиск
-            </Link>
           </div>
 
           {followingSlugs.length > 0 ? (
@@ -282,13 +280,16 @@ export default function Home() {
                       <p>{engagement?.reactionsCount ?? item.reactionsCount} реакций</p>
                       <p>{engagement?.commentsCount ?? item.commentsCount} комментариев</p>
                       {item.kind === "release" && typeof item.priceStarsCents === "number" ? (
-                        <strong>{formatStarsFromCents(item.priceStarsCents)} ⭐</strong>
+                        <strong className={styles.priceValue}>
+                          <StarsIcon className={styles.priceIcon} />
+                          {formatStarsFromCents(item.priceStarsCents)}
+                        </strong>
                       ) : null}
                     </div>
 
                     <div className={styles.actionsRow}>
                       <Link href={item.href} className={styles.primaryAction}>
-                        {item.kind === "release" ? "Открыть релиз" : "Открыть пост"}
+                        {item.kind === "release" ? "Открыть релиз" : "Открыть"}
                       </Link>
                       <a href={shareHref} target="_blank" rel="noreferrer" className={styles.secondaryAction}>
                         Поделиться

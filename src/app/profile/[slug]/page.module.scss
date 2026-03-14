@@ -247,10 +247,19 @@
   font-size: 0.73rem;
 }
 
-.releaseCard span {
+.releasePrice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
   color: var(--tg-subtitle-text);
   font-size: 0.73rem;
   font-weight: 600;
+}
+
+.releasePriceIcon {
+  width: 0.78rem;
+  height: 0.78rem;
+  color: color-mix(in srgb, var(--tg-accent) 82%, var(--tg-text));
 }
 
 .empty {

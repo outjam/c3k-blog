@@ -8,6 +8,7 @@ import { TonConnectButton, useTonWallet } from "@tonconnect/ui-react";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import { useGlobalPlayer } from "@/components/player/global-player-provider";
+import { StarsIcon } from "@/components/stars-icon";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
@@ -526,7 +527,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           ) : null}
           <p className={styles.description}>{product.description}</p>
           <p className={styles.price}>
-            {formatStarsFromCents(selectedPriceStarsCents)} ⭐
+            <StarsIcon className={styles.priceIcon} />
+            {formatStarsFromCents(selectedPriceStarsCents)}
           </p>
           {isPurchased ? (
             <div className={styles.ownedBanner}>
@@ -573,7 +575,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 >
                   <span>{getFormatLabel(entry.format)}</span>
                   <small>
-                    {formatStarsFromCents(entry.priceStarsCents)} ⭐
+                    <span className={styles.inlineStars}>
+                      <StarsIcon className={styles.inlineStarsIcon} />
+                      {formatStarsFromCents(entry.priceStarsCents)}
+                    </span>
                   </small>
                 </button>
               ))}
@@ -641,10 +646,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 <h2>Покупка</h2>
                 <p>не куплен</p>
               </div>
-              <p>
-                Кошелек приложения:{" "}
-                <strong>{formatStarsFromCents(walletBalanceCents)} ⭐</strong>
-              </p>
+              <div className={styles.walletBalanceLine}>
+                <span>Баланс кошелька</span>
+                <strong>
+                  <StarsIcon className={styles.walletBalanceIcon} />
+                  {formatStarsFromCents(walletBalanceCents)}
+                </strong>
+              </div>
               <p className={styles.purchaseState}>
                 После покупки релиз сразу появится в вашей коллекции.
               </p>
@@ -661,7 +669,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   className={styles.addButton}
                   onClick={sharePurchase}
                 >
-                  Поделиться покупкой
+                  Поделиться
                 </button>
               </div>
               {walletMessage ? (
@@ -908,7 +916,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 onClick={() => void handleMintNft()}
                 disabled={minting}
               >
-                {minting ? "Минтим..." : `Mint NFT в ${TON_NETWORK_LABEL}`}
+                {minting ? "Минтим..." : `Выпустить NFT в ${TON_NETWORK_LABEL}`}
               </button>
             </div>
           </div>

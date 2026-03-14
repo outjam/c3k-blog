@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { StarsIcon } from "@/components/stars-icon";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import {
@@ -294,8 +295,8 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       <div className={styles.page}>
         <div className={styles.missing}>
           <h1>Профиль не найден</h1>
-          <p>Проверьте ссылку или попробуйте найти пользователя через глобальный поиск.</p>
-          <Link href="/search">Перейти в поиск</Link>
+          <p>Проверьте ссылку или откройте каталог релизов.</p>
+          <Link href="/shop">Перейти в релизы</Link>
         </div>
       </div>
     );
@@ -357,7 +358,6 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                 Поделиться профилем
               </a>
             ) : null}
-            <Link href="/search">Поиск</Link>
           </div>
         </section>
 
@@ -396,7 +396,10 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                   <div>
                     <strong>{release.title}</strong>
                     <p>{release.artistName || release.subtitle}</p>
-                    <span>{formatStarsFromCents(release.priceStarsCents)} ⭐</span>
+                    <span className={styles.releasePrice}>
+                      <StarsIcon className={styles.releasePriceIcon} />
+                      {formatStarsFromCents(release.priceStarsCents)}
+                    </span>
                   </div>
                 </Link>
               ))}
