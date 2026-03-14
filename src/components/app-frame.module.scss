@@ -1,10 +1,7 @@
 .shell {
   min-height: 100vh;
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at 16% -8%, color-mix(in srgb, var(--tg-accent) 18%, transparent), transparent 44%),
-    radial-gradient(circle at 104% 100%, color-mix(in srgb, #ffd37c 12%, transparent), transparent 41%),
-    var(--tg-bg);
+  background: var(--tg-bg);
 }
 
 .shellNoNav {
@@ -93,12 +90,7 @@
     height: calc(100dvh - 1.8rem - var(--safe-area-top) - var(--safe-area-bottom));
     border-radius: 1.4rem;
     border: 1px solid color-mix(in srgb, var(--tg-section-separator) 30%, transparent);
-    background:
-      linear-gradient(
-        160deg,
-        color-mix(in srgb, var(--tg-section-bg) 90%, transparent),
-        color-mix(in srgb, var(--tg-section-bg) 65%, var(--tg-bg))
-      );
+    background: var(--tg-section-bg);
     box-shadow: 0 16px 44px color-mix(in srgb, #000 16%, transparent);
     display: grid;
     align-content: start;
