@@ -10,6 +10,7 @@ import {
   parseReferenceNftItemData,
   resolveTonNftCollectionAddress,
 } from "./ton-nft-reference";
+import { buildReferenceNftCollectionDeployment } from "./ton-reference-nft-contract";
 
 type TonNetworkMode = "mainnet" | "testnet";
 type RelayProviderMode = "toncenter_v2" | "tonhub_v4";
@@ -45,6 +46,7 @@ export interface SponsoredMintRelayInput {
   telegramUserId: number;
   ownerAddress: string;
   itemContentValue: string;
+  collectionAddress?: string;
 }
 
 export interface SponsoredMintRelayResult {
@@ -57,6 +59,23 @@ export interface SponsoredMintRelayResult {
   amountNano: string;
   itemValueNano: string;
   confirmed: boolean;
+  relaySeqno: number;
+  provider: "toncenter_v2" | "tonhub_v4";
+}
+
+export interface SponsoredCollectionDeployInput {
+  collectionMetadataUrl: string;
+  collectionAddress?: string;
+  commonContent?: string;
+}
+
+export interface SponsoredCollectionDeployResult {
+  txHash: string;
+  network: TonNetworkMode;
+  sponsorAddress: string;
+  collectionAddress: string;
+  confirmed: boolean;
+  alreadyDeployed: boolean;
   relaySeqno: number;
   provider: "toncenter_v2" | "tonhub_v4";
 }
@@ -74,6 +93,7 @@ const ZERO_BIGINT = BigInt(0);
 const ONE_BIGINT = BigInt(1);
 const DEFAULT_MINT_MESSAGE_VALUE_NANO = BigInt("50000000");
 const DEFAULT_NFT_ITEM_FORWARD_VALUE_NANO = BigInt("30000000");
+const DEFAULT_COLLECTION_DEPLOY_VALUE_NANO = BigInt("200000000");
 const MIN_COLLECTION_GAS_OVERHEAD_NANO = BigInt("10000000");
 const DEFAULT_PROVIDER_RETRY_COUNT = 4;
 const DEFAULT_PROVIDER_RETRY_DELAY_MS = 1200;
@@ -308,6 +328,24 @@ const withRelayProvider = (error: unknown, provider: RelayProviderMode): RelayEr
   return wrapped;
 };
 
+const isTupleReaderEof = (error: unknown): boolean => {
+  return error instanceof Error && error.message.trim() === "EOF";
+};
+
+const wrapReferenceCollectionReadError = (params: {
+  error: unknown;
+  method: string;
+  collectionAddress: string;
+}): Error => {
+  if (isTupleReaderEof(params.error)) {
+    return new Error(
+      `NFT collection ${params.collectionAddress} returned an unexpected stack for ${params.method}. Expected a standard reference NFT collection contract.`,
+    );
+  }
+
+  return params.error instanceof Error ? params.error : new Error(String(params.error));
+};
+
 const waitForSeqnoIncrease = async (
   wallet: OpenedContract<WalletContractV4>,
   currentSeqno: number,
@@ -369,6 +407,64 @@ const runContractMethod = async (
   return result.stack;
 };
 
+const createRelayClient = (config: RelayConfig, provider: RelayProviderMode): RelayClient => {
+  return provider === "tonhub_v4"
+    ? new TonClient4({
+        endpoint: config.endpointV4,
+      })
+    : new TonClient({
+        endpoint: config.endpoint,
+        apiKey: config.apiKey,
+      });
+};
+
+const buildProviderConfig = (config: RelayConfig, provider: RelayProviderMode): RelayConfig => {
+  if (provider === "toncenter_v2") {
+    return config;
+  }
+
+  return {
+    ...config,
+    apiKey: undefined,
+    providerMinRequestGapMs: Math.max(config.providerMinRequestGapMs, DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS),
+  };
+};
+
+const getProviderOrder = (config: RelayConfig): RelayProviderMode[] => {
+  return config.primaryProvider === "tonhub_v4" ? ["tonhub_v4", "toncenter_v2"] : ["toncenter_v2", "tonhub_v4"];
+};
+
+const waitForCollectionDeployment = async (params: {
+  client: RelayClient;
+  config: RelayConfig;
+  providerState: {
+    lastRequestAt: number;
+  };
+  collectionAddress: Address;
+}): Promise<boolean> => {
+  const timeoutAt = Date.now() + Math.max(2_000, params.config.confirmationTimeoutMs);
+  const pollIntervalMs = Math.max(1_100, params.config.providerMinRequestGapMs);
+
+  while (Date.now() < timeoutAt) {
+    await sleep(pollIntervalMs);
+
+    try {
+      parseReferenceNftCollectionData(
+        await runContractMethod(params.client, params.collectionAddress, "get_collection_data", [], {
+          config: params.config,
+          state: params.providerState,
+          phase: "get_collection_data:deploy",
+        }),
+      );
+      return true;
+    } catch {
+      // ignore transient provider errors while waiting for collection deployment
+    }
+  }
+
+  return false;
+};
+
 const waitForMintConfirmation = async (params: {
   client: RelayClient;
   config: RelayConfig;
@@ -426,7 +522,9 @@ const waitForMintConfirmation = async (params: {
   return false;
 };
 
-const resolveRelayConfig = (): RelayConfig => {
+const resolveRelayConfig = (options?: {
+  collectionAddress?: string;
+}): RelayConfig => {
   const network = normalizeTonNetwork(process.env.NEXT_PUBLIC_TON_NETWORK);
   const endpoint =
     String(
@@ -442,7 +540,7 @@ const resolveRelayConfig = (): RelayConfig => {
 
   const sponsorMnemonicWords = splitMnemonic(process.env.TON_SPONSOR_WALLET_MNEMONIC || process.env.TON_TESTNET_WALLET_MNEMONIC);
   const sponsorAddress = normalizeTonAddress(process.env.TON_SPONSOR_WALLET_ADDRESS || process.env.TON_TESTNET_WALLET_BOUNCEABLE);
-  const collectionAddress = resolveTonNftCollectionAddress();
+  const collectionAddress = normalizeTonAddress(options?.collectionAddress) || resolveTonNftCollectionAddress();
 
   const mintMessageValueNano = normalizeNonNegativeBigInt(process.env.NEXT_PUBLIC_TON_MINT_FEE_NANO, DEFAULT_MINT_MESSAGE_VALUE_NANO);
   const nftItemForwardValueNano = resolveNftItemForwardValueNano(mintMessageValueNano);
@@ -483,8 +581,14 @@ export const resolveSponsoredMintGasFeeCents = (): number => {
   return normalizePositiveInt(process.env.TON_SPONSORED_MINT_GAS_STARS_CENTS, 2500);
 };
 
-export const getSponsoredRelayConfigStatus = (): SponsoredRelayConfigStatus => {
-  const config = resolveRelayConfig();
+const resolveCollectionDeployValueNano = (): bigint => {
+  return normalizeNonNegativeBigInt(process.env.TON_COLLECTION_DEPLOY_VALUE_NANO, DEFAULT_COLLECTION_DEPLOY_VALUE_NANO);
+};
+
+export const getSponsoredRelayConfigStatus = (collectionAddressOverride?: string): SponsoredRelayConfigStatus => {
+  const config = resolveRelayConfig({
+    collectionAddress: collectionAddressOverride,
+  });
   const missing: string[] = [];
 
   if (config.sponsorMnemonicWords.length < 12) {
@@ -495,7 +599,6 @@ export const getSponsoredRelayConfigStatus = (): SponsoredRelayConfigStatus => {
   if (!config.collectionAddress) {
     missing.push("TON_NFT_COLLECTION_ADDRESS");
     missing.push("NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS");
-    missing.push("NEXT_PUBLIC_TON_MINT_ADDRESS");
   }
 
   return {
@@ -507,12 +610,14 @@ export const getSponsoredRelayConfigStatus = (): SponsoredRelayConfigStatus => {
   };
 };
 
-export const hasSponsoredRelayConfig = (): boolean => {
-  return getSponsoredRelayConfigStatus().ok;
+export const hasSponsoredRelayConfig = (collectionAddressOverride?: string): boolean => {
+  return getSponsoredRelayConfigStatus(collectionAddressOverride).ok;
 };
 
 export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Promise<SponsoredMintRelayResult> => {
-  const config = resolveRelayConfig();
+  const config = resolveRelayConfig({
+    collectionAddress: input.collectionAddress,
+  });
 
   if (config.sponsorMnemonicWords.length < 12) {
     throw new Error("TON sponsor mnemonic is not configured");
@@ -532,15 +637,7 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
       workchain: 0,
       publicKey: keyPair.publicKey,
     });
-    const client: RelayClient =
-      provider === "tonhub_v4"
-        ? new TonClient4({
-            endpoint: activeConfig.endpointV4,
-          })
-        : new TonClient({
-            endpoint: activeConfig.endpoint,
-            apiKey: activeConfig.apiKey,
-          });
+    const client = createRelayClient(activeConfig, provider);
     const openedWallet = client.open(wallet);
     const providerState = { lastRequestAt: 0 };
     const seqno = await runWithProviderRetry(() => openedWallet.getSeqno(), {
@@ -556,24 +653,45 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
       throw new Error("TON owner address is required for NFT mint");
     }
 
-    const collectionData = parseReferenceNftCollectionData(
-      await runContractMethod(client, collectionAddress, "get_collection_data", [], {
-        config: activeConfig,
-        state: providerState,
-      }),
-    );
+    let collectionData: ReturnType<typeof parseReferenceNftCollectionData>;
+
+    try {
+      collectionData = parseReferenceNftCollectionData(
+        await runContractMethod(client, collectionAddress, "get_collection_data", [], {
+          config: activeConfig,
+          state: providerState,
+        }),
+      );
+    } catch (error) {
+      throw wrapReferenceCollectionReadError({
+        error,
+        method: "get_collection_data",
+        collectionAddress: activeConfig.collectionAddress,
+      });
+    }
+
     const itemIndex = collectionData.nextItemIndex;
-    const itemAddressStack = await runContractMethod(
-      client,
-      collectionAddress,
-      "get_nft_address_by_index",
-      buildReferenceNftIndexStack(itemIndex),
-      {
-        config: activeConfig,
-        state: providerState,
-      },
-    );
-    const itemAddress = itemAddressStack.readAddressOpt();
+    let itemAddress: Address | null = null;
+
+    try {
+      const itemAddressStack = await runContractMethod(
+        client,
+        collectionAddress,
+        "get_nft_address_by_index",
+        buildReferenceNftIndexStack(itemIndex),
+        {
+          config: activeConfig,
+          state: providerState,
+        },
+      );
+      itemAddress = itemAddressStack.readAddressOpt();
+    } catch (error) {
+      throw wrapReferenceCollectionReadError({
+        error,
+        method: "get_nft_address_by_index",
+        collectionAddress: activeConfig.collectionAddress,
+      });
+    }
 
     if (!itemAddress) {
       throw new Error("NFT collection did not return an item address for the next index");
@@ -655,21 +773,13 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
     };
   };
 
-  const providerOrder: RelayProviderMode[] =
-    config.primaryProvider === "tonhub_v4" ? ["tonhub_v4", "toncenter_v2"] : ["toncenter_v2", "tonhub_v4"];
+  const providerOrder = getProviderOrder(config);
 
   let lastError: unknown = null;
 
   for (const provider of providerOrder) {
     try {
-      const nextConfig =
-        provider === "toncenter_v2"
-          ? config
-          : {
-              ...config,
-              apiKey: undefined,
-              providerMinRequestGapMs: Math.max(config.providerMinRequestGapMs, DEFAULT_PROVIDER_MIN_REQUEST_GAP_MS),
-            };
+      const nextConfig = buildProviderConfig(config, provider);
 
       return await executeRelay(nextConfig, provider);
     } catch (error) {
@@ -682,4 +792,176 @@ export const sendSponsoredMintRelay = async (input: SponsoredMintRelayInput): Pr
   }
 
   throw lastError instanceof Error ? lastError : new Error("TON relay failed on all configured providers");
+};
+
+export const deploySponsoredNftCollection = async (
+  input: SponsoredCollectionDeployInput,
+): Promise<SponsoredCollectionDeployResult> => {
+  const config = resolveRelayConfig({
+    collectionAddress: input.collectionAddress,
+  });
+  const collectionMetadataUrl = String(input.collectionMetadataUrl ?? "").trim();
+  const commonContent = String(input.commonContent ?? "").trim();
+
+  if (config.sponsorMnemonicWords.length < 12) {
+    throw new Error("TON sponsor mnemonic is not configured");
+  }
+
+  if (!collectionMetadataUrl) {
+    throw new Error("TON NFT collection metadata URL is not configured");
+  }
+
+  const executeDeploy = async (activeConfig: RelayConfig, provider: RelayProviderMode): Promise<SponsoredCollectionDeployResult> => {
+    const keyPair = await mnemonicToPrivateKey(activeConfig.sponsorMnemonicWords);
+    const wallet = WalletContractV4.create({
+      workchain: 0,
+      publicKey: keyPair.publicKey,
+    });
+    const client = createRelayClient(activeConfig, provider);
+    const openedWallet = client.open(wallet);
+    const providerState = { lastRequestAt: 0 };
+    const sponsorWalletAddress = wallet.address.toString({ testOnly: activeConfig.network === "testnet" });
+    const sponsorAddress = activeConfig.sponsorAddress || sponsorWalletAddress;
+    const configuredCollectionAddress = normalizeTonAddress(activeConfig.collectionAddress);
+    const deployedMarkerSeqno = 0;
+
+    if (configuredCollectionAddress) {
+      const existingAddress = Address.parse(configuredCollectionAddress);
+
+      try {
+        parseReferenceNftCollectionData(
+          await runContractMethod(client, existingAddress, "get_collection_data", [], {
+            config: activeConfig,
+            state: providerState,
+            phase: "get_collection_data:existing",
+          }),
+        );
+
+        return {
+          txHash: `collection:existing:${configuredCollectionAddress}`,
+          network: activeConfig.network,
+          sponsorAddress,
+          collectionAddress: existingAddress.toString({ testOnly: activeConfig.network === "testnet" }),
+          confirmed: true,
+          alreadyDeployed: true,
+          relaySeqno: deployedMarkerSeqno,
+          provider,
+        };
+      } catch {
+        // ignore and continue with deployment check
+      }
+    }
+
+    const deployment = buildReferenceNftCollectionDeployment({
+      adminAddress: sponsorWalletAddress,
+      collectionMetadataUrl,
+      commonContent,
+      royaltyAddress: sponsorWalletAddress,
+    });
+    const deployedCollectionAddress = deployment.address.toString({ testOnly: activeConfig.network === "testnet" });
+
+    if (configuredCollectionAddress && !areTonAddressesEqual(configuredCollectionAddress, deployment.address)) {
+      throw new Error(
+        `Configured TON NFT collection ${configuredCollectionAddress} is not deployed and does not match the current deployment config ${deployedCollectionAddress}.`,
+      );
+    }
+
+    try {
+      parseReferenceNftCollectionData(
+        await runContractMethod(client, deployment.address, "get_collection_data", [], {
+          config: activeConfig,
+          state: providerState,
+          phase: "get_collection_data:predeploy",
+        }),
+      );
+
+      return {
+        txHash: `collection:existing:${deployedCollectionAddress}`,
+        network: activeConfig.network,
+        sponsorAddress,
+        collectionAddress: deployedCollectionAddress,
+        confirmed: true,
+        alreadyDeployed: true,
+        relaySeqno: deployedMarkerSeqno,
+        provider,
+      };
+    } catch {
+      // ignore and continue with deployment
+    }
+
+    const seqno = await runWithProviderRetry(() => openedWallet.getSeqno(), {
+      config: activeConfig,
+      phase: "getSeqno:collectionDeploy",
+      state: providerState,
+    });
+
+    await runWithProviderRetry(
+      () =>
+        openedWallet.sendTransfer({
+          seqno,
+          secretKey: keyPair.secretKey,
+          messages: [
+            internal({
+              to: deployment.address,
+              value: resolveCollectionDeployValueNano(),
+              init: deployment.init,
+              bounce: false,
+            }),
+          ],
+        }),
+      {
+        config: activeConfig,
+        phase: "sendTransfer:collectionDeploy",
+        state: providerState,
+      },
+    );
+
+    if (activeConfig.providerMinRequestGapMs > 0) {
+      await sleep(activeConfig.providerMinRequestGapMs);
+    }
+
+    const seqnoConfirmed = await waitForSeqnoIncrease(
+      openedWallet,
+      seqno,
+      activeConfig.confirmationTimeoutMs,
+      activeConfig.providerMinRequestGapMs,
+    );
+    const deployConfirmed =
+      seqnoConfirmed &&
+      (await waitForCollectionDeployment({
+        client,
+        config: activeConfig,
+        providerState,
+        collectionAddress: deployment.address,
+      }));
+
+    return {
+      txHash: `collection:${sponsorWalletAddress}:${seqno}:${deployedCollectionAddress}`,
+      network: activeConfig.network,
+      sponsorAddress,
+      collectionAddress: deployedCollectionAddress,
+      confirmed: deployConfirmed,
+      alreadyDeployed: false,
+      relaySeqno: seqno,
+      provider,
+    };
+  };
+
+  const providerOrder = getProviderOrder(config);
+  let lastError: unknown = null;
+
+  for (const provider of providerOrder) {
+    try {
+      const nextConfig = buildProviderConfig(config, provider);
+      return await executeDeploy(nextConfig, provider);
+    } catch (error) {
+      lastError = withRelayProvider(error, provider);
+
+      if (!shouldFallbackProvider(error)) {
+        throw lastError;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("TON collection deploy failed on all configured providers");
 };

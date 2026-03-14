@@ -90,9 +90,7 @@ export const isTonOnchainNftMintEnabled = (env: NodeJS.ProcessEnv = process.env)
 };
 
 export const resolveTonNftCollectionAddress = (env: NodeJS.ProcessEnv = process.env): string => {
-  return normalizeTonAddress(
-    env.TON_NFT_COLLECTION_ADDRESS || env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS || env.NEXT_PUBLIC_TON_MINT_ADDRESS,
-  );
+  return normalizeTonAddress(env.TON_NFT_COLLECTION_ADDRESS || env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS);
 };
 
 export const resolveTonNftItemContentPrefix = (params: {

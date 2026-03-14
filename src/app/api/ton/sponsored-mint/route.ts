@@ -8,6 +8,7 @@ import {
   spendSocialWalletBalanceCents,
   topUpSocialWalletBalanceCents,
 } from "@/lib/server/social-user-state-store";
+import { getTonRuntimeConfig } from "@/lib/server/ton-runtime-config-store";
 import {
   buildReferenceNftItemContentValue,
   isTonOnchainNftMintEnabled,
@@ -145,6 +146,8 @@ export async function POST(request: Request) {
   }
 
   const ownerAddress = normalizeTonAddress(payload.ownerAddress) || normalizeTonAddress(snapshotBefore.tonWalletAddress) || "";
+  const tonRuntimeConfig = await getTonRuntimeConfig();
+  const runtimeCollectionAddress = tonRuntimeConfig?.collectionAddress;
 
   if (!ownerAddress) {
     return buildMintFailure({
@@ -161,8 +164,8 @@ export async function POST(request: Request) {
     });
   }
 
-  if (!hasSponsoredRelayConfig()) {
-    const relayConfig = getSponsoredRelayConfigStatus();
+  if (!hasSponsoredRelayConfig(runtimeCollectionAddress)) {
+    const relayConfig = getSponsoredRelayConfigStatus(runtimeCollectionAddress);
 
     return buildMintFailure({
       reason: "relay_unavailable",
@@ -215,6 +218,7 @@ export async function POST(request: Request) {
       telegramUserId: auth.telegramUserId,
       ownerAddress,
       itemContentValue,
+      collectionAddress: runtimeCollectionAddress,
     });
   } catch (error) {
     await topUpSocialWalletBalanceCents(auth.telegramUserId, gasDebitedCents);

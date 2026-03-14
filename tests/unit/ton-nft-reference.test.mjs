@@ -10,6 +10,7 @@ const modulePath = path.resolve(process.cwd(), "src/lib/server/ton-nft-reference
 const {
   buildReferenceNftItemContentValue,
   buildReferenceNftMintBody,
+  resolveTonNftCollectionAddress,
   resolveTonNftItemContentPrefix,
 } = await importTsModule(modulePath);
 
@@ -30,6 +31,17 @@ test("buildReferenceNftItemContentValue supports {slug} placeholder", () => {
       releaseSlug: "Midnight Echo",
     }),
     "releases/midnight-echo.json",
+  );
+});
+
+test("resolveTonNftCollectionAddress ignores legacy mint address fallback", () => {
+  assert.equal(
+    resolveTonNftCollectionAddress({
+      TON_NFT_COLLECTION_ADDRESS: "",
+      NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS: "",
+      NEXT_PUBLIC_TON_MINT_ADDRESS: "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c",
+    }),
+    "",
   );
 });
 
