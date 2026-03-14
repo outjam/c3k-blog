@@ -47,6 +47,7 @@ import {
 } from "@/lib/social-hub";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
+import { hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { ProfileMode } from "@/types/social";
 import type {
   ArtistProfile,
@@ -221,6 +222,7 @@ export default function ProfilePage() {
   const [socialOverlay, setSocialOverlay] = useState<
     "followers" | "following" | null
   >(null);
+  const [copyToast, setCopyToast] = useState("");
 
   const [artistDraft, setArtistDraft] = useState({
     displayName: "",
@@ -327,6 +329,18 @@ export default function ProfilePage() {
       mounted = false;
     };
   }, [viewerKey, viewerSlug]);
+
+  useEffect(() => {
+    if (!copyToast) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCopyToast("");
+    }, 1800);
+
+    return () => window.clearTimeout(timer);
+  }, [copyToast]);
 
   useEffect(() => {
     const connectedAddress = String(tonWallet?.account?.address ?? "").trim();
@@ -543,7 +557,7 @@ export default function ProfilePage() {
   }, [allPurchasedReleaseSlugs, onchainMintedReleaseCards, products]);
   const awards = currentProfile?.awards ?? [];
   const currentProfileBio = String(currentProfile?.bio ?? "").trim();
-  const roleLabel = mode === "artist" ? "Артист" : "Покупатель";
+  const roleLabel = mode === "artist" ? "Артист" : null;
   const profileTabs = useMemo(
     () =>
       [
@@ -834,6 +848,19 @@ export default function ProfilePage() {
     );
   };
 
+  const handleCopyUsername = async () => {
+    hapticSelection();
+
+    try {
+      await navigator.clipboard.writeText(`@${viewerSlug}`);
+      setCopyToast("Username скопирован");
+      hapticNotification("success");
+    } catch {
+      setCopyToast("Не удалось скопировать username");
+      hapticNotification("warning");
+    }
+  };
+
   const submitArtistProfile = async () => {
     if (!user?.id) {
       setArtistError(
@@ -988,9 +1015,17 @@ export default function ProfilePage() {
             <div className={styles.identityMeta}>
               <div className={styles.identityHeading}>
                 <h1>{currentProfile?.displayName || fullName}</h1>
-                <span className={styles.kicker}>{roleLabel}</span>
+                {roleLabel ? (
+                  <span className={styles.kicker}>{roleLabel}</span>
+                ) : null}
               </div>
-              <p>@{viewerSlug}</p>
+              <button
+                type="button"
+                className={styles.usernameButton}
+                onClick={handleCopyUsername}
+              >
+                @{viewerSlug}
+              </button>
             </div>
 
             {currentProfile?.avatarUrl ? (
@@ -1045,12 +1080,9 @@ export default function ProfilePage() {
             </article>
             <article>
               <span>Коллекция</span>
-              <strong className={styles.statSummary}>
-                <span>
-                  {allPurchasedReleaseSlugs.length} /{" "}
-                  {onchainMintedReleaseCards.length}
-                </span>
-                <small>улучшений</small>
+              <strong title="Покупки / NFT улучшения">
+                {allPurchasedReleaseSlugs.length} /{" "}
+                {onchainMintedReleaseCards.length}
               </strong>
             </article>
           </div>
@@ -1195,7 +1227,7 @@ export default function ProfilePage() {
                 </section>
                     ) : null}
 
-                    {tab.id === "awards" ? (
+                  {tab.id === "awards" ? (
                 <section className={styles.section}>
                   <div className={styles.awardsGrid}>
                     {awards.map((award) => (
@@ -1203,9 +1235,22 @@ export default function ProfilePage() {
                         key={award.id}
                         className={`${styles.awardCard} ${styles[`awardTier${award.tier}`]}`}
                       >
-                        <p>{award.icon}</p>
-                        <h3>{award.title}</h3>
-                        <span>{award.description}</span>
+                        <div className={styles.awardCardTop}>
+                          <span className={styles.awardIconWrap}>{award.icon}</span>
+                          <span className={styles.awardTierPill}>
+                            {award.tier === "diamond"
+                              ? "Diamond"
+                              : award.tier === "gold"
+                                ? "Gold"
+                                : award.tier === "silver"
+                                  ? "Silver"
+                                  : "Bronze"}
+                          </span>
+                        </div>
+                        <div className={styles.awardMeta}>
+                          <h3>{award.title}</h3>
+                          <span>{award.description}</span>
+                        </div>
                       </article>
                     ))}
                   </div>
@@ -1645,6 +1690,8 @@ export default function ProfilePage() {
           </div>
         </div>
       ) : null}
+
+      {copyToast ? <div className={styles.copyToast}>{copyToast}</div> : null}
     </div>
   );
 }
