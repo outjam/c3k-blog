@@ -295,6 +295,10 @@
 .tabShell {
   display: grid;
   gap: 0.9rem;
+  width: calc(100vw - var(--safe-area-left) - var(--safe-area-right));
+  margin-left: calc(
+    (100% - (100vw - var(--safe-area-left) - var(--safe-area-right))) / 2
+  );
 }
 
 .stickyTabs {
@@ -359,6 +363,11 @@
 }
 
 @media (min-width: 1024px) {
+  .tabShell {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .stickyTabs {
     top: calc(var(--app-header-height) + var(--safe-area-top) + 0.95rem);
   }
