@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -104,6 +105,8 @@ const tabTrackSpring = {
   damping: 38,
   mass: 0.78,
 };
+
+const TAB_PAGE_GAP = 18;
 
 const normalizeReleaseTracklistDraft = (
   rows: TrackRowDraft[],
@@ -249,6 +252,7 @@ export default function ProfilePage() {
   >({});
   const [isTabDragging, setIsTabDragging] = useState(false);
   const tabTrackX = useMotionValue(0);
+  const tabViewportHeight = useMotionValue(0);
   const tabDragControls = useDragControls();
 
   useEffect(() => {
@@ -588,8 +592,59 @@ export default function ProfilePage() {
     profileTabs.findIndex((tab) => tab.id === currentTab),
   );
   const activeTabHeight = tabPageHeights[currentTab] ?? 0;
+  const tabPageGap = hasMultipleTabs ? TAB_PAGE_GAP : 0;
+  const tabPageStride = tabViewportWidth + tabPageGap;
   const maxTabTrackOffset =
-    tabViewportWidth * Math.max(profileTabs.length - 1, 0);
+    tabPageStride * Math.max(profileTabs.length - 1, 0);
+
+  const resolveTabHeightByIndex = useCallback(
+    (index: number): number => {
+      const safeIndex = Math.max(0, Math.min(index, profileTabs.length - 1));
+      const targetTab = profileTabs[safeIndex];
+
+      if (!targetTab) {
+        return 0;
+      }
+
+      return tabPageHeights[targetTab.id] ?? 0;
+    },
+    [profileTabs, tabPageHeights],
+  );
+
+  const resolveTabViewportHeight = useCallback(
+    (offsetX: number): number => {
+      if (!tabPageStride) {
+        return resolveTabHeightByIndex(activeTabIndex);
+      }
+
+      const safeOffset = Math.max(-maxTabTrackOffset, Math.min(0, offsetX));
+      const rawIndex = Math.abs(safeOffset) / tabPageStride;
+      const leftIndex = Math.max(
+        0,
+        Math.min(Math.floor(rawIndex), profileTabs.length - 1),
+      );
+      const rightIndex = Math.max(
+        0,
+        Math.min(Math.ceil(rawIndex), profileTabs.length - 1),
+      );
+      const leftHeight = resolveTabHeightByIndex(leftIndex);
+      const rightHeight = resolveTabHeightByIndex(rightIndex);
+
+      if (leftIndex === rightIndex) {
+        return leftHeight;
+      }
+
+      const progress = rawIndex - leftIndex;
+      return leftHeight + (rightHeight - leftHeight) * progress;
+    },
+    [
+      activeTabIndex,
+      maxTabTrackOffset,
+      profileTabs,
+      resolveTabHeightByIndex,
+      tabPageStride,
+    ],
+  );
 
   useLayoutEffect(() => {
     const viewportNode = tabViewportRef.current;
@@ -647,18 +702,48 @@ export default function ProfilePage() {
   }, [profileTabs]);
 
   useEffect(() => {
-    if (!tabViewportWidth || isTabDragging) {
+    if (!tabPageStride || isTabDragging) {
       return;
     }
 
     const controls = animate(
       tabTrackX,
-      -activeTabIndex * tabViewportWidth,
+      -activeTabIndex * tabPageStride,
       tabTrackSpring,
     );
 
     return () => controls.stop();
-  }, [activeTabIndex, isTabDragging, tabTrackX, tabViewportWidth]);
+  }, [activeTabIndex, isTabDragging, tabPageStride, tabTrackX]);
+
+  useEffect(() => {
+    tabViewportHeight.set(resolveTabViewportHeight(tabTrackX.get()));
+  }, [
+    activeTabHeight,
+    activeTabIndex,
+    profileTabs,
+    tabPageHeights,
+    tabPageStride,
+    tabTrackX,
+    tabViewportHeight,
+    resolveTabViewportHeight,
+  ]);
+
+  useEffect(() => {
+    const unsubscribe = tabTrackX.on("change", (latest) => {
+      tabViewportHeight.set(resolveTabViewportHeight(latest));
+    });
+
+    return unsubscribe;
+  }, [
+    activeTabIndex,
+    maxTabTrackOffset,
+    profileTabs,
+    tabPageHeights,
+    tabPageStride,
+    tabTrackX,
+    tabViewportHeight,
+    resolveTabViewportHeight,
+  ]);
 
   const setCurrentTabByIndex = (index: number) => {
     const safeIndex = Math.max(0, Math.min(index, profileTabs.length - 1));
@@ -674,7 +759,7 @@ export default function ProfilePage() {
   ) => {
     if (
       !hasMultipleTabs ||
-      !tabViewportWidth ||
+      !tabPageStride ||
       shouldIgnoreTabSwipe(event.target) ||
       (event.pointerType === "mouse" && event.button !== 0)
     ) {
@@ -688,7 +773,7 @@ export default function ProfilePage() {
     _event: MouseEvent | TouchEvent | PointerEvent,
     info: PanInfo,
   ) => {
-    if (!tabViewportWidth) {
+    if (!tabPageStride) {
       setIsTabDragging(false);
       return;
     }
@@ -696,12 +781,12 @@ export default function ProfilePage() {
     const liveIndex = Math.max(
       0,
       Math.min(
-        Math.round(Math.abs(tabTrackX.get()) / tabViewportWidth),
+        Math.round(Math.abs(tabTrackX.get()) / tabPageStride),
         profileTabs.length - 1,
       ),
     );
     const fastSwipe = Math.abs(info.velocity.x) > 360;
-    const longSwipe = Math.abs(info.offset.x) > tabViewportWidth * 0.18;
+    const longSwipe = Math.abs(info.offset.x) > tabPageStride * 0.18;
     const swipeStep = info.velocity.x < 0 || info.offset.x < 0 ? 1 : -1;
     const nextIndex = Math.max(
       0,
@@ -716,7 +801,7 @@ export default function ProfilePage() {
     if (nextIndex === activeTabIndex) {
       void animate(
         tabTrackX,
-        -activeTabIndex * tabViewportWidth,
+        -activeTabIndex * tabPageStride,
         tabTrackSpring,
       );
       return;
@@ -959,12 +1044,14 @@ export default function ProfilePage() {
               </button>
             </article>
             <article>
-              <span>NFT</span>
-              <strong>{onchainMintedReleaseCards.length}</strong>
-            </article>
-            <article>
-              <span>Покупки</span>
-              <strong>{allPurchasedReleaseSlugs.length}</strong>
+              <span>Коллекция</span>
+              <strong className={styles.statSummary}>
+                <span>
+                  {allPurchasedReleaseSlugs.length} /{" "}
+                  {onchainMintedReleaseCards.length}
+                </span>
+                <small>улучшений</small>
+              </strong>
             </article>
           </div>
 
@@ -999,15 +1086,18 @@ export default function ProfilePage() {
             </div>
           ) : null}
 
-          <div
+          <motion.div
             ref={tabViewportRef}
             className={`${styles.tabViewport} ${isTabDragging ? styles.tabViewportDragging : ""}`}
-            style={activeTabHeight > 0 ? { height: `${activeTabHeight}px` } : undefined}
+            style={activeTabHeight > 0 ? { height: tabViewportHeight } : undefined}
             onPointerDownCapture={handleTabTrackPointerDown}
           >
             <motion.div
               className={styles.tabTrack}
-              style={{ x: tabTrackX }}
+              style={{
+                x: tabTrackX,
+                gap: hasMultipleTabs ? `${tabPageGap}px` : "0px",
+              }}
               drag={hasMultipleTabs ? "x" : false}
               dragControls={tabDragControls}
               dragListener={false}
@@ -1031,6 +1121,7 @@ export default function ProfilePage() {
                   className={styles.tabPage}
                   aria-hidden={currentTab !== tab.id}
                   style={{
+                    width: tabViewportWidth > 0 ? `${tabViewportWidth}px` : "100%",
                     pointerEvents: currentTab === tab.id ? "auto" : "none",
                   }}
                 >
@@ -1479,7 +1570,7 @@ export default function ProfilePage() {
                 </div>
               ))}
             </motion.div>
-          </div>
+          </motion.div>
         </div>
 
         {catalogLoading ? (
