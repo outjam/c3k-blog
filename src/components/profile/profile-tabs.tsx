@@ -1,0 +1,195 @@
+"use client";
+
+import { type CSSProperties, useEffect, useRef, useState } from "react";
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useTransform,
+  type PanInfo,
+} from "motion/react";
+
+import styles from "./profile-tabs.module.scss";
+
+interface ProfileTabItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+}
+
+interface ProfileTabsProps {
+  activeIndex: number;
+  items: ProfileTabItem[];
+  onChange: (index: number) => void;
+}
+
+const RAIL_INSET = 4;
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.max(min, Math.min(value, max));
+};
+
+const snapSpring = {
+  type: "spring" as const,
+  stiffness: 520,
+  damping: 40,
+  mass: 0.62,
+};
+
+export function ProfileTabs({
+  activeIndex,
+  items,
+  onChange,
+}: ProfileTabsProps) {
+  const railRef = useRef<HTMLElement | null>(null);
+  const [railInnerWidth, setRailInnerWidth] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const capsuleX = useMotionValue(0);
+  const accentOffsetX = useTransform(capsuleX, (value) => -value);
+
+  const tabCount = items.length;
+  const itemWidth = tabCount ? railInnerWidth / tabCount : 0;
+  const maxX = itemWidth * Math.max(tabCount - 1, 0);
+  const isReady = itemWidth > 0;
+
+  useEffect(() => {
+    const node = railRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    const updateSize = () => {
+      const nextWidth = Math.max(node.clientWidth - RAIL_INSET * 2, 0);
+      setRailInnerWidth(nextWidth);
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    const target = clamp(activeIndex, 0, tabCount - 1) * itemWidth;
+    const controls = animate(capsuleX, target, snapSpring);
+
+    return () => controls.stop();
+  }, [activeIndex, capsuleX, isReady, itemWidth, tabCount]);
+
+  const handleNavigate = (index: number) => {
+    onChange(clamp(index, 0, tabCount - 1));
+  };
+
+  const handleCapsuleDragEnd = (
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) => {
+    if (!isReady) {
+      return;
+    }
+
+    const liveIndex = Math.round(capsuleX.get() / itemWidth);
+    const fastSwipe = Math.abs(info.velocity.x) > 320;
+    const longSwipe = Math.abs(info.offset.x) > itemWidth * 0.26;
+    const direction = info.velocity.x > 0 || info.offset.x > 0 ? 1 : -1;
+    const nextIndex = clamp(
+      fastSwipe || longSwipe ? activeIndex + direction : liveIndex,
+      0,
+      tabCount - 1,
+    );
+
+    setIsDragging(false);
+
+    if (nextIndex === activeIndex) {
+      animate(capsuleX, activeIndex * itemWidth, snapSpring);
+      return;
+    }
+
+    animate(capsuleX, nextIndex * itemWidth, snapSpring);
+    handleNavigate(nextIndex);
+  };
+
+  if (!tabCount) {
+    return null;
+  }
+
+  return (
+    <nav
+      className={styles.tabBar}
+      aria-label="Разделы профиля"
+      ref={railRef}
+      style={{ "--tab-count": tabCount } as CSSProperties}
+    >
+      {isReady ? (
+        <motion.div
+          className={styles.capsuleWindow}
+          style={{ x: capsuleX, width: itemWidth }}
+          drag="x"
+          dragConstraints={{ left: 0, right: maxX }}
+          dragElastic={0}
+          dragMomentum={false}
+          dragTransition={{ bounceStiffness: 900, bounceDamping: 90 }}
+          whileTap={{ scale: 1.012 }}
+          whileDrag={{ scaleX: 1.03, scaleY: 0.97 }}
+          transition={{
+            type: "spring",
+            stiffness: 520,
+            damping: 36,
+            mass: 0.55,
+          }}
+          onDragStart={() => setIsDragging(true)}
+          onDragEnd={handleCapsuleDragEnd}
+        >
+          <div className={styles.capsuleBg} />
+          <div className={styles.capsuleShine} />
+          <motion.div
+            className={styles.accentTrack}
+            style={{ x: accentOffsetX, width: railInnerWidth }}
+          >
+            {items.map((tab) => (
+              <div
+                className={`${styles.tab} ${styles.tabAccent}`}
+                key={`accent-${tab.id}`}
+                aria-hidden
+              >
+                <span className={styles.tabIcon}>{tab.icon}</span>
+                <span className={styles.tabLabel}>{tab.label}</span>
+              </div>
+            ))}
+          </motion.div>
+        </motion.div>
+      ) : null}
+
+      <div className={styles.tabLayer}>
+        {items.map((tab, index) => (
+          <motion.button
+            key={tab.id}
+            type="button"
+            className={styles.tabButton}
+            aria-current={activeIndex === index ? "page" : undefined}
+            onClick={() => handleNavigate(index)}
+            whileTap={{ scale: 1.02 }}
+            transition={{
+              type: "spring",
+              stiffness: 600,
+              damping: 40,
+              mass: 0.52,
+            }}
+            disabled={isDragging}
+          >
+            <div className={styles.tab}>
+              <span className={styles.tabIcon}>{tab.icon}</span>
+              <span className={styles.tabLabel}>{tab.label}</span>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </nav>
+  );
+}

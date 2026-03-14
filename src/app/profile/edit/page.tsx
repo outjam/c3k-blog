@@ -52,6 +52,10 @@ export default function ProfileEditPage() {
   const [modeSaving, setModeSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [warning, setWarning] = useState("");
+  const resolvedTonWalletAddress = useMemo(
+    () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
+    [tonWallet?.account?.address, tonWalletAddress],
+  );
 
   const [userDraft, setUserDraft] = useState<UserProfileEditorPayload>(() => ({
     displayName: fullName,
@@ -69,7 +73,14 @@ export default function ProfileEditPage() {
     let mounted = true;
 
     void (async () => {
-      const [profileResult, savedMode, balance, visibility, connectedTonWalletAddress, artistResult] = await Promise.all([
+      const [
+        profileResult,
+        savedMode,
+        balance,
+        visibility,
+        connectedTonWalletAddress,
+        artistResult,
+      ] = await Promise.all([
         fetchMyUserProfile(),
         readProfileMode(viewerKey),
         readWalletBalanceCents(viewerKey),
@@ -119,7 +130,6 @@ export default function ProfileEditPage() {
       return;
     }
 
-    setTonWalletAddress(connectedAddress);
     void writeTonWalletAddress(viewerKey, connectedAddress);
   }, [tonWallet?.account?.address, tonWalletAddress, viewerKey]);
 
@@ -180,7 +190,9 @@ export default function ProfileEditPage() {
     }
 
     if (nextEnabled && !canEnableArtistMode) {
-      setWarning("Чтобы включить режим артиста, сначала подайте заявку команде Culture3k.");
+      setWarning(
+        "Чтобы включить режим артиста, сначала подайте заявку команде Culture3k.",
+      );
       return;
     }
 
@@ -213,7 +225,9 @@ export default function ProfileEditPage() {
                 void refreshSession();
               }}
             />
-            <p className={styles.hint}>После входа откроются настройки профиля и кошелька.</p>
+            <p className={styles.hint}>
+              После входа откроются настройки профиля и кошелька.
+            </p>
           </section>
         ) : null}
 
@@ -230,7 +244,12 @@ export default function ProfileEditPage() {
                   <span>Отображаемое имя</span>
                   <input
                     value={userDraft.displayName ?? ""}
-                    onChange={(event) => setUserDraft((prev) => ({ ...prev, displayName: event.target.value }))}
+                    onChange={(event) =>
+                      setUserDraft((prev) => ({
+                        ...prev,
+                        displayName: event.target.value,
+                      }))
+                    }
                     maxLength={120}
                   />
                 </label>
@@ -238,7 +257,12 @@ export default function ProfileEditPage() {
                   <span>Юзернейм</span>
                   <input
                     value={userDraft.username ?? ""}
-                    onChange={(event) => setUserDraft((prev) => ({ ...prev, username: event.target.value }))}
+                    onChange={(event) =>
+                      setUserDraft((prev) => ({
+                        ...prev,
+                        username: event.target.value,
+                      }))
+                    }
                     maxLength={64}
                   />
                 </label>
@@ -246,7 +270,12 @@ export default function ProfileEditPage() {
                   <span>Ссылка на аватар</span>
                   <input
                     value={userDraft.avatarUrl ?? ""}
-                    onChange={(event) => setUserDraft((prev) => ({ ...prev, avatarUrl: event.target.value }))}
+                    onChange={(event) =>
+                      setUserDraft((prev) => ({
+                        ...prev,
+                        avatarUrl: event.target.value,
+                      }))
+                    }
                     maxLength={3000}
                   />
                 </label>
@@ -254,7 +283,12 @@ export default function ProfileEditPage() {
                   <span>Ссылка на обложку</span>
                   <input
                     value={userDraft.coverUrl ?? ""}
-                    onChange={(event) => setUserDraft((prev) => ({ ...prev, coverUrl: event.target.value }))}
+                    onChange={(event) =>
+                      setUserDraft((prev) => ({
+                        ...prev,
+                        coverUrl: event.target.value,
+                      }))
+                    }
                     maxLength={3000}
                   />
                 </label>
@@ -262,14 +296,24 @@ export default function ProfileEditPage() {
                   <span>Описание</span>
                   <textarea
                     value={userDraft.bio ?? ""}
-                    onChange={(event) => setUserDraft((prev) => ({ ...prev, bio: event.target.value }))}
+                    onChange={(event) =>
+                      setUserDraft((prev) => ({
+                        ...prev,
+                        bio: event.target.value,
+                      }))
+                    }
                     maxLength={500}
                   />
                 </label>
               </div>
 
               <div className={styles.actions}>
-                <button type="button" className={styles.primaryButton} onClick={() => void submitUserProfile()} disabled={profileSaving}>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => void submitUserProfile()}
+                  disabled={profileSaving}
+                >
                   {profileSaving ? "Сохраняем..." : "Сохранить"}
                 </button>
                 <Link href="/profile" className={styles.secondaryLink}>
@@ -287,16 +331,26 @@ export default function ProfileEditPage() {
               <label className={styles.toggleRow}>
                 <span className={styles.toggleCopy}>
                   <strong>Показывать коллекцию публично</strong>
-                  <small>{purchasesVisible ? "Сейчас покупки видны в публичном профиле." : "Сейчас покупки видны только вам."}</small>
+                  <small>
+                    {purchasesVisible
+                      ? "Сейчас покупки видны в публичном профиле."
+                      : "Сейчас покупки видны только вам."}
+                  </small>
                 </span>
-                <input type="checkbox" checked={purchasesVisible} onChange={() => void handleTogglePurchasesVisibility()} />
+                <input
+                  type="checkbox"
+                  checked={purchasesVisible}
+                  onChange={() => void handleTogglePurchasesVisibility()}
+                />
               </label>
             </section>
 
             <section className={styles.section}>
               <div className={styles.sectionHeader}>
                 <h2>Режим артиста</h2>
-                <p>{mode === "artist" ? "Студия включена" : "Студия выключена"}</p>
+                <p>
+                  {mode === "artist" ? "Студия включена" : "Студия выключена"}
+                </p>
               </div>
 
               <label className={styles.toggleRow}>
@@ -311,8 +365,12 @@ export default function ProfileEditPage() {
                 <input
                   type="checkbox"
                   checked={mode === "artist"}
-                  disabled={modeSaving || (!canEnableArtistMode && mode !== "artist")}
-                  onChange={(event) => void handleArtistModeChange(event.target.checked)}
+                  disabled={
+                    modeSaving || (!canEnableArtistMode && mode !== "artist")
+                  }
+                  onChange={(event) =>
+                    void handleArtistModeChange(event.target.checked)
+                  }
                 />
               </label>
             </section>
@@ -326,7 +384,11 @@ export default function ProfileEditPage() {
               <div className={styles.walletRow}>
                 <div>
                   <strong>{formatStarsFromCents(walletCents)} ⭐</strong>
-                  <small>{tonWalletAddress ? `TON: ${formatShortTonAddress(tonWalletAddress)}` : "TON-кошелёк не подключен"}</small>
+                  <small>
+                    {resolvedTonWalletAddress
+                      ? `TON: ${formatShortTonAddress(resolvedTonWalletAddress)}`
+                      : "TON-кошелёк не подключен"}
+                  </small>
                 </div>
 
                 <div className={styles.walletActions}>
@@ -341,7 +403,9 @@ export default function ProfileEditPage() {
         ) : null}
 
         {warning ? <p className={styles.warning}>{warning}</p> : null}
-        {isSessionLoading ? <p className={styles.hint}>Загружаем настройки...</p> : null}
+        {isSessionLoading ? (
+          <p className={styles.hint}>Загружаем настройки...</p>
+        ) : null}
       </main>
     </div>
   );

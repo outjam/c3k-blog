@@ -1,0 +1,144 @@
+.tabBar {
+  position: relative;
+  width: min(100%, 320px);
+  padding: 0.24rem;
+  border-radius: 56px;
+  background: color-mix(in srgb, var(--tg-bottom-bar-bg) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  overflow: hidden;
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+:global(:root[data-app-theme="dark"]) .tabBar {
+  background: color-mix(in srgb, #111318 78%, transparent);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-app-theme])) .tabBar {
+    background: color-mix(in srgb, #111318 78%, transparent);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+}
+
+.tabBar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--tg-section-separator) 16%, transparent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.tabLayer {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
+}
+
+.tabButton {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabButton:disabled {
+  cursor: default;
+}
+
+.capsuleWindow {
+  position: absolute;
+  top: 0.24rem;
+  bottom: 0.24rem;
+  left: 0.24rem;
+  z-index: 3;
+  border-radius: 44px;
+  overflow: hidden;
+  pointer-events: auto;
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.capsuleBg {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, transparent);
+  backdrop-filter: blur(6px) saturate(0.3);
+  -webkit-backdrop-filter: blur(6px) saturate(0.3);
+}
+
+.capsuleShine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.accentTrack {
+  height: 100%;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
+}
+
+.tab {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.14rem;
+  min-height: 48px;
+  padding: 0.38rem 0.55rem;
+  text-align: center;
+  color: var(--tg-text);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tabIcon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+
+.tabIcon svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  transition: transform 0.2s ease;
+}
+
+.tabLabel {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.tabAccent {
+  color: var(--tg-accent);
+}
+
+.tabButton:active .tabIcon svg,
+.tabButton:active .tabLabel {
+  transform: scale(1.03);
+}

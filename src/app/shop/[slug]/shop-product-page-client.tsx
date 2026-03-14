@@ -30,8 +30,16 @@ import {
   fetchReleaseSocialSnapshot,
   setReleaseReactionApi,
 } from "@/lib/release-social-api";
-import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
-import { getDefaultTrackFormat, getFormatLabel, getProductPriceByFormat, getTrackFormats } from "@/lib/shop-release-format";
+import {
+  readFavoriteProductIds,
+  toggleFavoriteProductId,
+} from "@/lib/product-favorites";
+import {
+  getDefaultTrackFormat,
+  getFormatLabel,
+  getProductPriceByFormat,
+  getTrackFormats,
+} from "@/lib/shop-release-format";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
 import { mintViaSponsoredTon } from "@/lib/ton-sponsored-api";
@@ -41,7 +49,10 @@ import {
   isTonWalletOnRequiredNetwork,
   toPreferredTonAddress,
 } from "@/lib/ton-network";
-import { RELEASE_REACTION_OPTIONS, type ReleaseSocialSnapshot } from "@/types/release-social";
+import {
+  RELEASE_REACTION_OPTIONS,
+  type ReleaseSocialSnapshot,
+} from "@/types/release-social";
 import type { ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
@@ -65,15 +76,20 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   }, []);
 
   const [isFavorite, setIsFavorite] = useState(false);
-  const [selectedFormat, setSelectedFormat] = useState(() => getDefaultTrackFormat(product));
+  const [selectedFormat, setSelectedFormat] = useState(() =>
+    getDefaultTrackFormat(product),
+  );
   const [walletBalanceCents, setWalletBalanceCents] = useState(0);
   const [ownedReleaseSlugs, setOwnedReleaseSlugs] = useState<string[]>([]);
-  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<MintedReleaseNft[]>([]);
+  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<
+    MintedReleaseNft[]
+  >([]);
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [walletMessage, setWalletMessage] = useState("");
   const [minting, setMinting] = useState(false);
 
-  const [socialSnapshot, setSocialSnapshot] = useState<ReleaseSocialSnapshot | null>(null);
+  const [socialSnapshot, setSocialSnapshot] =
+    useState<ReleaseSocialSnapshot | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState("");
@@ -89,21 +105,30 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       readMintedReleaseNfts(viewerKey),
       readTonWalletAddress(viewerKey),
       fetchReleaseSocialSnapshot(product.slug),
-    ]).then(([favoriteIds, balance, purchasedReleaseSlugs, mintedReleaseNfts, persistedTonWalletAddress, releaseSocial]) => {
-      if (!mounted) {
-        return;
-      }
+    ]).then(
+      ([
+        favoriteIds,
+        balance,
+        purchasedReleaseSlugs,
+        mintedReleaseNfts,
+        persistedTonWalletAddress,
+        releaseSocial,
+      ]) => {
+        if (!mounted) {
+          return;
+        }
 
-      setIsFavorite(favoriteIds.includes(product.id));
-      setWalletBalanceCents(balance);
-      setOwnedReleaseSlugs(purchasedReleaseSlugs);
-      setMintedReleaseNfts(mintedReleaseNfts);
-      setTonWalletAddress(persistedTonWalletAddress);
+        setIsFavorite(favoriteIds.includes(product.id));
+        setWalletBalanceCents(balance);
+        setOwnedReleaseSlugs(purchasedReleaseSlugs);
+        setMintedReleaseNfts(mintedReleaseNfts);
+        setTonWalletAddress(persistedTonWalletAddress);
 
-      if (releaseSocial.snapshot) {
-        setSocialSnapshot(releaseSocial.snapshot);
-      }
-    });
+        if (releaseSocial.snapshot) {
+          setSocialSnapshot(releaseSocial.snapshot);
+        }
+      },
+    );
 
     return () => {
       mounted = false;
@@ -111,7 +136,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   }, [product.id, product.slug, viewerKey]);
 
   useEffect(() => {
-    const connectedAddress = toPreferredTonAddress(String(tonWallet?.account?.address ?? "").trim(), tonWallet?.account?.chain);
+    const connectedAddress = toPreferredTonAddress(
+      String(tonWallet?.account?.address ?? "").trim(),
+      tonWallet?.account?.chain,
+    );
 
     if (!connectedAddress) {
       return;
@@ -122,7 +150,12 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     }
 
     void writeTonWalletAddress(viewerKey, connectedAddress);
-  }, [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress, viewerKey]);
+  }, [
+    tonWallet?.account?.address,
+    tonWallet?.account?.chain,
+    tonWalletAddress,
+    viewerKey,
+  ]);
 
   const handleBack = useCallback(() => {
     hapticImpact("light");
@@ -138,20 +171,41 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   }, [product.id]);
 
   const formats = getTrackFormats(product);
-  const selectedPriceStarsCents = getProductPriceByFormat(product, selectedFormat);
-  const releaseLabel = product.releaseType === "album" ? "Album" : product.releaseType === "ep" ? "EP" : "Single";
-  const releaseTracklist = useMemo(() => (Array.isArray(product.releaseTracklist) ? product.releaseTracklist : []), [product.releaseTracklist]);
+  const selectedPriceStarsCents = getProductPriceByFormat(
+    product,
+    selectedFormat,
+  );
+  const releaseLabel =
+    product.releaseType === "album"
+      ? "Album"
+      : product.releaseType === "ep"
+        ? "EP"
+        : "Single";
+  const releaseTracklist = useMemo(
+    () =>
+      Array.isArray(product.releaseTracklist) ? product.releaseTracklist : [],
+    [product.releaseTracklist],
+  );
   const releaseQueue = useMemo(() => {
     return buildReleasePlaybackQueue(product);
   }, [product]);
-  const isPurchased = useMemo(() => ownedReleaseSlugs.includes(product.slug), [ownedReleaseSlugs, product.slug]);
+  const isPurchased = useMemo(
+    () => ownedReleaseSlugs.includes(product.slug),
+    [ownedReleaseSlugs, product.slug],
+  );
   const mintedNft = useMemo(
-    () => mintedReleaseNfts.find((entry) => entry.releaseSlug === product.slug) ?? null,
+    () =>
+      mintedReleaseNfts.find((entry) => entry.releaseSlug === product.slug) ??
+      null,
     [mintedReleaseNfts, product.slug],
   );
   const isMintedInTon = Boolean(mintedNft);
   const resolvedTonWalletAddress = useMemo(
-    () => toPreferredTonAddress(String(tonWallet?.account?.address ?? tonWalletAddress).trim(), tonWallet?.account?.chain),
+    () =>
+      toPreferredTonAddress(
+        String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
+        tonWallet?.account?.chain,
+      ),
     [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress],
   );
 
@@ -181,7 +235,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       return 0;
     }
 
-    return Object.values(releaseReactions).reduce((acc, value) => acc + (Number.isFinite(value) ? value : 0), 0);
+    return Object.values(releaseReactions).reduce(
+      (acc, value) => acc + (Number.isFinite(value) ? value : 0),
+      0,
+    );
   }, [releaseReactions]);
 
   const buyWithWallet = async () => {
@@ -208,7 +265,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       setOwnedReleaseSlugs(payment.releaseSlugs);
 
       if (payment.reason === "already_owned") {
-        setWalletMessage("Этот релиз уже куплен. Повторная покупка недоступна.");
+        setWalletMessage(
+          "Этот релиз уже куплен. Повторная покупка недоступна.",
+        );
       } else {
         setWalletMessage("Недостаточно средств на внутреннем балансе.");
       }
@@ -219,7 +278,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
     setWalletBalanceCents(payment.balanceCents);
     setOwnedReleaseSlugs(payment.releaseSlugs);
-    setWalletMessage("Покупка оформлена с внутреннего баланса. Релиз добавлен в профиль.");
+    setWalletMessage(
+      "Покупка оформлена с внутреннего баланса. Релиз добавлен в профиль.",
+    );
     hapticNotification("success");
   };
 
@@ -234,7 +295,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     }
 
     if (!isPurchased) {
-      setWalletMessage("Сначала купите релиз, затем сможете сминтить NFT в TON.");
+      setWalletMessage(
+        "Сначала купите релиз, затем сможете сминтить NFT в TON.",
+      );
       return;
     }
 
@@ -265,7 +328,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     const mintResult = await mintViaSponsoredTon({
       releaseSlug: product.slug,
       ownerAddress: connectedAddress,
-      collectionAddress: String(process.env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS ?? "").trim() || undefined,
+      collectionAddress:
+        String(
+          process.env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS ?? "",
+        ).trim() || undefined,
     });
 
     setMinting(false);
@@ -274,17 +340,24 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       setWalletBalanceCents(mintResult.walletCents);
 
       if (mintResult.reason === "insufficient_funds") {
-        setWalletMessage("Недостаточно средств на внутреннем балансе для оплаты газа on-chain mint.");
+        setWalletMessage(
+          "Недостаточно средств на внутреннем балансе для оплаты газа on-chain mint.",
+        );
         return;
       }
 
       if (mintResult.reason === "relay_unavailable") {
-        setWalletMessage(mintResult.relayError || "On-chain mint сейчас не настроен на сервере.");
+        setWalletMessage(
+          mintResult.relayError ||
+            "On-chain mint сейчас не настроен на сервере.",
+        );
         return;
       }
 
       if (mintResult.reason === "relay_failed") {
-        setWalletMessage(`Ошибка TON relayer: ${mintResult.relayError ?? "не удалось отправить транзакцию"}`);
+        setWalletMessage(
+          `Ошибка TON relayer: ${mintResult.relayError ?? "не удалось отправить транзакцию"}`,
+        );
         return;
       }
 
@@ -313,8 +386,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   };
 
   const sharePurchase = () => {
-    const releaseUrl = appOrigin ? `${appOrigin}/shop/${product.slug}` : `/shop/${product.slug}`;
-    const shareUrl = buildTelegramShareUrl(releaseUrl, `Купил релиз ${product.title} в Culture3k`);
+    const releaseUrl = appOrigin
+      ? `${appOrigin}/shop/${product.slug}`
+      : `/shop/${product.slug}`;
+    const shareUrl = buildTelegramShareUrl(
+      releaseUrl,
+      `Купил релиз ${product.title} в Culture3k`,
+    );
     window.open(shareUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -356,7 +434,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     setSocialSnapshot(result.snapshot);
   };
 
-  const handleSetReaction = async (reactionType: (typeof RELEASE_REACTION_OPTIONS)[number]["key"]) => {
+  const handleSetReaction = async (
+    reactionType: (typeof RELEASE_REACTION_OPTIONS)[number]["key"],
+  ) => {
     if (reactionSubmitting) {
       return;
     }
@@ -389,17 +469,42 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       <BackButtonController onBack={handleBack} visible />
 
       <article className={styles.card}>
-        <Image src={product.image} alt={product.title} width={640} height={480} className={styles.cover} priority />
+        <Image
+          src={product.image}
+          alt={product.title}
+          width={640}
+          height={480}
+          className={styles.cover}
+          priority
+        />
         <div className={styles.body}>
           <p className={styles.subtitle}>{product.subtitle}</p>
-          <h1>{product.title}</h1>
-          <p className={styles.description}>{product.description}</p>
+          <div className={styles.titleRow}>
+            <h1>{product.title}</h1>
+            <button
+              type="button"
+              className={styles.favoriteButton}
+              onClick={toggleFavorite}
+            >
+              {isFavorite ? "Сохранено" : "Сохранить"}
+            </button>
+          </div>
           {product.artistName ? (
-            <p className={styles.subtitle}>
-              Артист: {product.artistSlug ? <Link href={`/profile/${product.artistSlug}`}>{product.artistName}</Link> : product.artistName}
+            <p className={styles.artistLine}>
+              Артист:{" "}
+              {product.artistSlug ? (
+                <Link href={`/profile/${product.artistSlug}`}>
+                  {product.artistName}
+                </Link>
+              ) : (
+                product.artistName
+              )}
             </p>
           ) : null}
-          <p className={styles.price}>{formatStarsFromCents(selectedPriceStarsCents)} ⭐</p>
+          <p className={styles.description}>{product.description}</p>
+          <p className={styles.price}>
+            {formatStarsFromCents(selectedPriceStarsCents)} ⭐
+          </p>
 
           <dl className={styles.meta}>
             <div>
@@ -408,7 +513,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
             </div>
             <div>
               <dt>Жанр</dt>
-              <dd>{product.subcategoryLabel ?? product.attributes.collection}</dd>
+              <dd>
+                {product.subcategoryLabel ?? product.attributes.collection}
+              </dd>
             </div>
             <div>
               <dt>Треков</dt>
@@ -431,7 +538,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   onClick={() => setSelectedFormat(entry.format)}
                 >
                   <span>{getFormatLabel(entry.format)}</span>
-                  <small>{formatStarsFromCents(entry.priceStarsCents)} ⭐</small>
+                  <small>
+                    {formatStarsFromCents(entry.priceStarsCents)} ⭐
+                  </small>
                 </button>
               ))}
             </div>
@@ -440,7 +549,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           <section className={styles.tracklistSection}>
             <div className={styles.tracklistHead}>
               <p className={styles.sectionTitle}>Треклист релиза</p>
-              <button type="button" className={styles.playAllButton} onClick={handlePlayAll}>
+              <button
+                type="button"
+                className={styles.playAllButton}
+                onClick={handlePlayAll}
+              >
                 ▶ Плей всего релиза
               </button>
             </div>
@@ -448,7 +561,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               {releaseTracklist.length > 0 ? (
                 releaseTracklist.map((track, index) => (
                   <li key={track.id}>
-                    <button type="button" className={styles.trackPlayButton} onClick={() => handlePlayTrack(index)}>
+                    <button
+                      type="button"
+                      className={styles.trackPlayButton}
+                      onClick={() => handlePlayTrack(index)}
+                    >
                       ▶
                     </button>
                     <span>{track.title}</span>
@@ -461,7 +578,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 ))
               ) : (
                 <li>
-                  <button type="button" className={styles.trackPlayButton} onClick={() => handlePlayTrack(0)}>
+                  <button
+                    type="button"
+                    className={styles.trackPlayButton}
+                    onClick={() => handlePlayTrack(0)}
+                  >
                     ▶
                   </button>
                   <span>{product.title}</span>
@@ -472,25 +593,51 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           </section>
 
           <section className={styles.socialBuySection}>
+            <div className={styles.releaseCommentsHead}>
+              <h2>Покупка</h2>
+              <p>{isPurchased ? "в коллекции" : "не куплен"}</p>
+            </div>
             <p>
-              Внутренний баланс: <strong>{formatStarsFromCents(walletBalanceCents)} ⭐</strong>
+              Кошелек приложения:{" "}
+              <strong>{formatStarsFromCents(walletBalanceCents)} ⭐</strong>
             </p>
-            <p className={styles.purchaseState}>{isPurchased ? "Релиз уже куплен и в вашей коллекции." : "Релиз еще не куплен."}</p>
+            <p className={styles.purchaseState}>
+              {isPurchased
+                ? "Релиз уже куплен и уже находится в вашей коллекции."
+                : "После покупки релиз сразу появится в вашей коллекции."}
+            </p>
             <div className={styles.socialBuyActions}>
-              <button type="button" className={styles.addButton} onClick={buyWithWallet} disabled={isPurchased}>
+              <button
+                type="button"
+                className={styles.addButton}
+                onClick={buyWithWallet}
+                disabled={isPurchased}
+              >
                 {isPurchased ? "Уже куплено" : "Купить с баланса"}
               </button>
-              <button type="button" className={styles.addButton} onClick={sharePurchase}>
+              <button
+                type="button"
+                className={styles.addButton}
+                onClick={sharePurchase}
+              >
                 Поделиться покупкой в Telegram
               </button>
             </div>
-            {walletMessage ? <p className={styles.walletMessage}>{walletMessage}</p> : null}
+            {walletMessage ? (
+              <p className={styles.walletMessage}>{walletMessage}</p>
+            ) : null}
           </section>
 
           <section className={styles.nftSection}>
             <div className={styles.releaseCommentsHead}>
               <h2>TON коллекция</h2>
-              <p>{isMintedInTon ? "minted on-chain" : TON_ONCHAIN_NFT_MINT_ENABLED ? TON_NETWORK_LABEL : "disabled"}</p>
+              <p>
+                {isMintedInTon
+                  ? "minted on-chain"
+                  : TON_ONCHAIN_NFT_MINT_ENABLED
+                    ? TON_NETWORK_LABEL
+                    : "disabled"}
+              </p>
             </div>
             <p>
               {TON_ONCHAIN_NFT_MINT_ENABLED
@@ -502,18 +649,27 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               <button
                 type="button"
                 className={styles.addButton}
-                disabled={!isPurchased || isMintedInTon || minting || !TON_ONCHAIN_NFT_MINT_ENABLED}
+                disabled={
+                  !isPurchased ||
+                  isMintedInTon ||
+                  minting ||
+                  !TON_ONCHAIN_NFT_MINT_ENABLED
+                }
                 onClick={() => void handleMintNft()}
               >
-                {isMintedInTon ? "NFT уже сминчен" : minting ? "Минтим в TON..." : `Mint NFT в ${TON_NETWORK_LABEL}`}
+                {isMintedInTon
+                  ? "NFT уже сминчен"
+                  : minting
+                    ? "Минтим в TON..."
+                    : `Mint NFT в ${TON_NETWORK_LABEL}`}
               </button>
             </div>
-            {mintedNft?.itemAddress ? <p className={styles.walletMessage}>NFT item: {mintedNft.itemAddress}</p> : null}
+            {mintedNft?.itemAddress ? (
+              <p className={styles.walletMessage}>
+                NFT item: {mintedNft.itemAddress}
+              </p>
+            ) : null}
           </section>
-
-          <button type="button" className={styles.addButton} onClick={toggleFavorite}>
-            {isFavorite ? "Убрать из избранного" : "В избранное"}
-          </button>
 
           <section className={styles.releaseCommentsSection}>
             <div className={styles.releaseCommentsHead}>
@@ -555,7 +711,12 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 maxLength={600}
                 placeholder="Поделитесь впечатлениями о релизе"
               />
-              <button type="button" className={styles.addButton} disabled={commentSubmitting} onClick={() => void submitComment()}>
+              <button
+                type="button"
+                className={styles.addButton}
+                disabled={commentSubmitting}
+                onClick={() => void submitComment()}
+              >
                 {commentSubmitting ? "Публикуем..." : "Отправить комментарий"}
               </button>
             </div>
@@ -574,9 +735,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                           })}`}
                         >
                           {`${comment.author.firstName ?? ""} ${comment.author.lastName ?? ""}`.trim() ||
-                            (comment.author.username ? `@${comment.author.username}` : `User ${comment.author.telegramUserId}`)}
+                            (comment.author.username
+                              ? `@${comment.author.username}`
+                              : `User ${comment.author.telegramUserId}`)}
                         </Link>
-                        <time>{new Date(comment.createdAt).toLocaleString("ru-RU")}</time>
+                        <time>
+                          {new Date(comment.createdAt).toLocaleString("ru-RU")}
+                        </time>
                       </div>
                       {comment.canDelete ? (
                         <button
@@ -592,7 +757,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   </article>
                 ))
               ) : (
-                <p className={styles.emptyComments}>Пока нет комментариев. Будьте первым.</p>
+                <p className={styles.emptyComments}>
+                  Пока нет комментариев. Будьте первым.
+                </p>
               )}
             </div>
           </section>

@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 export interface GlobalPlayerTrack {
   id: string;
@@ -30,7 +37,9 @@ interface GlobalPlayerContextValue {
   clearQueue: () => void;
 }
 
-const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
+const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(
+  null,
+);
 
 const clamp = (value: number, min: number, max: number): number => {
   if (!Number.isFinite(value)) {
@@ -40,7 +49,25 @@ const clamp = (value: number, min: number, max: number): number => {
   return Math.max(min, Math.min(max, value));
 };
 
-export function GlobalPlayerProvider({ children }: { children: React.ReactNode }) {
+const resolveTrackSourceUrl = (value: string): string => {
+  const normalized = String(value || "").trim();
+
+  if (!normalized || typeof window === "undefined") {
+    return normalized;
+  }
+
+  try {
+    return new URL(normalized, window.location.href).toString();
+  } catch {
+    return normalized;
+  }
+};
+
+export function GlobalPlayerProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoplayRef = useRef(false);
 
@@ -70,7 +97,9 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
     };
 
     const onLoadedMetadata = () => {
-      setDurationSec(Number.isFinite(audio.duration) ? Math.max(0, audio.duration) : 0);
+      setDurationSec(
+        Number.isFinite(audio.duration) ? Math.max(0, audio.duration) : 0,
+      );
     };
 
     const onPlay = () => {
@@ -136,8 +165,10 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    if (audio.src !== currentTrack.sourceUrl) {
-      audio.src = currentTrack.sourceUrl;
+    const resolvedSourceUrl = resolveTrackSourceUrl(currentTrack.sourceUrl);
+
+    if (audio.src !== resolvedSourceUrl) {
+      audio.src = resolvedSourceUrl;
       audio.load();
     }
 
@@ -149,40 +180,74 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
     }
   }, [currentTrack]);
 
+  const startPlayback = (
+    tracks: GlobalPlayerTrack[],
+    index: number,
+    immediate = true,
+  ) => {
+    const nextTrack = tracks[index];
+    if (!nextTrack) {
+      return;
+    }
+
+    setQueue(tracks);
+    setCurrentIndex(index);
+    setCurrentTimeSec(0);
+    setDurationSec(nextTrack.durationSec ?? 0);
+    setIsPlaying(true);
+
+    const audio = audioRef.current;
+    if (!audio || !immediate) {
+      shouldAutoplayRef.current = true;
+      return;
+    }
+
+    shouldAutoplayRef.current = false;
+
+    const resolvedSourceUrl = resolveTrackSourceUrl(nextTrack.sourceUrl);
+    if (audio.src !== resolvedSourceUrl) {
+      audio.src = resolvedSourceUrl;
+      audio.load();
+    }
+
+    void audio.play().catch(() => {
+      setIsPlaying(false);
+    });
+  };
+
   const playQueue = (tracks: GlobalPlayerTrack[], startIndex = 0) => {
-    const normalizedTracks = tracks.filter((track) => Boolean(track?.sourceUrl));
+    const normalizedTracks = tracks.filter((track) =>
+      Boolean(track?.sourceUrl),
+    );
     if (normalizedTracks.length === 0) {
       return;
     }
 
     const nextIndex = clamp(startIndex, 0, normalizedTracks.length - 1);
-    shouldAutoplayRef.current = true;
-    setQueue(normalizedTracks);
-    setCurrentIndex(nextIndex);
-    setIsPlaying(true);
+    startPlayback(normalizedTracks, nextIndex);
   };
 
   const enqueueTracks = (tracks: GlobalPlayerTrack[], playNow = false) => {
-    const normalizedTracks = tracks.filter((track) => Boolean(track?.sourceUrl));
+    const normalizedTracks = tracks.filter((track) =>
+      Boolean(track?.sourceUrl),
+    );
     if (normalizedTracks.length === 0) {
       return;
     }
 
-    setQueue((prev) => {
-      const merged = [...prev, ...normalizedTracks];
+    const merged = [...queue, ...normalizedTracks];
 
-      if (playNow) {
-        shouldAutoplayRef.current = true;
-        setCurrentIndex(prev.length);
-        setIsPlaying(true);
-      } else if (currentIndex < 0) {
-        shouldAutoplayRef.current = true;
-        setCurrentIndex(0);
-        setIsPlaying(true);
-      }
+    if (playNow) {
+      startPlayback(merged, queue.length);
+      return;
+    }
 
-      return merged;
-    });
+    if (currentIndex < 0) {
+      startPlayback(merged, 0);
+      return;
+    }
+
+    setQueue(merged);
   };
 
   const togglePlayback = () => {
@@ -192,8 +257,7 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
     }
 
     if (!currentTrack && queue.length > 0) {
-      shouldAutoplayRef.current = true;
-      setCurrentIndex(0);
+      startPlayback(queue, 0);
       return;
     }
 
@@ -208,15 +272,12 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
   };
 
   const playNext = () => {
-    setCurrentIndex((prev) => {
-      const next = prev + 1;
-      if (next >= queue.length) {
-        return prev;
-      }
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= queue.length) {
+      return;
+    }
 
-      shouldAutoplayRef.current = true;
-      return next;
-    });
+    startPlayback(queue, nextIndex);
   };
 
   const playPrev = () => {
@@ -228,15 +289,12 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    setCurrentIndex((prev) => {
-      const next = prev - 1;
-      if (next < 0) {
-        return prev;
-      }
+    const nextIndex = currentIndex - 1;
+    if (nextIndex < 0) {
+      return;
+    }
 
-      shouldAutoplayRef.current = true;
-      return next;
-    });
+    startPlayback(queue, nextIndex);
   };
 
   const seekTo = (seconds: number) => {
@@ -245,7 +303,11 @@ export function GlobalPlayerProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    const clamped = clamp(seconds, 0, Number.isFinite(audio.duration) ? audio.duration : 0);
+    const clamped = clamp(
+      seconds,
+      0,
+      Number.isFinite(audio.duration) ? audio.duration : 0,
+    );
     audio.currentTime = clamped;
     setCurrentTimeSec(clamped);
   };

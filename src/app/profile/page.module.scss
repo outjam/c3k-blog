@@ -46,7 +46,8 @@
 .avatarFallback {
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
   background: transparent;
   color: var(--tg-text);
   font-size: 1rem;
@@ -79,7 +80,8 @@
   min-height: 1.45rem;
   padding: 0 0.56rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   color: var(--tg-subtitle-text);
   font-size: 0.72rem;
   font-weight: 600;
@@ -131,7 +133,7 @@
 
 .heroActions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: 0.5rem;
 }
 
@@ -140,9 +142,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 0;
-  border-top: 1px solid color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
+  padding: 1rem 0;
+  border-top: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
 }
 
 .heroBalance span,
@@ -152,12 +156,23 @@
   font-size: 0.74rem;
 }
 
+.heroBalanceMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.heroBalanceMeta span {
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
 .heroBalance strong {
   display: block;
-  margin: 0.08rem 0;
+  margin: 0;
   color: var(--tg-text);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: clamp(1.18rem, 4vw, 1.5rem);
+  font-weight: 800;
 }
 
 .heroBalanceActions {
@@ -168,10 +183,18 @@
 }
 
 .heroBalanceActions a {
+  min-height: 2.2rem;
+  border-radius: 999px;
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 22%, transparent);
+  padding: 0 0.8rem;
   color: var(--tg-text);
   font-size: 0.78rem;
   font-weight: 600;
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--tg-section-bg) 72%, transparent);
 }
 
 .heroActions button,
@@ -198,9 +221,16 @@
 
 .heroActions > :not(:first-child),
 .secondaryButton {
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   background: transparent;
   color: var(--tg-text);
+}
+
+.tabContent {
+  display: grid;
+  gap: 1.5rem;
+  touch-action: pan-y;
 }
 
 .roleSwitch {
@@ -212,7 +242,8 @@
 .roleSwitch button {
   min-height: 2.2rem;
   border-radius: 0.68rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   background: transparent;
   color: var(--tg-subtitle-text);
   font-size: 0.78rem;
@@ -222,7 +253,11 @@
 
 .roleSwitchActive {
   border-color: color-mix(in srgb, var(--tg-text) 18%, transparent) !important;
-  background: color-mix(in srgb, var(--tg-text) 7%, var(--tg-section-bg)) !important;
+  background: color-mix(
+    in srgb,
+    var(--tg-text) 7%,
+    var(--tg-section-bg)
+  ) !important;
   color: var(--tg-text) !important;
 }
 
@@ -231,7 +266,8 @@
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   overflow-x: auto;
-  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
 }
 
 .sectionTab,
@@ -282,7 +318,8 @@
   gap: 0.8rem;
   align-items: start;
   padding-bottom: 0.85rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
 }
 
 .collectionMedia,
@@ -299,7 +336,8 @@
 .collectionFallback {
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
   color: var(--tg-hint);
   font-size: 0.76rem;
   font-weight: 600;
@@ -340,7 +378,8 @@
   min-height: 1.3rem;
   padding: 0 0.42rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
   color: var(--tg-text);
   font-size: 0.67rem;
   font-weight: 700;
@@ -393,7 +432,8 @@
 .awardCard {
   border-radius: 0;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
   background: transparent;
   padding: 0 0 0.7rem;
   display: grid;
@@ -421,7 +461,11 @@
 .awardTiersilver,
 .awardTiergold,
 .awardTierdiamond {
-  border-color: color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--tg-section-separator) 24%,
+    transparent
+  );
 }
 
 .socialColumns {
@@ -450,7 +494,8 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding-bottom: 0.7rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
 }
 
 .personIdentity {
@@ -478,7 +523,8 @@
 .personIdentityFallback {
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
   color: var(--tg-text);
   font-size: 0.76rem;
   font-weight: 700;
@@ -511,7 +557,8 @@
 .overlayCloseButton {
   min-height: 2rem;
   border-radius: 0.62rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   background: transparent;
   color: var(--tg-text);
   font-size: 0.74rem;
@@ -522,7 +569,8 @@
 .artistTrackCard,
 .tracklistEditor {
   border-radius: 0.72rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
   background: transparent;
 }
 
@@ -552,7 +600,8 @@
 .artistStats span {
   min-height: 1.7rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
   padding: 0 0.58rem;
   display: inline-flex;
   align-items: center;
@@ -580,7 +629,8 @@
 .tracklistDraftRow input {
   min-height: 2.25rem;
   border-radius: 0.62rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   background: var(--tg-bg);
   color: var(--tg-text);
   padding: 0.5rem 0.58rem;
@@ -610,7 +660,8 @@
 
 .tracklistDraftRow {
   border-radius: 0.72rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 20%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 20%, transparent);
   padding: 0.65rem;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -621,7 +672,8 @@
 .tracklistDraftRow button {
   min-height: 2.2rem;
   border-radius: 0.62rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   background: transparent;
   color: var(--tg-text);
   font-size: 0.74rem;
@@ -651,7 +703,8 @@
   max-height: 86dvh;
   overflow: auto;
   border-radius: 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
   background: var(--tg-section-bg);
   padding: 0.9rem;
   display: grid;
@@ -681,6 +734,11 @@
   .section,
   .walletSection {
     padding: 0;
+  }
+
+  .heroBalance {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .heroActions,
