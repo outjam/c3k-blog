@@ -2,8 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  animate,
+  motion,
+  useDragControls,
+  useMotionValue,
+  type PanInfo,
+} from "motion/react";
 import { useTonWallet } from "@tonconnect/ui-react";
 
 import { ProfileTabs } from "@/components/profile/profile-tabs";
@@ -101,33 +114,19 @@ function AwardsIcon() {
 const shouldIgnoreTabSwipe = (target: EventTarget | null): boolean => {
   return (
     target instanceof HTMLElement &&
-    Boolean(target.closest("input, textarea, select, button, a, label"))
+    Boolean(
+      target.closest(
+        "input, textarea, select, button, label, [contenteditable='true'], [data-tab-swipe-lock='true']",
+      ),
+    )
   );
 };
 
-const tabPageVariants = {
-  enter: (direction: number) => ({
-    x: direction >= 0 ? 42 : -42,
-    opacity: 0.52,
-  }),
-  center: {
-    x: 0,
-    opacity: 1,
-    transition: {
-      type: "spring" as const,
-      stiffness: 380,
-      damping: 34,
-      mass: 0.9,
-    },
-  },
-  exit: (direction: number) => ({
-    x: direction >= 0 ? -42 : 42,
-    opacity: 0,
-    transition: {
-      duration: 0.18,
-      ease: "easeOut" as const,
-    },
-  }),
+const tabTrackSpring = {
+  type: "spring" as const,
+  stiffness: 420,
+  damping: 38,
+  mass: 0.78,
 };
 
 const normalizeReleaseTracklistDraft = (
@@ -266,9 +265,15 @@ export default function ProfilePage() {
     priceStarsCents: "100",
     releaseTracklist: [createTrackRowDraft(1)],
   });
-  const tabTouchStartX = useRef<number | null>(null);
-  const tabTouchStartY = useRef<number | null>(null);
-  const [tabTransitionDirection, setTabTransitionDirection] = useState(1);
+  const tabViewportRef = useRef<HTMLDivElement | null>(null);
+  const tabPageRefs = useRef(new Map<ProfileTab, HTMLDivElement>());
+  const [tabViewportWidth, setTabViewportWidth] = useState(0);
+  const [tabPageHeights, setTabPageHeights] = useState<
+    Partial<Record<ProfileTab, number>>
+  >({});
+  const [isTabDragging, setIsTabDragging] = useState(false);
+  const tabTrackX = useMotionValue(0);
+  const tabDragControls = useDragControls();
 
   useEffect(() => {
     let mounted = true;
@@ -608,62 +613,142 @@ export default function ProfilePage() {
     0,
     profileTabs.findIndex((tab) => tab.id === currentTab),
   );
+  const activeTabHeight = tabPageHeights[currentTab] ?? 0;
+  const maxTabTrackOffset =
+    tabViewportWidth * Math.max(profileTabs.length - 1, 0);
+
+  useLayoutEffect(() => {
+    const viewportNode = tabViewportRef.current;
+
+    if (!viewportNode) {
+      return;
+    }
+
+    const syncViewportMetrics = () => {
+      const nextWidth = Math.round(viewportNode.getBoundingClientRect().width);
+      setTabViewportWidth((currentWidth) =>
+        currentWidth === nextWidth ? currentWidth : nextWidth,
+      );
+
+      setTabPageHeights((currentHeights) => {
+        let changed = false;
+        const nextHeights = { ...currentHeights };
+
+        profileTabs.forEach((tab) => {
+          const node = tabPageRefs.current.get(tab.id);
+
+          if (!node) {
+            return;
+          }
+
+          const nextHeight = Math.round(node.getBoundingClientRect().height);
+
+          if (nextHeights[tab.id] !== nextHeight) {
+            nextHeights[tab.id] = nextHeight;
+            changed = true;
+          }
+        });
+
+        return changed ? nextHeights : currentHeights;
+      });
+    };
+
+    syncViewportMetrics();
+
+    const observer = new ResizeObserver(() => {
+      syncViewportMetrics();
+    });
+
+    observer.observe(viewportNode);
+
+    profileTabs.forEach((tab) => {
+      const node = tabPageRefs.current.get(tab.id);
+
+      if (node) {
+        observer.observe(node);
+      }
+    });
+
+    return () => observer.disconnect();
+  }, [profileTabs]);
+
+  useEffect(() => {
+    if (!tabViewportWidth || isTabDragging) {
+      return;
+    }
+
+    const controls = animate(
+      tabTrackX,
+      -activeTabIndex * tabViewportWidth,
+      tabTrackSpring,
+    );
+
+    return () => controls.stop();
+  }, [activeTabIndex, isTabDragging, tabTrackX, tabViewportWidth]);
 
   const setCurrentTabByIndex = (index: number) => {
     const safeIndex = Math.max(0, Math.min(index, profileTabs.length - 1));
     const nextTab = profileTabs[safeIndex]?.id;
 
     if (nextTab) {
-      setTabTransitionDirection(safeIndex >= activeTabIndex ? 1 : -1);
       setActiveTab(nextTab);
     }
   };
 
-  const handleTabTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (!hasMultipleTabs || shouldIgnoreTabSwipe(event.target)) {
-      return;
-    }
-
-    const touch = event.touches[0];
-
-    if (!touch) {
-      return;
-    }
-
-    tabTouchStartX.current = touch.clientX;
-    tabTouchStartY.current = touch.clientY;
-  };
-
-  const handleTabTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
-    const startX = tabTouchStartX.current;
-    const startY = tabTouchStartY.current;
-
-    tabTouchStartX.current = null;
-    tabTouchStartY.current = null;
-
+  const handleTabTrackPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
     if (
       !hasMultipleTabs ||
-      startX === null ||
-      startY === null ||
-      shouldIgnoreTabSwipe(event.target)
+      !tabViewportWidth ||
+      shouldIgnoreTabSwipe(event.target) ||
+      (event.pointerType === "mouse" && event.button !== 0)
     ) {
       return;
     }
 
-    const touch = event.changedTouches[0];
+    tabDragControls.start(event);
+  };
 
-    if (!touch) {
+  const handleTabTrackDragEnd = (
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) => {
+    if (!tabViewportWidth) {
+      setIsTabDragging(false);
       return;
     }
 
-    const deltaX = touch.clientX - startX;
-    const deltaY = touch.clientY - startY;
+    const liveIndex = Math.max(
+      0,
+      Math.min(
+        Math.round(Math.abs(tabTrackX.get()) / tabViewportWidth),
+        profileTabs.length - 1,
+      ),
+    );
+    const fastSwipe = Math.abs(info.velocity.x) > 360;
+    const longSwipe = Math.abs(info.offset.x) > tabViewportWidth * 0.18;
+    const swipeStep = info.velocity.x < 0 || info.offset.x < 0 ? 1 : -1;
+    const nextIndex = Math.max(
+      0,
+      Math.min(
+        fastSwipe || longSwipe ? activeTabIndex + swipeStep : liveIndex,
+        profileTabs.length - 1,
+      ),
+    );
 
-    if (Math.abs(deltaX) <= 54 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) {
+    setIsTabDragging(false);
+
+    if (nextIndex === activeTabIndex) {
+      void animate(
+        tabTrackX,
+        -activeTabIndex * tabViewportWidth,
+        tabTrackSpring,
+      );
       return;
     }
 
-    setCurrentTabByIndex(activeTabIndex + (deltaX < 0 ? 1 : -1));
+    setCurrentTabByIndex(nextIndex);
   };
 
   const handleToggleFollowing = async (slug: string) => {
@@ -926,35 +1011,56 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {hasMultipleTabs ? (
-            <ProfileTabs
-              activeIndex={activeTabIndex}
-              items={profileTabItems}
-              onChange={setCurrentTabByIndex}
-            />
-          ) : null}
         </section>
 
-        <div
-          className={styles.tabViewport}
-          onTouchStart={handleTabTouchStart}
-          onTouchEnd={handleTabTouchEnd}
-        >
-          <AnimatePresence
-            initial={false}
-            custom={tabTransitionDirection}
-            mode="wait"
+        <div className={styles.tabShell}>
+          {hasMultipleTabs ? (
+            <div className={styles.stickyTabs}>
+              <ProfileTabs
+                activeIndex={activeTabIndex}
+                items={profileTabItems}
+                onChange={setCurrentTabByIndex}
+              />
+            </div>
+          ) : null}
+
+          <div
+            ref={tabViewportRef}
+            className={`${styles.tabViewport} ${isTabDragging ? styles.tabViewportDragging : ""}`}
+            style={activeTabHeight > 0 ? { height: `${activeTabHeight}px` } : undefined}
+            onPointerDownCapture={handleTabTrackPointerDown}
           >
             <motion.div
-              key={currentTab}
-              className={styles.tabContent}
-              custom={tabTransitionDirection}
-              variants={tabPageVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
+              className={styles.tabTrack}
+              style={{ x: tabTrackX }}
+              drag={hasMultipleTabs ? "x" : false}
+              dragControls={tabDragControls}
+              dragListener={false}
+              dragConstraints={{ left: -maxTabTrackOffset, right: 0 }}
+              dragElastic={0.08}
+              dragMomentum={false}
+              dragDirectionLock
+              onDragStart={() => setIsTabDragging(true)}
+              onDragEnd={handleTabTrackDragEnd}
             >
-              {currentTab === "collection" ? (
+              {profileTabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  ref={(node) => {
+                    if (node) {
+                      tabPageRefs.current.set(tab.id, node);
+                    } else {
+                      tabPageRefs.current.delete(tab.id);
+                    }
+                  }}
+                  className={styles.tabPage}
+                  aria-hidden={currentTab !== tab.id}
+                  style={{
+                    pointerEvents: currentTab === tab.id ? "auto" : "none",
+                  }}
+                >
+                  <div className={styles.tabContent}>
+                    {tab.id === "collection" ? (
                 <section className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <h2>Коллекция</h2>
@@ -1026,9 +1132,9 @@ export default function ProfilePage() {
                     </p>
                   ) : null}
                 </section>
-              ) : null}
+                    ) : null}
 
-              {currentTab === "awards" ? (
+                    {tab.id === "awards" ? (
                 <section className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <h2>Награды</h2>
@@ -1048,9 +1154,9 @@ export default function ProfilePage() {
                     ))}
                   </div>
                 </section>
-              ) : null}
+                    ) : null}
 
-              {currentTab === "artist" && mode === "artist" ? (
+                    {tab.id === "artist" && mode === "artist" ? (
                 <section className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <h2>Студия артиста</h2>
@@ -1403,9 +1509,12 @@ export default function ProfilePage() {
                     <p className={styles.warning}>{artistError}</p>
                   ) : null}
                 </section>
-              ) : null}
+                    ) : null}
+                  </div>
+                </div>
+              ))}
             </motion.div>
-          </AnimatePresence>
+          </div>
         </div>
 
         {catalogLoading ? (

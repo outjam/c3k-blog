@@ -232,8 +232,47 @@
   color: var(--tg-text);
 }
 
+.tabShell {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.stickyTabs {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 16;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.05rem 0 0.2rem;
+  pointer-events: none;
+}
+
+.stickyTabs > * {
+  pointer-events: auto;
+}
+
 .tabViewport {
   overflow: hidden;
+  transition: height 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: height;
+}
+
+.tabViewportDragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tabTrack {
+  display: flex;
+  align-items: flex-start;
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.tabPage {
+  flex: 0 0 100%;
+  min-width: 100%;
 }
 
 .tabContent {
@@ -258,6 +297,12 @@
   font-size: 0.78rem;
   font-weight: 600;
   padding: 0 0.7rem;
+}
+
+@media (min-width: 1024px) {
+  .stickyTabs {
+    top: 0.55rem;
+  }
 }
 
 .roleSwitchActive {
