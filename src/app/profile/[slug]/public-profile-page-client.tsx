@@ -167,10 +167,6 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     return products.filter((item) => profile.purchasedReleaseSlugs.includes(item.slug));
   }, [products, profile]);
 
-  const peers = useMemo(() => {
-    return profiles.filter((entry) => entry.slug !== targetSlug).slice(0, 12);
-  }, [profiles, targetSlug]);
-
   const shareLink = useMemo(() => {
     if (!profile || !appOrigin) {
       return "";
@@ -180,7 +176,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
   }, [appOrigin, profile]);
 
   const handleToggleFollow = async () => {
-    if (!profile) {
+    if (!profile || viewerSlug === targetSlug) {
       return;
     }
 
@@ -286,8 +282,11 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     }));
   }, [followProfilesBySlug, socialFollowers, socialFollowing, socialOverlay, socialProfilesBySlug]);
 
+  const profileBio = String(profile?.bio ?? "").trim();
+  const isOwnProfile = viewerSlug === targetSlug;
+
   if (loading) {
-    return <div className={styles.page}>Загрузка профиля...</div>;
+    return <div className={styles.page}>Загружаем профиль...</div>;
   }
 
   if (!profile) {
@@ -314,7 +313,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
             )}
 
             <div>
-              <p className={styles.kicker}>{profile.mode === "artist" ? "Artist Profile" : "Community Profile"}</p>
+              <p className={styles.kicker}>{profile.mode === "artist" ? "Артист" : "Покупатель"}</p>
               <h1>{profile.displayName}</h1>
               <p>@{profile.slug}</p>
             </div>
@@ -338,17 +337,21 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
               <strong>{profile.awards.length}</strong>
             </article>
             <article>
-              <span>Релизы в витрине</span>
+              <span>{profile.mode === "artist" ? "Релизов" : "В коллекции"}</span>
               <strong>{releases.length}</strong>
             </article>
           </div>
 
-          <p className={styles.bio}>{profile.bio}</p>
+          {profileBio ? <p className={styles.bio}>{profileBio}</p> : null}
 
           <div className={styles.heroActions}>
-            <button type="button" onClick={() => void handleToggleFollow()}>
-              {isFollowing ? "Отписаться" : "Подписаться"}
-            </button>
+            {isOwnProfile ? (
+              <Link href="/profile">Открыть свой профиль</Link>
+            ) : (
+              <button type="button" onClick={() => void handleToggleFollow()}>
+                {isFollowing ? "Отписаться" : "Подписаться"}
+              </button>
+            )}
             {shareLink ? (
               <a href={shareLink} target="_blank" rel="noreferrer">
                 Поделиться профилем
@@ -358,31 +361,33 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
           </div>
         </section>
 
+        {profile.awards.length > 0 ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2>Награды</h2>
+              <p>{profile.awards.length}</p>
+            </div>
+
+            <div className={styles.awardsGrid}>
+              {profile.awards.map((award) => (
+                <article key={award.id} className={styles.awardCard}>
+                  <p>{award.icon}</p>
+                  <h3>{award.title}</h3>
+                  <span>{award.description}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Награды</h2>
-            <p>{profile.awards.length}</p>
-          </div>
-
-          <div className={styles.awardsGrid}>
-            {profile.awards.map((award) => (
-              <article key={award.id} className={styles.awardCard}>
-                <p>{award.icon}</p>
-                <h3>{award.title}</h3>
-                <span>{award.description}</span>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>{profile.mode === "artist" ? "Релизы артиста" : "Купленные релизы"}</h2>
+            <h2>{profile.mode === "artist" ? "Релизы" : "Коллекция"}</h2>
             <p>{releases.length}</p>
           </div>
 
           {profile.mode === "listener" && !profile.purchasesVisible ? (
-            <p className={styles.empty}>Пользователь скрыл список покупок.</p>
+            <p className={styles.empty}>Коллекция скрыта владельцем профиля.</p>
           ) : releases.length > 0 ? (
             <div className={styles.releaseGrid}>
               {releases.map((release) => (
@@ -397,24 +402,8 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
               ))}
             </div>
           ) : (
-            <p className={styles.empty}>Релизы пока не опубликованы.</p>
+            <p className={styles.empty}>{profile.mode === "artist" ? "Релизов пока нет." : "Покупок пока нет."}</p>
           )}
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Люди рядом</h2>
-            <p>{peers.length}</p>
-          </div>
-
-          <div className={styles.peopleGrid}>
-            {peers.map((entry) => (
-              <Link key={entry.slug} href={`/profile/${entry.slug}`} className={styles.personCard}>
-                <strong>{entry.displayName}</strong>
-                <span>@{entry.slug}</span>
-              </Link>
-            ))}
-          </div>
         </section>
       </main>
 

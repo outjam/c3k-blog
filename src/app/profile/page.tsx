@@ -38,7 +38,6 @@ import {
 import { FINAL_ORDER_STATUSES } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import type { BlogPost } from "@/types/blog";
 import type { ProfileMode } from "@/types/social";
 import type { ArtistProfile, ArtistReleaseTrackItem, ArtistTrack, ShopCatalogArtist, ShopOrder, ShopProduct } from "@/types/shop";
 
@@ -58,12 +57,32 @@ interface TrackRowDraft {
   durationSec: string;
 }
 
+type ProfileTab = "collection" | "social" | "account" | "artist";
+
 const createTrackRowDraft = (index: number): TrackRowDraft => ({
   id: `track-${index}`,
   title: "",
   previewUrl: "",
   durationSec: "",
 });
+
+const TONVIEWER_BASE_URL =
+  process.env.NEXT_PUBLIC_TON_NETWORK === "mainnet" ? "https://tonviewer.com/" : "https://testnet.tonviewer.com/";
+
+const formatShortTonAddress = (value: string | undefined): string => {
+  const normalized = String(value ?? "").trim();
+
+  if (normalized.length <= 14) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 6)}...${normalized.slice(-6)}`;
+};
+
+const buildTonViewerUrl = (value: string | undefined): string => {
+  const normalized = String(value ?? "").trim();
+  return normalized ? `${TONVIEWER_BASE_URL}${encodeURIComponent(normalized)}` : "";
+};
 
 const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTrackItem[] => {
   return rows.reduce<ArtistReleaseTrackItem[]>((acc, row, index) => {
@@ -104,7 +123,7 @@ const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTra
 
 export default function ProfilePage() {
   const tonWallet = useTonWallet();
-  const { user, source, isSessionLoading, refreshSession } = useAppAuthUser();
+  const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const viewerSlug = useMemo(
     () =>
@@ -137,12 +156,12 @@ export default function ProfilePage() {
   const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [mintedReleaseNfts, setMintedReleaseNfts] = useState<MintedReleaseNft[]>([]);
+  const [activeTab, setActiveTab] = useState<ProfileTab>("collection");
   const resolvedTonWalletAddress = useMemo(
     () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
     [tonWallet?.account?.address, tonWalletAddress],
   );
 
-  const [posts, setPosts] = useState<BlogPost[]>([]);
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [artists, setArtists] = useState<ShopCatalogArtist[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -200,25 +219,12 @@ export default function ProfilePage() {
     void (async () => {
       setCatalogLoading(true);
 
-      const [postsSnapshot, catalog] = await Promise.all([
-        fetch("/api/blog/posts", { cache: "no-store" })
-          .then(async (response) => {
-            if (!response.ok) {
-              return [] as BlogPost[];
-            }
-
-            const payload = (await response.json()) as { posts?: BlogPost[] };
-            return Array.isArray(payload.posts) ? payload.posts : [];
-          })
-          .catch(() => [] as BlogPost[]),
-        fetchPublicCatalog(),
-      ]);
+      const catalog = await fetchPublicCatalog();
 
       if (!mounted) {
         return;
       }
 
-      setPosts(postsSnapshot);
       setProducts(catalog.products);
       setArtists(catalog.artists);
       setCatalogLoading(false);
@@ -471,6 +477,7 @@ export default function ProfilePage() {
     const bySlug = new Map(products.map((item) => [item.slug, item]));
     return allPurchasedReleaseSlugs.map((slug) => bySlug.get(slug)).filter((item): item is ShopProduct => Boolean(item));
   }, [allPurchasedReleaseSlugs, products]);
+
   const mintedReleaseCards = useMemo(() => {
     const bySlug = new Map(products.map((item) => [item.slug, item]));
 
@@ -479,12 +486,44 @@ export default function ProfilePage() {
       release: bySlug.get(nft.releaseSlug) ?? null,
     }));
   }, [mintedReleaseNfts, products]);
-
-  const highlightedPosts = useMemo(() => posts.slice(0, 4), [posts]);
+  const onchainMintedReleaseCards = useMemo(() => {
+    return mintedReleaseCards.filter(({ nft }) => Boolean(nft.itemAddress && nft.collectionAddress));
+  }, [mintedReleaseCards]);
+  const awards = currentProfile?.awards ?? [];
+  const currentProfileBio = String(currentProfile?.bio ?? "").trim();
+  const roleLabel = mode === "artist" ? "Артист" : "Покупатель";
+  const profileTabs = useMemo(
+    () =>
+      [
+        {
+          id: "collection",
+          label: "Коллекция",
+        },
+        {
+          id: "social",
+          label: "Люди",
+        },
+        {
+          id: "account",
+          label: "Аккаунт",
+        },
+        ...(mode === "artist"
+          ? [
+              {
+                id: "artist",
+                label: "Студия",
+              },
+            ]
+          : []),
+      ] as Array<{ id: ProfileTab; label: string }>,
+    [mode],
+  );
+  const currentTab: ProfileTab = mode === "artist" ? activeTab : activeTab === "artist" ? "collection" : activeTab;
 
   const handleModeChange = async (nextMode: ProfileMode) => {
     if (!user?.id) {
-      setAuthHint("Для переключения режима войдите через Telegram Widget.");
+      setAuthHint("Войдите через Telegram, чтобы переключать режим профиля.");
+      setActiveTab("account");
       return;
     }
 
@@ -494,11 +533,13 @@ export default function ProfilePage() {
 
     const saved = await writeProfileMode(viewerKey, nextMode);
     setMode(saved);
+    setActiveTab(saved === "artist" ? "artist" : "collection");
   };
 
   const handleTogglePurchasesVisibility = async () => {
     if (!user?.id) {
-      setAuthHint("Сначала войдите через Telegram Widget, чтобы управлять приватностью.");
+      setAuthHint("Войдите через Telegram, чтобы настроить видимость коллекции.");
+      setActiveTab("account");
       return;
     }
 
@@ -508,7 +549,8 @@ export default function ProfilePage() {
 
   const handleToggleFollowing = async (slug: string) => {
     if (!user?.id) {
-      setAuthHint("Чтобы подписываться на пользователей, войдите через Telegram Widget.");
+      setAuthHint("Войдите через Telegram, чтобы управлять подписками.");
+      setActiveTab("account");
       return;
     }
 
@@ -524,7 +566,7 @@ export default function ProfilePage() {
 
   const handleShareProfile = () => {
     const profileUrl = `${appOrigin}/profile/${viewerSlug}`;
-    window.open(buildTelegramShareUrl(profileUrl, "Смотрите мой профиль и награды в Culture3k"), "_blank", "noopener,noreferrer");
+    window.open(buildTelegramShareUrl(profileUrl, "Мой профиль в Culture3k"), "_blank", "noopener,noreferrer");
   };
 
   const submitUserProfile = async () => {
@@ -699,11 +741,9 @@ export default function ProfilePage() {
             )}
 
             <div className={styles.identityMeta}>
-              <p className={styles.kicker}>Social Profile</p>
+              <p className={styles.kicker}>Профиль</p>
               <h1>{currentProfile?.displayName || fullName}</h1>
-              <p>
-                @{viewerSlug} · {source === "telegram-webapp" ? "Telegram Mini App" : source === "browser-widget" ? "Telegram Widget" : "Гость"}
-              </p>
+              <p>@{viewerSlug} · {roleLabel}</p>
             </div>
 
             <div className={styles.roleSwitch}>
@@ -738,197 +778,106 @@ export default function ProfilePage() {
               </button>
             </article>
             <article>
-              <span>Награды</span>
-              <strong>{currentProfile?.awards.length ?? 0}</strong>
+              <span>NFT</span>
+              <strong>{onchainMintedReleaseCards.length}</strong>
             </article>
             <article>
-              <span>Куплено релизов</span>
+              <span>Куплено</span>
               <strong>{allPurchasedReleaseSlugs.length}</strong>
             </article>
           </div>
 
+          {currentProfileBio ? <p className={styles.heroBio}>{currentProfileBio}</p> : null}
+
           <div className={styles.heroActions}>
-            <button type="button" onClick={() => setProfileEditorOpen((prev) => !prev)}>
-              {profileEditorOpen ? "Скрыть редактирование" : "Редактировать профиль"}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("account");
+                setProfileEditorOpen(true);
+              }}
+            >
+              Настроить профиль
             </button>
             <button type="button" onClick={handleShareProfile}>
               Поделиться профилем
             </button>
-            <Link href="/search">Искать людей и релизы</Link>
-            <Link href="/shop">Открыть витрину</Link>
-          </div>
-        </section>
-
-        {profileEditorOpen ? (
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2>Редактирование профиля</h2>
-              <p>Публичные данные профиля</p>
-            </div>
-
-            <div className={styles.artistFormGrid}>
-              <label>
-                Отображаемое имя
-                <input
-                  value={userDraft.displayName}
-                  onChange={(event) => setUserDraft((prev) => ({ ...prev, displayName: event.target.value }))}
-                  maxLength={120}
-                />
-              </label>
-              <label>
-                Username
-                <input
-                  value={userDraft.username ?? ""}
-                  onChange={(event) => setUserDraft((prev) => ({ ...prev, username: event.target.value }))}
-                  maxLength={64}
-                />
-              </label>
-              <label>
-                Avatar URL
-                <input
-                  value={userDraft.avatarUrl ?? ""}
-                  onChange={(event) => setUserDraft((prev) => ({ ...prev, avatarUrl: event.target.value }))}
-                  maxLength={3000}
-                />
-              </label>
-              <label>
-                Cover URL
-                <input
-                  value={userDraft.coverUrl ?? ""}
-                  onChange={(event) => setUserDraft((prev) => ({ ...prev, coverUrl: event.target.value }))}
-                  maxLength={3000}
-                />
-              </label>
-              <label>
-                Bio
-                <textarea
-                  value={userDraft.bio ?? ""}
-                  onChange={(event) => setUserDraft((prev) => ({ ...prev, bio: event.target.value }))}
-                  maxLength={500}
-                />
-              </label>
-            </div>
-
-            <button type="button" className={styles.primaryButton} onClick={() => void submitUserProfile()} disabled={profileSaving}>
-              {profileSaving ? "Сохраняем..." : "Сохранить профиль"}
-            </button>
-            {profileMessage ? <p className={styles.emptyState}>{profileMessage}</p> : null}
-          </section>
-        ) : null}
-
-        <section className={styles.walletSection}>
-          <div>
-            <h2>Внутренний баланс</h2>
-            <p>Баланс пополняется Telegram Stars, с него оплачиваются релизы и донаты внутри платформы.</p>
-            <p className={styles.tonWalletHint}>
-              {resolvedTonWalletAddress
-                ? `TON-кошелек: ${resolvedTonWalletAddress.slice(0, 6)}...${resolvedTonWalletAddress.slice(-6)}`
-                : "TON-кошелек не подключен"}
-            </p>
+            <Link href="/shop">Открыть магазин</Link>
           </div>
 
-          <div className={styles.walletValue}>{formatStarsFromCents(walletCents)} ⭐</div>
-
-          <div className={styles.walletActions}>
-            <Link href="/balance">Пополнить баланс</Link>
-            <TonConnectButton className={styles.tonConnectButton} />
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Награды профиля</h2>
-            <p>{currentProfile?.awards.length ?? 0}</p>
-          </div>
-
-          <div className={styles.awardsGrid}>
-            {(currentProfile?.awards ?? []).map((award) => (
-              <article key={award.id} className={`${styles.awardCard} ${styles[`awardTier${award.tier}`]}`}>
-                <p>{award.icon}</p>
-                <h3>{award.title}</h3>
-                <span>{award.description}</span>
-              </article>
+          <div className={styles.sectionTabs}>
+            {profileTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={currentTab === tab.id ? styles.sectionTabActive : styles.sectionTab}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
             ))}
           </div>
         </section>
 
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Подписки и подписчики</h2>
-            <p>Ваши связи в сети</p>
-          </div>
-
-          <div className={styles.socialColumns}>
-            <div>
-              <h3>Вы подписаны</h3>
-              <div className={styles.socialList}>
-                {followingProfilesPreview.length > 0 ? (
-                  followingProfilesPreview.map((profile) => (
-                    <article key={profile.slug} className={styles.personCard}>
-                      <Link href={`/profile/${profile.slug}`} className={styles.personIdentity}>
-                        {profile.avatarUrl ? (
-                          <Image src={profile.avatarUrl} alt={profile.displayName} width={33} height={33} />
-                        ) : (
-                          <div className={styles.personIdentityFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
-                        )}
-                        <span>
-                          <strong>{profile.displayName}</strong>
-                          <small>@{profile.username || profile.slug}</small>
-                        </span>
-                      </Link>
-                      <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
-                        Отписаться
-                      </button>
-                    </article>
-                  ))
-                ) : (
-                  <p className={styles.emptyState}>Подписок пока нет.</p>
-                )}
-              </div>
+        {currentTab === "collection" ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2>NFT</h2>
+              <p>{onchainMintedReleaseCards.length}</p>
             </div>
 
-            <div>
-              <h3>Вас читают</h3>
-              <div className={styles.socialList}>
-                {followerProfilesPreview.length > 0 ? (
-                  followerProfilesPreview.map((profile) => (
-                    <article key={profile.slug} className={styles.personCard}>
-                      <Link href={`/profile/${profile.slug}`} className={styles.personIdentity}>
-                        {profile.avatarUrl ? (
-                          <Image src={profile.avatarUrl} alt={profile.displayName} width={33} height={33} />
-                        ) : (
-                          <div className={styles.personIdentityFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
-                        )}
-                        <span>
-                          <strong>{profile.displayName}</strong>
-                          <small>@{profile.username || profile.slug}</small>
-                        </span>
-                      </Link>
-                      <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
-                        {followingSlugs.includes(profile.slug) ? "Подписан" : "Подписаться"}
-                      </button>
+            {onchainMintedReleaseCards.length > 0 ? (
+              <div className={styles.releaseGrid}>
+                {onchainMintedReleaseCards.map(({ nft, release }) => {
+                  const tonViewerUrl = buildTonViewerUrl(nft.itemAddress);
+
+                  return (
+                    <article key={nft.id} className={styles.releaseCard}>
+                      {release ? (
+                        <Link href={`/shop/${release.slug}`}>
+                          <Image src={release.image} alt={release.title} width={360} height={130} />
+                        </Link>
+                      ) : (
+                        <div className={styles.releaseFallback}>NFT</div>
+                      )}
+                      <div>
+                        <Link href={release ? `/shop/${release.slug}` : "/shop"}>{release?.title || nft.releaseSlug}</Link>
+                        <p>{`NFT #${nft.itemIndex ?? "?"} · ${new Date(nft.mintedAt).toLocaleDateString("ru-RU")}`}</p>
+                        <small>{formatShortTonAddress(nft.itemAddress || nft.collectionAddress)}</small>
+                        <div className={styles.inlineLinks}>
+                          {tonViewerUrl ? (
+                            <a href={tonViewerUrl} target="_blank" rel="noreferrer">
+                              Открыть в обозревателе
+                            </a>
+                          ) : null}
+                          {release ? <Link href={`/shop/${release.slug}`}>Карточка релиза</Link> : null}
+                        </div>
+                      </div>
                     </article>
-                  ))
-                ) : (
-                  <p className={styles.emptyState}>Подписчиков пока нет.</p>
-                )}
+                  );
+                })}
               </div>
+            ) : (
+              <p className={styles.emptyState}>После покупки и минта NFT появится здесь.</p>
+            )}
+          </section>
+        ) : null}
+
+        {currentTab === "collection" ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2>Коллекция</h2>
+              <p>{purchasedReleases.length}</p>
             </div>
-          </div>
-        </section>
 
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Купленные релизы</h2>
-            <p>{purchasedReleases.length}</p>
-          </div>
+            <label className={styles.visibilityToggle}>
+              <input type="checkbox" checked={purchasesVisible} onChange={() => void handleTogglePurchasesVisibility()} />
+              Показывать коллекцию в публичном профиле
+            </label>
+            <p className={styles.inlineHint}>
+              {purchasesVisible ? "Сейчас покупки видны в публичном профиле." : "Сейчас покупки видны только вам."}
+            </p>
 
-          <label className={styles.visibilityToggle}>
-            <input type="checkbox" checked={purchasesVisible} onChange={() => void handleTogglePurchasesVisibility()} />
-            Показывать покупки подписчикам
-          </label>
-
-          {purchasesVisible ? (
             <div className={styles.releaseGrid}>
               {purchasedReleases.length > 0 ? (
                 purchasedReleases.map((release) => (
@@ -943,91 +892,232 @@ export default function ProfilePage() {
                   </article>
                 ))
               ) : (
-                <p className={styles.emptyState}>Пока пусто. Покупайте релизы и хвастайтесь коллекцией перед друзьями.</p>
+                <p className={styles.emptyState}>Покупок пока нет.</p>
               )}
             </div>
-          ) : (
-            <p className={styles.emptyState}>Витрина покупок скрыта. Откройте её, чтобы друзья видели вашу коллекцию.</p>
-          )}
-        </section>
+          </section>
+        ) : null}
 
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Коллекция в приложении</h2>
-            <p>{mintedReleaseCards.length}</p>
-          </div>
-
-          {mintedReleaseCards.length > 0 ? (
-            <div className={styles.releaseGrid}>
-              {mintedReleaseCards.map(({ nft, release }) => (
-                <article key={nft.id} className={styles.releaseCard}>
-                  {release ? (
-                    <Link href={`/shop/${release.slug}`}>
-                      <Image src={release.image} alt={release.title} width={360} height={130} />
-                    </Link>
-                  ) : (
-                    <div className={styles.releaseFallback}>OFF</div>
-                  )}
-                  <div>
-                    <Link href={release ? `/shop/${release.slug}` : `/shop`}>{release?.title || nft.releaseSlug}</Link>
-                    <p>Off-chain запись • {new Date(nft.mintedAt).toLocaleDateString("ru-RU")}</p>
-                    <small>{`${nft.ownerAddress.slice(0, 6)}...${nft.ownerAddress.slice(-6)}`}</small>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className={styles.emptyState}>Пока нет записей коллекции. Здесь появятся ваши релизы до подключения реального TON NFT mint.</p>
-          )}
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Лента из блога</h2>
-            <p>{highlightedPosts.length}</p>
-          </div>
-
-          <div className={styles.blogList}>
-            {highlightedPosts.map((post) => (
-              <Link key={post.slug} href={`/post/${post.slug}`} className={styles.blogCard}>
-                <Image src={post.cover.src} alt={post.title} width={120} height={96} />
-                <div>
-                  <strong>{post.title}</strong>
-                  <p>{post.excerpt}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Заказы</h2>
-            <p>{activeOrders.length} активных</p>
-          </div>
-
-          {ordersError ? <p className={styles.warning}>Ошибка загрузки заказов: {ordersError}</p> : null}
-
-          {activeOrders.length > 0 ? (
-            <div className={styles.ordersRow}>
-              {activeOrders.map((order) => (
-                <article key={order.id} className={styles.orderCard}>
-                  <p>#{order.id}</p>
-                  <span>{new Date(order.createdAt).toLocaleDateString("ru-RU")}</span>
-                  <strong>{formatStarsFromCents(order.totalStarsCents)} ⭐</strong>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className={styles.emptyState}>Активных заказов сейчас нет.</p>
-          )}
-        </section>
-
-        {mode === "artist" ? (
+        {currentTab === "collection" && awards.length > 0 ? (
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h2>Режим артиста</h2>
-              <p>{artistProfile?.status ?? "не активирован"}</p>
+              <h2>Награды</h2>
+              <p>{awards.length}</p>
+            </div>
+
+            <div className={styles.awardsGrid}>
+              {awards.map((award) => (
+                <article key={award.id} className={`${styles.awardCard} ${styles[`awardTier${award.tier}`]}`}>
+                  <p>{award.icon}</p>
+                  <h3>{award.title}</h3>
+                  <span>{award.description}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {currentTab === "social" ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2>Подписки и подписчики</h2>
+              <p>{followersCount + followingSlugs.length}</p>
+            </div>
+
+            <div className={styles.socialColumns}>
+              <div>
+                <h3>Вы подписаны</h3>
+                <div className={styles.socialList}>
+                  {followingProfilesPreview.length > 0 ? (
+                    followingProfilesPreview.map((profile) => (
+                      <article key={profile.slug} className={styles.personCard}>
+                        <Link href={`/profile/${profile.slug}`} className={styles.personIdentity}>
+                          {profile.avatarUrl ? (
+                            <Image src={profile.avatarUrl} alt={profile.displayName} width={33} height={33} />
+                          ) : (
+                            <div className={styles.personIdentityFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
+                          )}
+                          <span>
+                            <strong>{profile.displayName}</strong>
+                            <small>@{profile.username || profile.slug}</small>
+                          </span>
+                        </Link>
+                        <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
+                          Отписаться
+                        </button>
+                      </article>
+                    ))
+                  ) : (
+                    <p className={styles.emptyState}>Подписок пока нет.</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3>На вас подписаны</h3>
+                <div className={styles.socialList}>
+                  {followerProfilesPreview.length > 0 ? (
+                    followerProfilesPreview.map((profile) => (
+                      <article key={profile.slug} className={styles.personCard}>
+                        <Link href={`/profile/${profile.slug}`} className={styles.personIdentity}>
+                          {profile.avatarUrl ? (
+                            <Image src={profile.avatarUrl} alt={profile.displayName} width={33} height={33} />
+                          ) : (
+                            <div className={styles.personIdentityFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
+                          )}
+                          <span>
+                            <strong>{profile.displayName}</strong>
+                            <small>@{profile.username || profile.slug}</small>
+                          </span>
+                        </Link>
+                        <button type="button" onClick={() => void handleToggleFollowing(profile.slug)}>
+                          {followingSlugs.includes(profile.slug) ? "Подписан" : "Подписаться"}
+                        </button>
+                      </article>
+                    ))
+                  ) : (
+                    <p className={styles.emptyState}>Подписчиков пока нет.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {currentTab === "account" ? (
+          <>
+            <section className={styles.walletSection}>
+              <div>
+                <h2>Баланс и кошелёк</h2>
+                <p>Stars нужны для покупок и донатов. TON-кошелёк нужен, чтобы получать NFT после покупки.</p>
+                <p className={styles.tonWalletHint}>
+                  {resolvedTonWalletAddress ? `TON: ${formatShortTonAddress(resolvedTonWalletAddress)}` : "TON-кошелек не подключен"}
+                </p>
+              </div>
+
+              <div className={styles.walletValue}>{formatStarsFromCents(walletCents)} ⭐</div>
+
+              <div className={styles.walletActions}>
+                <Link href="/balance">Пополнить</Link>
+                <TonConnectButton className={styles.tonConnectButton} />
+              </div>
+            </section>
+
+            {user?.id ? (
+              <section className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <h2>Профиль</h2>
+                  <p>{profileEditorOpen ? "редактирование" : "основные данные"}</p>
+                </div>
+
+                {!profileEditorOpen ? (
+                  <button type="button" className={styles.primaryButton} onClick={() => setProfileEditorOpen(true)}>
+                    Редактировать профиль
+                  </button>
+                ) : (
+                  <>
+                    <div className={styles.artistFormGrid}>
+                      <label>
+                        Отображаемое имя
+                        <input
+                          value={userDraft.displayName}
+                          onChange={(event) => setUserDraft((prev) => ({ ...prev, displayName: event.target.value }))}
+                          maxLength={120}
+                        />
+                      </label>
+                      <label>
+                        Юзернейм
+                        <input
+                          value={userDraft.username ?? ""}
+                          onChange={(event) => setUserDraft((prev) => ({ ...prev, username: event.target.value }))}
+                          maxLength={64}
+                        />
+                      </label>
+                      <label>
+                        Ссылка на аватар
+                        <input
+                          value={userDraft.avatarUrl ?? ""}
+                          onChange={(event) => setUserDraft((prev) => ({ ...prev, avatarUrl: event.target.value }))}
+                          maxLength={3000}
+                        />
+                      </label>
+                      <label>
+                        Ссылка на обложку
+                        <input
+                          value={userDraft.coverUrl ?? ""}
+                          onChange={(event) => setUserDraft((prev) => ({ ...prev, coverUrl: event.target.value }))}
+                          maxLength={3000}
+                        />
+                      </label>
+                      <label>
+                        Описание
+                        <textarea
+                          value={userDraft.bio ?? ""}
+                          onChange={(event) => setUserDraft((prev) => ({ ...prev, bio: event.target.value }))}
+                          maxLength={500}
+                        />
+                      </label>
+                    </div>
+
+                    <div className={styles.actionRow}>
+                      <button type="button" className={styles.primaryButton} onClick={() => void submitUserProfile()} disabled={profileSaving}>
+                        {profileSaving ? "Сохраняем..." : "Сохранить изменения"}
+                      </button>
+                      <button type="button" className={styles.secondaryButton} onClick={() => setProfileEditorOpen(false)}>
+                        Скрыть форму
+                      </button>
+                    </div>
+                    {profileMessage ? <p className={styles.emptyState}>{profileMessage}</p> : null}
+                  </>
+                )}
+              </section>
+            ) : !isSessionLoading ? (
+              <section className={styles.section}>
+                <h2>Вход через Telegram</h2>
+                <TelegramLoginWidget
+                  onAuthorized={() => {
+                    setAuthHint("");
+                    void refreshSession();
+                  }}
+                />
+                <p className={styles.emptyState}>После входа откроются покупки, настройки профиля и управление своей коллекцией.</p>
+              </section>
+            ) : null}
+
+            {user?.id ? (
+              <section className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <h2>Активные заказы</h2>
+                  <p>{activeOrders.length}</p>
+                </div>
+
+                {ordersError ? <p className={styles.warning}>Ошибка загрузки заказов: {ordersError}</p> : null}
+
+                {activeOrders.length > 0 ? (
+                  <div className={styles.ordersRow}>
+                    {activeOrders.map((order) => (
+                      <article key={order.id} className={styles.orderCard}>
+                        <p>#{order.id}</p>
+                        <span>{new Date(order.createdAt).toLocaleDateString("ru-RU")}</span>
+                        <strong>{formatStarsFromCents(order.totalStarsCents)} ⭐</strong>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.emptyState}>Сейчас нет активных заказов.</p>
+                )}
+              </section>
+            ) : null}
+
+            {!user?.id && authHint ? <p className={styles.warning}>{authHint}</p> : null}
+          </>
+        ) : null}
+
+        {currentTab === "artist" && mode === "artist" ? (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2>Студия артиста</h2>
+              <p>{artistProfile?.status ?? "не настроен"}</p>
             </div>
 
             <div className={styles.artistStats}>
@@ -1046,28 +1136,28 @@ export default function ProfilePage() {
                 />
               </label>
               <label>
-                Bio
+                Описание
                 <textarea
                   value={artistDraft.bio}
                   onChange={(event) => setArtistDraft((prev) => ({ ...prev, bio: event.target.value }))}
                 />
               </label>
               <label>
-                Avatar URL
+                Ссылка на аватар
                 <input
                   value={artistDraft.avatarUrl}
                   onChange={(event) => setArtistDraft((prev) => ({ ...prev, avatarUrl: event.target.value }))}
                 />
               </label>
               <label>
-                Cover URL
+                Ссылка на обложку
                 <input
                   value={artistDraft.coverUrl}
                   onChange={(event) => setArtistDraft((prev) => ({ ...prev, coverUrl: event.target.value }))}
                 />
               </label>
               <label>
-                Подписка (cents)
+                Цена подписки
                 <input
                   type="number"
                   min={1}
@@ -1117,9 +1207,9 @@ export default function ProfilePage() {
                     setTrackDraft((prev) => ({ ...prev, releaseType: event.target.value as ArtistTrack["releaseType"] }))
                   }
                 >
-                  <option value="single">Single</option>
+                  <option value="single">Сингл</option>
                   <option value="ep">EP</option>
-                  <option value="album">Album</option>
+                  <option value="album">Альбом</option>
                 </select>
               </label>
               <label>
@@ -1137,28 +1227,28 @@ export default function ProfilePage() {
                 />
               </label>
               <label>
-                Cover URL
+                Ссылка на обложку
                 <input
                   value={trackDraft.coverImage}
                   onChange={(event) => setTrackDraft((prev) => ({ ...prev, coverImage: event.target.value }))}
                 />
               </label>
               <label>
-                Telegram audio_file_id
+                Audio file id
                 <input
                   value={trackDraft.audioFileId}
                   onChange={(event) => setTrackDraft((prev) => ({ ...prev, audioFileId: event.target.value }))}
                 />
               </label>
               <label>
-                Preview URL (общий)
+                Ссылка на общее превью
                 <input
                   value={trackDraft.previewUrl}
                   onChange={(event) => setTrackDraft((prev) => ({ ...prev, previewUrl: event.target.value }))}
                 />
               </label>
               <label>
-                Цена (cents)
+                Цена
                 <input
                   type="number"
                   min={1}
@@ -1193,7 +1283,7 @@ export default function ProfilePage() {
                       />
                     </label>
                     <label>
-                      Preview URL
+                      Ссылка на превью
                       <input
                         value={row.previewUrl}
                         onChange={(event) => updateTrackRow(index, { previewUrl: event.target.value })}
@@ -1231,7 +1321,7 @@ export default function ProfilePage() {
                   <article key={track.id} className={styles.artistTrackCard}>
                     <strong>{track.title}</strong>
                     <p>
-                      {track.subtitle || track.genre || "Single"} · {track.releaseTracklist?.length ?? 1} треков
+                      {track.subtitle || track.genre || "Сингл"} · {track.releaseTracklist?.length ?? 1} треков
                     </p>
                     <span>{formatStarsFromCents(track.priceStarsCents)} ⭐</span>
                   </article>
@@ -1245,22 +1335,7 @@ export default function ProfilePage() {
           </section>
         ) : null}
 
-        {!user && !isSessionLoading ? (
-          <section className={styles.section}>
-            <h2>Вход через Telegram</h2>
-            <TelegramLoginWidget
-              onAuthorized={() => {
-                setAuthHint("");
-                void refreshSession();
-              }}
-            />
-            <p className={styles.emptyState}>Без авторизации недоступны персональные покупки, баланс и публикация релизов.</p>
-          </section>
-        ) : null}
-
-        {!user?.id && authHint ? <p className={styles.warning}>{authHint}</p> : null}
-
-        {catalogLoading ? <p className={styles.loading}>Обновляем социальный профиль...</p> : null}
+        {catalogLoading ? <p className={styles.loading}>Загружаем профиль...</p> : null}
       </main>
 
       {socialOverlay ? (

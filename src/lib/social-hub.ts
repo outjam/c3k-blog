@@ -498,15 +498,7 @@ const parseDate = (value: string | undefined): number => {
 };
 
 const buildListenerAwards = (purchasesCount: number, followersCount: number): ProfileAward[] => {
-  const awards: ProfileAward[] = [
-    {
-      id: "listener-core",
-      icon: "🎧",
-      title: "Лояльный слушатель",
-      description: "Собирает покупки и поддерживает артистов в C3K.",
-      tier: "bronze",
-    },
-  ];
+  const awards: ProfileAward[] = [];
 
   if (purchasesCount >= 5) {
     awards.push({
@@ -611,7 +603,7 @@ export const resolveViewerName = (viewer: ViewerIdentity | null | undefined): st
     return `@${username}`;
   }
 
-  return "Гость";
+  return "Пользователь";
 };
 
 export const readFollowOverview = async (subjectSlugs: string[] = []): Promise<FollowOverview> => {
@@ -1892,7 +1884,7 @@ export const buildPublicProfiles = (input: {
       username: hint?.username || (slug.startsWith("user-") ? undefined : slug),
       avatarUrl: hint?.avatarUrl,
       coverUrl: hint?.coverUrl,
-      bio: hint?.bio || "Профиль пользователя Culture3k.",
+      bio: hint?.bio || "",
       mode: "listener",
       followersCount: normalizeNonNegativeInt(followersCount),
       followingCount: normalizeNonNegativeInt(followingCount),
@@ -1915,7 +1907,7 @@ export const buildPublicProfiles = (input: {
       username: undefined,
       avatarUrl: artist.avatarUrl,
       coverUrl: artist.coverUrl,
-      bio: artist.bio || "Артист платформы C3K.",
+      bio: artist.bio || "",
       mode: "artist",
       followersCount: normalizeNonNegativeInt(followersCount),
       followingCount: normalizeNonNegativeInt(followingCount),
@@ -1992,10 +1984,7 @@ export const buildPublicProfiles = (input: {
       username: normalizeSlug(viewer.username) || undefined,
       avatarUrl: typeof viewer.photo_url === "string" ? viewer.photo_url : existing?.avatarUrl,
       coverUrl: profileHintBySlug(viewerSlug)?.coverUrl ?? existing?.coverUrl,
-      bio:
-        profileHintBySlug(viewerSlug)?.bio ||
-        existing?.bio ||
-        "Покупаю релизы, поддерживаю артистов и собираю награды в социальном профиле C3K.",
+      bio: profileHintBySlug(viewerSlug)?.bio || existing?.bio || "",
       mode: input.currentMode,
       followersCount,
       followingCount,

@@ -140,6 +140,14 @@
   font-size: 0.9rem;
 }
 
+.heroBio {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  max-width: 72ch;
+}
+
 .statButton {
   border: 0;
   background: transparent;
@@ -156,6 +164,29 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.42rem;
+}
+
+.sectionTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.sectionTab,
+.sectionTabActive {
+  border-radius: 999px;
+  min-height: 2rem;
+  padding: 0 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg));
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.sectionTabActive {
+  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-section-bg));
+  color: color-mix(in srgb, var(--tg-accent) 82%, var(--tg-text));
 }
 
 .heroActions button,
@@ -410,6 +441,12 @@
   font-size: 0.8rem;
 }
 
+.inlineHint {
+  margin: 0;
+  color: var(--tg-hint);
+  font-size: 0.76rem;
+}
+
 .releaseGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -453,6 +490,19 @@
 .releaseCard small {
   color: var(--tg-hint);
   font-size: 0.68rem;
+}
+
+.inlineLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+.inlineLinks a {
+  color: color-mix(in srgb, var(--tg-accent) 82%, var(--tg-text));
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .releaseFallback {
@@ -587,6 +637,23 @@
 .artistFormGrid textarea {
   resize: vertical;
   min-height: 4rem;
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.secondaryButton {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  border-radius: 0.72rem;
+  min-height: 2.3rem;
+  padding: 0 0.76rem;
+  background: color-mix(in srgb, var(--tg-bg) 68%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .checkboxRow {
