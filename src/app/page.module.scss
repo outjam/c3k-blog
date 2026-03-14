@@ -15,97 +15,9 @@
   gap: 1.2rem;
 }
 
-.hero {
+.filterBar {
   display: grid;
-  gap: 0.85rem;
-}
-
-.kicker {
-  margin: 0;
-  color: color-mix(in srgb, var(--tg-accent) 76%, var(--tg-text));
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.hero h1 {
-  margin: 0.12rem 0 0;
-  color: var(--tg-text);
-  font-size: clamp(1.2rem, 4vw, 1.72rem);
-  line-height: 1.08;
-}
-
-.hero p {
-  margin: 0.45rem 0 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.88rem;
-  line-height: 1.48;
-  max-width: 60ch;
-}
-
-.heroStats {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.heroStats article {
-  flex: 1 1 0;
-  min-width: 0;
-  display: grid;
-  gap: 0.12rem;
-}
-
-.heroStats span {
-  color: var(--tg-hint);
-  font-size: 0.72rem;
-}
-
-.heroStats strong {
-  color: var(--tg-text);
-  font-size: 0.98rem;
-  font-weight: 700;
-}
-
-.heroActions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.toggleButton {
-  flex: 1 1 0;
-  min-height: 2.4rem;
-  border-radius: 999px;
-  border: 0;
-  padding: 0 0.88rem;
-  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
-  color: var(--tg-subtitle-text);
-  font-weight: 700;
-  font-size: 0.78rem;
-  box-shadow:
-    0 10px 24px color-mix(in srgb, #000 5%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.toggleButtonActive {
-  background: var(--tg-text);
-  color: var(--tg-bg);
-}
-
-.followingRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.followingChip {
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-bg) 86%, var(--tg-bg));
-  color: var(--tg-subtitle-text);
-  font-size: 0.74rem;
-  text-decoration: none;
-  padding: 0.32rem 0.62rem;
+  justify-content: center;
 }
 
 .feed {
@@ -118,14 +30,6 @@
   grid-template-columns: 112px minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
-}
-
-.feedCardRelease .kindBadge {
-  color: color-mix(in srgb, var(--tg-accent) 84%, var(--tg-text));
-}
-
-.feedCardBlog .kindBadge {
-  color: color-mix(in srgb, #d8993b 84%, var(--tg-text));
 }
 
 .coverWrap {
@@ -177,7 +81,7 @@
 }
 
 .cardMetaTop a {
-  color: color-mix(in srgb, var(--tg-accent) 76%, var(--tg-text));
+  color: var(--tg-link);
   text-decoration: none;
   font-weight: 700;
 }
@@ -203,20 +107,6 @@
   color: var(--tg-subtitle-text);
   font-size: 0.84rem;
   line-height: 1.48;
-}
-
-.badgesRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.badgesRow span {
-  border-radius: 999px;
-  padding: 0.16rem 0.48rem;
-  background: color-mix(in srgb, var(--tg-section-bg) 82%, var(--tg-bg));
-  color: var(--tg-subtitle-text);
-  font-size: 0.7rem;
 }
 
 .engagementRow {
@@ -246,35 +136,6 @@
   width: 0.92rem;
   height: 0.92rem;
   color: color-mix(in srgb, var(--tg-accent) 82%, var(--tg-text));
-}
-
-.actionsRow {
-  display: flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-}
-
-.primaryAction,
-.secondaryAction {
-  min-height: 2.1rem;
-  border-radius: 999px;
-  padding: 0 0.78rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  font-size: 0.76rem;
-  font-weight: 700;
-}
-
-.primaryAction {
-  background: var(--tg-text);
-  color: var(--tg-bg);
-}
-
-.secondaryAction {
-  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
-  color: var(--tg-text);
 }
 
 .emptyState {
@@ -326,10 +187,6 @@
 }
 
 @media (max-width: 760px) {
-  .heroStats {
-    gap: 0.45rem;
-  }
-
   .feedCard {
     grid-template-columns: 92px minmax(0, 1fr);
     gap: 0.75rem;
@@ -346,14 +203,6 @@
 }
 
 @media (max-width: 560px) {
-  .heroStats {
-    gap: 0.3rem;
-  }
-
-  .heroStats strong {
-    font-size: 0.84rem;
-  }
-
   .feedCard {
     grid-template-columns: 1fr;
   }

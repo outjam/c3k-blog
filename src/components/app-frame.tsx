@@ -69,7 +69,7 @@ export function AppFrame({ children }: AppFrameProps) {
 
   const tabs = useMemo<TabItem[]>(
     () => [
-      { id: "feed", label: "Лента", href: "/", icon: <FeedIcon /> },
+      { id: "feed", label: "Новости", href: "/", icon: <FeedIcon /> },
       { id: "shop", label: "Релизы", href: "/shop", icon: <ShopIcon /> },
       {
         id: "profile",

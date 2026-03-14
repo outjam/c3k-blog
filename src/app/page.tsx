@@ -4,9 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { SegmentedTabs } from "@/components/segmented-tabs";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { StarsIcon } from "@/components/stars-icon";
-import { buildTelegramShareUrl, buildUnifiedFeed, readFollowingSlugs } from "@/lib/social-hub";
+import { buildUnifiedFeed, readFollowingSlugs } from "@/lib/social-hub";
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import type { BlogPost } from "@/types/blog";
@@ -164,98 +165,54 @@ export default function Home() {
   }, [feed]);
 
   const filteredFeed = useMemo(() => {
-    if (!feedOnlyFollowing || followingSlugs.length === 0) {
+    if (!feedOnlyFollowing) {
       return feed;
     }
 
-    const followedOnly = feed.filter((item) => item.isFollowedSource);
-    return followedOnly.length > 0 ? followedOnly : feed;
-  }, [feed, feedOnlyFollowing, followingSlugs.length]);
+    return feed.filter((item) => item.isFollowedSource);
+  }, [feed, feedOnlyFollowing]);
 
   const visibleFeed = useMemo(() => filteredFeed.slice(0, visibleCount), [filteredFeed, visibleCount]);
   const hasMore = visibleCount < filteredFeed.length;
-  const releasesCount = useMemo(() => products.filter((item) => item.kind === "digital_track").length, [products]);
-  const appOrigin = useMemo(() => {
-    if (typeof window === "undefined") {
-      return process.env.NEXT_PUBLIC_APP_URL ?? "";
-    }
+  const followedFeedCount = useMemo(
+    () => feed.filter((item) => item.isFollowedSource).length,
+    [feed],
+  );
 
-    return window.location.origin;
-  }, []);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [feedOnlyFollowing]);
+
+  const newsTabs = useMemo(
+    () => [
+      { id: "following", label: "Подписки", badge: followedFeedCount },
+      { id: "market", label: "Рынок", badge: feed.length },
+    ],
+    [feed.length, followedFeedCount],
+  );
 
   return (
     <div className={styles.page}>
       <main className={styles.container}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>C3K Social Feed</p>
-            <h1>Лента релизов и постов</h1>
-            <p>
-              Здесь собираются новые релизы и заметки артистов, за которыми вы следите. Можно оставить поток только по
-              подпискам или раскрыть весь каталог.
-            </p>
-          </div>
-
-          <div className={styles.heroStats}>
-            <article>
-              <span>Релизов в ленте</span>
-              <strong>{releasesCount}</strong>
-            </article>
-            <article>
-              <span>Постов блога</span>
-              <strong>{posts.length}</strong>
-            </article>
-            <article>
-              <span>Подписок</span>
-              <strong>{followingSlugs.length}</strong>
-            </article>
-          </div>
-
-          <div className={styles.heroActions}>
-            <button
-              type="button"
-              className={`${styles.toggleButton} ${feedOnlyFollowing ? styles.toggleButtonActive : ""}`}
-              onClick={() => setFeedOnlyFollowing(true)}
-            >
-              Только подписки
-            </button>
-            <button
-              type="button"
-              className={`${styles.toggleButton} ${!feedOnlyFollowing ? styles.toggleButtonActive : ""}`}
-              onClick={() => setFeedOnlyFollowing(false)}
-            >
-              Весь рынок
-            </button>
-          </div>
-
-          {followingSlugs.length > 0 ? (
-            <div className={styles.followingRow}>
-              {followingSlugs.slice(0, 7).map((slug) => (
-                <Link key={slug} href={`/profile/${slug}`} className={styles.followingChip}>
-                  @{slug}
-                </Link>
-              ))}
-            </div>
-          ) : null}
+        <section className={styles.filterBar}>
+          <SegmentedTabs
+            activeIndex={feedOnlyFollowing ? 0 : 1}
+            items={newsTabs}
+            onChange={(index) => setFeedOnlyFollowing(index === 0)}
+            ariaLabel="Фильтр новостей"
+          />
         </section>
 
         <section className={styles.feed}>
           {visibleFeed.length > 0 ? (
             visibleFeed.map((item) => {
               const engagement = feedEngagement[item.id];
-              const absoluteUrl = appOrigin ? `${appOrigin}${item.href}` : item.href;
-              const shareHref = buildTelegramShareUrl(
-                absoluteUrl,
-                item.kind === "release"
-                  ? `Слушаю ${item.title} в Culture3k`
-                  : `Читаю: ${item.title} в блоге Culture3k`,
-              );
 
               return (
                 <article key={item.id} className={`${styles.feedCard} ${item.kind === "release" ? styles.feedCardRelease : styles.feedCardBlog}`}>
                   <Link href={item.href} className={styles.coverWrap}>
                     <Image src={item.coverUrl} alt={item.title} fill sizes="(max-width: 880px) 100vw, 240px" className={styles.coverImage} />
-                    <span className={styles.kindBadge}>{item.kind === "release" ? "REL" : "BLOG"}</span>
+                    <span className={styles.kindBadge}>{item.kind === "release" ? "Релиз" : "Пост"}</span>
                   </Link>
 
                   <div className={styles.cardBody}>
@@ -270,12 +227,6 @@ export default function Home() {
 
                     <p className={styles.description}>{item.description}</p>
 
-                    <div className={styles.badgesRow}>
-                      {item.tags.slice(0, 3).map((tag) => (
-                        <span key={`${item.id}-${tag}`}>#{tag}</span>
-                      ))}
-                    </div>
-
                     <div className={styles.engagementRow}>
                       <p>{engagement?.reactionsCount ?? item.reactionsCount} реакций</p>
                       <p>{engagement?.commentsCount ?? item.commentsCount} комментариев</p>
@@ -286,28 +237,23 @@ export default function Home() {
                         </strong>
                       ) : null}
                     </div>
-
-                    <div className={styles.actionsRow}>
-                      <Link href={item.href} className={styles.primaryAction}>
-                        {item.kind === "release" ? "Открыть релиз" : "Открыть"}
-                      </Link>
-                      <a href={shareHref} target="_blank" rel="noreferrer" className={styles.secondaryAction}>
-                        Поделиться
-                      </a>
-                    </div>
                   </div>
                 </article>
               );
             })
           ) : (
             <article className={styles.emptyState}>
-              <h3>Лента пока пустая</h3>
-              <p>Подпишитесь на артистов и блоги, чтобы собирать персональный поток релизов.</p>
+              <h3>{feedOnlyFollowing ? "Подписки пока пусты" : "Новостей пока нет"}</h3>
+              <p>
+                {feedOnlyFollowing
+                  ? "Подпишитесь на артистов и блоги или переключитесь на рынок."
+                  : "Откройте релизы и возвращайтесь сюда за свежими обновлениями."}
+              </p>
               <Link href="/shop">Перейти в релизы</Link>
             </article>
           )}
 
-          {loading ? <p className={styles.loading}>Загружаем социальную ленту...</p> : null}
+          {loading ? <p className={styles.loading}>Загружаем новости...</p> : null}
           {!loading && hasMore ? (
             <button type="button" className={styles.loadMoreButton} onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}>
               Показать ещё

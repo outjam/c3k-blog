@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { SegmentedTabs } from "@/components/segmented-tabs";
 import { StarsIcon } from "@/components/stars-icon";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
@@ -13,14 +14,15 @@ import {
   fetchFollowRelations,
   profileSlugFromIdentity,
   readFollowOverview,
-  readPublicPurchasesBySlug,
   readProfileMode,
+  readPublicPurchasesBySlug,
   readPurchasedReleaseSlugs,
   readPurchasesVisibility,
   resolveViewerKey,
   toggleFollowingSlug,
 } from "@/lib/social-hub";
 import { formatStarsFromCents } from "@/lib/stars-format";
+import { hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { ProfileMode } from "@/types/social";
 import type { ShopCatalogArtist, ShopProduct } from "@/types/shop";
 
@@ -43,6 +45,8 @@ interface SocialListEntry {
   username?: string;
   avatarUrl?: string;
 }
+
+type PublicProfileTab = "collection" | "awards";
 
 export function PublicProfilePageClient({ slug }: { slug: string }) {
   const { user } = useAppAuthUser();
@@ -68,24 +72,42 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [artists, setArtists] = useState<ShopCatalogArtist[]>([]);
   const [followingSlugs, setFollowingSlugs] = useState<string[]>([]);
-  const [followStatsBySlug, setFollowStatsBySlug] = useState<Record<string, { followersCount: number; followingCount: number }>>({});
+  const [followStatsBySlug, setFollowStatsBySlug] = useState<
+    Record<string, { followersCount: number; followingCount: number }>
+  >({});
   const [followProfilesBySlug, setFollowProfilesBySlug] = useState<
-    Record<string, { slug: string; displayName: string; username?: string; avatarUrl?: string; coverUrl?: string; bio?: string }>
+    Record<
+      string,
+      {
+        slug: string;
+        displayName: string;
+        username?: string;
+        avatarUrl?: string;
+        coverUrl?: string;
+        bio?: string;
+      }
+    >
   >({});
   const [mode, setMode] = useState<ProfileMode>("listener");
   const [viewerPurchasesVisible, setViewerPurchasesVisible] = useState(true);
-  const [viewerPurchasedReleaseSlugs, setViewerPurchasedReleaseSlugs] = useState<string[]>([]);
+  const [viewerPurchasedReleaseSlugs, setViewerPurchasedReleaseSlugs] =
+    useState<string[]>([]);
   const [targetPurchasesVisible, setTargetPurchasesVisible] = useState(false);
-  const [targetPurchasedReleaseSlugs, setTargetPurchasedReleaseSlugs] = useState<string[]>([]);
+  const [targetPurchasedReleaseSlugs, setTargetPurchasedReleaseSlugs] =
+    useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [socialOverlay, setSocialOverlay] = useState<"followers" | "following" | null>(null);
+  const [socialOverlay, setSocialOverlay] = useState<
+    "followers" | "following" | null
+  >(null);
   const [socialLoading, setSocialLoading] = useState(false);
   const [socialFollowers, setSocialFollowers] = useState<string[]>([]);
   const [socialFollowing, setSocialFollowing] = useState<string[]>([]);
   const [socialProfilesBySlug, setSocialProfilesBySlug] = useState<
     Record<string, { displayName: string; username?: string; avatarUrl?: string }>
   >({});
+  const [currentTab, setCurrentTab] = useState<PublicProfileTab>("collection");
+  const [copyToast, setCopyToast] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -93,7 +115,14 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     void (async () => {
       setLoading(true);
 
-      const [catalog, followOverview, savedMode, visibility, purchases, targetPublicPurchases] = await Promise.all([
+      const [
+        catalog,
+        followOverview,
+        savedMode,
+        visibility,
+        purchases,
+        targetPublicPurchases,
+      ] = await Promise.all([
         fetchPublicCatalog(),
         readFollowOverview([targetSlug]),
         readProfileMode(viewerKey),
@@ -115,7 +144,9 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       setViewerPurchasesVisible(visibility);
       setViewerPurchasedReleaseSlugs(purchases);
       setTargetPurchasesVisible(targetPublicPurchases.purchasesVisible);
-      setTargetPurchasedReleaseSlugs(targetPublicPurchases.purchasedReleaseSlugs);
+      setTargetPurchasedReleaseSlugs(
+        targetPublicPurchases.purchasedReleaseSlugs,
+      );
       setLoading(false);
     })();
 
@@ -136,7 +167,17 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       followStatsBySlug,
       followProfilesBySlug,
     });
-  }, [artists, followingSlugs, followProfilesBySlug, followStatsBySlug, mode, products, user, viewerPurchasedReleaseSlugs, viewerPurchasesVisible]);
+  }, [
+    artists,
+    followingSlugs,
+    followProfilesBySlug,
+    followStatsBySlug,
+    mode,
+    products,
+    user,
+    viewerPurchasedReleaseSlugs,
+    viewerPurchasesVisible,
+  ]);
 
   const profile = useMemo(() => {
     const resolved = profiles.find((entry) => entry.slug === targetSlug) ?? null;
@@ -162,10 +203,16 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     }
 
     if (profile.mode === "artist") {
-      return products.filter((item) => item.kind === "digital_track" && normalizeSlug(item.artistSlug ?? "") === profile.slug);
+      return products.filter(
+        (item) =>
+          item.kind === "digital_track" &&
+          normalizeSlug(item.artistSlug ?? "") === profile.slug,
+      );
     }
 
-    return products.filter((item) => profile.purchasedReleaseSlugs.includes(item.slug));
+    return products.filter((item) =>
+      profile.purchasedReleaseSlugs.includes(item.slug),
+    );
   }, [products, profile]);
 
   const shareLink = useMemo(() => {
@@ -173,7 +220,10 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       return "";
     }
 
-    return buildTelegramShareUrl(`${appOrigin}/profile/${profile.slug}`, `Профиль ${profile.displayName} в Culture3k`);
+    return buildTelegramShareUrl(
+      `${appOrigin}/profile/${profile.slug}`,
+      `Профиль ${profile.displayName} в Culture3k`,
+    );
   }, [appOrigin, profile]);
 
   const handleToggleFollow = async () => {
@@ -188,7 +238,10 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     });
     setFollowingSlugs(next);
 
-    const [overview, relations] = await Promise.all([readFollowOverview([targetSlug, profile.slug, ...next]), fetchFollowRelations(targetSlug)]);
+    const [overview, relations] = await Promise.all([
+      readFollowOverview([targetSlug, profile.slug, ...next]),
+      fetchFollowRelations(targetSlug),
+    ]);
 
     setFollowingSlugs(overview.followingSlugs);
     setFollowStatsBySlug(overview.statsBySlug);
@@ -199,14 +252,16 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       setSocialFollowing(relations.snapshot.followingSlugs);
       setSocialProfilesBySlug(
         Object.fromEntries(
-          Object.entries(relations.snapshot.profilesBySlug).map(([entrySlug, entry]) => [
-            entrySlug,
-            {
-              displayName: entry.displayName,
-              username: entry.username,
-              avatarUrl: entry.avatarUrl,
-            },
-          ]),
+          Object.entries(relations.snapshot.profilesBySlug).map(
+            ([entrySlug, entry]) => [
+              entrySlug,
+              {
+                displayName: entry.displayName,
+                username: entry.username,
+                avatarUrl: entry.avatarUrl,
+              },
+            ],
+          ),
         ),
       );
     }
@@ -220,7 +275,10 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     });
     setFollowingSlugs(next);
 
-    const [overview, relations] = await Promise.all([readFollowOverview([targetSlug, entry.slug, ...next]), fetchFollowRelations(targetSlug)]);
+    const [overview, relations] = await Promise.all([
+      readFollowOverview([targetSlug, entry.slug, ...next]),
+      fetchFollowRelations(targetSlug),
+    ]);
 
     setFollowingSlugs(overview.followingSlugs);
     setFollowStatsBySlug(overview.statsBySlug);
@@ -231,14 +289,16 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       setSocialFollowing(relations.snapshot.followingSlugs);
       setSocialProfilesBySlug(
         Object.fromEntries(
-          Object.entries(relations.snapshot.profilesBySlug).map(([entrySlug, relationProfile]) => [
-            entrySlug,
-            {
-              displayName: relationProfile.displayName,
-              username: relationProfile.username,
-              avatarUrl: relationProfile.avatarUrl,
-            },
-          ]),
+          Object.entries(relations.snapshot.profilesBySlug).map(
+            ([entrySlug, relationProfile]) => [
+              entrySlug,
+              {
+                displayName: relationProfile.displayName,
+                username: relationProfile.username,
+                avatarUrl: relationProfile.avatarUrl,
+              },
+            ],
+          ),
         ),
       );
     }
@@ -261,14 +321,16 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     setSocialFollowing(result.snapshot.followingSlugs);
     setSocialProfilesBySlug(
       Object.fromEntries(
-        Object.entries(result.snapshot.profilesBySlug).map(([entrySlug, entry]) => [
-          entrySlug,
-          {
-            displayName: entry.displayName,
-            username: entry.username,
-            avatarUrl: entry.avatarUrl,
-          },
-        ]),
+        Object.entries(result.snapshot.profilesBySlug).map(
+          ([entrySlug, entry]) => [
+            entrySlug,
+            {
+              displayName: entry.displayName,
+              username: entry.username,
+              avatarUrl: entry.avatarUrl,
+            },
+          ],
+        ),
       ),
     );
   };
@@ -277,14 +339,76 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     const source = socialOverlay === "following" ? socialFollowing : socialFollowers;
     return source.map((entrySlug) => ({
       slug: entrySlug,
-      displayName: socialProfilesBySlug[entrySlug]?.displayName || followProfilesBySlug[entrySlug]?.displayName || entrySlug,
-      username: socialProfilesBySlug[entrySlug]?.username || followProfilesBySlug[entrySlug]?.username,
-      avatarUrl: socialProfilesBySlug[entrySlug]?.avatarUrl || followProfilesBySlug[entrySlug]?.avatarUrl,
+      displayName:
+        socialProfilesBySlug[entrySlug]?.displayName ||
+        followProfilesBySlug[entrySlug]?.displayName ||
+        entrySlug,
+      username:
+        socialProfilesBySlug[entrySlug]?.username ||
+        followProfilesBySlug[entrySlug]?.username,
+      avatarUrl:
+        socialProfilesBySlug[entrySlug]?.avatarUrl ||
+        followProfilesBySlug[entrySlug]?.avatarUrl,
     }));
-  }, [followProfilesBySlug, socialFollowers, socialFollowing, socialOverlay, socialProfilesBySlug]);
+  }, [
+    followProfilesBySlug,
+    socialFollowers,
+    socialFollowing,
+    socialOverlay,
+    socialProfilesBySlug,
+  ]);
 
   const profileBio = String(profile?.bio ?? "").trim();
   const isOwnProfile = viewerSlug === targetSlug;
+  const roleLabel = profile?.mode === "artist" ? "Артист" : null;
+  const hasAwards = (profile?.awards.length ?? 0) > 0;
+  const collectionLabel = profile?.mode === "artist" ? "Релизы" : "Коллекция";
+  const visibleTab: PublicProfileTab = hasAwards ? currentTab : "collection";
+  const profileTabItems = hasAwards
+    ? [
+        {
+          id: "collection",
+          label: collectionLabel,
+          badge: releases.length,
+        },
+        {
+          id: "awards",
+          label: "Награды",
+          badge: profile?.awards.length ?? 0,
+        },
+      ]
+    : [
+        {
+          id: "collection",
+          label: collectionLabel,
+          badge: releases.length,
+        },
+      ];
+  const activeTabIndex = visibleTab === "awards" ? 1 : 0;
+
+  useEffect(() => {
+    if (!copyToast) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setCopyToast(""), 1800);
+    return () => window.clearTimeout(timer);
+  }, [copyToast]);
+
+  const handleCopyUsername = async () => {
+    const value = `@${profile?.slug ?? targetSlug}`;
+
+    hapticSelection();
+
+    try {
+      await navigator.clipboard.writeText(value);
+      hapticNotification("success");
+      setCopyToast("Username скопирован");
+    } catch {
+      hapticNotification("warning");
+      setCopyToast("Не удалось скопировать username");
+    }
+  };
 
   if (loading) {
     return <div className={styles.page}>Загружаем профиль...</div>;
@@ -306,44 +430,64 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     <div className={styles.page}>
       <main className={styles.container}>
         <section className={styles.hero}>
-          <div className={styles.heroIdentity}>
-            {profile.avatarUrl ? (
-              <Image className={styles.avatarImage} src={profile.avatarUrl} alt={profile.displayName} width={53} height={53} />
-            ) : (
-              <div className={styles.avatarFallback}>{profile.displayName.slice(0, 2).toUpperCase()}</div>
-            )}
-
-            <div>
-              <h1>{profile.displayName}</h1>
-              <p>@{profile.slug}</p>
-              <span className={styles.kicker}>{profile.mode === "artist" ? "Артист" : "Покупатель"}</span>
-
-              <div className={styles.heroStats}>
-                <article>
-                  <span>Подписчики</span>
-                  <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("followers")}>
-                    {profile.followersCount}
-                  </button>
-                </article>
-                <article>
-                  <span>Подписки</span>
-                  <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("following")}>
-                    {profile.followingCount}
-                  </button>
-                </article>
-                <article>
-                  <span>Награды</span>
-                  <strong>{profile.awards.length}</strong>
-                </article>
-                <article>
-                  <span>{profile.mode === "artist" ? "Релизов" : "В коллекции"}</span>
-                  <strong>{releases.length}</strong>
-                </article>
+          <div className={styles.identityRow}>
+            <div className={styles.identityMeta}>
+              <div className={styles.identityHeading}>
+                <h1>{profile.displayName}</h1>
+                {roleLabel ? <span className={styles.kicker}>{roleLabel}</span> : null}
               </div>
+              <button
+                type="button"
+                className={styles.usernameButton}
+                onClick={handleCopyUsername}
+              >
+                @{profile.slug}
+              </button>
             </div>
+
+            {profile.avatarUrl ? (
+              <Image
+                className={styles.avatarImage}
+                src={profile.avatarUrl}
+                alt={profile.displayName}
+                width={55}
+                height={55}
+              />
+            ) : (
+              <div className={styles.avatarFallback}>
+                {profile.displayName.slice(0, 2).toUpperCase()}
+              </div>
+            )}
           </div>
 
-          {profileBio ? <p className={styles.bio}>{profileBio}</p> : null}
+          {profileBio ? <p className={styles.heroBio}>{profileBio}</p> : null}
+
+          <div className={styles.heroStats}>
+            <article>
+              <span>Подписчики</span>
+              <button
+                type="button"
+                className={styles.statButton}
+                onClick={() => void openSocialOverlay("followers")}
+              >
+                {profile.followersCount}
+              </button>
+            </article>
+            <article>
+              <span>Подписки</span>
+              <button
+                type="button"
+                className={styles.statButton}
+                onClick={() => void openSocialOverlay("following")}
+              >
+                {profile.followingCount}
+              </button>
+            </article>
+            <article>
+              <span>{collectionLabel}</span>
+              <strong>{releases.length}</strong>
+            </article>
+          </div>
 
           <div className={styles.heroActions}>
             {isOwnProfile ? (
@@ -355,83 +499,150 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
             )}
             {shareLink ? (
               <a href={shareLink} target="_blank" rel="noreferrer">
-                Поделиться профилем
+                Поделиться
               </a>
             ) : null}
           </div>
         </section>
 
-        {profile.awards.length > 0 ? (
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2>Награды</h2>
-              <p>{profile.awards.length}</p>
+        <div className={styles.tabShell}>
+          {hasAwards ? (
+            <div className={styles.stickyTabs}>
+              <SegmentedTabs
+                activeIndex={activeTabIndex}
+                items={profileTabItems}
+                onChange={(index) =>
+                  setCurrentTab(index === 1 ? "awards" : "collection")
+                }
+                ariaLabel="Разделы профиля"
+              />
             </div>
+          ) : null}
 
-            <div className={styles.awardsGrid}>
-              {profile.awards.map((award) => (
-                <article key={award.id} className={styles.awardCard}>
-                  <p>{award.icon}</p>
-                  <h3>{award.title}</h3>
-                  <span>{award.description}</span>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
+          <div className={styles.tabContent}>
+            {visibleTab === "collection" ? (
+              <section className={styles.section}>
+                {profile.mode === "listener" && !profile.purchasesVisible ? (
+                  <p className={styles.emptyState}>
+                    Коллекция скрыта владельцем профиля.
+                  </p>
+                ) : releases.length > 0 ? (
+                  <div className={styles.collectionGrid}>
+                    {releases.map((release) => (
+                      <article key={release.slug} className={styles.collectionCard}>
+                        <Link
+                          href={`/shop/${release.slug}`}
+                          className={styles.collectionLink}
+                        >
+                          <div className={styles.collectionVisual}>
+                            <Image
+                              src={release.image}
+                              alt={release.title}
+                              width={240}
+                              height={240}
+                              className={styles.collectionMedia}
+                            />
+                          </div>
 
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>{profile.mode === "artist" ? "Релизы" : "Коллекция"}</h2>
-            <p>{releases.length}</p>
-          </div>
-
-          {profile.mode === "listener" && !profile.purchasesVisible ? (
-            <p className={styles.empty}>Коллекция скрыта владельцем профиля.</p>
-          ) : releases.length > 0 ? (
-            <div className={styles.releaseGrid}>
-              {releases.map((release) => (
-                <Link key={release.slug} href={`/shop/${release.slug}`} className={styles.releaseCard}>
-                  <Image src={release.image} alt={release.title} width={360} height={125} />
-                  <div>
-                    <strong>{release.title}</strong>
-                    <p>{release.artistName || release.subtitle}</p>
-                    <span className={styles.releasePrice}>
-                      <StarsIcon className={styles.releasePriceIcon} />
-                      {formatStarsFromCents(release.priceStarsCents)}
-                    </span>
+                          <div className={styles.collectionMeta}>
+                            <strong>{release.title}</strong>
+                            <span>{release.artistName || release.subtitle}</span>
+                            <span className={styles.releasePrice}>
+                              <StarsIcon className={styles.releasePriceIcon} />
+                              {formatStarsFromCents(release.priceStarsCents)}
+                            </span>
+                          </div>
+                        </Link>
+                      </article>
+                    ))}
                   </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className={styles.empty}>{profile.mode === "artist" ? "Релизов пока нет." : "Покупок пока нет."}</p>
-          )}
-        </section>
+                ) : (
+                  <p className={styles.emptyState}>
+                    {profile.mode === "artist"
+                      ? "Релизов пока нет."
+                      : "Покупок пока нет."}
+                  </p>
+                )}
+              </section>
+            ) : null}
+
+            {visibleTab === "awards" && hasAwards ? (
+              <section className={styles.section}>
+                <div className={styles.awardsGrid}>
+                  {profile.awards.map((award) => (
+                    <article
+                      key={award.id}
+                      className={`${styles.awardCard} ${styles[`awardTier${award.tier}`]}`}
+                    >
+                      <div className={styles.awardCardTop}>
+                        <span className={styles.awardIconWrap}>{award.icon}</span>
+                        <span className={styles.awardTierPill}>
+                          {award.tier === "diamond"
+                            ? "Diamond"
+                            : award.tier === "gold"
+                              ? "Gold"
+                              : award.tier === "silver"
+                                ? "Silver"
+                                : "Bronze"}
+                        </span>
+                      </div>
+
+                      <div className={styles.awardMeta}>
+                        <h3>{award.title}</h3>
+                        <span>{award.description}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </div>
       </main>
 
       {socialOverlay ? (
-        <div className={styles.socialOverlayBackdrop} onClick={() => setSocialOverlay(null)}>
-          <div className={styles.socialOverlayCard} onClick={(event) => event.stopPropagation()}>
+        <div
+          className={styles.socialOverlayBackdrop}
+          onClick={() => setSocialOverlay(null)}
+        >
+          <div
+            className={styles.socialOverlayCard}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className={styles.sectionHeader}>
               <h2>{socialOverlay === "following" ? "Подписки" : "Подписчики"}</h2>
-              <button type="button" className={styles.overlayCloseButton} onClick={() => setSocialOverlay(null)}>
+              <button
+                type="button"
+                className={styles.overlayCloseButton}
+                onClick={() => setSocialOverlay(null)}
+              >
                 Закрыть
               </button>
             </div>
 
-            {socialLoading ? <p className={styles.empty}>Загрузка...</p> : null}
+            {socialLoading ? <p className={styles.emptyState}>Загрузка...</p> : null}
 
             {!socialLoading ? (
               <div className={styles.socialOverlayList}>
                 {socialList.length > 0 ? (
                   socialList.map((entry) => (
                     <article key={entry.slug} className={styles.personRow}>
-                      <Link href={`/profile/${entry.slug}`} className={styles.personIdentity} onClick={() => setSocialOverlay(null)}>
+                      <Link
+                        href={`/profile/${entry.slug}`}
+                        className={styles.personIdentity}
+                        onClick={() => setSocialOverlay(null)}
+                      >
                         {entry.avatarUrl ? (
-                          <Image src={entry.avatarUrl} alt={entry.displayName} width={34} height={34} />
+                          <Image
+                            src={entry.avatarUrl}
+                            alt={entry.displayName}
+                            width={34}
+                            height={34}
+                          />
                         ) : (
-                          <div className={styles.personIdentityFallback}>{entry.displayName.slice(0, 2).toUpperCase()}</div>
+                          <div className={styles.personIdentityFallback}>
+                            {entry.displayName.slice(0, 2).toUpperCase()}
+                          </div>
                         )}
                         <span>
                           <strong>{entry.displayName}</strong>
@@ -440,8 +651,13 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                       </Link>
 
                       {entry.slug !== viewerSlug ? (
-                        <button type="button" onClick={() => void handleToggleSocialListFollow(entry)}>
-                          {followingSlugs.includes(entry.slug) ? "Отписаться" : "Подписаться"}
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleSocialListFollow(entry)}
+                        >
+                          {followingSlugs.includes(entry.slug)
+                            ? "Отписаться"
+                            : "Подписаться"}
                         </button>
                       ) : (
                         <span className={styles.selfBadge}>Вы</span>
@@ -449,13 +665,15 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                     </article>
                   ))
                 ) : (
-                  <p className={styles.empty}>Список пуст.</p>
+                  <p className={styles.emptyState}>Список пуст.</p>
                 )}
               </div>
             ) : null}
           </div>
         </div>
       ) : null}
+
+      {copyToast ? <div className={styles.copyToast}>{copyToast}</div> : null}
     </div>
   );
 }
