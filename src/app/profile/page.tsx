@@ -19,7 +19,7 @@ import {
 } from "motion/react";
 import { useTonWallet } from "@tonconnect/ui-react";
 
-import { ProfileTabs } from "@/components/profile/profile-tabs";
+import { SegmentedTabs } from "@/components/segmented-tabs";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   createMyArtistTrack,
@@ -86,30 +86,6 @@ const createTrackRowDraft = (index: number): TrackRowDraft => ({
   previewUrl: "",
   durationSec: "",
 });
-
-function CollectionIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M6 4.5A1.5 1.5 0 0 0 4.5 6v8.25A2.25 2.25 0 0 0 6.75 16.5H9v1.5H6.75A3.75 3.75 0 0 1 3 14.25V6a3 3 0 0 1 3-3h8.25A3.75 3.75 0 0 1 18 6.75V9h-1.5V6.75A2.25 2.25 0 0 0 14.25 4.5H6Zm8.25 6A3.75 3.75 0 0 1 18 14.25v3a3.75 3.75 0 0 1-3.75 3.75h-3a3.75 3.75 0 0 1-3.75-3.75v-3a3.75 3.75 0 0 1 3.75-3.75h3Zm-3 1.5A2.25 2.25 0 0 0 9 14.25v3a2.25 2.25 0 0 0 2.25 2.25h3a2.25 2.25 0 0 0 2.25-2.25v-3A2.25 2.25 0 0 0 14.25 12h-3Z" />
-    </svg>
-  );
-}
-
-function StudioIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M7.25 4A2.25 2.25 0 0 1 9.5 6.25v11.5A2.25 2.25 0 0 1 7.25 20h-.5A2.25 2.25 0 0 1 4.5 17.75V6.25A2.25 2.25 0 0 1 6.75 4h.5Zm10 0a2.25 2.25 0 0 1 2.25 2.25v11.5A2.25 2.25 0 0 1 17.25 20h-.5a2.25 2.25 0 0 1-2.25-2.25V6.25A2.25 2.25 0 0 1 16.75 4h.5ZM6.75 5.5a.75.75 0 0 0-.75.75v11.5c0 .41.34.75.75.75h.5a.75.75 0 0 0 .75-.75V6.25a.75.75 0 0 0-.75-.75h-.5Zm10 0a.75.75 0 0 0-.75.75v11.5c0 .41.34.75.75.75h.5a.75.75 0 0 0 .75-.75V6.25a.75.75 0 0 0-.75-.75h-.5ZM11.25 8.5a2.25 2.25 0 0 1 2.25 2.25v2.5a2.25 2.25 0 0 1-4.5 0v-2.5a2.25 2.25 0 0 1 2.25-2.25Zm0 1.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0v-2.5a.75.75 0 0 0-.75-.75Z" />
-    </svg>
-  );
-}
-
-function AwardsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M12 3.75a3 3 0 0 1 3 3v.43h2.43a2.25 2.25 0 0 1 2.12 3l-1.5 4.12a2.25 2.25 0 0 1-2.11 1.48H15.4a3.01 3.01 0 0 1-1.9 1.63v1.34h1.25A2.25 2.25 0 0 1 17 21v.25H7V21a2.25 2.25 0 0 1 2.25-2.25h1.25v-1.34a3.01 3.01 0 0 1-1.9-1.63h-.54a2.25 2.25 0 0 1-2.12-1.48l-1.5-4.12a2.25 2.25 0 0 1 2.12-3H9v-.43a3 3 0 0 1 3-3Zm-1.5 3a1.5 1.5 0 0 1 3 0v6a1.5 1.5 0 0 1-3 0v-6Zm-4.44 1.93a.75.75 0 0 0-.71 1l1.5 4.12a.75.75 0 0 0 .7.5h.2v-5.62H6.06Zm10.19 0v5.62h.2a.75.75 0 0 0 .7-.5l1.5-4.12a.75.75 0 0 0-.7-1h-1.7Z" />
-    </svg>
-  );
-}
 
 const shouldIgnoreTabSwipe = (target: EventTarget | null): boolean => {
   return (
@@ -594,16 +570,14 @@ export default function ProfilePage() {
     () =>
       profileTabs.map((tab) => ({
         ...tab,
-        icon:
-          tab.id === "collection" ? (
-            <CollectionIcon />
-          ) : tab.id === "awards" ? (
-            <AwardsIcon />
-          ) : (
-            <StudioIcon />
-          ),
+        badge:
+          tab.id === "collection"
+            ? collectionEntries.length
+            : tab.id === "awards"
+              ? awards.length
+              : undefined,
       })),
-    [profileTabs],
+    [awards.length, collectionEntries.length, profileTabs],
   );
   const hasMultipleTabs = profileTabs.length > 1;
   const currentTab: ProfileTab = profileTabs.some((tab) => tab.id === activeTab)
@@ -1016,10 +990,11 @@ export default function ProfilePage() {
         <div className={styles.tabShell}>
           {hasMultipleTabs ? (
             <div className={styles.stickyTabs}>
-              <ProfileTabs
+              <SegmentedTabs
                 activeIndex={activeTabIndex}
                 items={profileTabItems}
                 onChange={setCurrentTabByIndex}
+                ariaLabel="Разделы профиля"
               />
             </div>
           ) : null}
@@ -1062,11 +1037,6 @@ export default function ProfilePage() {
                   <div className={styles.tabContent}>
                     {tab.id === "collection" ? (
                 <section className={styles.section}>
-                  <div className={styles.sectionHeader}>
-                    <h2>Коллекция</h2>
-                    <p>{collectionEntries.length}</p>
-                  </div>
-
                   {collectionEntries.length > 0 ? (
                     <div className={styles.collectionGrid}>
                       {collectionEntries.map((entry) => {
@@ -1136,11 +1106,6 @@ export default function ProfilePage() {
 
                     {tab.id === "awards" ? (
                 <section className={styles.section}>
-                  <div className={styles.sectionHeader}>
-                    <h2>Награды</h2>
-                    <p>{awards.length}</p>
-                  </div>
-
                   <div className={styles.awardsGrid}>
                     {awards.map((award) => (
                       <article

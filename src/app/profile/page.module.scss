@@ -239,7 +239,7 @@
 
 .stickyTabs {
   position: sticky;
-  top: 0.35rem;
+  top: calc(var(--app-header-height) + var(--safe-area-top) + 0.55rem);
   z-index: 16;
   display: flex;
   justify-content: center;
@@ -301,7 +301,7 @@
 
 @media (min-width: 1024px) {
   .stickyTabs {
-    top: 0.55rem;
+    top: calc(var(--app-header-height) + var(--safe-area-top) + 0.95rem);
   }
 }
 

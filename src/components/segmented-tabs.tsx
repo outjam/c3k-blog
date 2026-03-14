@@ -9,18 +9,20 @@ import {
   type PanInfo,
 } from "motion/react";
 
-import styles from "./profile-tabs.module.scss";
+import styles from "./segmented-tabs.module.scss";
 
-interface ProfileTabItem {
+export interface SegmentedTabItem {
   id: string;
   label: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
+  badge?: number | string | null;
 }
 
-interface ProfileTabsProps {
+interface SegmentedTabsProps {
   activeIndex: number;
-  items: ProfileTabItem[];
+  items: SegmentedTabItem[];
   onChange: (index: number) => void;
+  ariaLabel?: string;
 }
 
 const RAIL_INSET = 4;
@@ -36,11 +38,40 @@ const snapSpring = {
   mass: 0.62,
 };
 
-export function ProfileTabs({
+const hasBadge = (badge: SegmentedTabItem["badge"]): boolean => {
+  return badge !== undefined && badge !== null;
+};
+
+function TabFace({
+  item,
+  accented,
+}: {
+  item: SegmentedTabItem;
+  accented?: boolean;
+}) {
+  return (
+    <div className={`${styles.tab} ${accented ? styles.tabAccent : ""}`}>
+      {item.icon ? <span className={styles.tabIcon}>{item.icon}</span> : null}
+      <span className={styles.tabMeta}>
+        <span className={styles.tabLabel}>{item.label}</span>
+        {hasBadge(item.badge) ? (
+          <span
+            className={`${styles.tabBadge} ${accented ? styles.tabBadgeAccent : ""}`}
+          >
+            {item.badge}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+export function SegmentedTabs({
   activeIndex,
   items,
   onChange,
-}: ProfileTabsProps) {
+  ariaLabel = "Разделы",
+}: SegmentedTabsProps) {
   const railRef = useRef<HTMLElement | null>(null);
   const [railInnerWidth, setRailInnerWidth] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -122,7 +153,7 @@ export function ProfileTabs({
   return (
     <nav
       className={styles.tabBar}
-      aria-label="Разделы профиля"
+      aria-label={ariaLabel}
       ref={railRef}
       style={{ "--tab-count": tabCount } as CSSProperties}
     >
@@ -153,13 +184,8 @@ export function ProfileTabs({
             style={{ x: accentOffsetX, width: railInnerWidth }}
           >
             {items.map((tab) => (
-              <div
-                className={`${styles.tab} ${styles.tabAccent}`}
-                key={`accent-${tab.id}`}
-                aria-hidden
-              >
-                <span className={styles.tabIcon}>{tab.icon}</span>
-                <span className={styles.tabLabel}>{tab.label}</span>
+              <div key={`accent-${tab.id}`} aria-hidden>
+                <TabFace item={tab} accented />
               </div>
             ))}
           </motion.div>
@@ -183,10 +209,7 @@ export function ProfileTabs({
             }}
             disabled={isDragging}
           >
-            <div className={styles.tab}>
-              <span className={styles.tabIcon}>{tab.icon}</span>
-              <span className={styles.tabLabel}>{tab.label}</span>
-            </div>
+            <TabFace item={tab} />
           </motion.button>
         ))}
       </div>

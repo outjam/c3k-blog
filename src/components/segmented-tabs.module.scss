@@ -1,6 +1,6 @@
 .tabBar {
   position: relative;
-  width: min(100%, 380px);
+  width: min(100%, 420px);
   padding: 0.24rem;
   border-radius: 56px;
   background: color-mix(in srgb, var(--tg-bottom-bar-bg) 72%, transparent);
@@ -103,42 +103,74 @@
 }
 
 .tab {
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 0.14rem;
-  min-height: 48px;
-  padding: 0.38rem 0.55rem;
-  text-align: center;
+  min-height: 44px;
+  padding: 0.46rem 0.72rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
   color: var(--tg-text);
   font-weight: 600;
   line-height: 1;
+  text-align: center;
 }
 
 .tabIcon {
-  width: 22px;
-  height: 22px;
-  display: grid;
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
   place-items: center;
+  flex-shrink: 0;
 }
 
 .tabIcon svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   fill: currentColor;
   transition: transform 0.2s ease;
 }
 
+.tabMeta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
 .tabLabel {
-  font-size: 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
   transition: transform 0.2s ease;
+}
+
+.tabBadge {
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.32rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--tg-text) 10%, transparent);
+  color: var(--tg-text);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .tabAccent {
   color: var(--tg-accent);
 }
 
+.tabBadgeAccent {
+  background: color-mix(in srgb, var(--tg-accent) 16%, transparent);
+  color: var(--tg-accent);
+}
+
 .tabButton:active .tabIcon svg,
-.tabButton:active .tabLabel {
+.tabButton:active .tabLabel,
+.tabButton:active .tabBadge {
   transform: scale(1.03);
 }
