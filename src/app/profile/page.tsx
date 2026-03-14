@@ -1092,7 +1092,7 @@ export default function ProfilePage() {
           </div>
 
           <div className={styles.heroActions}>
-            <Link href="/profile/edit">Редактировать</Link>
+            <Link href="/profile/edit">Настройки</Link>
             <button type="button" onClick={handleShareProfile}>
               Поделиться
             </button>
@@ -1100,9 +1100,6 @@ export default function ProfilePage() {
 
           <div className={styles.heroBalance}>
             <div className={styles.heroBalanceLead}>
-              <span className={styles.heroBalanceIcon} aria-hidden>
-                <StarsIcon />
-              </span>
               <div className={styles.heroBalanceMeta}>
                 <span>Баланс</span>
                 <strong className={styles.balanceValue}>

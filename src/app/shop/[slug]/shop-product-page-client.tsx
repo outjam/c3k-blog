@@ -12,7 +12,6 @@ import { StarsIcon } from "@/components/stars-icon";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
-  buildTelegramShareUrl,
   type MintedReleaseNft,
   purchaseReleaseWithWallet,
   profileSlugFromIdentity,
@@ -68,13 +67,6 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const tonWallet = useTonWallet();
   const { user, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
-  const appOrigin = useMemo(() => {
-    if (typeof window === "undefined") {
-      return process.env.NEXT_PUBLIC_APP_URL ?? "";
-    }
-
-    return window.location.origin;
-  }, []);
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState(() =>
@@ -245,6 +237,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const commentComposerHint = user?.id
     ? "Короткий отзыв, впечатление от треклиста или любимый момент."
     : "Чтобы оставить комментарий, войдите через Telegram.";
+  const primaryGenre = product.subcategoryLabel ?? product.attributes.collection;
+  const collectionStateLabel = isPurchased ? "в коллекции" : "не куплен";
+  const nftStateLabel = isMintedInTon
+    ? "выпущен"
+    : TON_ONCHAIN_NFT_MINT_ENABLED
+      ? TON_NETWORK_LABEL
+      : "disabled";
 
   const resolveMintOwnerAddress = (): string | null => {
     if (!user?.id) {
@@ -409,17 +408,6 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     hapticNotification("success");
   };
 
-  const sharePurchase = () => {
-    const releaseUrl = appOrigin
-      ? `${appOrigin}/shop/${product.slug}`
-      : `/shop/${product.slug}`;
-    const shareUrl = buildTelegramShareUrl(
-      releaseUrl,
-      `Купил релиз ${product.title} в Culture3k`,
-    );
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
-  };
-
   const submitComment = async () => {
     if (commentSubmitting) {
       return;
@@ -492,79 +480,137 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     <div className={styles.page}>
       <BackButtonController onBack={handleBack} visible />
 
-      <article className={styles.card}>
-        <Image
-          src={product.image}
-          alt={product.title}
-          width={640}
-          height={480}
-          className={styles.cover}
-          priority
-        />
-        <div className={styles.body}>
-          <p className={styles.subtitle}>{product.subtitle}</p>
-          <div className={styles.titleRow}>
-            <h1>{product.title}</h1>
-            <button
-              type="button"
-              className={styles.favoriteButton}
-              onClick={toggleFavorite}
-            >
-              {isFavorite ? "Сохранено" : "Сохранить"}
-            </button>
-          </div>
-          {product.artistName ? (
-            <p className={styles.artistLine}>
-              Артист:{" "}
-              {product.artistSlug ? (
-                <Link href={`/profile/${product.artistSlug}`}>
-                  {product.artistName}
-                </Link>
-              ) : (
-                product.artistName
-              )}
-            </p>
-          ) : null}
-          <p className={styles.description}>{product.description}</p>
-          <p className={styles.price}>
-            <StarsIcon className={styles.priceIcon} />
-            {formatStarsFromCents(selectedPriceStarsCents)}
-          </p>
-          {isPurchased ? (
-            <div className={styles.ownedBanner}>
-              <span className={styles.ownedBadge}>Уже куплено</span>
-              <div>
-                <strong>Релиз уже находится в вашей коллекции</strong>
-                <small>
-                  Можно слушать его без ограничений и улучшить в NFT.
-                </small>
+      <article className={styles.container}>
+        <section className={styles.hero}>
+          <div className={styles.heroContent}>
+            <p className={styles.kicker}>{product.subtitle || releaseLabel}</p>
+            <div className={styles.titleRow}>
+              <div className={styles.titleMeta}>
+                <h1>{product.title}</h1>
+                {product.artistName ? (
+                  <p className={styles.artistLine}>
+                    {product.artistSlug ? (
+                      <Link href={`/profile/${product.artistSlug}`}>
+                        {product.artistName}
+                      </Link>
+                    ) : (
+                      product.artistName
+                    )}
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className={styles.favoriteButton}
+                onClick={toggleFavorite}
+              >
+                {isFavorite ? "Сохранено" : "Сохранить"}
+              </button>
+            </div>
+
+            <p className={styles.description}>{product.description}</p>
+
+            <div className={styles.heroStats}>
+              <article>
+                <span>Релиз</span>
+                <strong>{releaseLabel}</strong>
+              </article>
+              <article>
+                <span>Жанр</span>
+                <strong>{primaryGenre}</strong>
+              </article>
+              <article>
+                <span>Треков</span>
+                <strong>{releaseTracklist.length || 1}</strong>
+              </article>
+              <article>
+                <span>Статус</span>
+                <strong>{collectionStateLabel}</strong>
+              </article>
+            </div>
+
+            <div className={styles.priceRow}>
+              <p className={styles.price}>
+                <StarsIcon className={styles.priceIcon} />
+                {formatStarsFromCents(selectedPriceStarsCents)}
+              </p>
+
+              <div className={styles.statusBadges}>
+                {isPurchased ? (
+                  <span className={styles.statusBadge}>В коллекции</span>
+                ) : null}
+                {isMintedInTon ? (
+                  <span
+                    className={`${styles.statusBadge} ${styles.statusBadgeAccent}`}
+                  >
+                    NFT
+                  </span>
+                ) : null}
               </div>
             </div>
-          ) : null}
 
-          <dl className={styles.meta}>
-            <div>
-              <dt>Релиз</dt>
-              <dd>{releaseLabel}</dd>
-            </div>
-            <div>
-              <dt>Жанр</dt>
-              <dd>
-                {product.subcategoryLabel ?? product.attributes.collection}
-              </dd>
-            </div>
-            <div>
-              <dt>Треков</dt>
-              <dd>{releaseTracklist.length || 1}</dd>
-            </div>
-            <div>
-              <dt>Доступ</dt>
-              <dd>Мгновенно после оплаты</dd>
-            </div>
-          </dl>
+            <div className={styles.heroActions}>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={handlePlayAll}
+                disabled={releaseQueue.length === 0}
+              >
+                Слушать релиз
+              </button>
 
-          <section className={styles.formatSection}>
-            <p className={styles.sectionTitle}>Формат покупки</p>
+              {!isPurchased ? (
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={buyWithWallet}
+                >
+                  Купить с баланса
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  disabled={
+                    isMintedInTon ||
+                    minting ||
+                    !TON_ONCHAIN_NFT_MINT_ENABLED
+                  }
+                  onClick={openMintDialog}
+                >
+                  {isMintedInTon
+                    ? "NFT уже выпущен"
+                    : minting
+                      ? "Минтим..."
+                      : "Выпустить NFT"}
+                </button>
+              )}
+            </div>
+
+            {walletMessage ? (
+              <p className={styles.notice}>{walletMessage}</p>
+            ) : null}
+          </div>
+
+          <div className={styles.coverShell}>
+            <Image
+              src={product.image}
+              alt={product.title}
+              width={640}
+              height={480}
+              className={styles.cover}
+              priority
+            />
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Треки</h2>
+            <p>{releaseTracklist.length || 1}</p>
+          </div>
+
+          {formats.length > 1 ? (
             <div className={styles.formatGrid}>
               {formats.map((entry) => (
                 <button
@@ -583,69 +629,64 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 </button>
               ))}
             </div>
-          </section>
+          ) : null}
 
-          <section className={styles.tracklistSection}>
-            <div className={styles.tracklistHead}>
-              <p className={styles.sectionTitle}>Треклист релиза</p>
-              <button
-                type="button"
-                className={styles.playAllButton}
-                onClick={handlePlayAll}
-                disabled={releaseQueue.length === 0}
-              >
-                ▶ Слушать релиз
-              </button>
-            </div>
-            <ol className={styles.tracklist}>
-              {releaseTracklist.length > 0 ? (
-                releaseTracklist.map((track, index) => (
-                  <li key={track.id}>
-                    <span className={styles.trackIndex}>
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div className={styles.trackMeta}>
-                      <strong>{track.title}</strong>
-                      <small>
-                        {track.durationSec
-                          ? `${Math.floor(track.durationSec / 60)}:${String(track.durationSec % 60).padStart(2, "0")}`
-                          : "Preview по кнопке"}
-                      </small>
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.trackPlayButton}
-                      onClick={() => handlePlayTrack(index)}
-                    >
-                      ▶
-                    </button>
-                  </li>
-                ))
-              ) : (
-                <li>
-                  <span className={styles.trackIndex}>01</span>
+          <ol className={styles.tracklist}>
+            {releaseTracklist.length > 0 ? (
+              releaseTracklist.map((track, index) => (
+                <li key={track.id}>
+                  <span className={styles.trackIndex}>
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
                   <div className={styles.trackMeta}>
-                    <strong>{product.title}</strong>
-                    <small>Preview по кнопке</small>
+                    <strong>{track.title}</strong>
+                    <small>
+                      {track.durationSec
+                        ? `${Math.floor(track.durationSec / 60)}:${String(track.durationSec % 60).padStart(2, "0")}`
+                        : "Preview по кнопке"}
+                    </small>
                   </div>
                   <button
                     type="button"
                     className={styles.trackPlayButton}
-                    onClick={() => handlePlayTrack(0)}
+                    onClick={() => handlePlayTrack(index)}
                   >
                     ▶
                   </button>
                 </li>
-              )}
-            </ol>
-          </section>
+              ))
+            ) : (
+              <li>
+                <span className={styles.trackIndex}>01</span>
+                <div className={styles.trackMeta}>
+                  <strong>{product.title}</strong>
+                  <small>Preview по кнопке</small>
+                </div>
+                <button
+                  type="button"
+                  className={styles.trackPlayButton}
+                  onClick={() => handlePlayTrack(0)}
+                >
+                  ▶
+                </button>
+              </li>
+            )}
+          </ol>
+        </section>
 
-          {!isPurchased ? (
-            <section className={styles.socialBuySection}>
-              <div className={styles.releaseCommentsHead}>
-                <h2>Покупка</h2>
-                <p>не куплен</p>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Коллекция и NFT</h2>
+            <p>{isPurchased ? "активно" : "ожидает покупки"}</p>
+          </div>
+
+          <div className={styles.accessGrid}>
+            <section className={styles.accessPanel}>
+              <div className={styles.panelHeader}>
+                <h3>Коллекция</h3>
+                <span>{collectionStateLabel}</span>
               </div>
+
               <div className={styles.walletBalanceLine}>
                 <span>Баланс кошелька</span>
                 <strong>
@@ -653,215 +694,194 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   {formatStarsFromCents(walletBalanceCents)}
                 </strong>
               </div>
-              <p className={styles.purchaseState}>
-                После покупки релиз сразу появится в вашей коллекции.
+
+              <p className={styles.panelText}>
+                {isPurchased
+                  ? "Релиз уже находится в вашей коллекции и доступен для прослушивания без ограничений."
+                  : "После покупки релиз сразу появится в вашей коллекции и станет доступен для дальнейшего улучшения."}
               </p>
-              <div className={styles.socialBuyActions}>
+
+              {!isPurchased ? (
                 <button
                   type="button"
-                  className={styles.addButton}
+                  className={styles.secondaryButton}
                   onClick={buyWithWallet}
                 >
                   Купить с баланса
                 </button>
-                <button
-                  type="button"
-                  className={styles.addButton}
-                  onClick={sharePurchase}
-                >
-                  Поделиться
-                </button>
-              </div>
-              {walletMessage ? (
-                <p className={styles.walletMessage}>{walletMessage}</p>
               ) : null}
             </section>
-          ) : null}
 
-          <section className={styles.nftSection}>
-            <div className={styles.releaseCommentsHead}>
-              <h2>NFT upgrade</h2>
-              <p>
-                {isMintedInTon
-                  ? "выпущен"
-                  : TON_ONCHAIN_NFT_MINT_ENABLED
-                    ? TON_NETWORK_LABEL
-                    : "disabled"}
+            <section className={styles.accessPanel}>
+              <div className={styles.panelHeader}>
+                <h3>NFT</h3>
+                <span>{nftStateLabel}</span>
+              </div>
+
+              <p className={styles.panelText}>
+                {TON_ONCHAIN_NFT_MINT_ENABLED
+                  ? `После выпуска релиз получит NFT-версию в сети ${TON_NETWORK_LABEL} и будет закреплен за вашим TON-кошельком.`
+                  : "On-chain mint сейчас выключен. Пока релиз существует только внутри коллекции приложения."}
               </p>
-            </div>
-            <p>
-              {TON_ONCHAIN_NFT_MINT_ENABLED
-                ? `После улучшения релиз будет выпущен как NFT в сети ${TON_NETWORK_LABEL} и придет на ваш TON-кошелек.`
-                : "On-chain mint сейчас выключен. До включения релиз хранится только во внутреннем профиле приложения."}
-            </p>
-            <div className={styles.nftActions}>
-              <TonConnectButton className={styles.tonConnectButton} />
-              <button
-                type="button"
-                className={styles.addButton}
-                disabled={
-                  !isPurchased ||
-                  isMintedInTon ||
-                  minting ||
-                  !TON_ONCHAIN_NFT_MINT_ENABLED
-                }
-                onClick={openMintDialog}
-              >
-                {isMintedInTon
-                  ? "NFT уже выпущен"
-                  : minting
-                    ? "Минтим в TON..."
-                    : "Улучшить фиктовку"}
-              </button>
-            </div>
-            {isMintedInTon ? (
-              <p className={styles.walletMessage}>
-                NFT уже выпущен и закреплен за вашим релизом в{" "}
-                {TON_NETWORK_LABEL}.
-              </p>
-            ) : null}
-            {walletMessage && isPurchased ? (
-              <p className={styles.walletMessage}>{walletMessage}</p>
-            ) : null}
-          </section>
 
-          <section className={styles.releaseCommentsSection}>
-            <div className={styles.releaseCommentsHead}>
-              <h2>Реакции к релизу</h2>
-              <p>{releaseReactionsTotal}</p>
-            </div>
-
-            <div className={styles.reactionRow}>
-              {RELEASE_REACTION_OPTIONS.map((option) => {
-                const isActive = socialSnapshot?.myReaction === option.key;
-                const total = socialSnapshot?.reactions?.[option.key] ?? 0;
-
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    className={`${styles.reactionButton} ${isActive ? styles.reactionButtonActive : ""}`}
-                    disabled={reactionSubmitting}
-                    onClick={() => void handleSetReaction(option.key)}
-                    aria-label={option.label}
-                  >
-                    <span className={styles.reactionEmoji}>{option.emoji}</span>
-                    <small className={styles.reactionCount}>{total}</small>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className={styles.releaseCommentsSection}>
-            <div className={styles.releaseCommentsHead}>
-              <h2>Комментарии к релизу</h2>
-              <p>{releaseComments.length}</p>
-            </div>
-
-            {user?.id ? (
-              <div className={styles.commentComposer}>
-                <div className={styles.commentComposerMeta}>
-                  <p>{commentComposerHint}</p>
-                  <span>{commentDraft.length}/600</span>
-                </div>
-                <textarea
-                  value={commentDraft}
-                  onChange={(event) => setCommentDraft(event.target.value)}
-                  maxLength={600}
-                  placeholder="Поделитесь впечатлениями о релизе"
-                />
+              <div className={styles.nftActions}>
+                <TonConnectButton className={styles.tonConnectButton} />
                 <button
                   type="button"
-                  className={styles.addButton}
+                  className={styles.secondaryButton}
                   disabled={
-                    commentSubmitting || commentDraft.trim().length === 0
+                    !isPurchased ||
+                    isMintedInTon ||
+                    minting ||
+                    !TON_ONCHAIN_NFT_MINT_ENABLED
                   }
-                  onClick={() => void submitComment()}
+                  onClick={openMintDialog}
                 >
-                  {commentSubmitting ? "Публикуем..." : "Отправить комментарий"}
+                  {isMintedInTon
+                    ? "NFT уже выпущен"
+                    : minting
+                      ? "Минтим в TON..."
+                      : "Выпустить NFT"}
                 </button>
               </div>
-            ) : (
-              <div className={styles.commentAuthState}>
+            </section>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Реакции</h2>
+            <p>{releaseReactionsTotal}</p>
+          </div>
+
+          <div className={styles.reactionRow}>
+            {RELEASE_REACTION_OPTIONS.map((option) => {
+              const isActive = socialSnapshot?.myReaction === option.key;
+              const total = socialSnapshot?.reactions?.[option.key] ?? 0;
+
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  className={`${styles.reactionButton} ${isActive ? styles.reactionButtonActive : ""}`}
+                  disabled={reactionSubmitting}
+                  onClick={() => void handleSetReaction(option.key)}
+                  aria-label={option.label}
+                >
+                  <span className={styles.reactionEmoji}>{option.emoji}</span>
+                  <small className={styles.reactionCount}>{total}</small>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Комментарии</h2>
+            <p>{releaseComments.length}</p>
+          </div>
+
+          {user?.id ? (
+            <div className={styles.commentComposer}>
+              <div className={styles.commentComposerMeta}>
                 <p>{commentComposerHint}</p>
-                <TelegramLoginWidget
-                  onAuthorized={() => {
-                    void refreshSession();
-                  }}
-                />
+                <span>{commentDraft.length}/600</span>
               </div>
-            )}
-
-            <div className={styles.commentsList}>
-              {releaseComments.length > 0 ? (
-                releaseComments.map((comment) => (
-                  <article key={comment.id} className={styles.commentCard}>
-                    <header>
-                      <div className={styles.commentAuthor}>
-                        {comment.author.photoUrl ? (
-                          <Image
-                            src={comment.author.photoUrl}
-                            alt=""
-                            width={36}
-                            height={36}
-                            className={styles.commentAvatar}
-                          />
-                        ) : (
-                          <div className={styles.commentAvatarFallback}>
-                            {(
-                              `${comment.author.firstName ?? ""}${comment.author.lastName ?? ""}`.trim() ||
-                              comment.author.username ||
-                              "U"
-                            )
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </div>
-                        )}
-
-                        <div>
-                          <Link
-                            href={`/profile/${profileSlugFromIdentity({
-                              username: comment.author.username,
-                              telegramUserId: comment.author.telegramUserId,
-                              fallback: `user-${comment.author.telegramUserId}`,
-                            })}`}
-                          >
-                            {`${comment.author.firstName ?? ""} ${comment.author.lastName ?? ""}`.trim() ||
-                              (comment.author.username
-                                ? `@${comment.author.username}`
-                                : `User ${comment.author.telegramUserId}`)}
-                          </Link>
-                          <time>
-                            {new Date(comment.createdAt).toLocaleString(
-                              "ru-RU",
-                            )}
-                          </time>
-                        </div>
-                      </div>
-                      {comment.canDelete ? (
-                        <button
-                          type="button"
-                          disabled={deletingCommentId === comment.id}
-                          onClick={() => void removeComment(comment.id)}
-                        >
-                          {deletingCommentId === comment.id ? "..." : "Удалить"}
-                        </button>
-                      ) : null}
-                    </header>
-                    <p>{comment.text}</p>
-                  </article>
-                ))
-              ) : (
-                <p className={styles.emptyComments}>
-                  {user?.id
-                    ? "Пока нет комментариев. Откройте обсуждение первым."
-                    : "Пока нет комментариев. Авторизуйтесь и начните обсуждение."}
-                </p>
-              )}
+              <textarea
+                value={commentDraft}
+                onChange={(event) => setCommentDraft(event.target.value)}
+                maxLength={600}
+                placeholder="Поделитесь впечатлениями о релизе"
+              />
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={
+                  commentSubmitting || commentDraft.trim().length === 0
+                }
+                onClick={() => void submitComment()}
+              >
+                {commentSubmitting ? "Публикуем..." : "Отправить комментарий"}
+              </button>
             </div>
-          </section>
-        </div>
+          ) : (
+            <div className={styles.commentAuthState}>
+              <p>{commentComposerHint}</p>
+              <TelegramLoginWidget
+                onAuthorized={() => {
+                  void refreshSession();
+                }}
+              />
+            </div>
+          )}
+
+          <div className={styles.commentsList}>
+            {releaseComments.length > 0 ? (
+              releaseComments.map((comment) => (
+                <article key={comment.id} className={styles.commentCard}>
+                  <header>
+                    <div className={styles.commentAuthor}>
+                      {comment.author.photoUrl ? (
+                        <Image
+                          src={comment.author.photoUrl}
+                          alt=""
+                          width={36}
+                          height={36}
+                          className={styles.commentAvatar}
+                        />
+                      ) : (
+                        <div className={styles.commentAvatarFallback}>
+                          {(
+                            `${comment.author.firstName ?? ""}${comment.author.lastName ?? ""}`.trim() ||
+                            comment.author.username ||
+                            "U"
+                          )
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </div>
+                      )}
+
+                      <div>
+                        <Link
+                          href={`/profile/${profileSlugFromIdentity({
+                            username: comment.author.username,
+                            telegramUserId: comment.author.telegramUserId,
+                            fallback: `user-${comment.author.telegramUserId}`,
+                          })}`}
+                        >
+                          {`${comment.author.firstName ?? ""} ${comment.author.lastName ?? ""}`.trim() ||
+                            (comment.author.username
+                              ? `@${comment.author.username}`
+                              : `User ${comment.author.telegramUserId}`)}
+                        </Link>
+                        <time>
+                          {new Date(comment.createdAt).toLocaleString("ru-RU")}
+                        </time>
+                      </div>
+                    </div>
+                    {comment.canDelete ? (
+                      <button
+                        type="button"
+                        disabled={deletingCommentId === comment.id}
+                        onClick={() => void removeComment(comment.id)}
+                      >
+                        {deletingCommentId === comment.id ? "..." : "Удалить"}
+                      </button>
+                    ) : null}
+                  </header>
+                  <p>{comment.text}</p>
+                </article>
+              ))
+            ) : (
+              <p className={styles.emptyComments}>
+                {user?.id
+                  ? "Пока нет комментариев. Откройте обсуждение первым."
+                  : "Пока нет комментариев. Авторизуйтесь и начните обсуждение."}
+              </p>
+            )}
+          </div>
+        </section>
       </article>
 
       {mintDialogOpen ? (
