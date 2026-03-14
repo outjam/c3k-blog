@@ -1,12 +1,14 @@
 .page {
+  --profile-page-gutter: 1rem;
   min-height: 100%;
   display: grid;
   justify-items: center;
   background: var(--tg-bg);
   padding-top: 0.9rem;
-  padding-right: calc(1rem + var(--safe-area-right));
+  padding-right: calc(var(--profile-page-gutter) + var(--safe-area-right));
   padding-bottom: calc(1rem + 78px + var(--safe-area-bottom));
-  padding-left: calc(1rem + var(--safe-area-left));
+  padding-left: calc(var(--profile-page-gutter) + var(--safe-area-left));
+  overflow-x: clip;
 }
 
 .container {
@@ -325,9 +327,12 @@
 .tabShell {
   display: grid;
   gap: 0.9rem;
-  width: calc(100vw - var(--safe-area-left) - var(--safe-area-right));
+  width: calc(
+    100% + (var(--profile-page-gutter) * 2) + var(--safe-area-left) +
+      var(--safe-area-right)
+  );
   margin-left: calc(
-    (100% - (100vw - var(--safe-area-left) - var(--safe-area-right))) / 2
+    -1 * (var(--profile-page-gutter) + var(--safe-area-left))
   );
 }
 
@@ -1025,10 +1030,11 @@
 
 @media (max-width: 700px) {
   .page {
+    --profile-page-gutter: 0.75rem;
     padding-top: 0.75rem;
-    padding-right: calc(0.75rem + var(--safe-area-right));
+    padding-right: calc(var(--profile-page-gutter) + var(--safe-area-right));
     padding-bottom: calc(0.85rem + 78px + var(--safe-area-bottom));
-    padding-left: calc(0.75rem + var(--safe-area-left));
+    padding-left: calc(var(--profile-page-gutter) + var(--safe-area-left));
   }
 
   .hero,
