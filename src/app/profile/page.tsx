@@ -64,7 +64,7 @@ interface CollectionEntry {
   nft: MintedReleaseNft | null;
 }
 
-type ProfileTab = "collection" | "artist";
+type ProfileTab = "collection" | "awards" | "artist";
 
 const createTrackRowDraft = (index: number): TrackRowDraft => ({
   id: `track-${index}`,
@@ -89,10 +89,13 @@ function StudioIcon() {
   );
 }
 
-const TONVIEWER_BASE_URL =
-  process.env.NEXT_PUBLIC_TON_NETWORK === "mainnet"
-    ? "https://tonviewer.com/"
-    : "https://testnet.tonviewer.com/";
+function AwardsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M12 3.75a3 3 0 0 1 3 3v.43h2.43a2.25 2.25 0 0 1 2.12 3l-1.5 4.12a2.25 2.25 0 0 1-2.11 1.48H15.4a3.01 3.01 0 0 1-1.9 1.63v1.34h1.25A2.25 2.25 0 0 1 17 21v.25H7V21a2.25 2.25 0 0 1 2.25-2.25h1.25v-1.34a3.01 3.01 0 0 1-1.9-1.63h-.54a2.25 2.25 0 0 1-2.12-1.48l-1.5-4.12a2.25 2.25 0 0 1 2.12-3H9v-.43a3 3 0 0 1 3-3Zm-1.5 3a1.5 1.5 0 0 1 3 0v6a1.5 1.5 0 0 1-3 0v-6Zm-4.44 1.93a.75.75 0 0 0-.71 1l1.5 4.12a.75.75 0 0 0 .7.5h.2v-5.62H6.06Zm10.19 0v5.62h.2a.75.75 0 0 0 .7-.5l1.5-4.12a.75.75 0 0 0-.7-1h-1.7Z" />
+    </svg>
+  );
+}
 
 const formatShortTonAddress = (value: string | undefined): string => {
   const normalized = String(value ?? "").trim();
@@ -103,14 +106,6 @@ const formatShortTonAddress = (value: string | undefined): string => {
 
   return `${normalized.slice(0, 6)}...${normalized.slice(-6)}`;
 };
-
-const buildTonViewerUrl = (value: string | undefined): string => {
-  const normalized = String(value ?? "").trim();
-  return normalized
-    ? `${TONVIEWER_BASE_URL}${encodeURIComponent(normalized)}`
-    : "";
-};
-
 const shouldIgnoreTabSwipe = (target: EventTarget | null): boolean => {
   return (
     target instanceof HTMLElement &&
@@ -557,6 +552,14 @@ export default function ProfilePage() {
           id: "collection",
           label: "Коллекция",
         },
+        ...(awards.length > 0
+          ? [
+              {
+                id: "awards",
+                label: "Награды",
+              },
+            ]
+          : []),
         ...(mode === "artist"
           ? [
               {
@@ -566,23 +569,27 @@ export default function ProfilePage() {
             ]
           : []),
       ] as Array<{ id: ProfileTab; label: string }>,
-    [mode],
+    [awards.length, mode],
   );
   const profileTabItems = useMemo(
     () =>
       profileTabs.map((tab) => ({
         ...tab,
-        icon: tab.id === "collection" ? <CollectionIcon /> : <StudioIcon />,
+        icon:
+          tab.id === "collection" ? (
+            <CollectionIcon />
+          ) : tab.id === "awards" ? (
+            <AwardsIcon />
+          ) : (
+            <StudioIcon />
+          ),
       })),
     [profileTabs],
   );
   const hasMultipleTabs = profileTabs.length > 1;
-  const currentTab: ProfileTab =
-    mode === "artist"
-      ? activeTab
-      : activeTab === "artist"
-        ? "collection"
-        : activeTab;
+  const currentTab: ProfileTab = profileTabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : "collection";
   const activeTabIndex = Math.max(
     0,
     profileTabs.findIndex((tab) => tab.id === currentTab),
@@ -818,6 +825,14 @@ export default function ProfilePage() {
       <main className={styles.container}>
         <section className={styles.hero}>
           <div className={styles.identityRow}>
+            <div className={styles.identityMeta}>
+              <div className={styles.identityHeading}>
+                <h1>{currentProfile?.displayName || fullName}</h1>
+                <span className={styles.kicker}>{roleLabel}</span>
+              </div>
+              <p>@{viewerSlug}</p>
+            </div>
+
             {currentProfile?.avatarUrl ? (
               <Image
                 className={styles.avatarImage}
@@ -841,48 +856,42 @@ export default function ProfilePage() {
                   .toUpperCase()}
               </div>
             )}
-
-            <div className={styles.identityMeta}>
-              <h1>{currentProfile?.displayName || fullName}</h1>
-              <p>@{viewerSlug}</p>
-              <span className={styles.kicker}>{roleLabel}</span>
-
-              <div className={styles.heroStats}>
-                <article>
-                  <span>Подписчики</span>
-                  <button
-                    type="button"
-                    className={styles.statButton}
-                    onClick={() => setSocialOverlay("followers")}
-                  >
-                    {followersCount}
-                  </button>
-                </article>
-                <article>
-                  <span>Подписки</span>
-                  <button
-                    type="button"
-                    className={styles.statButton}
-                    onClick={() => setSocialOverlay("following")}
-                  >
-                    {followingSlugs.length}
-                  </button>
-                </article>
-                <article>
-                  <span>NFT</span>
-                  <strong>{onchainMintedReleaseCards.length}</strong>
-                </article>
-                <article>
-                  <span>Покупки</span>
-                  <strong>{allPurchasedReleaseSlugs.length}</strong>
-                </article>
-              </div>
-            </div>
           </div>
 
           {currentProfileBio ? (
             <p className={styles.heroBio}>{currentProfileBio}</p>
           ) : null}
+
+          <div className={styles.heroStats}>
+            <article>
+              <span>Подписчики</span>
+              <button
+                type="button"
+                className={styles.statButton}
+                onClick={() => setSocialOverlay("followers")}
+              >
+                {followersCount}
+              </button>
+            </article>
+            <article>
+              <span>Подписки</span>
+              <button
+                type="button"
+                className={styles.statButton}
+                onClick={() => setSocialOverlay("following")}
+              >
+                {followingSlugs.length}
+              </button>
+            </article>
+            <article>
+              <span>NFT</span>
+              <strong>{onchainMintedReleaseCards.length}</strong>
+            </article>
+            <article>
+              <span>Покупки</span>
+              <strong>{allPurchasedReleaseSlugs.length}</strong>
+            </article>
+          </div>
 
           <div className={styles.heroBalance}>
             <div className={styles.heroBalanceMeta}>
@@ -902,7 +911,7 @@ export default function ProfilePage() {
           <div className={styles.heroActions}>
             <Link href="/profile/edit">Редактировать</Link>
             <button type="button" onClick={handleShareProfile}>
-              Поделиться профилем
+              Поделиться
             </button>
           </div>
 
@@ -928,11 +937,8 @@ export default function ProfilePage() {
               </div>
 
               {collectionEntries.length > 0 ? (
-                <div className={styles.collectionList}>
+                <div className={styles.collectionGrid}>
                   {collectionEntries.map((entry) => {
-                    const tonViewerUrl = buildTonViewerUrl(
-                      entry.nft?.itemAddress,
-                    );
                     const releaseHref = entry.release
                       ? `/shop/${entry.release.slug}`
                       : "/shop";
@@ -940,27 +946,26 @@ export default function ProfilePage() {
                     return (
                       <article
                         key={`${entry.slug}-${entry.nft?.id ?? "release"}`}
-                        className={styles.collectionRow}
+                        className={styles.collectionCard}
                       >
-                        {entry.release ? (
-                          <Link href={releaseHref}>
-                            <Image
-                              src={entry.release.image}
-                              alt={entry.release.title}
-                              width={88}
-                              height={88}
-                              className={styles.collectionMedia}
-                            />
-                          </Link>
-                        ) : (
-                          <div className={styles.collectionFallback}>NFT</div>
-                        )}
-
-                        <div className={styles.collectionBody}>
-                          <div className={styles.collectionTop}>
-                            <Link href={releaseHref}>
-                              {entry.release?.title || entry.slug}
-                            </Link>
+                        <Link
+                          href={releaseHref}
+                          className={styles.collectionLink}
+                        >
+                          <div className={styles.collectionVisual}>
+                            {entry.release ? (
+                              <Image
+                                src={entry.release.image}
+                                alt={entry.release.title}
+                                width={240}
+                                height={240}
+                                className={styles.collectionMedia}
+                              />
+                            ) : (
+                              <div className={styles.collectionFallback}>
+                                NFT
+                              </div>
+                            )}
                             {entry.nft ? (
                               <span className={styles.collectionBadge}>
                                 NFT
@@ -968,30 +973,17 @@ export default function ProfilePage() {
                             ) : null}
                           </div>
 
-                          <p>
-                            {entry.release?.artistName ||
-                              entry.release?.subtitle ||
-                              "Релиз в коллекции"}
-                          </p>
-                          <small>
-                            {entry.nft
-                              ? `В TON · ${new Date(entry.nft.mintedAt).toLocaleDateString("ru-RU")}`
-                              : `Покупка · ${formatStarsFromCents(entry.release?.priceStarsCents ?? 0)} ⭐`}
-                          </small>
-
-                          <div className={styles.collectionFoot}>
-                            <Link href={releaseHref}>Открыть релиз</Link>
-                            {tonViewerUrl ? (
-                              <a
-                                href={tonViewerUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                В блокчейне
-                              </a>
-                            ) : null}
+                          <div className={styles.collectionMeta}>
+                            <strong>
+                              {entry.release?.title || entry.slug}
+                            </strong>
+                            <span>
+                              {entry.release?.artistName ||
+                                entry.release?.subtitle ||
+                                "Релиз в коллекции"}
+                            </span>
                           </div>
-                        </div>
+                        </Link>
                       </article>
                     );
                   })}
@@ -1011,7 +1003,7 @@ export default function ProfilePage() {
             </section>
           ) : null}
 
-          {currentTab === "collection" && awards.length > 0 ? (
+          {currentTab === "awards" ? (
             <section className={styles.section}>
               <div className={styles.sectionHeader}>
                 <h2>Награды</h2>

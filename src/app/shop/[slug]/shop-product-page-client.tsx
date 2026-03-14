@@ -65,7 +65,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
   const { playQueue } = useGlobalPlayer();
   const tonWallet = useTonWallet();
-  const { user, isSessionLoading, refreshSession } = useAppAuthUser();
+  const { user, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const appOrigin = useMemo(() => {
     if (typeof window === "undefined") {
@@ -94,6 +94,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState("");
   const [reactionSubmitting, setReactionSubmitting] = useState(false);
+  const [mintDialogOpen, setMintDialogOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -240,6 +241,47 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       0,
     );
   }, [releaseReactions]);
+  const commentComposerHint = user?.id
+    ? "Короткий отзыв, впечатление от треклиста или любимый момент."
+    : "Чтобы оставить комментарий, войдите через Telegram.";
+
+  const resolveMintOwnerAddress = (): string | null => {
+    if (!user?.id) {
+      setWalletMessage("Для минта войдите через Telegram Widget.");
+      return null;
+    }
+
+    if (!isPurchased) {
+      setWalletMessage(
+        "Сначала купите релиз, затем сможете сминтить NFT в TON.",
+      );
+      return null;
+    }
+
+    if (isMintedInTon) {
+      setWalletMessage("Для этого релиза NFT уже сминчен в TON.");
+      return null;
+    }
+
+    if (!TON_ONCHAIN_NFT_MINT_ENABLED) {
+      setWalletMessage("On-chain mint выключен в конфиге приложения.");
+      return null;
+    }
+
+    const connectedChain = String(tonWallet?.account?.chain ?? "").trim();
+    if (!isTonWalletOnRequiredNetwork(connectedChain)) {
+      setWalletMessage(buildWrongTonNetworkMessage());
+      return null;
+    }
+
+    const connectedAddress = resolvedTonWalletAddress;
+    if (!connectedAddress) {
+      setWalletMessage("Подключите TON-кошелек через Ton Connect.");
+      return null;
+    }
+
+    return connectedAddress;
+  };
 
   const buyWithWallet = async () => {
     setWalletMessage("");
@@ -284,45 +326,26 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     hapticNotification("success");
   };
 
+  const openMintDialog = () => {
+    if (!resolveMintOwnerAddress()) {
+      return;
+    }
+
+    setWalletMessage("");
+    setMintDialogOpen(true);
+  };
+
   const handleMintNft = async () => {
     if (minting) {
       return;
     }
 
-    if (!user?.id) {
-      setWalletMessage("Для минта войдите через Telegram Widget.");
-      return;
-    }
-
-    if (!isPurchased) {
-      setWalletMessage(
-        "Сначала купите релиз, затем сможете сминтить NFT в TON.",
-      );
-      return;
-    }
-
-    if (isMintedInTon) {
-      setWalletMessage("Для этого релиза NFT уже сминчен в TON.");
-      return;
-    }
-
-    if (!TON_ONCHAIN_NFT_MINT_ENABLED) {
-      setWalletMessage("On-chain mint выключен в конфиге приложения.");
-      return;
-    }
-
-    const connectedChain = String(tonWallet?.account?.chain ?? "").trim();
-    if (!isTonWalletOnRequiredNetwork(connectedChain)) {
-      setWalletMessage(buildWrongTonNetworkMessage());
-      return;
-    }
-
-    const connectedAddress = resolvedTonWalletAddress;
+    const connectedAddress = resolveMintOwnerAddress();
     if (!connectedAddress) {
-      setWalletMessage("Подключите TON-кошелек через Ton Connect.");
       return;
     }
 
+    setMintDialogOpen(false);
     setMinting(true);
     setWalletMessage("");
     const mintResult = await mintViaSponsoredTon({
@@ -505,6 +528,17 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           <p className={styles.price}>
             {formatStarsFromCents(selectedPriceStarsCents)} ⭐
           </p>
+          {isPurchased ? (
+            <div className={styles.ownedBanner}>
+              <span className={styles.ownedBadge}>Уже куплено</span>
+              <div>
+                <strong>Релиз уже находится в вашей коллекции</strong>
+                <small>
+                  Можно слушать его без ограничений и улучшить в NFT.
+                </small>
+              </div>
+            </div>
+          ) : null}
 
           <dl className={styles.meta}>
             <div>
@@ -553,14 +587,26 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 type="button"
                 className={styles.playAllButton}
                 onClick={handlePlayAll}
+                disabled={releaseQueue.length === 0}
               >
-                ▶ Плей всего релиза
+                ▶ Слушать релиз
               </button>
             </div>
             <ol className={styles.tracklist}>
               {releaseTracklist.length > 0 ? (
                 releaseTracklist.map((track, index) => (
                   <li key={track.id}>
+                    <span className={styles.trackIndex}>
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <div className={styles.trackMeta}>
+                      <strong>{track.title}</strong>
+                      <small>
+                        {track.durationSec
+                          ? `${Math.floor(track.durationSec / 60)}:${String(track.durationSec % 60).padStart(2, "0")}`
+                          : "Preview по кнопке"}
+                      </small>
+                    </div>
                     <button
                       type="button"
                       className={styles.trackPlayButton}
@@ -568,16 +614,15 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                     >
                       ▶
                     </button>
-                    <span>{track.title}</span>
-                    <small>
-                      {track.durationSec
-                        ? `${Math.floor(track.durationSec / 60)}:${String(track.durationSec % 60).padStart(2, "0")}`
-                        : "—:—"}
-                    </small>
                   </li>
                 ))
               ) : (
                 <li>
+                  <span className={styles.trackIndex}>01</span>
+                  <div className={styles.trackMeta}>
+                    <strong>{product.title}</strong>
+                    <small>Preview по кнопке</small>
+                  </div>
                   <button
                     type="button"
                     className={styles.trackPlayButton}
@@ -585,55 +630,52 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   >
                     ▶
                   </button>
-                  <span>{product.title}</span>
-                  <small>—:—</small>
                 </li>
               )}
             </ol>
           </section>
 
-          <section className={styles.socialBuySection}>
-            <div className={styles.releaseCommentsHead}>
-              <h2>Покупка</h2>
-              <p>{isPurchased ? "в коллекции" : "не куплен"}</p>
-            </div>
-            <p>
-              Кошелек приложения:{" "}
-              <strong>{formatStarsFromCents(walletBalanceCents)} ⭐</strong>
-            </p>
-            <p className={styles.purchaseState}>
-              {isPurchased
-                ? "Релиз уже куплен и уже находится в вашей коллекции."
-                : "После покупки релиз сразу появится в вашей коллекции."}
-            </p>
-            <div className={styles.socialBuyActions}>
-              <button
-                type="button"
-                className={styles.addButton}
-                onClick={buyWithWallet}
-                disabled={isPurchased}
-              >
-                {isPurchased ? "Уже куплено" : "Купить с баланса"}
-              </button>
-              <button
-                type="button"
-                className={styles.addButton}
-                onClick={sharePurchase}
-              >
-                Поделиться покупкой в Telegram
-              </button>
-            </div>
-            {walletMessage ? (
-              <p className={styles.walletMessage}>{walletMessage}</p>
-            ) : null}
-          </section>
+          {!isPurchased ? (
+            <section className={styles.socialBuySection}>
+              <div className={styles.releaseCommentsHead}>
+                <h2>Покупка</h2>
+                <p>не куплен</p>
+              </div>
+              <p>
+                Кошелек приложения:{" "}
+                <strong>{formatStarsFromCents(walletBalanceCents)} ⭐</strong>
+              </p>
+              <p className={styles.purchaseState}>
+                После покупки релиз сразу появится в вашей коллекции.
+              </p>
+              <div className={styles.socialBuyActions}>
+                <button
+                  type="button"
+                  className={styles.addButton}
+                  onClick={buyWithWallet}
+                >
+                  Купить с баланса
+                </button>
+                <button
+                  type="button"
+                  className={styles.addButton}
+                  onClick={sharePurchase}
+                >
+                  Поделиться покупкой
+                </button>
+              </div>
+              {walletMessage ? (
+                <p className={styles.walletMessage}>{walletMessage}</p>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className={styles.nftSection}>
             <div className={styles.releaseCommentsHead}>
-              <h2>TON коллекция</h2>
+              <h2>NFT upgrade</h2>
               <p>
                 {isMintedInTon
-                  ? "minted on-chain"
+                  ? "выпущен"
                   : TON_ONCHAIN_NFT_MINT_ENABLED
                     ? TON_NETWORK_LABEL
                     : "disabled"}
@@ -641,7 +683,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
             </div>
             <p>
               {TON_ONCHAIN_NFT_MINT_ENABLED
-                ? `После mint релиз попадет в NFT collection в сети ${TON_NETWORK_LABEL}. Для reference collection sponsor wallet должен быть owner контракта.`
+                ? `После улучшения релиз будет выпущен как NFT в сети ${TON_NETWORK_LABEL} и придет на ваш TON-кошелек.`
                 : "On-chain mint сейчас выключен. До включения релиз хранится только во внутреннем профиле приложения."}
             </p>
             <div className={styles.nftActions}>
@@ -655,19 +697,23 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   minting ||
                   !TON_ONCHAIN_NFT_MINT_ENABLED
                 }
-                onClick={() => void handleMintNft()}
+                onClick={openMintDialog}
               >
                 {isMintedInTon
-                  ? "NFT уже сминчен"
+                  ? "NFT уже выпущен"
                   : minting
                     ? "Минтим в TON..."
-                    : `Mint NFT в ${TON_NETWORK_LABEL}`}
+                    : "Улучшить фиктовку"}
               </button>
             </div>
-            {mintedNft?.itemAddress ? (
+            {isMintedInTon ? (
               <p className={styles.walletMessage}>
-                NFT item: {mintedNft.itemAddress}
+                NFT уже выпущен и закреплен за вашим релизом в{" "}
+                {TON_NETWORK_LABEL}.
               </p>
+            ) : null}
+            {walletMessage && isPurchased ? (
+              <p className={styles.walletMessage}>{walletMessage}</p>
             ) : null}
           </section>
 
@@ -689,9 +735,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                     className={`${styles.reactionButton} ${isActive ? styles.reactionButtonActive : ""}`}
                     disabled={reactionSubmitting}
                     onClick={() => void handleSetReaction(option.key)}
+                    aria-label={option.label}
                   >
-                    <span>{option.emoji}</span>
-                    <small>{total}</small>
+                    <span className={styles.reactionEmoji}>{option.emoji}</span>
+                    <small className={styles.reactionCount}>{total}</small>
                   </button>
                 );
               })}
@@ -704,44 +751,85 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               <p>{releaseComments.length}</p>
             </div>
 
-            <div className={styles.commentComposer}>
-              <textarea
-                value={commentDraft}
-                onChange={(event) => setCommentDraft(event.target.value)}
-                maxLength={600}
-                placeholder="Поделитесь впечатлениями о релизе"
-              />
-              <button
-                type="button"
-                className={styles.addButton}
-                disabled={commentSubmitting}
-                onClick={() => void submitComment()}
-              >
-                {commentSubmitting ? "Публикуем..." : "Отправить комментарий"}
-              </button>
-            </div>
+            {user?.id ? (
+              <div className={styles.commentComposer}>
+                <div className={styles.commentComposerMeta}>
+                  <p>{commentComposerHint}</p>
+                  <span>{commentDraft.length}/600</span>
+                </div>
+                <textarea
+                  value={commentDraft}
+                  onChange={(event) => setCommentDraft(event.target.value)}
+                  maxLength={600}
+                  placeholder="Поделитесь впечатлениями о релизе"
+                />
+                <button
+                  type="button"
+                  className={styles.addButton}
+                  disabled={
+                    commentSubmitting || commentDraft.trim().length === 0
+                  }
+                  onClick={() => void submitComment()}
+                >
+                  {commentSubmitting ? "Публикуем..." : "Отправить комментарий"}
+                </button>
+              </div>
+            ) : (
+              <div className={styles.commentAuthState}>
+                <p>{commentComposerHint}</p>
+                <TelegramLoginWidget
+                  onAuthorized={() => {
+                    void refreshSession();
+                  }}
+                />
+              </div>
+            )}
 
             <div className={styles.commentsList}>
               {releaseComments.length > 0 ? (
                 releaseComments.map((comment) => (
                   <article key={comment.id} className={styles.commentCard}>
                     <header>
-                      <div>
-                        <Link
-                          href={`/profile/${profileSlugFromIdentity({
-                            username: comment.author.username,
-                            telegramUserId: comment.author.telegramUserId,
-                            fallback: `user-${comment.author.telegramUserId}`,
-                          })}`}
-                        >
-                          {`${comment.author.firstName ?? ""} ${comment.author.lastName ?? ""}`.trim() ||
-                            (comment.author.username
-                              ? `@${comment.author.username}`
-                              : `User ${comment.author.telegramUserId}`)}
-                        </Link>
-                        <time>
-                          {new Date(comment.createdAt).toLocaleString("ru-RU")}
-                        </time>
+                      <div className={styles.commentAuthor}>
+                        {comment.author.photoUrl ? (
+                          <Image
+                            src={comment.author.photoUrl}
+                            alt=""
+                            width={36}
+                            height={36}
+                            className={styles.commentAvatar}
+                          />
+                        ) : (
+                          <div className={styles.commentAvatarFallback}>
+                            {(
+                              `${comment.author.firstName ?? ""}${comment.author.lastName ?? ""}`.trim() ||
+                              comment.author.username ||
+                              "U"
+                            )
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </div>
+                        )}
+
+                        <div>
+                          <Link
+                            href={`/profile/${profileSlugFromIdentity({
+                              username: comment.author.username,
+                              telegramUserId: comment.author.telegramUserId,
+                              fallback: `user-${comment.author.telegramUserId}`,
+                            })}`}
+                          >
+                            {`${comment.author.firstName ?? ""} ${comment.author.lastName ?? ""}`.trim() ||
+                              (comment.author.username
+                                ? `@${comment.author.username}`
+                                : `User ${comment.author.telegramUserId}`)}
+                          </Link>
+                          <time>
+                            {new Date(comment.createdAt).toLocaleString(
+                              "ru-RU",
+                            )}
+                          </time>
+                        </div>
                       </div>
                       {comment.canDelete ? (
                         <button
@@ -758,24 +846,74 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 ))
               ) : (
                 <p className={styles.emptyComments}>
-                  Пока нет комментариев. Будьте первым.
+                  {user?.id
+                    ? "Пока нет комментариев. Откройте обсуждение первым."
+                    : "Пока нет комментариев. Авторизуйтесь и начните обсуждение."}
                 </p>
               )}
             </div>
           </section>
-
-          {!user && !isSessionLoading ? (
-            <section className={styles.releaseCommentsSection}>
-              <h2 className={styles.sectionTitle}>Авторизация</h2>
-              <TelegramLoginWidget
-                onAuthorized={() => {
-                  void refreshSession();
-                }}
-              />
-            </section>
-          ) : null}
         </div>
       </article>
+
+      {mintDialogOpen ? (
+        <div
+          className={styles.modalBackdrop}
+          onClick={() => setMintDialogOpen(false)}
+        >
+          <div
+            className={styles.modalCard}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.modalHead}>
+              <h2>Улучшить фиктовку</h2>
+              <button
+                type="button"
+                className={styles.modalClose}
+                onClick={() => setMintDialogOpen(false)}
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <p className={styles.modalText}>
+              Релиз будет выпущен как NFT в сети {TON_NETWORK_LABEL} и после
+              подтверждения попадет на этот кошелек.
+            </p>
+
+            <div className={styles.modalWallet}>
+              <span>Кошелек получателя</span>
+              <code>{resolvedTonWalletAddress}</code>
+            </div>
+
+            <div className={styles.modalNotes}>
+              <p>Mint запускается sponsored relay от имени приложения.</p>
+              <p>
+                После выпуска релиз останется в вашей коллекции и получит
+                on-chain NFT-версию.
+              </p>
+            </div>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.modalSecondary}
+                onClick={() => setMintDialogOpen(false)}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className={styles.addButton}
+                onClick={() => void handleMintNft()}
+                disabled={minting}
+              >
+                {minting ? "Минтим..." : `Mint NFT в ${TON_NETWORK_LABEL}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

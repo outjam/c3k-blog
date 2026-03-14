@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -61,18 +61,23 @@ export function AppFrame({ children }: AppFrameProps) {
   const { user } = useAppAuthUser();
   const profilePhotoUrl = user?.photo_url;
 
-  const isSearch = pathname.startsWith("/search");
-  const isShop = pathname.startsWith("/shop");
-  const isProfile = pathname.startsWith("/profile") || pathname.startsWith("/orders") || pathname.startsWith("/balance");
+  const isSearch = pathname === "/search";
+  const isShop = pathname === "/shop";
+  const isProfile = pathname === "/profile";
   const activeIndex = isProfile ? 3 : isShop ? 2 : isSearch ? 1 : 0;
 
   const showNavigation =
     pathname === "/" ||
-    pathname.startsWith("/search") ||
-    pathname.startsWith("/shop") ||
-    pathname.startsWith("/profile") ||
-    pathname.startsWith("/orders") ||
-    pathname.startsWith("/balance");
+    pathname === "/search" ||
+    pathname === "/shop" ||
+    pathname === "/profile";
+  const frameStyle = useMemo(
+    () =>
+      ({
+        "--app-tabbar-height": showNavigation ? "82px" : "0px",
+      }) as CSSProperties,
+    [showNavigation],
+  );
 
   const tabs = useMemo<TabItem[]>(
     () => [
@@ -83,7 +88,17 @@ export function AppFrame({ children }: AppFrameProps) {
         id: "profile",
         label: "Профиль",
         href: "/profile",
-        icon: profilePhotoUrl ? <Image src={profilePhotoUrl} alt="" width={28} height={28} className={styles.profileAvatar} /> : <ProfileIcon />,
+        icon: profilePhotoUrl ? (
+          <Image
+            src={profilePhotoUrl}
+            alt=""
+            width={28}
+            height={28}
+            className={styles.profileAvatar}
+          />
+        ) : (
+          <ProfileIcon />
+        ),
       },
     ],
     [profilePhotoUrl],
@@ -103,7 +118,10 @@ export function AppFrame({ children }: AppFrameProps) {
   };
 
   return (
-    <div className={`${styles.shell} ${showNavigation ? "" : styles.shellNoNav}`}>
+    <div
+      className={`${styles.shell} ${showNavigation ? "" : styles.shellNoNav}`}
+      style={frameStyle}
+    >
       {showNavigation ? (
         <aside className={styles.desktopSidebar}>
           <Link className={styles.desktopBrand} href="/">
@@ -111,7 +129,10 @@ export function AppFrame({ children }: AppFrameProps) {
             <span>Culture3k</span>
           </Link>
 
-          <nav className={styles.desktopNav} aria-label="Основная навигация desktop">
+          <nav
+            className={styles.desktopNav}
+            aria-label="Основная навигация desktop"
+          >
             {tabs.map((tab, index) => (
               <button
                 key={tab.id}
@@ -127,24 +148,36 @@ export function AppFrame({ children }: AppFrameProps) {
 
           <div className={styles.desktopHintBox}>
             <p>Social + Music Commerce</p>
-            <strong>Показывайте награды, делитесь покупками, поддерживайте артистов.</strong>
+            <strong>
+              Показывайте награды, делитесь покупками, поддерживайте артистов.
+            </strong>
           </div>
         </aside>
       ) : null}
 
       <div className={styles.frame}>
-        <header className={`${styles.header} ${showNavigation ? "" : styles.headerNoNav}`}>
+        <header
+          className={`${styles.header} ${showNavigation ? "" : styles.headerNoNav}`}
+        >
           <p className={styles.brand}>Culture3k Network</p>
           <p className={styles.title}>Elite Music Community</p>
         </header>
 
-        <main className={`${styles.content} ${showNavigation ? styles.contentWithTabBar : ""}`}>{children}</main>
+        <main
+          className={`${styles.content} ${showNavigation ? styles.contentWithTabBar : ""}`}
+        >
+          {children}
+        </main>
 
         <GlobalPlayerBar />
 
         {showNavigation ? (
           <div className={styles.mobileTabBarWrap}>
-            <MiniTabBar activeIndex={activeIndex} items={tabs} onChange={navigateTo} />
+            <MiniTabBar
+              activeIndex={activeIndex}
+              items={tabs}
+              onChange={navigateTo}
+            />
           </div>
         ) : null}
       </div>
