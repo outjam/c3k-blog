@@ -105,8 +105,6 @@
   display: grid;
   gap: 0.14rem;
   padding-top: 0.75rem;
-  border-top: 1px solid
-    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
 }
 
 .heroStats span {
@@ -153,10 +151,6 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 0;
-  border-top: 1px solid
-    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
 }
 
 .heroBalance span,
@@ -236,6 +230,10 @@
     color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
   background: transparent;
   color: var(--tg-text);
+}
+
+.tabViewport {
+  overflow: hidden;
 }
 
 .tabContent {
@@ -434,8 +432,6 @@
 .awardCard {
   border-radius: 0;
   border: 0;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
   background: transparent;
   padding: 0 0 0.7rem;
   display: grid;
@@ -496,8 +492,6 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding-bottom: 0.7rem;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--tg-section-separator) 18%, transparent);
 }
 
 .personIdentity {
@@ -571,8 +565,7 @@
 .artistTrackCard,
 .tracklistEditor {
   border-radius: 0.72rem;
-  border: 1px solid
-    color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  border: 0;
   background: transparent;
 }
 
@@ -662,8 +655,7 @@
 
 .tracklistDraftRow {
   border-radius: 0.72rem;
-  border: 1px solid
-    color-mix(in srgb, var(--tg-section-separator) 20%, transparent);
+  border: 0;
   padding: 0.65rem;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

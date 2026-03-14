@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { useTonWallet } from "@tonconnect/ui-react";
 
 import { ProfileTabs } from "@/components/profile/profile-tabs";
@@ -97,20 +98,36 @@ function AwardsIcon() {
   );
 }
 
-const formatShortTonAddress = (value: string | undefined): string => {
-  const normalized = String(value ?? "").trim();
-
-  if (normalized.length <= 14) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, 6)}...${normalized.slice(-6)}`;
-};
 const shouldIgnoreTabSwipe = (target: EventTarget | null): boolean => {
   return (
     target instanceof HTMLElement &&
     Boolean(target.closest("input, textarea, select, button, a, label"))
   );
+};
+
+const tabPageVariants = {
+  enter: (direction: number) => ({
+    x: direction >= 0 ? 42 : -42,
+    opacity: 0.52,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+    transition: {
+      type: "spring" as const,
+      stiffness: 380,
+      damping: 34,
+      mass: 0.9,
+    },
+  },
+  exit: (direction: number) => ({
+    x: direction >= 0 ? -42 : 42,
+    opacity: 0,
+    transition: {
+      duration: 0.18,
+      ease: "easeOut" as const,
+    },
+  }),
 };
 
 const normalizeReleaseTracklistDraft = (
@@ -206,10 +223,6 @@ export default function ProfilePage() {
     MintedReleaseNft[]
   >([]);
   const [activeTab, setActiveTab] = useState<ProfileTab>("collection");
-  const resolvedTonWalletAddress = useMemo(
-    () => String(tonWallet?.account?.address ?? tonWalletAddress).trim(),
-    [tonWallet?.account?.address, tonWalletAddress],
-  );
 
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [artists, setArtists] = useState<ShopCatalogArtist[]>([]);
@@ -255,6 +268,7 @@ export default function ProfilePage() {
   });
   const tabTouchStartX = useRef<number | null>(null);
   const tabTouchStartY = useRef<number | null>(null);
+  const [tabTransitionDirection, setTabTransitionDirection] = useState(1);
 
   useEffect(() => {
     let mounted = true;
@@ -596,9 +610,11 @@ export default function ProfilePage() {
   );
 
   const setCurrentTabByIndex = (index: number) => {
-    const nextTab = profileTabs[index]?.id;
+    const safeIndex = Math.max(0, Math.min(index, profileTabs.length - 1));
+    const nextTab = profileTabs[safeIndex]?.id;
 
     if (nextTab) {
+      setTabTransitionDirection(safeIndex >= activeTabIndex ? 1 : -1);
       setActiveTab(nextTab);
     }
   };
@@ -893,26 +909,21 @@ export default function ProfilePage() {
             </article>
           </div>
 
-          <div className={styles.heroBalance}>
-            <div className={styles.heroBalanceMeta}>
-              <span>Кошелек</span>
-              <strong>{formatStarsFromCents(walletCents)} ⭐</strong>
-              <small>
-                {resolvedTonWalletAddress
-                  ? `TON: ${formatShortTonAddress(resolvedTonWalletAddress)}`
-                  : "Подключите TON-кошелек для on-chain NFT"}
-              </small>
-            </div>
-            <div className={styles.heroBalanceActions}>
-              <Link href="/balance">Пополнить баланс</Link>
-            </div>
-          </div>
-
           <div className={styles.heroActions}>
             <Link href="/profile/edit">Редактировать</Link>
             <button type="button" onClick={handleShareProfile}>
               Поделиться
             </button>
+          </div>
+
+          <div className={styles.heroBalance}>
+            <div className={styles.heroBalanceMeta}>
+              <span>Баланс</span>
+              <strong>{formatStarsFromCents(walletCents)} ⭐</strong>
+            </div>
+            <div className={styles.heroBalanceActions}>
+              <Link href="/balance">Пополнить баланс</Link>
+            </div>
           </div>
 
           {hasMultipleTabs ? (
@@ -925,453 +936,476 @@ export default function ProfilePage() {
         </section>
 
         <div
-          className={styles.tabContent}
+          className={styles.tabViewport}
           onTouchStart={handleTabTouchStart}
           onTouchEnd={handleTabTouchEnd}
         >
-          {currentTab === "collection" ? (
-            <section className={styles.section}>
-              <div className={styles.sectionHeader}>
-                <h2>Коллекция</h2>
-                <p>{collectionEntries.length}</p>
-              </div>
+          <AnimatePresence
+            initial={false}
+            custom={tabTransitionDirection}
+            mode="wait"
+          >
+            <motion.div
+              key={currentTab}
+              className={styles.tabContent}
+              custom={tabTransitionDirection}
+              variants={tabPageVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+            >
+              {currentTab === "collection" ? (
+                <section className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2>Коллекция</h2>
+                    <p>{collectionEntries.length}</p>
+                  </div>
 
-              {collectionEntries.length > 0 ? (
-                <div className={styles.collectionGrid}>
-                  {collectionEntries.map((entry) => {
-                    const releaseHref = entry.release
-                      ? `/shop/${entry.release.slug}`
-                      : "/shop";
+                  {collectionEntries.length > 0 ? (
+                    <div className={styles.collectionGrid}>
+                      {collectionEntries.map((entry) => {
+                        const releaseHref = entry.release
+                          ? `/shop/${entry.release.slug}`
+                          : "/shop";
 
-                    return (
-                      <article
-                        key={`${entry.slug}-${entry.nft?.id ?? "release"}`}
-                        className={styles.collectionCard}
-                      >
-                        <Link
-                          href={releaseHref}
-                          className={styles.collectionLink}
-                        >
-                          <div className={styles.collectionVisual}>
-                            {entry.release ? (
-                              <Image
-                                src={entry.release.image}
-                                alt={entry.release.title}
-                                width={240}
-                                height={240}
-                                className={styles.collectionMedia}
-                              />
-                            ) : (
-                              <div className={styles.collectionFallback}>
-                                NFT
+                        return (
+                          <article
+                            key={`${entry.slug}-${entry.nft?.id ?? "release"}`}
+                            className={styles.collectionCard}
+                          >
+                            <Link
+                              href={releaseHref}
+                              className={styles.collectionLink}
+                            >
+                              <div className={styles.collectionVisual}>
+                                {entry.release ? (
+                                  <Image
+                                    src={entry.release.image}
+                                    alt={entry.release.title}
+                                    width={240}
+                                    height={240}
+                                    className={styles.collectionMedia}
+                                  />
+                                ) : (
+                                  <div className={styles.collectionFallback}>
+                                    NFT
+                                  </div>
+                                )}
+                                {entry.nft ? (
+                                  <span className={styles.collectionBadge}>
+                                    NFT
+                                  </span>
+                                ) : null}
                               </div>
-                            )}
-                            {entry.nft ? (
-                              <span className={styles.collectionBadge}>
-                                NFT
-                              </span>
-                            ) : null}
-                          </div>
 
-                          <div className={styles.collectionMeta}>
-                            <strong>
-                              {entry.release?.title || entry.slug}
-                            </strong>
-                            <span>
-                              {entry.release?.artistName ||
-                                entry.release?.subtitle ||
-                                "Релиз в коллекции"}
-                            </span>
-                          </div>
-                        </Link>
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className={styles.emptyState}>
-                  Покупок пока нет. NFT из купленных релизов появятся здесь
-                  после минта.
-                </p>
-              )}
+                              <div className={styles.collectionMeta}>
+                                <strong>
+                                  {entry.release?.title || entry.slug}
+                                </strong>
+                                <span>
+                                  {entry.release?.artistName ||
+                                    entry.release?.subtitle ||
+                                    "Релиз в коллекции"}
+                                </span>
+                              </div>
+                            </Link>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className={styles.emptyState}>
+                      Покупок пока нет. NFT из купленных релизов появятся здесь
+                      после минта.
+                    </p>
+                  )}
 
-              {!purchasesVisible ? (
-                <p className={styles.inlineHint}>
-                  Коллекция сейчас скрыта в публичном профиле.
-                </p>
+                  {!purchasesVisible ? (
+                    <p className={styles.inlineHint}>
+                      Коллекция сейчас скрыта в публичном профиле.
+                    </p>
+                  ) : null}
+                </section>
               ) : null}
-            </section>
-          ) : null}
 
-          {currentTab === "awards" ? (
-            <section className={styles.section}>
-              <div className={styles.sectionHeader}>
-                <h2>Награды</h2>
-                <p>{awards.length}</p>
-              </div>
+              {currentTab === "awards" ? (
+                <section className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2>Награды</h2>
+                    <p>{awards.length}</p>
+                  </div>
 
-              <div className={styles.awardsGrid}>
-                {awards.map((award) => (
-                  <article
-                    key={award.id}
-                    className={`${styles.awardCard} ${styles[`awardTier${award.tier}`]}`}
-                  >
-                    <p>{award.icon}</p>
-                    <h3>{award.title}</h3>
-                    <span>{award.description}</span>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {currentTab === "artist" && mode === "artist" ? (
-            <section className={styles.section}>
-              <div className={styles.sectionHeader}>
-                <h2>Студия артиста</h2>
-                <p>{artistProfile?.status ?? "не настроен"}</p>
-              </div>
-
-              <div className={styles.artistStats}>
-                <span>
-                  Баланс артиста:{" "}
-                  {formatStarsFromCents(artistProfile?.balanceStarsCents ?? 0)}{" "}
-                  ⭐
-                </span>
-                <span>
-                  Заработано:{" "}
-                  {formatStarsFromCents(
-                    artistProfile?.lifetimeEarningsStarsCents ?? 0,
-                  )}{" "}
-                  ⭐
-                </span>
-                <span>Донатов: {artistDonationsCount}</span>
-                <span>Подписок: {artistSubscriptionsCount}</span>
-              </div>
-
-              <div className={styles.artistFormGrid}>
-                <label>
-                  Имя артиста
-                  <input
-                    value={artistDraft.displayName}
-                    onChange={(event) =>
-                      setArtistDraft((prev) => ({
-                        ...prev,
-                        displayName: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Описание
-                  <textarea
-                    value={artistDraft.bio}
-                    onChange={(event) =>
-                      setArtistDraft((prev) => ({
-                        ...prev,
-                        bio: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Ссылка на аватар
-                  <input
-                    value={artistDraft.avatarUrl}
-                    onChange={(event) =>
-                      setArtistDraft((prev) => ({
-                        ...prev,
-                        avatarUrl: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Ссылка на обложку
-                  <input
-                    value={artistDraft.coverUrl}
-                    onChange={(event) =>
-                      setArtistDraft((prev) => ({
-                        ...prev,
-                        coverUrl: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Цена подписки
-                  <input
-                    type="number"
-                    min={1}
-                    value={artistDraft.subscriptionPriceStarsCents}
-                    onChange={(event) =>
-                      setArtistDraft((prev) => ({
-                        ...prev,
-                        subscriptionPriceStarsCents: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className={styles.checkboxRow}>
-                  <input
-                    type="checkbox"
-                    checked={artistDraft.donationEnabled}
-                    onChange={(event) =>
-                      setArtistDraft((prev) => ({
-                        ...prev,
-                        donationEnabled: event.target.checked,
-                      }))
-                    }
-                  />
-                  Донаты включены
-                </label>
-                <label className={styles.checkboxRow}>
-                  <input
-                    type="checkbox"
-                    checked={artistDraft.subscriptionEnabled}
-                    onChange={(event) =>
-                      setArtistDraft((prev) => ({
-                        ...prev,
-                        subscriptionEnabled: event.target.checked,
-                      }))
-                    }
-                  />
-                  Подписка включена
-                </label>
-              </div>
-
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => void submitArtistProfile()}
-                disabled={artistSaving}
-              >
-                {artistSaving
-                  ? "Сохраняем..."
-                  : artistProfile
-                    ? "Обновить профиль артиста"
-                    : "Активировать профиль артиста"}
-              </button>
-
-              <div className={styles.artistFormGrid}>
-                <label>
-                  Название релиза
-                  <input
-                    value={trackDraft.title}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        title: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Тип релиза
-                  <select
-                    value={trackDraft.releaseType}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        releaseType: event.target
-                          .value as ArtistTrack["releaseType"],
-                      }))
-                    }
-                  >
-                    <option value="single">Сингл</option>
-                    <option value="ep">EP</option>
-                    <option value="album">Альбом</option>
-                  </select>
-                </label>
-                <label>
-                  Подзаголовок
-                  <input
-                    value={trackDraft.subtitle}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        subtitle: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Жанр
-                  <input
-                    value={trackDraft.genre}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        genre: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Ссылка на обложку
-                  <input
-                    value={trackDraft.coverImage}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        coverImage: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Audio file id
-                  <input
-                    value={trackDraft.audioFileId}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        audioFileId: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Ссылка на общее превью
-                  <input
-                    value={trackDraft.previewUrl}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        previewUrl: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Цена
-                  <input
-                    type="number"
-                    min={1}
-                    value={trackDraft.priceStarsCents}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        priceStarsCents: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Описание
-                  <textarea
-                    value={trackDraft.description}
-                    onChange={(event) =>
-                      setTrackDraft((prev) => ({
-                        ...prev,
-                        description: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-
-              <div className={styles.tracklistEditor}>
-                <div className={styles.sectionHeader}>
-                  <h2>Треклист релиза</h2>
-                  <p>{trackDraft.releaseTracklist.length}</p>
-                </div>
-
-                <div className={styles.tracklistDraftList}>
-                  {trackDraft.releaseTracklist.map((row, index) => (
-                    <article
-                      key={`${row.id}-${index}`}
-                      className={styles.tracklistDraftRow}
-                    >
-                      <label>
-                        Трек #{index + 1}
-                        <input
-                          value={row.title}
-                          onChange={(event) =>
-                            updateTrackRow(index, { title: event.target.value })
-                          }
-                          placeholder="Название трека"
-                        />
-                      </label>
-                      <label>
-                        Ссылка на превью
-                        <input
-                          value={row.previewUrl}
-                          onChange={(event) =>
-                            updateTrackRow(index, {
-                              previewUrl: event.target.value,
-                            })
-                          }
-                          placeholder="https://..."
-                        />
-                      </label>
-                      <label>
-                        Длительность (сек)
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.durationSec}
-                          onChange={(event) =>
-                            updateTrackRow(index, {
-                              durationSec: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => removeTrackRow(index)}
+                  <div className={styles.awardsGrid}>
+                    {awards.map((award) => (
+                      <article
+                        key={award.id}
+                        className={`${styles.awardCard} ${styles[`awardTier${award.tier}`]}`}
                       >
-                        Удалить
-                      </button>
-                    </article>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  className={styles.primaryButton}
-                  onClick={addTrackRow}
-                >
-                  Добавить трек
-                </button>
-              </div>
-
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => void submitTrack()}
-                disabled={trackSaving}
-              >
-                {trackSaving ? "Отправка..." : "Добавить релиз"}
-              </button>
-
-              {artistTracks.length > 0 ? (
-                <div className={styles.artistTrackList}>
-                  {artistTracks.slice(0, 8).map((track) => (
-                    <article key={track.id} className={styles.artistTrackCard}>
-                      <strong>{track.title}</strong>
-                      <p>
-                        {track.subtitle || track.genre || "Сингл"} ·{" "}
-                        {track.releaseTracklist?.length ?? 1} треков
-                      </p>
-                      <span>
-                        {formatStarsFromCents(track.priceStarsCents)} ⭐
-                      </span>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.emptyState}>
-                  У вас пока нет опубликованных релизов.
-                </p>
-              )}
-
-              {artistError ? (
-                <p className={styles.warning}>{artistError}</p>
+                        <p>{award.icon}</p>
+                        <h3>{award.title}</h3>
+                        <span>{award.description}</span>
+                      </article>
+                    ))}
+                  </div>
+                </section>
               ) : null}
-            </section>
-          ) : null}
+
+              {currentTab === "artist" && mode === "artist" ? (
+                <section className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2>Студия артиста</h2>
+                    <p>{artistProfile?.status ?? "не настроен"}</p>
+                  </div>
+
+                  <div className={styles.artistStats}>
+                    <span>
+                      Баланс артиста:{" "}
+                      {formatStarsFromCents(
+                        artistProfile?.balanceStarsCents ?? 0,
+                      )}{" "}
+                      ⭐
+                    </span>
+                    <span>
+                      Заработано:{" "}
+                      {formatStarsFromCents(
+                        artistProfile?.lifetimeEarningsStarsCents ?? 0,
+                      )}{" "}
+                      ⭐
+                    </span>
+                    <span>Донатов: {artistDonationsCount}</span>
+                    <span>Подписок: {artistSubscriptionsCount}</span>
+                  </div>
+
+                  <div className={styles.artistFormGrid}>
+                    <label>
+                      Имя артиста
+                      <input
+                        value={artistDraft.displayName}
+                        onChange={(event) =>
+                          setArtistDraft((prev) => ({
+                            ...prev,
+                            displayName: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Описание
+                      <textarea
+                        value={artistDraft.bio}
+                        onChange={(event) =>
+                          setArtistDraft((prev) => ({
+                            ...prev,
+                            bio: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Ссылка на аватар
+                      <input
+                        value={artistDraft.avatarUrl}
+                        onChange={(event) =>
+                          setArtistDraft((prev) => ({
+                            ...prev,
+                            avatarUrl: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Ссылка на обложку
+                      <input
+                        value={artistDraft.coverUrl}
+                        onChange={(event) =>
+                          setArtistDraft((prev) => ({
+                            ...prev,
+                            coverUrl: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Цена подписки
+                      <input
+                        type="number"
+                        min={1}
+                        value={artistDraft.subscriptionPriceStarsCents}
+                        onChange={(event) =>
+                          setArtistDraft((prev) => ({
+                            ...prev,
+                            subscriptionPriceStarsCents: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={artistDraft.donationEnabled}
+                        onChange={(event) =>
+                          setArtistDraft((prev) => ({
+                            ...prev,
+                            donationEnabled: event.target.checked,
+                          }))
+                        }
+                      />
+                      Донаты включены
+                    </label>
+                    <label className={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={artistDraft.subscriptionEnabled}
+                        onChange={(event) =>
+                          setArtistDraft((prev) => ({
+                            ...prev,
+                            subscriptionEnabled: event.target.checked,
+                          }))
+                        }
+                      />
+                      Подписка включена
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    onClick={() => void submitArtistProfile()}
+                    disabled={artistSaving}
+                  >
+                    {artistSaving
+                      ? "Сохраняем..."
+                      : artistProfile
+                        ? "Обновить профиль артиста"
+                        : "Активировать профиль артиста"}
+                  </button>
+
+                  <div className={styles.artistFormGrid}>
+                    <label>
+                      Название релиза
+                      <input
+                        value={trackDraft.title}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            title: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Тип релиза
+                      <select
+                        value={trackDraft.releaseType}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            releaseType: event.target
+                              .value as ArtistTrack["releaseType"],
+                          }))
+                        }
+                      >
+                        <option value="single">Сингл</option>
+                        <option value="ep">EP</option>
+                        <option value="album">Альбом</option>
+                      </select>
+                    </label>
+                    <label>
+                      Подзаголовок
+                      <input
+                        value={trackDraft.subtitle}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            subtitle: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Жанр
+                      <input
+                        value={trackDraft.genre}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            genre: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Ссылка на обложку
+                      <input
+                        value={trackDraft.coverImage}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            coverImage: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Audio file id
+                      <input
+                        value={trackDraft.audioFileId}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            audioFileId: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Ссылка на общее превью
+                      <input
+                        value={trackDraft.previewUrl}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            previewUrl: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Цена
+                      <input
+                        type="number"
+                        min={1}
+                        value={trackDraft.priceStarsCents}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            priceStarsCents: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Описание
+                      <textarea
+                        value={trackDraft.description}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            description: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div className={styles.tracklistEditor}>
+                    <div className={styles.sectionHeader}>
+                      <h2>Треклист релиза</h2>
+                      <p>{trackDraft.releaseTracklist.length}</p>
+                    </div>
+
+                    <div className={styles.tracklistDraftList}>
+                      {trackDraft.releaseTracklist.map((row, index) => (
+                        <article
+                          key={`${row.id}-${index}`}
+                          className={styles.tracklistDraftRow}
+                        >
+                          <label>
+                            Трек #{index + 1}
+                            <input
+                              value={row.title}
+                              onChange={(event) =>
+                                updateTrackRow(index, {
+                                  title: event.target.value,
+                                })
+                              }
+                              placeholder="Название трека"
+                            />
+                          </label>
+                          <label>
+                            Ссылка на превью
+                            <input
+                              value={row.previewUrl}
+                              onChange={(event) =>
+                                updateTrackRow(index, {
+                                  previewUrl: event.target.value,
+                                })
+                              }
+                              placeholder="https://..."
+                            />
+                          </label>
+                          <label>
+                            Длительность (сек)
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.durationSec}
+                              onChange={(event) =>
+                                updateTrackRow(index, {
+                                  durationSec: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeTrackRow(index)}
+                          >
+                            Удалить
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      onClick={addTrackRow}
+                    >
+                      Добавить трек
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    onClick={() => void submitTrack()}
+                    disabled={trackSaving}
+                  >
+                    {trackSaving ? "Отправка..." : "Добавить релиз"}
+                  </button>
+
+                  {artistTracks.length > 0 ? (
+                    <div className={styles.artistTrackList}>
+                      {artistTracks.slice(0, 8).map((track) => (
+                        <article
+                          key={track.id}
+                          className={styles.artistTrackCard}
+                        >
+                          <strong>{track.title}</strong>
+                          <p>
+                            {track.subtitle || track.genre || "Сингл"} ·{" "}
+                            {track.releaseTracklist?.length ?? 1} треков
+                          </p>
+                          <span>
+                            {formatStarsFromCents(track.priceStarsCents)} ⭐
+                          </span>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className={styles.emptyState}>
+                      У вас пока нет опубликованных релизов.
+                    </p>
+                  )}
+
+                  {artistError ? (
+                    <p className={styles.warning}>{artistError}</p>
+                  ) : null}
+                </section>
+              ) : null}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {catalogLoading ? (
