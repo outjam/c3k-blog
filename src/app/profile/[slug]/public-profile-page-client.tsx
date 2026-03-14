@@ -313,33 +313,33 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
             )}
 
             <div>
-              <p className={styles.kicker}>{profile.mode === "artist" ? "Артист" : "Покупатель"}</p>
               <h1>{profile.displayName}</h1>
               <p>@{profile.slug}</p>
-            </div>
-          </div>
+              <span className={styles.kicker}>{profile.mode === "artist" ? "Артист" : "Покупатель"}</span>
 
-          <div className={styles.heroStats}>
-            <article>
-              <span>Подписчики</span>
-              <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("followers")}>
-                {profile.followersCount}
-              </button>
-            </article>
-            <article>
-              <span>Подписки</span>
-              <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("following")}>
-                {profile.followingCount}
-              </button>
-            </article>
-            <article>
-              <span>Награды</span>
-              <strong>{profile.awards.length}</strong>
-            </article>
-            <article>
-              <span>{profile.mode === "artist" ? "Релизов" : "В коллекции"}</span>
-              <strong>{releases.length}</strong>
-            </article>
+              <div className={styles.heroStats}>
+                <article>
+                  <span>Подписчики</span>
+                  <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("followers")}>
+                    {profile.followersCount}
+                  </button>
+                </article>
+                <article>
+                  <span>Подписки</span>
+                  <button type="button" className={styles.statButton} onClick={() => void openSocialOverlay("following")}>
+                    {profile.followingCount}
+                  </button>
+                </article>
+                <article>
+                  <span>Награды</span>
+                  <strong>{profile.awards.length}</strong>
+                </article>
+                <article>
+                  <span>{profile.mode === "artist" ? "Релизов" : "В коллекции"}</span>
+                  <strong>{releases.length}</strong>
+                </article>
+              </div>
+            </div>
           </div>
 
           {profileBio ? <p className={styles.bio}>{profileBio}</p> : null}
@@ -357,7 +357,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                 Поделиться профилем
               </a>
             ) : null}
-            <Link href="/search">Назад в поиск</Link>
+            <Link href="/search">Поиск</Link>
           </div>
         </section>
 

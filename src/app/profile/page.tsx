@@ -741,50 +741,33 @@ export default function ProfilePage() {
             )}
 
             <div className={styles.identityMeta}>
-              <p className={styles.kicker}>Профиль</p>
               <h1>{currentProfile?.displayName || fullName}</h1>
-              <p>@{viewerSlug} · {roleLabel}</p>
-            </div>
+              <p>@{viewerSlug}</p>
+              <span className={styles.kicker}>{roleLabel}</span>
 
-            <div className={styles.roleSwitch}>
-              <button
-                type="button"
-                className={mode === "listener" ? styles.roleSwitchActive : ""}
-                onClick={() => void handleModeChange("listener")}
-              >
-                Покупатель
-              </button>
-              <button
-                type="button"
-                className={mode === "artist" ? styles.roleSwitchActive : ""}
-                onClick={() => void handleModeChange("artist")}
-              >
-                Артист
-              </button>
+              <div className={styles.heroStats}>
+                <article>
+                  <span>Подписчики</span>
+                  <button type="button" className={styles.statButton} onClick={() => setSocialOverlay("followers")}>
+                    {followersCount}
+                  </button>
+                </article>
+                <article>
+                  <span>Подписки</span>
+                  <button type="button" className={styles.statButton} onClick={() => setSocialOverlay("following")}>
+                    {followingSlugs.length}
+                  </button>
+                </article>
+                <article>
+                  <span>NFT</span>
+                  <strong>{onchainMintedReleaseCards.length}</strong>
+                </article>
+                <article>
+                  <span>Покупки</span>
+                  <strong>{allPurchasedReleaseSlugs.length}</strong>
+                </article>
+              </div>
             </div>
-          </div>
-
-          <div className={styles.heroStats}>
-            <article>
-              <span>Подписчики</span>
-              <button type="button" className={styles.statButton} onClick={() => setSocialOverlay("followers")}>
-                {followersCount}
-              </button>
-            </article>
-            <article>
-              <span>Подписки</span>
-              <button type="button" className={styles.statButton} onClick={() => setSocialOverlay("following")}>
-                {followingSlugs.length}
-              </button>
-            </article>
-            <article>
-              <span>NFT</span>
-              <strong>{onchainMintedReleaseCards.length}</strong>
-            </article>
-            <article>
-              <span>Куплено</span>
-              <strong>{allPurchasedReleaseSlugs.length}</strong>
-            </article>
           </div>
 
           {currentProfileBio ? <p className={styles.heroBio}>{currentProfileBio}</p> : null}
@@ -797,12 +780,29 @@ export default function ProfilePage() {
                 setProfileEditorOpen(true);
               }}
             >
-              Настроить профиль
+              Редактировать
             </button>
             <button type="button" onClick={handleShareProfile}>
               Поделиться профилем
             </button>
-            <Link href="/shop">Открыть магазин</Link>
+            <Link href="/shop">Магазин</Link>
+          </div>
+
+          <div className={styles.roleSwitch}>
+            <button
+              type="button"
+              className={mode === "listener" ? styles.roleSwitchActive : ""}
+              onClick={() => void handleModeChange("listener")}
+            >
+              Покупатель
+            </button>
+            <button
+              type="button"
+              className={mode === "artist" ? styles.roleSwitchActive : ""}
+              onClick={() => void handleModeChange("artist")}
+            >
+              Артист
+            </button>
           </div>
 
           <div className={styles.sectionTabs}>
@@ -920,7 +920,7 @@ export default function ProfilePage() {
         {currentTab === "social" ? (
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h2>Подписки и подписчики</h2>
+              <h2>Люди</h2>
               <p>{followersCount + followingSlugs.length}</p>
             </div>
 
