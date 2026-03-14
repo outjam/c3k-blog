@@ -12,6 +12,7 @@ import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   buildTelegramShareUrl,
+  type MintedReleaseNft,
   purchaseReleaseWithWallet,
   profileSlugFromIdentity,
   readMintedReleaseNfts,
@@ -35,6 +36,7 @@ import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
 import { mintViaSponsoredTon } from "@/lib/ton-sponsored-api";
 import {
+  TON_ONCHAIN_NFT_MINT_ENABLED,
   TON_NETWORK_LABEL,
   isTonWalletOnRequiredNetwork,
   toPreferredTonAddress,
@@ -43,8 +45,6 @@ import { RELEASE_REACTION_OPTIONS, type ReleaseSocialSnapshot } from "@/types/re
 import type { ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
-
-const TON_ONCHAIN_NFT_MINT_ENABLED = false;
 
 const buildWrongTonNetworkMessage = (): string => {
   return `Подключен кошелек не из сети ${TON_NETWORK_LABEL}. Переключите сеть и повторите.`;
@@ -68,7 +68,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const [selectedFormat, setSelectedFormat] = useState(() => getDefaultTrackFormat(product));
   const [walletBalanceCents, setWalletBalanceCents] = useState(0);
   const [ownedReleaseSlugs, setOwnedReleaseSlugs] = useState<string[]>([]);
-  const [mintedReleaseSlugs, setMintedReleaseSlugs] = useState<string[]>([]);
+  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<MintedReleaseNft[]>([]);
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [walletMessage, setWalletMessage] = useState("");
   const [minting, setMinting] = useState(false);
@@ -97,7 +97,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       setIsFavorite(favoriteIds.includes(product.id));
       setWalletBalanceCents(balance);
       setOwnedReleaseSlugs(purchasedReleaseSlugs);
-      setMintedReleaseSlugs(mintedReleaseNfts.map((entry) => entry.releaseSlug));
+      setMintedReleaseNfts(mintedReleaseNfts);
       setTonWalletAddress(persistedTonWalletAddress);
 
       if (releaseSocial.snapshot) {
@@ -145,7 +145,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     return buildReleasePlaybackQueue(product);
   }, [product]);
   const isPurchased = useMemo(() => ownedReleaseSlugs.includes(product.slug), [ownedReleaseSlugs, product.slug]);
-  const isMintedInTon = useMemo(() => mintedReleaseSlugs.includes(product.slug), [mintedReleaseSlugs, product.slug]);
+  const mintedNft = useMemo(
+    () => mintedReleaseNfts.find((entry) => entry.releaseSlug === product.slug) ?? null,
+    [mintedReleaseNfts, product.slug],
+  );
+  const isMintedInTon = Boolean(mintedNft);
   const resolvedTonWalletAddress = useMemo(
     () => toPreferredTonAddress(String(tonWallet?.account?.address ?? tonWalletAddress).trim(), tonWallet?.account?.chain),
     [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress],
@@ -230,17 +234,17 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     }
 
     if (!isPurchased) {
-      setWalletMessage("Сначала купите релиз, затем сможете запросить on-chain mint после подключения NFT collection.");
+      setWalletMessage("Сначала купите релиз, затем сможете сминтить NFT в TON.");
       return;
     }
 
     if (isMintedInTon) {
-      setWalletMessage("Для этого релиза уже сохранена off-chain запись в приложении.");
+      setWalletMessage("Для этого релиза NFT уже сминчен в TON.");
       return;
     }
 
     if (!TON_ONCHAIN_NFT_MINT_ENABLED) {
-      setWalletMessage("On-chain mint в TON пока не подключен. Сейчас релиз хранится только в коллекции приложения.");
+      setWalletMessage("On-chain mint выключен в конфиге приложения.");
       return;
     }
 
@@ -298,12 +302,12 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     }
 
     setWalletBalanceCents(mintResult.walletCents);
-    setMintedReleaseSlugs(mintResult.mintedReleaseNfts.map((entry) => entry.releaseSlug));
+    setMintedReleaseNfts(mintResult.mintedReleaseNfts);
     setTonWalletAddress(connectedAddress);
     setWalletMessage(
       mintResult.alreadyMinted
-        ? "On-chain mint для этого релиза уже был выполнен ранее."
-        : `On-chain mint выполнен. Списано ${formatStarsFromCents(mintResult.gasDebitedCents)} ⭐ за газ.`,
+        ? "NFT для этого релиза уже был сминчен ранее."
+        : `NFT сминчен в ${TON_NETWORK_LABEL}. Списано ${formatStarsFromCents(mintResult.gasDebitedCents)} ⭐ за газ.`,
     );
     hapticNotification("success");
   };
@@ -486,11 +490,12 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           <section className={styles.nftSection}>
             <div className={styles.releaseCommentsHead}>
               <h2>TON коллекция</h2>
-              <p>{isMintedInTon ? "off-chain record" : "coming soon"}</p>
+              <p>{isMintedInTon ? "minted on-chain" : TON_ONCHAIN_NFT_MINT_ENABLED ? TON_NETWORK_LABEL : "disabled"}</p>
             </div>
             <p>
-              Сейчас покупка хранится только в профиле приложения. Реальный on-chain mint в NFT collection контракт еще не
-              подключен, поэтому NFT в Tonkeeper после этой операции не появляется.
+              {TON_ONCHAIN_NFT_MINT_ENABLED
+                ? `После mint релиз попадет в NFT collection в сети ${TON_NETWORK_LABEL}. Для reference collection sponsor wallet должен быть owner контракта.`
+                : "On-chain mint сейчас выключен. До включения релиз хранится только во внутреннем профиле приложения."}
             </p>
             <div className={styles.nftActions}>
               <TonConnectButton className={styles.tonConnectButton} />
@@ -500,9 +505,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 disabled={!isPurchased || isMintedInTon || minting || !TON_ONCHAIN_NFT_MINT_ENABLED}
                 onClick={() => void handleMintNft()}
               >
-                {isMintedInTon ? "Есть off-chain запись" : minting ? "Проверяем..." : "On-chain mint скоро"}
+                {isMintedInTon ? "NFT уже сминчен" : minting ? "Минтим в TON..." : `Mint NFT в ${TON_NETWORK_LABEL}`}
               </button>
             </div>
+            {mintedNft?.itemAddress ? <p className={styles.walletMessage}>NFT item: {mintedNft.itemAddress}</p> : null}
           </section>
 
           <button type="button" className={styles.addButton} onClick={toggleFavorite}>

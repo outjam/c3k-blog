@@ -31,6 +31,8 @@ export interface SocialMintedReleaseNft {
   releaseSlug: string;
   ownerAddress: string;
   collectionAddress?: string;
+  itemAddress?: string;
+  itemIndex?: string;
   txHash?: string;
   mintedAt: string;
   status: "minted";
@@ -195,6 +197,21 @@ const normalizeOptionalText = (value: unknown, maxLength: number): string | unde
   return normalized || undefined;
 };
 
+const normalizeOptionalBigIntString = (value: unknown): string | undefined => {
+  const normalized = normalizeText(value, 40);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  try {
+    const parsed = BigInt(normalized);
+    return parsed >= BigInt(0) ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const normalizeIsoDateTime = (value: unknown, fallbackIso: string): string => {
   const normalized = normalizeText(value, 120);
   const timestamp = Date.parse(normalized);
@@ -228,6 +245,8 @@ const normalizeMintedReleaseNft = (value: unknown): SocialMintedReleaseNft | nul
     releaseSlug,
     ownerAddress,
     collectionAddress: normalizeOptionalText(normalizeTonAddress(source.collectionAddress), 160),
+    itemAddress: normalizeOptionalText(normalizeTonAddress(source.itemAddress), 160),
+    itemIndex: normalizeOptionalBigIntString(source.itemIndex),
     txHash: normalizeOptionalText(source.txHash, 256),
     mintedAt,
     status: "minted",
@@ -1094,6 +1113,8 @@ export const mintSocialPurchasedReleaseNft = async (
     ownerAddress?: string;
     txHash?: string;
     collectionAddress?: string;
+    itemAddress?: string;
+    itemIndex?: string;
   },
 ): Promise<
   | {
@@ -1152,6 +1173,8 @@ export const mintSocialPurchasedReleaseNft = async (
 
   const txHash = normalizeOptionalText(input.txHash, 256);
   const collectionAddress = normalizeOptionalText(normalizeTonAddress(input.collectionAddress), 160);
+  const itemAddress = normalizeOptionalText(normalizeTonAddress(input.itemAddress), 160);
+  const itemIndex = normalizeOptionalBigIntString(input.itemIndex);
   const createdAt = new Date().toISOString();
   const nftIdSeed = `nft:${releaseSlug}:${createdAt}`;
   const createdNft: SocialMintedReleaseNft = {
@@ -1159,6 +1182,8 @@ export const mintSocialPurchasedReleaseNft = async (
     releaseSlug,
     ownerAddress,
     collectionAddress,
+    itemAddress,
+    itemIndex,
     txHash,
     mintedAt: createdAt,
     status: "minted",

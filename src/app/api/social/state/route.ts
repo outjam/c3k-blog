@@ -35,6 +35,8 @@ interface StateMutateBody {
   txHash?: unknown;
   collectionAddress?: unknown;
   ownerAddress?: unknown;
+  itemAddress?: unknown;
+  itemIndex?: unknown;
 }
 
 const normalizePositiveInt = (value: unknown): number => {
@@ -370,6 +372,8 @@ export async function POST(request: Request) {
         ownerAddress: normalizeTonAddress(payload.ownerAddress),
         txHash: normalizeOptionalText(payload.txHash, 256),
         collectionAddress: normalizeTonAddress(payload.collectionAddress),
+        itemAddress: normalizeTonAddress(payload.itemAddress),
+        itemIndex: normalizeOptionalText(payload.itemIndex, 40),
       });
 
       if (!result) {

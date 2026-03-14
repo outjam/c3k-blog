@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -20,8 +19,11 @@ export const importTsModule = async (absolutePath) => {
     fileName: absolutePath,
   });
 
+  const tmpDir = path.join(process.cwd(), ".tmp", "ts-test-modules");
+  await fs.mkdir(tmpDir, { recursive: true });
+
   const tmpFile = path.join(
-    os.tmpdir(),
+    tmpDir,
     `c3k-test-${path.basename(absolutePath).replace(/[^a-z0-9_.-]/gi, "_")}-${Date.now()}-${Math.random().toString(16).slice(2)}.mjs`,
   );
 

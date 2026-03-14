@@ -45,6 +45,7 @@ export const TON_NETWORK_MODE: TonNetworkMode = normalizeMode(process.env.NEXT_P
 export const TON_REQUIRED_CHAIN = TON_NETWORK_MODE === "mainnet" ? TON_CHAIN_MAINNET : TON_CHAIN_TESTNET;
 export const TON_NETWORK_LABEL = TON_NETWORK_MODE === "mainnet" ? "mainnet" : "testnet";
 export const TON_IS_TESTNET = TON_NETWORK_MODE === "testnet";
+export const TON_ONCHAIN_NFT_MINT_ENABLED = parseBooleanFlag(process.env.NEXT_PUBLIC_TON_ONCHAIN_NFT_MINT_ENABLED, false);
 export const TON_TESTNET_SELF_RECIPIENT_FALLBACK = parseBooleanFlag(
   process.env.NEXT_PUBLIC_TON_TESTNET_SELF_RECIPIENT_FALLBACK,
   TON_IS_TESTNET,

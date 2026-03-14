@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import {
   getSocialUserSnapshot,
@@ -7,6 +8,11 @@ import {
   spendSocialWalletBalanceCents,
   topUpSocialWalletBalanceCents,
 } from "@/lib/server/social-user-state-store";
+import {
+  buildReferenceNftItemContentValue,
+  isTonOnchainNftMintEnabled,
+  resolveTonNftItemContentPrefix,
+} from "@/lib/server/ton-nft-reference";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import {
   getSponsoredRelayConfigStatus,
@@ -18,9 +24,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// The app does not mint a real TON NFT yet. Keep the endpoint disabled until
-// a collection contract mint transaction is implemented.
-const TON_ONCHAIN_NFT_MINT_ENABLED = false;
+const TON_ONCHAIN_NFT_MINT_ENABLED = isTonOnchainNftMintEnabled();
 
 interface SponsoredMintBody {
   releaseSlug?: unknown;
@@ -153,7 +157,7 @@ export async function POST(request: Request) {
     return buildMintFailure({
       reason: "relay_unavailable",
       walletCents: snapshotBefore.walletCents,
-      relayError: "On-chain mint в TON пока не реализован: приложение еще не отправляет mint в NFT collection контракт.",
+      relayError: "On-chain mint выключен. Установите NEXT_PUBLIC_TON_ONCHAIN_NFT_MINT_ENABLED=1 после настройки testnet collection.",
     });
   }
 
@@ -166,7 +170,24 @@ export async function POST(request: Request) {
       relayError:
         relayConfig.missing.length > 0
           ? `Missing server env: ${relayConfig.missing.join(", ")}`
-          : "TON sponsor wallet or mint recipient is not configured",
+          : "TON sponsor wallet or NFT collection is not configured",
+    });
+  }
+
+  const itemContentPrefix = resolveTonNftItemContentPrefix({
+    publicBaseUrl: resolvePublicBaseUrl(request),
+  });
+  const itemContentValue = buildReferenceNftItemContentValue({
+    itemContentPrefix,
+    releaseSlug,
+  });
+
+  if (!itemContentValue) {
+    return buildMintFailure({
+      reason: "relay_unavailable",
+      walletCents: snapshotBefore.walletCents,
+      relayError:
+        "TON_NFT_ITEM_CONTENT_PREFIX or public app URL is not configured. NFT metadata URL cannot be built for mint.",
     });
   }
 
@@ -193,6 +214,7 @@ export async function POST(request: Request) {
       releaseSlug,
       telegramUserId: auth.telegramUserId,
       ownerAddress,
+      itemContentValue,
     });
   } catch (error) {
     await topUpSocialWalletBalanceCents(auth.telegramUserId, gasDebitedCents);
@@ -210,11 +232,28 @@ export async function POST(request: Request) {
     });
   }
 
+  if (!relayResult.confirmed) {
+    await topUpSocialWalletBalanceCents(auth.telegramUserId, gasDebitedCents);
+    const snapshotAfterRefund = await getSocialUserSnapshot(auth.telegramUserId);
+
+    return buildMintFailure({
+      reason: "relay_failed",
+      walletCents: snapshotAfterRefund?.walletCents ?? spendResult.balanceCents,
+      gasDebitedCents: 0,
+      relayError: "TON mint transfer was sent, but NFT deployment was not confirmed before timeout.",
+      relayProvider: relayResult.provider,
+    });
+  }
+
   const mintResult = await mintSocialPurchasedReleaseNft(auth.telegramUserId, {
     releaseSlug,
     ownerAddress,
     txHash: relayResult.txHash,
-    collectionAddress: normalizeOptionalText(normalizeTonAddress(payload.collectionAddress), 160),
+    collectionAddress:
+      normalizeOptionalText(normalizeTonAddress(payload.collectionAddress), 160) ||
+      normalizeOptionalText(relayResult.collectionAddress, 160),
+    itemAddress: normalizeOptionalText(relayResult.itemAddress, 160),
+    itemIndex: normalizeOptionalText(relayResult.itemIndex, 40),
   });
 
   if (!mintResult || !mintResult.ok) {

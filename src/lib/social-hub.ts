@@ -37,6 +37,8 @@ export interface MintedReleaseNft {
   releaseSlug: string;
   ownerAddress: string;
   collectionAddress?: string;
+  itemAddress?: string;
+  itemIndex?: string;
   txHash?: string;
   mintedAt: string;
   status: "minted";
@@ -252,6 +254,21 @@ const normalizeOptionalText = (value: unknown, maxLength: number): string | unde
   return normalized || undefined;
 };
 
+const normalizeOptionalBigIntString = (value: unknown): string | undefined => {
+  const normalized = String(value ?? "").trim().slice(0, 40);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  try {
+    const parsed = BigInt(normalized);
+    return parsed >= BigInt(0) ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const normalizeIsoDate = (value: unknown, fallbackIso: string): string => {
   const normalized = String(value ?? "").trim().slice(0, 120);
   const timestamp = Date.parse(normalized);
@@ -297,6 +314,8 @@ const normalizeMintedReleaseNft = (value: unknown): MintedReleaseNft | null => {
     releaseSlug,
     ownerAddress,
     collectionAddress: normalizeOptionalText(normalizeTonAddress(source.collectionAddress), 160),
+    itemAddress: normalizeOptionalText(normalizeTonAddress(source.itemAddress), 160),
+    itemIndex: normalizeOptionalBigIntString(source.itemIndex),
     txHash: normalizeOptionalText(source.txHash, 256),
     mintedAt,
     status: "minted",
@@ -1617,6 +1636,8 @@ export const mintPurchasedReleaseNft = async (
     ownerAddress?: string;
     txHash?: string;
     collectionAddress?: string;
+    itemAddress?: string;
+    itemIndex?: string;
   },
 ): Promise<
   | {
@@ -1635,6 +1656,8 @@ export const mintPurchasedReleaseNft = async (
   const ownerAddress = normalizeTonAddress(input.ownerAddress);
   const txHash = normalizeOptionalText(input.txHash, 256);
   const collectionAddress = normalizeOptionalText(normalizeTonAddress(input.collectionAddress), 160);
+  const itemAddress = normalizeOptionalText(normalizeTonAddress(input.itemAddress), 160);
+  const itemIndex = normalizeOptionalBigIntString(input.itemIndex);
 
   if (!releaseSlug) {
     return {
@@ -1651,6 +1674,8 @@ export const mintPurchasedReleaseNft = async (
       ownerAddress,
       txHash,
       collectionAddress,
+      itemAddress,
+      itemIndex,
     });
 
     if (payload && Object.prototype.hasOwnProperty.call(payload, "ok")) {
@@ -1713,6 +1738,8 @@ export const mintPurchasedReleaseNft = async (
     releaseSlug,
     ownerAddress: walletAddress,
     collectionAddress,
+    itemAddress,
+    itemIndex,
     txHash,
     mintedAt,
     status: "minted",

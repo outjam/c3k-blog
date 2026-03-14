@@ -17,8 +17,11 @@ export type MintViaSponsoredTonResult =
         txHash: string;
         network: "mainnet" | "testnet";
         sponsorAddress: string;
-        recipientAddress: string;
+        collectionAddress: string;
+        itemAddress: string;
+        itemIndex: string;
         amountNano: string;
+        itemValueNano: string;
         confirmed: boolean;
         relaySeqno: number;
       } | null;
@@ -66,6 +69,21 @@ const normalizeNonNegativeInt = (value: unknown): number => {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 };
 
+const normalizeOptionalBigIntString = (value: unknown): string | undefined => {
+  const normalized = String(value ?? "").trim().slice(0, 40);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  try {
+    const parsed = BigInt(normalized);
+    return parsed >= BigInt(0) ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const normalizeMintedReleaseNft = (value: unknown): MintedReleaseNft | null => {
   if (!value || typeof value !== "object") {
     return null;
@@ -88,6 +106,8 @@ const normalizeMintedReleaseNft = (value: unknown): MintedReleaseNft | null => {
     releaseSlug,
     ownerAddress,
     collectionAddress: normalizeTonAddress(source.collectionAddress) || undefined,
+    itemAddress: normalizeTonAddress(source.itemAddress) || undefined,
+    itemIndex: normalizeOptionalBigIntString(source.itemIndex),
     txHash: String(source.txHash ?? "").trim().slice(0, 256) || undefined,
     mintedAt,
     status: "minted",
@@ -168,8 +188,11 @@ export const mintViaSponsoredTon = async (payload: MintViaSponsoredTonPayload): 
                 txHash: String((relaySource as Record<string, unknown>).txHash ?? "").trim(),
                 network: relayNetwork,
                 sponsorAddress: normalizeTonAddress((relaySource as Record<string, unknown>).sponsorAddress),
-                recipientAddress: normalizeTonAddress((relaySource as Record<string, unknown>).recipientAddress),
+                collectionAddress: normalizeTonAddress((relaySource as Record<string, unknown>).collectionAddress),
+                itemAddress: normalizeTonAddress((relaySource as Record<string, unknown>).itemAddress),
+                itemIndex: normalizeOptionalBigIntString((relaySource as Record<string, unknown>).itemIndex) ?? "0",
                 amountNano: String((relaySource as Record<string, unknown>).amountNano ?? "").trim(),
+                itemValueNano: String((relaySource as Record<string, unknown>).itemValueNano ?? "").trim(),
                 confirmed: Boolean((relaySource as Record<string, unknown>).confirmed),
                 relaySeqno: normalizeNonNegativeInt((relaySource as Record<string, unknown>).relaySeqno),
               };
