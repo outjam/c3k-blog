@@ -165,6 +165,12 @@
   gap: 0.45rem;
 }
 
+.releaseInsightRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .statChip {
   min-height: 1.9rem;
   display: inline-flex;
@@ -178,10 +184,35 @@
   font-weight: 700;
 }
 
+.statChipAccent {
+  background: color-mix(in srgb, var(--tg-accent) 10%, var(--tg-section-bg));
+  color: var(--tg-accent);
+}
+
 .statChip svg {
   width: 0.88rem;
   height: 0.88rem;
   color: var(--tg-accent);
+  flex-shrink: 0;
+}
+
+.priceChip {
+  min-height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0 0.68rem;
+  border-radius: 999px;
+  background: #ffc53525;
+  color: #ffc535;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.priceChipIcon {
+  width: 0.86rem;
+  height: 0.86rem;
+  color: #ffc535;
   flex-shrink: 0;
 }
 

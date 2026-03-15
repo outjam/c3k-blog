@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import { SegmentedTabs } from "@/components/segmented-tabs";
-import { StarsIcon } from "@/components/stars-icon";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import {
@@ -23,7 +22,6 @@ import {
   resolveViewerKey,
   toggleFollowingSlug,
 } from "@/lib/social-hub";
-import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { ProfileMode } from "@/types/social";
 import type { ShopCatalogArtist, ShopProduct } from "@/types/shop";
@@ -98,6 +96,9 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
   const [targetPurchasesVisible, setTargetPurchasesVisible] = useState(false);
   const [targetPurchasedReleaseSlugs, setTargetPurchasedReleaseSlugs] =
     useState<string[]>([]);
+  const [targetPurchasedTrackKeys, setTargetPurchasedTrackKeys] = useState<
+    string[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const [socialOverlay, setSocialOverlay] = useState<
@@ -150,6 +151,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       setTargetPurchasedReleaseSlugs(
         targetPublicPurchases.purchasedReleaseSlugs,
       );
+      setTargetPurchasedTrackKeys(targetPublicPurchases.purchasedTrackKeys);
       setLoading(false);
     })();
 
@@ -200,6 +202,65 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
     return followingSlugs.includes(targetSlug);
   }, [followingSlugs, targetSlug]);
 
+  const listenerCollectionEntries = useMemo(() => {
+    if (!profile) {
+      return [];
+    }
+
+    if (profile.mode !== "listener") {
+      return [];
+    }
+
+    const trackIdsByRelease = new Map<string, string[]>();
+
+    targetPurchasedTrackKeys.forEach((entry) => {
+      const [releaseSlug = "", trackId = ""] = entry.split("::", 2);
+
+      if (!releaseSlug || !trackId) {
+        return;
+      }
+
+      const next = trackIdsByRelease.get(releaseSlug) ?? [];
+      if (!next.includes(trackId)) {
+        next.push(trackId);
+      }
+      trackIdsByRelease.set(releaseSlug, next);
+    });
+
+    const orderedSlugs = Array.from(
+      new Set([...profile.purchasedReleaseSlugs, ...trackIdsByRelease.keys()]),
+    );
+
+    return orderedSlugs
+      .map((entrySlug) => {
+        const release =
+          products.find((item) => item.slug === entrySlug && item.kind === "digital_track") ??
+          null;
+
+        if (!release) {
+          return null;
+        }
+
+        const totalTracksCount =
+          Array.isArray(release.releaseTracklist) &&
+          release.releaseTracklist.length > 0
+            ? release.releaseTracklist.length
+            : 1;
+        const isFullRelease = profile.purchasedReleaseSlugs.includes(entrySlug);
+        const ownedTracksCount = isFullRelease
+          ? totalTracksCount
+          : (trackIdsByRelease.get(entrySlug) ?? []).length;
+
+        return {
+          release,
+          isFullRelease,
+          ownedTracksCount,
+          totalTracksCount,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  }, [products, profile, targetPurchasedTrackKeys]);
+
   const releases = useMemo(() => {
     if (!profile) {
       return [];
@@ -213,10 +274,8 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
       );
     }
 
-    return products.filter((item) =>
-      profile.purchasedReleaseSlugs.includes(item.slug),
-    );
-  }, [products, profile]);
+    return listenerCollectionEntries.map((entry) => entry.release);
+  }, [listenerCollectionEntries, products, profile]);
 
   const shareLink = useMemo(() => {
     if (!profile || !appOrigin) {
@@ -538,7 +597,23 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                   </p>
                 ) : releases.length > 0 ? (
                   <div className={styles.collectionGrid}>
-                    {releases.map((release) => (
+                    {(profile.mode === "artist"
+                      ? releases.map((release) => ({
+                          release,
+                          isFullRelease: true,
+                          ownedTracksCount:
+                            Array.isArray(release.releaseTracklist) &&
+                            release.releaseTracklist.length > 0
+                              ? release.releaseTracklist.length
+                              : 1,
+                          totalTracksCount:
+                            Array.isArray(release.releaseTracklist) &&
+                            release.releaseTracklist.length > 0
+                              ? release.releaseTracklist.length
+                              : 1,
+                        }))
+                      : listenerCollectionEntries
+                    ).map(({ release, isFullRelease, ownedTracksCount, totalTracksCount }) => (
                       <article key={release.slug} className={styles.collectionCard}>
                         <Link
                           href={`/shop/${release.slug}`}
@@ -558,8 +633,11 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
                             <strong>{release.title}</strong>
                             <span>{release.artistName || release.subtitle}</span>
                             <span className={styles.releasePrice}>
-                              <StarsIcon className={styles.releasePriceIcon} />
-                              {formatStarsFromCents(release.priceStarsCents)}
+                              {profile.mode === "artist"
+                                ? `${totalTracksCount} треков`
+                                : isFullRelease
+                                  ? `Полный релиз · ${totalTracksCount} треков`
+                                  : `${ownedTracksCount} из ${totalTracksCount} треков`}
                             </span>
                           </div>
                         </Link>

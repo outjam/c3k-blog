@@ -20,9 +20,24 @@ import {
 } from "motion/react";
 
 import { SegmentedTabs } from "@/components/segmented-tabs";
+import { StarsIcon } from "@/components/stars-icon";
+import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { buildUnifiedFeed, readFollowingSlugs } from "@/lib/social-hub";
 import { fetchPublicCatalog } from "@/lib/admin-api";
+import {
+  buildReleaseOwnershipViewModel,
+  type ReleaseOwnershipViewModel,
+} from "@/lib/release-ownership";
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
+import {
+  type MintedReleaseNft,
+  readMintedReleaseNfts,
+  readPurchasedReleaseFormatKeys,
+  readPurchasedReleaseSlugs,
+  readPurchasedTrackKeys,
+  resolveViewerKey,
+} from "@/lib/social-hub";
+import { formatStarsFromCents } from "@/lib/stars-format";
 import type { UnifiedFeedItem } from "@/types/social";
 import type { BlogPost } from "@/types/blog";
 import type { ShopProduct } from "@/types/shop";
@@ -98,12 +113,27 @@ function CommentIcon() {
 function FeedCard({
   item,
   engagement,
+  releaseProduct,
+  ownership,
 }: {
   item: UnifiedFeedItem;
   engagement?: { reactionsCount: number; commentsCount: number };
+  releaseProduct?: ShopProduct | null;
+  ownership?: ReleaseOwnershipViewModel | null;
 }) {
   const reactionsCount = engagement?.reactionsCount ?? item.reactionsCount;
   const commentsCount = engagement?.commentsCount ?? item.commentsCount;
+  const ownershipSummary = ownership?.isFullReleaseOwned
+    ? "В коллекции"
+    : ownership && ownership.ownedTrackCount > 0
+      ? `${ownership.ownedTrackCount} из ${ownership.totalTrackCount} треков`
+      : releaseProduct
+        ? `${ownership?.totalTrackCount ?? 1} треков`
+        : null;
+  const formatSummary =
+    ownership && ownership.ownedFormatLabels.length > 0
+      ? ownership.ownedFormatLabels.join(" · ")
+      : ownership?.availableFormatLabels.slice(0, 2).join(" · ") ?? null;
 
   return (
     <article
@@ -133,6 +163,26 @@ function FeedCard({
         </Link>
 
         <p className={styles.description}>{item.description}</p>
+
+        {releaseProduct ? (
+          <div className={styles.releaseInsightRow}>
+            {ownershipSummary ? (
+              <span className={styles.statChip}>{ownershipSummary}</span>
+            ) : null}
+            {formatSummary ? (
+              <span className={styles.statChip}>{formatSummary}</span>
+            ) : null}
+            {ownership?.isMinted ? (
+              <span className={`${styles.statChip} ${styles.statChipAccent}`}>NFT</span>
+            ) : null}
+            {typeof item.priceStarsCents === "number" ? (
+              <span className={styles.priceChip}>
+                <StarsIcon className={styles.priceChipIcon} />
+                {formatStarsFromCents(item.priceStarsCents)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className={styles.engagementRow}>
           <span className={styles.statChip}>
@@ -182,9 +232,15 @@ function FeedSkeleton() {
 }
 
 export default function Home() {
+  const { user } = useAppAuthUser();
+  const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [followingSlugs, setFollowingSlugs] = useState<string[]>([]);
+  const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
+  const [purchasedReleaseFormatKeys, setPurchasedReleaseFormatKeys] = useState<string[]>([]);
+  const [purchasedTrackKeys, setPurchasedTrackKeys] = useState<string[]>([]);
+  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<MintedReleaseNft[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<NewsTab>("following");
   const [visibleCounts, setVisibleCounts] = useState<Record<NewsTab, number>>({
@@ -241,6 +297,30 @@ export default function Home() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void Promise.all([
+      readPurchasedReleaseSlugs(viewerKey),
+      readPurchasedReleaseFormatKeys(viewerKey),
+      readPurchasedTrackKeys(viewerKey),
+      readMintedReleaseNfts(viewerKey),
+    ]).then(([releaseSlugs, releaseFormatKeys, trackKeys, mintedNfts]) => {
+      if (!mounted) {
+        return;
+      }
+
+      setPurchasedReleaseSlugs(releaseSlugs);
+      setPurchasedReleaseFormatKeys(releaseFormatKeys);
+      setPurchasedTrackKeys(trackKeys);
+      setMintedReleaseNfts(mintedNfts);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [viewerKey]);
 
   const feed = useMemo(() => {
     return buildUnifiedFeed({ posts, products, followingSlugs });
@@ -352,6 +432,38 @@ export default function Home() {
   const followingFeed = useMemo(
     () => feed.filter((item) => item.isFollowedSource),
     [feed],
+  );
+  const releaseProductBySlug = useMemo(
+    () =>
+      new Map(
+        products
+          .filter((product) => product.kind === "digital_track")
+          .map((product) => [product.slug, product]),
+      ),
+    [products],
+  );
+  const releaseOwnershipBySlug = useMemo(
+    () =>
+      Object.fromEntries(
+        products
+          .filter((product) => product.kind === "digital_track")
+          .map((product) => [
+            product.slug,
+            buildReleaseOwnershipViewModel(product, {
+              purchasedReleaseSlugs,
+              purchasedTrackKeys,
+              purchasedReleaseFormatKeys,
+              mintedReleaseNfts,
+            }),
+          ]),
+      ),
+    [
+      mintedReleaseNfts,
+      products,
+      purchasedReleaseFormatKeys,
+      purchasedReleaseSlugs,
+      purchasedTrackKeys,
+    ],
   );
 
   const tabPages = useMemo(
@@ -670,6 +782,20 @@ export default function Home() {
                             key={item.id}
                             item={item}
                             engagement={feedEngagement[item.id]}
+                            releaseProduct={
+                              item.kind === "release"
+                                ? releaseProductBySlug.get(
+                                    item.id.replace(/^release:/, ""),
+                                  ) ?? null
+                                : null
+                            }
+                            ownership={
+                              item.kind === "release"
+                                ? releaseOwnershipBySlug[
+                                    item.id.replace(/^release:/, "")
+                                  ] ?? null
+                                : null
+                            }
                           />
                         ))
                       ) : (

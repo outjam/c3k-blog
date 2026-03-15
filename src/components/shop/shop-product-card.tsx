@@ -9,6 +9,8 @@ import { useGlobalPlayer } from "@/components/player/global-player-provider";
 import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticSelection } from "@/lib/telegram";
+import type { ReleaseOwnershipViewModel } from "@/lib/release-ownership";
+import { StarsIcon } from "@/components/stars-icon";
 import type { ShopProduct } from "@/types/shop";
 
 import styles from "./shop-product-card.module.scss";
@@ -17,6 +19,7 @@ interface ShopProductCardProps {
   product: ShopProduct;
   onToggleFavorite: (productId: string) => void;
   isFavorite: boolean;
+  ownership?: ReleaseOwnershipViewModel | null;
 }
 
 function HeartIcon({ filled }: { filled?: boolean }) {
@@ -67,6 +70,7 @@ export function ShopProductCard({
   product,
   onToggleFavorite,
   isFavorite,
+  ownership,
 }: ShopProductCardProps) {
   const { playQueue, enqueueTracks } = useGlobalPlayer();
   const playbackQueue = useMemo(() => buildReleasePlaybackQueue(product), [product]);
@@ -81,6 +85,15 @@ export function ShopProductCard({
       : product.releaseType === "ep"
         ? "EP"
         : "Single";
+  const ownershipSummary = ownership?.isFullReleaseOwned
+    ? "В коллекции"
+    : ownership && ownership.ownedTrackCount > 0
+      ? `${ownership.ownedTrackCount} из ${ownership.totalTrackCount} треков`
+      : `${trackCount} треков`;
+  const formatSummary =
+    ownership && ownership.ownedFormatLabels.length > 0
+      ? ownership.ownedFormatLabels.join(" · ")
+      : ownership?.availableFormatLabels.slice(0, 2).join(" · ") || "Форматы";
 
   const handleFavorite: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
@@ -148,17 +161,27 @@ export function ShopProductCard({
 
         <div className={styles.body}>
           <div className={styles.metaTop}>
-            <span>{product.subtitle || product.categoryLabel || "Релиз"}</span>
-            {product.artistName ? <span>{product.artistName}</span> : null}
+            <span>{product.artistName || product.subtitle || "Релиз"}</span>
+            <span>{releaseTypeLabel}</span>
           </div>
 
           <h3 className={styles.title}>{product.title}</h3>
           <p className={styles.description}>{product.description}</p>
 
           <div className={styles.metaRow}>
+            <span className={styles.infoChip}>{ownershipSummary}</span>
+            <span className={styles.infoChip}>{formatSummary}</span>
+            {ownership?.isMinted ? (
+              <span className={`${styles.infoChip} ${styles.infoChipAccent}`}>NFT</span>
+            ) : null}
+          </div>
+
+          <div className={styles.metaRow}>
             <span>{product.subcategoryLabel ?? product.attributes.collection}</span>
-            <span>{trackCount} треков</span>
-            <strong>{formatStarsFromCents(product.priceStarsCents)}</strong>
+            <div className={styles.priceBadge}>
+              <StarsIcon className={styles.priceBadgeIcon} />
+              {formatStarsFromCents(product.priceStarsCents)}
+            </div>
           </div>
 
           <div className={styles.playerActions}>

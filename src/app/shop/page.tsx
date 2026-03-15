@@ -9,10 +9,19 @@ import { ShopProductCard } from "@/components/shop/shop-product-card";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
+import { buildReleaseOwnershipViewModel } from "@/lib/release-ownership";
 import {
   readFavoriteProductIds,
   toggleFavoriteProductId,
 } from "@/lib/product-favorites";
+import {
+  type MintedReleaseNft,
+  readMintedReleaseNfts,
+  readPurchasedReleaseFormatKeys,
+  readPurchasedReleaseSlugs,
+  readPurchasedTrackKeys,
+  resolveViewerKey,
+} from "@/lib/social-hub";
 import { hapticSelection } from "@/lib/telegram";
 import type {
   ProductSort,
@@ -103,6 +112,7 @@ function ShopSkeleton() {
 
 export default function ShopPage() {
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
+  const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
 
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<ProductSort>("popular");
@@ -117,6 +127,10 @@ export default function ShopPage() {
   );
   const [catalogError, setCatalogError] = useState("");
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>([]);
+  const [purchasedReleaseFormatKeys, setPurchasedReleaseFormatKeys] = useState<string[]>([]);
+  const [purchasedTrackKeys, setPurchasedTrackKeys] = useState<string[]>([]);
+  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<MintedReleaseNft[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -131,6 +145,30 @@ export default function ShopPage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void Promise.all([
+      readPurchasedReleaseSlugs(viewerKey),
+      readPurchasedReleaseFormatKeys(viewerKey),
+      readPurchasedTrackKeys(viewerKey),
+      readMintedReleaseNfts(viewerKey),
+    ]).then(([releaseSlugs, releaseFormatKeys, trackKeys, mintedNfts]) => {
+      if (!mounted) {
+        return;
+      }
+
+      setPurchasedReleaseSlugs(releaseSlugs);
+      setPurchasedReleaseFormatKeys(releaseFormatKeys);
+      setPurchasedTrackKeys(trackKeys);
+      setMintedReleaseNfts(mintedNfts);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [viewerKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -223,6 +261,29 @@ export default function ShopPage() {
 
   const favoriteCount = favoriteProductIds.length;
   const featuredArtists = useMemo(() => catalogArtists.slice(0, 8), [catalogArtists]);
+  const releaseOwnershipBySlug = useMemo(
+    () =>
+      Object.fromEntries(
+        catalogProducts
+          .filter((product) => product.kind === "digital_track")
+          .map((product) => [
+            product.slug,
+            buildReleaseOwnershipViewModel(product, {
+              purchasedReleaseSlugs,
+              purchasedTrackKeys,
+              purchasedReleaseFormatKeys,
+              mintedReleaseNfts,
+            }),
+          ]),
+      ),
+    [
+      catalogProducts,
+      mintedReleaseNfts,
+      purchasedReleaseFormatKeys,
+      purchasedReleaseSlugs,
+      purchasedTrackKeys,
+    ],
+  );
 
   const handleToggleFavorite = (productId: string) => {
     void toggleFavoriteProductId(productId).then((next) => {
@@ -387,6 +448,7 @@ export default function ShopPage() {
                   product={product}
                   onToggleFavorite={handleToggleFavorite}
                   isFavorite={favoriteProductIds.includes(product.id)}
+                  ownership={releaseOwnershipBySlug[product.slug] ?? null}
                 />
               ))
             ) : (

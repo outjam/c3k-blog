@@ -33,6 +33,7 @@ import {
   buildPublicProfiles,
   buildTelegramShareUrl,
   readMintedReleaseNfts,
+  readPurchasedTrackKeys,
   readTonWalletAddress,
   profileSlugFromIdentity,
   readFollowOverview,
@@ -80,6 +81,10 @@ interface CollectionEntry {
   slug: string;
   release: ShopProduct | null;
   nft: MintedReleaseNft | null;
+  ownedTrackIds: string[];
+  ownedTracksCount: number;
+  totalTracksCount: number;
+  isFullRelease: boolean;
 }
 
 type ProfileTab = "collection" | "awards" | "artist";
@@ -205,6 +210,7 @@ export default function ProfilePage() {
   const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>(
     [],
   );
+  const [purchasedTrackKeys, setPurchasedTrackKeys] = useState<string[]>([]);
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [mintedReleaseNfts, setMintedReleaseNfts] = useState<
     MintedReleaseNft[]
@@ -309,6 +315,7 @@ export default function ProfilePage() {
         visibility,
         followOverview,
         purchases,
+        purchasedTracks,
         connectedTonWalletAddress,
         mintedNfts,
       ] = await Promise.all([
@@ -317,6 +324,7 @@ export default function ProfilePage() {
         readPurchasesVisibility(viewerKey),
         readFollowOverview([viewerSlug]),
         readPurchasedReleaseSlugs(viewerKey),
+        readPurchasedTrackKeys(viewerKey),
         readTonWalletAddress(viewerKey),
         readMintedReleaseNfts(viewerKey),
       ]);
@@ -333,6 +341,7 @@ export default function ProfilePage() {
       setFollowStatsBySlug(followOverview.statsBySlug);
       setFollowProfilesBySlug(followOverview.profilesBySlug);
       setPurchasedReleaseSlugs(purchases);
+      setPurchasedTrackKeys(purchasedTracks);
       setTonWalletAddress(connectedTonWalletAddress);
       setMintedReleaseNfts(mintedNfts);
       setProfileBootLoading(false);
@@ -534,6 +543,25 @@ export default function ProfilePage() {
       Boolean(nft.itemAddress && nft.collectionAddress),
     );
   }, [mintedReleaseCards]);
+  const purchasedTrackIdsByRelease = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+
+    purchasedTrackKeys.forEach((entry) => {
+      const [releaseSlug = "", trackId = ""] = entry.split("::", 2);
+
+      if (!releaseSlug || !trackId) {
+        return;
+      }
+
+      const next = grouped.get(releaseSlug) ?? [];
+      if (!next.includes(trackId)) {
+        next.push(trackId);
+      }
+      grouped.set(releaseSlug, next);
+    });
+
+    return grouped;
+  }, [purchasedTrackKeys]);
   const collectionEntries = useMemo(() => {
     const releaseBySlug = new Map(products.map((item) => [item.slug, item]));
     const nftBySlug = new Map<string, MintedReleaseNft>();
@@ -547,6 +575,7 @@ export default function ProfilePage() {
     const orderedSlugs = Array.from(
       new Set([
         ...allPurchasedReleaseSlugs,
+        ...purchasedTrackIdsByRelease.keys(),
         ...onchainMintedReleaseCards.map(({ nft }) => nft.releaseSlug),
       ]),
     );
@@ -554,8 +583,14 @@ export default function ProfilePage() {
     return orderedSlugs.reduce<CollectionEntry[]>((acc, slug) => {
       const release = releaseBySlug.get(slug) ?? null;
       const nft = nftBySlug.get(slug) ?? null;
+      const ownedTrackIds = purchasedTrackIdsByRelease.get(slug) ?? [];
+      const totalTracksCount =
+        Array.isArray(release?.releaseTracklist) && release.releaseTracklist.length > 0
+          ? release.releaseTracklist.length
+          : 1;
+      const isFullRelease = allPurchasedReleaseSlugs.includes(slug);
 
-      if (!release && !nft) {
+      if (!release && !nft && ownedTrackIds.length === 0) {
         return acc;
       }
 
@@ -563,11 +598,20 @@ export default function ProfilePage() {
         slug,
         release,
         nft,
+        ownedTrackIds,
+        ownedTracksCount: isFullRelease ? totalTracksCount : ownedTrackIds.length,
+        totalTracksCount,
+        isFullRelease,
       });
 
       return acc;
     }, []);
-  }, [allPurchasedReleaseSlugs, onchainMintedReleaseCards, products]);
+  }, [
+    allPurchasedReleaseSlugs,
+    onchainMintedReleaseCards,
+    products,
+    purchasedTrackIdsByRelease,
+  ]);
   const awards = currentProfile?.awards ?? [];
   const currentProfileBio = String(currentProfile?.bio ?? "").trim();
   const roleLabel = mode === "artist" ? "Артист" : null;
@@ -1155,7 +1199,7 @@ export default function ProfilePage() {
                 className={styles.statValueCompact}
                 title="Покупки / NFT улучшения"
               >
-                {allPurchasedReleaseSlugs.length} /{" "}
+                {collectionEntries.length} /{" "}
                 {onchainMintedReleaseCards.length} улучшений
               </strong>
             </article>
@@ -1274,6 +1318,12 @@ export default function ProfilePage() {
                                   <span className={styles.collectionBadge}>
                                     NFT
                                   </span>
+                                ) : !entry.isFullRelease ? (
+                                  <span
+                                    className={`${styles.collectionBadge} ${styles.collectionBadgePartial}`}
+                                  >
+                                    {entry.ownedTracksCount}/{entry.totalTracksCount}
+                                  </span>
                                 ) : null}
                               </div>
 
@@ -1286,6 +1336,11 @@ export default function ProfilePage() {
                                     entry.release?.subtitle ||
                                     "Релиз в коллекции"}
                                 </span>
+                                <span>
+                                  {entry.isFullRelease
+                                    ? `Полный релиз · ${entry.totalTracksCount} треков`
+                                    : `${entry.ownedTracksCount} из ${entry.totalTracksCount} треков в коллекции`}
+                                </span>
                               </div>
                             </Link>
                           </article>
@@ -1294,8 +1349,9 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <p className={styles.emptyState}>
-                      Покупок пока нет. NFT из купленных релизов появятся здесь
-                      после минта.
+                      Покупок пока нет. Здесь будут появляться и полные релизы,
+                      и частично собранные треки, а NFT из купленных релизов
+                      подтянутся после минта.
                     </p>
                   )}
 

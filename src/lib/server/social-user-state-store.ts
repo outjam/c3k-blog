@@ -685,7 +685,12 @@ export const getSocialUserSnapshot = async (telegramUserId: number): Promise<Soc
 
 export const getSocialUserPublicPurchasesBySlug = async (
   slug: string,
-): Promise<{ slug: string; purchasesVisible: boolean; purchasedReleaseSlugs: string[] } | null> => {
+): Promise<{
+  slug: string;
+  purchasesVisible: boolean;
+  purchasedReleaseSlugs: string[];
+  purchasedTrackKeys: string[];
+} | null> => {
   const normalizedSlug = normalizeSlug(slug);
 
   if (!normalizedSlug) {
@@ -703,6 +708,7 @@ export const getSocialUserPublicPurchasesBySlug = async (
       slug: normalizedSlug,
       purchasesVisible: false,
       purchasedReleaseSlugs: [],
+      purchasedTrackKeys: [],
     };
   }
 
@@ -712,6 +718,7 @@ export const getSocialUserPublicPurchasesBySlug = async (
     slug: normalizedSlug,
     purchasesVisible: snapshot.purchasesVisible,
     purchasedReleaseSlugs: snapshot.purchasesVisible ? snapshot.purchasedReleaseSlugs : [],
+    purchasedTrackKeys: snapshot.purchasesVisible ? snapshot.purchasedTrackKeys : [],
   };
 };
 

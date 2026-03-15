@@ -954,6 +954,7 @@ interface SocialPublicPurchasesPayload {
   slug?: unknown;
   purchasesVisible?: unknown;
   purchasedReleaseSlugs?: unknown;
+  purchasedTrackKeys?: unknown;
 }
 
 const normalizeSocialStateSnapshotPayload = (payload: SocialStateSnapshotPayload) => {
@@ -982,11 +983,13 @@ const normalizeSocialStateSnapshotPayload = (payload: SocialStateSnapshotPayload
 const normalizeSocialPublicPurchasesPayload = (fallbackSlug: string, payload: SocialPublicPurchasesPayload) => {
   const purchasesVisible = typeof payload.purchasesVisible === "boolean" ? payload.purchasesVisible : false;
   const purchasedReleaseSlugs = purchasesVisible ? normalizeStringList(payload.purchasedReleaseSlugs) : [];
+  const purchasedTrackKeys = purchasesVisible ? normalizeTrackPurchaseKeyList(payload.purchasedTrackKeys) : [];
 
   return {
     slug: normalizeSlug(payload.slug) || fallbackSlug,
     purchasesVisible,
     purchasedReleaseSlugs,
+    purchasedTrackKeys,
   };
 };
 
@@ -994,6 +997,7 @@ export const readPublicPurchasesBySlug = async (slug: string): Promise<{
   slug: string;
   purchasesVisible: boolean;
   purchasedReleaseSlugs: string[];
+  purchasedTrackKeys: string[];
 }> => {
   const normalizedSlug = normalizeSlug(slug);
 
@@ -1002,6 +1006,7 @@ export const readPublicPurchasesBySlug = async (slug: string): Promise<{
       slug: "",
       purchasesVisible: false,
       purchasedReleaseSlugs: [],
+      purchasedTrackKeys: [],
     };
   }
 
@@ -1016,6 +1021,7 @@ export const readPublicPurchasesBySlug = async (slug: string): Promise<{
         slug: normalizedSlug,
         purchasesVisible: false,
         purchasedReleaseSlugs: [],
+        purchasedTrackKeys: [],
       };
     }
 
@@ -1026,6 +1032,7 @@ export const readPublicPurchasesBySlug = async (slug: string): Promise<{
       slug: normalizedSlug,
       purchasesVisible: false,
       purchasedReleaseSlugs: [],
+      purchasedTrackKeys: [],
     };
   }
 };

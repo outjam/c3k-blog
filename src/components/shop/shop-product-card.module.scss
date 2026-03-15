@@ -93,6 +93,23 @@
   font-size: 0.74rem;
 }
 
+.infoChip {
+  min-height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.62rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+  color: var(--tg-subtitle-text) !important;
+  font-size: 0.72rem !important;
+  font-weight: 700;
+}
+
+.infoChipAccent {
+  background: color-mix(in srgb, var(--tg-accent) 10%, var(--tg-section-bg));
+  color: var(--tg-accent) !important;
+}
+
 .title {
   margin: 0;
   color: var(--tg-text);
@@ -115,6 +132,26 @@
   color: var(--tg-text);
   font-size: 0.8rem;
   font-weight: 700;
+}
+
+.priceBadge {
+  min-height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0 0.72rem;
+  border-radius: 999px;
+  background: #ffc53525;
+  color: #ffc535;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.priceBadgeIcon {
+  width: 0.86rem;
+  height: 0.86rem;
+  color: #ffc535;
+  flex-shrink: 0;
 }
 
 .playerActions {

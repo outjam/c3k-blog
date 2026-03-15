@@ -538,6 +538,11 @@
   flex-shrink: 0;
 }
 
+.collectionBadgePartial {
+  background: color-mix(in srgb, var(--tg-accent) 10%, var(--tg-section-bg));
+  color: var(--tg-accent);
+}
+
 .collectionMeta strong {
   color: var(--tg-text);
   font-size: 0.76rem;
