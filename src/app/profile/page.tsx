@@ -73,6 +73,7 @@ interface TrackRowDraft {
   title: string;
   previewUrl: string;
   durationSec: string;
+  priceStarsCents: string;
 }
 
 interface CollectionEntry {
@@ -88,6 +89,7 @@ const createTrackRowDraft = (index: number): TrackRowDraft => ({
   title: "",
   previewUrl: "",
   durationSec: "",
+  priceStarsCents: "",
 });
 
 const shouldIgnoreTabSwipe = (target: EventTarget | null): boolean => {
@@ -145,6 +147,11 @@ const normalizeReleaseTracklistDraft = (
         1,
         Math.min(60 * 60 * 12, duration),
       );
+    }
+
+    const priceStarsCents = Math.round(Number(row.priceStarsCents || "0"));
+    if (Number.isFinite(priceStarsCents) && priceStarsCents > 0) {
+      normalizedItem.priceStarsCents = priceStarsCents;
     }
 
     acc.push(normalizedItem);
@@ -246,6 +253,7 @@ export default function ProfilePage() {
     previewUrl: "",
     genre: "",
     priceStarsCents: "100",
+    isMintable: true,
     releaseTracklist: [createTrackRowDraft(1)],
   });
   const tabViewportRef = useRef<HTMLDivElement | null>(null);
@@ -979,6 +987,7 @@ export default function ProfilePage() {
         1,
         Math.round(Number(trackDraft.priceStarsCents || "1")),
       ),
+      isMintable: trackDraft.isMintable,
       releaseTracklist:
         normalizedTracklist.length > 0 ? normalizedTracklist : undefined,
     });
@@ -1001,6 +1010,7 @@ export default function ProfilePage() {
       previewUrl: "",
       genre: "",
       priceStarsCents: "100",
+      isMintable: true,
       releaseTracklist: [createTrackRowDraft(1)],
     });
   };
@@ -1565,6 +1575,19 @@ export default function ProfilePage() {
                         }
                       />
                     </label>
+                    <label className={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={trackDraft.isMintable}
+                        onChange={(event) =>
+                          setTrackDraft((prev) => ({
+                            ...prev,
+                            isMintable: event.target.checked,
+                          }))
+                        }
+                      />
+                      Доступен для NFT минта
+                    </label>
                     <label>
                       Описание
                       <textarea
@@ -1613,6 +1636,19 @@ export default function ProfilePage() {
                                 })
                               }
                               placeholder="https://..."
+                            />
+                          </label>
+                          <label>
+                            Цена трека
+                            <input
+                              type="number"
+                              min={1}
+                              value={row.priceStarsCents}
+                              onChange={(event) =>
+                                updateTrackRow(index, {
+                                  priceStarsCents: event.target.value,
+                                })
+                              }
                             />
                           </label>
                           <label>
@@ -1672,6 +1708,11 @@ export default function ProfilePage() {
                             <StarsIcon className={styles.inlineValueIcon} />
                             {formatStarsFromCents(track.priceStarsCents)}
                           </span>
+                          <small>
+                            {track.isMintable === false
+                              ? "NFT mint выключен"
+                              : "NFT mint доступен"}
+                          </small>
                         </article>
                       ))}
                     </div>

@@ -69,6 +69,22 @@ export const getProductPriceByFormat = (product: ShopProduct, format: ArtistAudi
   return selected?.priceStarsCents ?? product.priceStarsCents;
 };
 
+export const getReleaseTrackPrice = (
+  product: ShopProduct,
+  trackId: string,
+  fallbackFormat?: ArtistAudioFormat,
+): number => {
+  const track = Array.isArray(product.releaseTracklist)
+    ? product.releaseTracklist.find((entry) => entry.id === trackId)
+    : null;
+
+  if (track?.priceStarsCents && Number.isFinite(track.priceStarsCents)) {
+    return Math.max(1, Math.round(track.priceStarsCents));
+  }
+
+  return getProductPriceByFormat(product, fallbackFormat);
+};
+
 export const getCartItemKey = (item: Pick<CartItem, "productId" | "selectedFormat">): string => {
   return `${item.productId}::${item.selectedFormat ?? "default"}`;
 };

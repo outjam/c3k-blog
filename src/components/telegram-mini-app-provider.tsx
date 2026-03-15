@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { applyAppLocale, readLocalePreference, resolveAutoLocale } from "@/lib/app-locale";
 import { applyTelegramChromeColorsFromCssVars, getTelegramWebApp } from "@/lib/telegram";
 import { applyAppTheme, readThemePreference, resolveAutoTheme } from "@/lib/app-theme";
 
@@ -24,11 +25,18 @@ export function TelegramMiniAppProvider({ children }: { children: React.ReactNod
     };
 
     applyAppTheme(resolveAutoTheme());
+    applyAppLocale(resolveAutoLocale());
 
     void readThemePreference().then((savedTheme) => {
       if (savedTheme) {
         hasManualTheme = true;
         applyAppTheme(savedTheme);
+      }
+    });
+
+    void readLocalePreference().then((savedLocale) => {
+      if (savedLocale) {
+        applyAppLocale(savedLocale);
       }
     });
 

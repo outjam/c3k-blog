@@ -10,6 +10,21 @@ import { SegmentedTabs } from "@/components/segmented-tabs";
 import { StarsIcon } from "@/components/stars-icon";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { fetchMyArtistProfile } from "@/lib/admin-api";
+import {
+  APP_LOCALE_OPTIONS,
+  applyAppLocale,
+  readLocalePreference,
+  resolveAutoLocale,
+  saveLocalePreference,
+  type AppLocale,
+} from "@/lib/app-locale";
+import {
+  applyAppTheme,
+  readThemePreference,
+  resolveAutoTheme,
+  saveThemePreference,
+  type AppTheme,
+} from "@/lib/app-theme";
 import { SHOP_ORDER_STATUS_LABELS } from "@/lib/shop-order-status";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
@@ -85,7 +100,9 @@ export default function ProfileEditPage() {
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [canEnableArtistMode, setCanEnableArtistMode] = useState(false);
   const [orders, setOrders] = useState<ShopOrder[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [themePreference, setThemePreference] = useState<AppTheme>("light");
+  const [localePreference, setLocalePreference] = useState<AppLocale>("ru");
 
   const [profileSaving, setProfileSaving] = useState(false);
   const [modeSaving, setModeSaving] = useState(false);
@@ -112,7 +129,6 @@ export default function ProfileEditPage() {
     }
 
     let mounted = true;
-    setOrdersLoading(true);
 
     void (async () => {
       const [
@@ -179,6 +195,30 @@ export default function ProfileEditPage() {
 
     void writeTonWalletAddress(viewerKey, connectedAddress);
   }, [tonWallet?.account?.address, tonWalletAddress, viewerKey]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void readThemePreference().then((savedTheme) => {
+      if (!mounted) {
+        return;
+      }
+
+      setThemePreference(savedTheme ?? resolveAutoTheme());
+    });
+
+    void readLocalePreference().then((savedLocale) => {
+      if (!mounted) {
+        return;
+      }
+
+      setLocalePreference(savedLocale ?? resolveAutoLocale());
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const settingsTabs = useMemo(
     () => [
@@ -273,6 +313,20 @@ export default function ProfileEditPage() {
     const savedMode = await writeProfileMode(viewerKey, nextMode);
     setMode(savedMode);
     setModeSaving(false);
+  };
+
+  const handleThemeChange = async (theme: AppTheme) => {
+    setThemePreference(theme);
+    applyAppTheme(theme);
+    await saveThemePreference(theme);
+    setMessage("Тема интерфейса обновлена.");
+  };
+
+  const handleLocaleChange = async (locale: AppLocale) => {
+    setLocalePreference(locale);
+    applyAppLocale(locale);
+    await saveLocalePreference(locale);
+    setMessage("Язык интерфейса сохранён. Переводы можно расширять без изменения модели настроек.");
   };
 
   return (
@@ -520,6 +574,51 @@ export default function ProfileEditPage() {
                       onChange={() => void handleTogglePurchasesVisibility()}
                     />
                   </label>
+                </div>
+
+                <div className={styles.group}>
+                  <div className={styles.groupHeading}>
+                    <h2>Тема и язык</h2>
+                    <p>Локальные настройки интерфейса приложения.</p>
+                  </div>
+
+                  <div className={styles.rowList}>
+                    <div className={styles.infoRow}>
+                      <span>Тема</span>
+                      <div className={styles.choiceRow}>
+                        <button
+                          type="button"
+                          className={`${styles.choiceButton} ${themePreference === "light" ? styles.choiceButtonActive : ""}`}
+                          onClick={() => void handleThemeChange("light")}
+                        >
+                          Светлая
+                        </button>
+                        <button
+                          type="button"
+                          className={`${styles.choiceButton} ${themePreference === "dark" ? styles.choiceButtonActive : ""}`}
+                          onClick={() => void handleThemeChange("dark")}
+                        >
+                          Тёмная
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={styles.infoRow}>
+                      <span>Язык</span>
+                      <div className={styles.choiceRow}>
+                        {APP_LOCALE_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={`${styles.choiceButton} ${localePreference === option.value ? styles.choiceButtonActive : ""}`}
+                            onClick={() => void handleLocaleChange(option.value)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </section>
             ) : null}

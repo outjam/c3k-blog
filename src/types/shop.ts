@@ -151,6 +151,7 @@ export interface ArtistReleaseTrackItem {
   title: string;
   durationSec?: number;
   previewUrl?: string;
+  priceStarsCents?: number;
   position: number;
 }
 
@@ -190,6 +191,7 @@ export interface ArtistTrack {
   genre?: string;
   tags: string[];
   priceStarsCents: number;
+  isMintable?: boolean;
   status: ArtistTrackStatus;
   moderationNote?: string;
   playsCount: number;
@@ -299,6 +301,7 @@ export interface ShopProduct {
   releaseType?: ArtistReleaseType;
   formats?: ArtistTrackFormat[];
   releaseTracklist?: ArtistReleaseTrackItem[];
+  isMintable?: boolean;
   audioFileId?: string;
   previewUrl?: string;
   publishedAt?: string;

@@ -19,6 +19,7 @@ interface SocialUserState {
   walletCentsByUserId: Record<string, number>;
   purchasesVisibleByUserId: Record<string, boolean>;
   purchasedReleaseSlugsByUserId: Record<string, string[]>;
+  purchasedReleaseFormatKeysByUserId: Record<string, string[]>;
   purchasedTrackKeysByUserId: Record<string, string[]>;
   redeemedTopupPromoCodesByUserId: Record<string, string[]>;
   tonWalletAddressByUserId: Record<string, string>;
@@ -42,6 +43,7 @@ export interface SocialUserSnapshot {
   walletCents: number;
   purchasesVisible: boolean;
   purchasedReleaseSlugs: string[];
+  purchasedReleaseFormatKeys: string[];
   purchasedTrackKeys: string[];
   redeemedTopupPromoCodes: string[];
   tonWalletAddress?: string;
@@ -90,6 +92,20 @@ const normalizeTrackId = (value: unknown): string => {
     .slice(0, 80);
 };
 
+const normalizeReleaseFormat = (value: unknown): string => {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "aac":
+    case "alac":
+    case "flac":
+    case "mp3":
+    case "ogg":
+    case "wav":
+      return String(value).trim().toLowerCase();
+    default:
+      return "";
+  }
+};
+
 const normalizePromoCode = (value: unknown): string => {
   return String(value ?? "")
     .trim()
@@ -117,9 +133,25 @@ const toTrackPurchaseKey = (releaseSlug: unknown, trackId: unknown): string => {
   return `${release}::${track}`;
 };
 
+const toReleaseFormatPurchaseKey = (releaseSlug: unknown, format: unknown): string => {
+  const release = normalizeSlug(releaseSlug);
+  const normalizedFormat = normalizeReleaseFormat(format);
+
+  if (!release || !normalizedFormat) {
+    return "";
+  }
+
+  return `${release}::${normalizedFormat}`;
+};
+
 const normalizeTrackPurchaseKey = (value: unknown): string => {
   const [releaseSlug = "", trackId = ""] = String(value ?? "").split("::", 2);
   return toTrackPurchaseKey(releaseSlug, trackId);
+};
+
+const normalizeReleaseFormatPurchaseKey = (value: unknown): string => {
+  const [releaseSlug = "", format = ""] = String(value ?? "").split("::", 2);
+  return toReleaseFormatPurchaseKey(releaseSlug, format);
 };
 
 const normalizeStringList = (value: unknown): string[] => {
@@ -150,6 +182,25 @@ const normalizeTrackPurchaseKeyList = (value: unknown): string[] => {
 
   return value
     .map((entry) => normalizeTrackPurchaseKey(entry))
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) {
+        return false;
+      }
+
+      seen.add(entry);
+      return true;
+    });
+};
+
+const normalizeReleaseFormatPurchaseKeyList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value
+    .map((entry) => normalizeReleaseFormatPurchaseKey(entry))
     .filter((entry) => {
       if (!entry || seen.has(entry)) {
         return false;
@@ -282,6 +333,7 @@ const sanitizeState = (value: unknown): SocialUserState => {
       walletCentsByUserId: {},
       purchasesVisibleByUserId: {},
       purchasedReleaseSlugsByUserId: {},
+      purchasedReleaseFormatKeysByUserId: {},
       purchasedTrackKeysByUserId: {},
       redeemedTopupPromoCodesByUserId: {},
       tonWalletAddressByUserId: {},
@@ -318,6 +370,16 @@ const sanitizeState = (value: unknown): SocialUserState => {
           Object.entries(source.purchasedReleaseSlugsByUserId as Record<string, unknown>).flatMap(([rawUserId, rawValue]) => {
             const userId = normalizeUserId(rawUserId);
             return userId ? [[userId, normalizeStringList(rawValue)]] : [];
+          }),
+        )
+      : {};
+
+  const purchasedReleaseFormatKeysByUserId =
+    source.purchasedReleaseFormatKeysByUserId && typeof source.purchasedReleaseFormatKeysByUserId === "object"
+      ? Object.fromEntries(
+          Object.entries(source.purchasedReleaseFormatKeysByUserId as Record<string, unknown>).flatMap(([rawUserId, rawValue]) => {
+            const userId = normalizeUserId(rawUserId);
+            return userId ? [[userId, normalizeReleaseFormatPurchaseKeyList(rawValue)]] : [];
           }),
         )
       : {};
@@ -367,6 +429,7 @@ const sanitizeState = (value: unknown): SocialUserState => {
     walletCentsByUserId,
     purchasesVisibleByUserId,
     purchasedReleaseSlugsByUserId,
+    purchasedReleaseFormatKeysByUserId,
     purchasedTrackKeysByUserId,
     redeemedTopupPromoCodesByUserId,
     tonWalletAddressByUserId,
@@ -564,12 +627,24 @@ const resolveUserKeyByProfileSlug = async (slug: string): Promise<string> => {
 
 const buildSnapshot = (state: SocialUserState, userKey: string): SocialUserSnapshot => {
   const tonWalletAddress = normalizeTonAddress(state.tonWalletAddressByUserId[userKey]);
+  const purchasedReleaseFormatKeys = normalizeReleaseFormatPurchaseKeyList(
+    state.purchasedReleaseFormatKeysByUserId[userKey],
+  );
+  const purchasedReleaseSlugs = Array.from(
+    new Set([
+      ...normalizeStringList(state.purchasedReleaseSlugsByUserId[userKey]),
+      ...purchasedReleaseFormatKeys
+        .map((entry) => entry.split("::", 1)[0] ?? "")
+        .filter(Boolean),
+    ]),
+  );
 
   return {
     walletCents: normalizeNonNegativeInt(state.walletCentsByUserId[userKey]),
     purchasesVisible:
       typeof state.purchasesVisibleByUserId[userKey] === "boolean" ? state.purchasesVisibleByUserId[userKey] : true,
-    purchasedReleaseSlugs: normalizeStringList(state.purchasedReleaseSlugsByUserId[userKey]),
+    purchasedReleaseSlugs,
+    purchasedReleaseFormatKeys,
     purchasedTrackKeys: normalizeTrackPurchaseKeyList(state.purchasedTrackKeysByUserId[userKey]),
     redeemedTopupPromoCodes: normalizePromoCodeList(state.redeemedTopupPromoCodesByUserId[userKey]),
     tonWalletAddress: tonWalletAddress || undefined,
@@ -1005,11 +1080,13 @@ export const purchaseSocialReleaseWithWallet = async (
   releaseSlug: string,
   trackIds: string[],
   amountCents: number,
+  format: string,
 ): Promise<
   | {
       ok: true;
       balanceCents: number;
       releaseSlugs: string[];
+      releaseFormatKeys: string[];
       trackKeys: string[];
     }
   | {
@@ -1017,18 +1094,21 @@ export const purchaseSocialReleaseWithWallet = async (
       reason: "already_owned" | "insufficient_funds";
       balanceCents: number;
       releaseSlugs: string[];
+      releaseFormatKeys: string[];
       trackKeys: string[];
     }
   | null
 > => {
   const userKey = resolveUserKey(telegramUserId);
   const normalizedReleaseSlug = normalizeSlug(releaseSlug);
+  const normalizedFormat = normalizeReleaseFormat(format);
+  const normalizedReleaseFormatKey = toReleaseFormatPurchaseKey(releaseSlug, format);
   const normalizedTrackKeys = trackIds
     .map((trackId) => toTrackPurchaseKey(releaseSlug, trackId))
     .filter(Boolean);
   const amount = Math.max(1, normalizeNonNegativeInt(amountCents));
 
-  if (!userKey || !normalizedReleaseSlug || amount < 1) {
+  if (!userKey || !normalizedReleaseSlug || !normalizedFormat || !normalizedReleaseFormatKey || amount < 1) {
     return null;
   }
 
@@ -1040,7 +1120,7 @@ export const purchaseSocialReleaseWithWallet = async (
     }
 
     const snapshot = buildSnapshot(current.state, userKey);
-    const alreadyOwned = snapshot.purchasedReleaseSlugs.includes(normalizedReleaseSlug);
+    const alreadyOwned = snapshot.purchasedReleaseFormatKeys.includes(normalizedReleaseFormatKey);
 
     if (alreadyOwned) {
       return {
@@ -1048,6 +1128,7 @@ export const purchaseSocialReleaseWithWallet = async (
         reason: "already_owned",
         balanceCents: snapshot.walletCents,
         releaseSlugs: snapshot.purchasedReleaseSlugs,
+        releaseFormatKeys: snapshot.purchasedReleaseFormatKeys,
         trackKeys: snapshot.purchasedTrackKeys,
       };
     }
@@ -1058,11 +1139,15 @@ export const purchaseSocialReleaseWithWallet = async (
         reason: "insufficient_funds",
         balanceCents: snapshot.walletCents,
         releaseSlugs: snapshot.purchasedReleaseSlugs,
+        releaseFormatKeys: snapshot.purchasedReleaseFormatKeys,
         trackKeys: snapshot.purchasedTrackKeys,
       };
     }
 
-    const nextReleaseSlugs = [normalizedReleaseSlug, ...snapshot.purchasedReleaseSlugs];
+    const nextReleaseSlugs = snapshot.purchasedReleaseSlugs.includes(normalizedReleaseSlug)
+      ? snapshot.purchasedReleaseSlugs
+      : [normalizedReleaseSlug, ...snapshot.purchasedReleaseSlugs];
+    const nextReleaseFormatKeys = prependUniqueValues(snapshot.purchasedReleaseFormatKeys, [normalizedReleaseFormatKey]);
     const nextTrackKeys = prependUniqueValues(snapshot.purchasedTrackKeys, normalizedTrackKeys);
     const nextBalance = snapshot.walletCents - amount;
 
@@ -1075,6 +1160,10 @@ export const purchaseSocialReleaseWithWallet = async (
       purchasedReleaseSlugsByUserId: {
         ...current.state.purchasedReleaseSlugsByUserId,
         [userKey]: nextReleaseSlugs,
+      },
+      purchasedReleaseFormatKeysByUserId: {
+        ...current.state.purchasedReleaseFormatKeysByUserId,
+        [userKey]: nextReleaseFormatKeys,
       },
       purchasedTrackKeysByUserId: {
         ...current.state.purchasedTrackKeysByUserId,
@@ -1090,6 +1179,7 @@ export const purchaseSocialReleaseWithWallet = async (
         ok: true,
         balanceCents: nextBalance,
         releaseSlugs: nextReleaseSlugs,
+        releaseFormatKeys: nextReleaseFormatKeys,
         trackKeys: nextTrackKeys,
       };
     }
@@ -1101,6 +1191,109 @@ export const purchaseSocialReleaseWithWallet = async (
 
   if (POSTGRES_STRICT) {
     throwStrictError("Failed to purchase release with wallet in Postgres");
+  }
+
+  return null;
+};
+
+export const purchaseSocialTrackWithWallet = async (
+  telegramUserId: number,
+  releaseSlug: string,
+  trackId: string,
+  amountCents: number,
+): Promise<
+  | {
+      ok: true;
+      balanceCents: number;
+      releaseSlugs: string[];
+      releaseFormatKeys: string[];
+      trackKeys: string[];
+    }
+  | {
+      ok: false;
+      reason: "already_owned" | "insufficient_funds";
+      balanceCents: number;
+      releaseSlugs: string[];
+      releaseFormatKeys: string[];
+      trackKeys: string[];
+    }
+  | null
+> => {
+  const userKey = resolveUserKey(telegramUserId);
+  const normalizedReleaseSlug = normalizeSlug(releaseSlug);
+  const normalizedTrackKey = toTrackPurchaseKey(releaseSlug, trackId);
+  const amount = Math.max(1, normalizeNonNegativeInt(amountCents));
+
+  if (!userKey || !normalizedReleaseSlug || !normalizedTrackKey || amount < 1) {
+    return null;
+  }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const current = await readStateWithVersion();
+
+    if (!current) {
+      break;
+    }
+
+    const snapshot = buildSnapshot(current.state, userKey);
+    const alreadyOwned = snapshot.purchasedTrackKeys.includes(normalizedTrackKey);
+
+    if (alreadyOwned) {
+      return {
+        ok: false,
+        reason: "already_owned",
+        balanceCents: snapshot.walletCents,
+        releaseSlugs: snapshot.purchasedReleaseSlugs,
+        releaseFormatKeys: snapshot.purchasedReleaseFormatKeys,
+        trackKeys: snapshot.purchasedTrackKeys,
+      };
+    }
+
+    if (snapshot.walletCents < amount) {
+      return {
+        ok: false,
+        reason: "insufficient_funds",
+        balanceCents: snapshot.walletCents,
+        releaseSlugs: snapshot.purchasedReleaseSlugs,
+        releaseFormatKeys: snapshot.purchasedReleaseFormatKeys,
+        trackKeys: snapshot.purchasedTrackKeys,
+      };
+    }
+
+    const nextBalance = snapshot.walletCents - amount;
+    const nextTrackKeys = prependUniqueValues(snapshot.purchasedTrackKeys, [normalizedTrackKey]);
+    const next = sanitizeState({
+      ...current.state,
+      walletCentsByUserId: {
+        ...current.state.walletCentsByUserId,
+        [userKey]: nextBalance,
+      },
+      purchasedTrackKeysByUserId: {
+        ...current.state.purchasedTrackKeysByUserId,
+        [userKey]: nextTrackKeys,
+      },
+      updatedAt: new Date().toISOString(),
+    });
+
+    const saved = await writeState(next, current.rowVersion);
+
+    if (saved.ok) {
+      return {
+        ok: true,
+        balanceCents: nextBalance,
+        releaseSlugs: snapshot.purchasedReleaseSlugs,
+        releaseFormatKeys: snapshot.purchasedReleaseFormatKeys,
+        trackKeys: nextTrackKeys,
+      };
+    }
+
+    if (!saved.conflict) {
+      break;
+    }
+  }
+
+  if (POSTGRES_STRICT) {
+    throwStrictError("Failed to purchase track with wallet in Postgres");
   }
 
   return null;

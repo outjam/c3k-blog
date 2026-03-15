@@ -3,252 +3,151 @@
   display: grid;
   justify-items: center;
   background: var(--tg-bg);
-  padding-top: calc(0.9rem + var(--safe-area-top));
-  padding-right: calc(1rem + var(--safe-area-right));
-  padding-bottom: calc(1rem + var(--safe-area-bottom));
-  padding-left: calc(1rem + var(--safe-area-left));
+  padding: calc(0.9rem + var(--safe-area-top)) calc(1rem + var(--safe-area-right))
+    calc(1.25rem + var(--safe-area-bottom))
+    calc(1rem + var(--safe-area-left));
   overflow-x: clip;
 }
 
 .container {
   width: min(100%, 760px);
   display: grid;
-  gap: 1.35rem;
+  gap: 1.25rem;
 }
 
 .hero,
-.section {
-  display: grid;
-  gap: 0.9rem;
-  border: 0;
+.section,
+.panel,
+.commentCard,
+.modalCard {
   background: transparent;
-  padding: 0;
+  border: 0;
 }
 
 .hero {
-  grid-template-columns: minmax(0, 1fr) minmax(250px, 0.82fr);
-  align-items: start;
-  gap: 1.15rem;
-}
-
-.heroContent {
-  min-width: 0;
   display: grid;
-  gap: 0.9rem;
-  align-content: start;
+  gap: 1rem;
 }
 
-.kicker {
-  width: fit-content;
-  min-height: 1.45rem;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0.58rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-bg) 86%, var(--tg-bg));
-  color: var(--tg-subtitle-text);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.titleRow {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.8rem;
-}
-
-.titleMeta {
-  min-width: 0;
-  display: grid;
-  gap: 0.22rem;
-}
-
-.titleMeta h1 {
-  margin: 0;
-  color: var(--tg-text);
-  font-size: clamp(1.2rem, 4vw, 1.64rem);
-  line-height: 1.05;
-}
-
-.artistLine {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.84rem;
-}
-
-.artistLine a {
-  color: var(--tg-link);
-  text-decoration: none;
-}
-
-.favoriteButton,
-.secondaryButton,
-.modalClose,
-.modalSecondary,
-.trackPlayButton {
-  min-height: 2.35rem;
-  border: 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
-  color: var(--tg-text);
-  padding: 0 0.9rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.favoriteButton:disabled,
-.secondaryButton:disabled,
-.primaryButton:disabled,
-.addButton:disabled,
-.modalClose:disabled,
-.modalSecondary:disabled,
-.trackPlayButton:disabled,
-.reactionButton:disabled {
-  opacity: 0.56;
-}
-
-.description {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.86rem;
-  line-height: 1.55;
-}
-
-.heroStats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-}
-
-.heroStats article {
-  min-width: 0;
-  flex: 1 1 132px;
-  display: grid;
-  gap: 0.14rem;
-  padding: 0.82rem 0.88rem;
-  border-radius: 1.05rem;
-  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
-}
-
-.heroStats span {
-  color: var(--tg-hint);
-  font-size: 0.71rem;
-}
-
-.heroStats strong {
-  color: var(--tg-text);
-  font-size: 0.83rem;
-  font-weight: 700;
-}
-
-.priceRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.price {
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.34rem;
-  color: var(--tg-text);
-  font-size: 1.12rem;
-  font-weight: 800;
-}
-
-.priceIcon,
-.walletBalanceIcon,
-.inlineStarsIcon {
-  flex-shrink: 0;
-  color: var(--tg-accent);
-}
-
-.priceIcon {
-  width: 1rem;
-  height: 1rem;
-}
-
-.statusBadges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.statusBadge {
-  min-height: 1.55rem;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0.62rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
-  color: var(--tg-subtitle-text);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.statusBadgeAccent {
-  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
-  color: var(--tg-accent);
-}
-
-.heroActions,
-.modalActions,
-.nftActions,
-.reactionRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.primaryButton,
-.addButton {
-  min-height: 2.55rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--tg-accent);
-  color: var(--tg-accent-text, #fff);
-  padding: 0 1rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.notice {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-
-.coverShell {
+.heroCoverWrap {
   position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 1.45rem;
   overflow: hidden;
-  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+  border-radius: 1.65rem;
+  aspect-ratio: 1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+    color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
 }
 
 .cover {
   width: 100%;
   height: 100%;
-  display: block;
   object-fit: cover;
+  display: block;
 }
 
-.sectionHeader {
+.heroBody {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.heroTopline,
+.heroActions,
+.heroBadges,
+.formatRow,
+.releasePurchaseMeta,
+.panelActions,
+.reactionRow,
+.modalActions,
+.socialCounters {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
 }
 
+.heroTopline {
+  justify-content: space-between;
+}
+
+.releaseTypePill,
+.statusBadge,
+.panelState,
+.sectionEyebrow {
+  min-height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.statusBadgeAccent {
+  color: var(--tg-accent);
+  background: color-mix(in srgb, var(--tg-accent) 12%, var(--tg-section-bg));
+}
+
+.favoriteButton,
+.secondaryButton,
+.trackBuyButton,
+.inlineAction {
+  min-height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, var(--tg-bg));
+  color: var(--tg-text);
+  padding: 0 0.92rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.primaryButton {
+  min-height: 2.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tg-accent);
+  color: var(--tg-button-text, #fff);
+  padding: 0 1.02rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.favoriteButton:disabled,
+.trackBuyButton:disabled,
+.inlineAction:disabled,
+.trackPlayButton:disabled,
+.reactionButton:disabled {
+  opacity: 0.55;
+}
+
+.buttonIcon,
+.trackPlayIcon,
+.counterIcon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.heroHeading {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.heroHeading h1,
 .sectionHeader h2,
 .panelHeader h3,
 .modalHead h2 {
@@ -256,292 +155,333 @@
   color: var(--tg-text);
 }
 
-.sectionHeader h2 {
-  font-size: 0.96rem;
+.heroHeading h1 {
+  font-size: clamp(1.7rem, 6vw, 2.4rem);
+  line-height: 0.98;
 }
 
-.sectionHeader p,
-.panelHeader span {
+.artistLine,
+.description,
+.panelText,
+.modalText,
+.inlineHint,
+.emptyState,
+.commentComposerMeta p,
+.commentComposerMeta span,
+.commentCard time,
+.modalNotes p {
   margin: 0;
-  color: var(--tg-hint);
-  font-size: 0.74rem;
+  color: var(--tg-subtitle-text);
+  line-height: 1.55;
 }
 
-.formatGrid,
-.accessGrid {
+.artistLine {
+  font-size: 0.92rem;
+}
+
+.artistLine a,
+.commentAuthor a {
+  color: var(--tg-link);
+  text-decoration: none;
+}
+
+.heroStats {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
 }
 
-.formatGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.heroStats article,
+.releasePurchaseCard,
+.releasePurchaseMeta > div,
+.panel,
+.commentComposer,
+.commentAuthState,
+.commentCard,
+.modalWallet,
+.modalNotes,
+.skeletonSection,
+.skeletonHero {
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+  border-radius: 1.35rem;
 }
 
-.formatChip {
-  min-height: 3rem;
+.heroStats article {
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.heroStats span,
+.releasePurchaseLabel,
+.releasePurchaseMeta span,
+.trackMeta small,
+.sectionHeader p,
+.panelHeader .sectionEyebrow,
+.commentComposerMeta span {
+  font-size: 0.75rem;
+}
+
+.heroStats strong,
+.releasePurchaseMeta strong,
+.trackMeta strong,
+.panelHeader h3,
+.commentAuthor a {
+  font-size: 0.92rem;
+}
+
+.notice {
+  margin: 0;
+  padding: 0.82rem 0.92rem;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--tg-accent) 8%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.section,
+.panelGrid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.sectionHeader,
+.panelHeader,
+.modalHead,
+.commentHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.sectionHeader > div,
+.panelHeader > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.releasePurchaseCard {
+  padding: 0.95rem;
+  display: grid;
+  justify-items: end;
+  gap: 0.42rem;
+}
+
+.starsBadge {
+  width: fit-content;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0 0.76rem;
+  border-radius: 999px;
+  background: #ffc53525;
+  color: #ffc535;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.starsBadgeIcon {
+  width: 0.92rem;
+  height: 0.92rem;
+  flex-shrink: 0;
+  color: #ffc535;
+}
+
+.formatRow {
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-inline: calc(-1rem - var(--safe-area-left));
+  padding-inline: calc(1rem + var(--safe-area-left))
+    calc(1rem + var(--safe-area-right));
+}
+
+.formatRow::-webkit-scrollbar {
+  display: none;
+}
+
+.formatButton {
+  min-width: max-content;
+  display: grid;
+  gap: 0.38rem;
+  padding: 0.85rem 0.95rem;
   border: 0;
-  border-radius: 1.05rem;
+  border-radius: 1.2rem;
   background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
   color: var(--tg-text);
-  display: grid;
-  justify-items: start;
-  gap: 0.12rem;
   text-align: left;
-  padding: 0.58rem 0.78rem;
 }
 
-.formatChip span {
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.formatChip small {
+.formatButton small {
   color: var(--tg-subtitle-text);
   font-size: 0.72rem;
 }
 
-.formatChipActive {
-  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
+.formatButtonActive {
+  background: color-mix(in srgb, var(--tg-accent) 10%, var(--tg-section-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tg-accent) 24%, transparent);
 }
 
-.inlineStars {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
+.releasePurchaseMeta {
+  justify-content: space-between;
 }
 
-.inlineStarsIcon {
-  width: 0.78rem;
-  height: 0.78rem;
+.releasePurchaseMeta > div {
+  flex: 1 1 220px;
+  padding: 0.92rem;
+  display: grid;
+  gap: 0.32rem;
 }
 
-.tracklist {
+.trackList {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.65rem;
 }
 
-.tracklist li {
+.trackRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.8rem 0.88rem;
-  border-radius: 1.05rem;
+  gap: 0.82rem;
+  padding: 0.82rem 0.92rem;
+  border-radius: 1.25rem;
   background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
 }
 
-.trackIndex {
-  width: 2rem;
-  min-height: 2rem;
-  border-radius: 999px;
+.trackPlayButton {
+  width: 2.5rem;
+  height: 2.5rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--tg-bg) 76%, var(--tg-section-bg));
-  color: var(--tg-hint);
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-
-.trackPlayButton {
-  width: 2.2rem;
-  padding: 0;
-  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tg-accent);
+  color: var(--tg-button-text, #fff);
 }
 
 .trackMeta {
   min-width: 0;
   display: grid;
-  gap: 0.08rem;
-}
-
-.trackMeta strong,
-.trackMeta small {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  gap: 0.18rem;
 }
 
 .trackMeta strong {
-  color: var(--tg-text);
-  font-size: 0.81rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.trackMeta small {
-  color: var(--tg-hint);
-  font-size: 0.72rem;
+.trackPurchase {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
 }
 
-.accessGrid {
+.panelGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.accessPanel {
-  display: grid;
-  gap: 0.72rem;
-  align-content: start;
+.panel {
   padding: 1rem;
-  border-radius: 1.24rem;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--tg-section-bg) 96%, transparent),
-      color-mix(in srgb, var(--tg-bg) 86%, var(--tg-section-bg))
-    );
-  box-shadow:
-    0 14px 32px color-mix(in srgb, #000 6%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.panelHeader {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.panelHeader h3 {
-  font-size: 0.9rem;
+  display: grid;
+  gap: 0.8rem;
 }
 
 .panelText,
-.modalText,
-.modalNotes p,
-.commentAuthState p,
-.emptyComments,
-.commentCard p {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.79rem;
-  line-height: 1.45;
+.inlineHint,
+.emptyState {
+  font-size: 0.82rem;
 }
 
-.walletBalanceLine {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.82rem 0.86rem;
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--tg-bg) 76%, var(--tg-section-bg));
-}
-
-.walletBalanceLine span {
-  color: var(--tg-subtitle-text);
-  font-size: 0.76rem;
-}
-
-.walletBalanceLine strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.28rem;
-  color: var(--tg-text);
-  font-size: 0.92rem;
-}
-
-.walletBalanceIcon {
-  width: 0.86rem;
-  height: 0.86rem;
-}
-
-.tonConnectButton {
-  flex-shrink: 0;
+.reactionRow {
+  gap: 0.7rem;
 }
 
 .reactionButton {
-  min-height: 2.45rem;
+  min-width: 4.1rem;
+  min-height: 3.05rem;
+  display: inline-grid;
+  place-items: center;
+  gap: 0.16rem;
   border: 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
   color: var(--tg-text);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.34rem;
-  padding: 0 0.8rem;
+  padding: 0.45rem 0.75rem;
 }
 
 .reactionButtonActive {
-  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
+  background: color-mix(in srgb, var(--tg-accent) 10%, var(--tg-section-bg));
+  color: var(--tg-accent);
 }
 
-.reactionEmoji {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.reactionCount {
-  min-width: 1.5rem;
-  min-height: 1.35rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tg-bg) 78%, var(--tg-section-bg));
+.reactionButton small,
+.socialCounters span {
   color: var(--tg-subtitle-text);
-  font-size: 0.7rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.socialCounters span {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.34rem;
 }
 
 .commentComposer,
-.commentAuthState,
-.commentsList,
-.commentCard,
-.modalCard,
-.modalWallet,
-.modalNotes {
+.commentAuthState {
+  padding: 1rem;
   display: grid;
-  gap: 0.55rem;
-}
-
-.commentComposerMeta,
-.releaseCommentsHead,
-.modalHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.commentComposerMeta p,
-.commentComposerMeta span {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.74rem;
+  gap: 0.75rem;
 }
 
 .commentComposer textarea {
-  min-height: 4.8rem;
+  min-height: 7.5rem;
+  resize: vertical;
   border: 0;
   border-radius: 1rem;
-  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+  background: var(--tg-bg);
   color: var(--tg-text);
+  padding: 0.9rem 1rem;
   font: inherit;
-  padding: 0.76rem 0.82rem;
-  resize: vertical;
 }
 
-.commentAuthState,
-.commentCard {
-  padding: 0.92rem 0.96rem;
-  border-radius: 1.05rem;
-  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
-}
-
-.commentCard header {
+.commentComposerMeta {
   display: flex;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.8rem;
+}
+
+.commentsList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.commentCard {
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.commentHeader {
+  align-items: center;
 }
 
 .commentAuthor {
-  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.72rem;
+}
+
+.commentAuthor > div {
+  display: grid;
+  gap: 0.12rem;
 }
 
 .commentAvatar,
@@ -559,134 +499,242 @@
 .commentAvatarFallback {
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--tg-bg) 76%, var(--tg-section-bg));
-  color: var(--tg-text);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.commentCard a {
-  color: var(--tg-link);
-  text-decoration: none;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.commentCard time {
-  color: var(--tg-hint);
-  font-size: 0.7rem;
-}
-
-.commentCard button {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--tg-destructive-text);
-  font-size: 0.72rem;
-  font-weight: 700;
+  background: color-mix(in srgb, var(--tg-accent) 15%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-size: 0.76rem;
+  font-weight: 800;
 }
 
 .modalBackdrop {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 90;
   display: grid;
-  place-items: center;
-  padding-top: calc(1rem + var(--safe-area-top));
-  padding-right: calc(1rem + var(--safe-area-right));
+  place-items: end center;
+  background: rgba(15, 19, 30, 0.46);
+  padding: 1rem;
   padding-bottom: calc(1rem + var(--safe-area-bottom));
-  padding-left: calc(1rem + var(--safe-area-left));
-  background: color-mix(in srgb, #000 42%, transparent);
 }
 
 .modalCard {
-  width: min(520px, 100%);
-  padding: 1rem;
-  border-radius: 1.2rem;
-  background: var(--tg-section-bg);
-  box-shadow: 0 18px 40px color-mix(in srgb, #000 20%, transparent);
+  width: min(100%, 480px);
+  padding: 1.05rem;
+  display: grid;
+  gap: 0.85rem;
+  background: color-mix(in srgb, var(--tg-bg) 94%, var(--tg-section-bg));
 }
 
-.modalHead h2 {
-  font-size: 0.95rem;
-}
-
-.modalWallet {
-  padding: 0.88rem 0.94rem;
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--tg-bg) 76%, var(--tg-section-bg));
+.modalWallet,
+.modalNotes {
+  padding: 0.88rem 0.92rem;
+  display: grid;
+  gap: 0.35rem;
 }
 
 .modalWallet span {
   color: var(--tg-subtitle-text);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
 }
 
 .modalWallet code {
+  overflow-wrap: anywhere;
   color: var(--tg-text);
-  font-size: 0.77rem;
-  word-break: break-all;
+  font-size: 0.8rem;
 }
 
-@media (max-width: 760px) {
-  .hero {
-    grid-template-columns: 1fr;
+.tonConnectButton :global(button) {
+  min-height: 2.4rem;
+  border-radius: 999px;
+}
+
+.skeletonStack {
+  display: grid;
+  gap: 1rem;
+}
+
+.skeletonHero {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.skeletonSection {
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.skeletonCover,
+.skeletonKicker,
+.skeletonTitle,
+.skeletonLine,
+.skeletonLineWide,
+.skeletonTabs,
+.skeletonTrackIndex,
+.skeletonPrice,
+.skeletonButton,
+.skeletonPill,
+.skeletonShort,
+.skeletonPanel {
+  display: block;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg)) 0%,
+      color-mix(in srgb, white 12%, var(--tg-section-bg)) 50%,
+      color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg)) 100%
+    );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.3s linear infinite;
+}
+
+.skeletonCover {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 1.5rem;
+}
+
+.skeletonMeta {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.skeletonKicker {
+  width: 5.2rem;
+  height: 1.2rem;
+}
+
+.skeletonTitle {
+  width: min(75%, 16rem);
+  height: 1.65rem;
+}
+
+.skeletonLine {
+  width: 100%;
+  height: 0.88rem;
+}
+
+.skeletonLineWide {
+  width: 92%;
+  height: 0.88rem;
+}
+
+.skeletonActions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.skeletonPill,
+.skeletonButton {
+  width: 6.5rem;
+  height: 2.4rem;
+}
+
+.skeletonTabs {
+  width: 100%;
+  height: 3rem;
+  border-radius: 1.2rem;
+}
+
+.skeletonTrackRow {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 5rem 5.5rem;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.skeletonTrackIndex {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.skeletonTrackMeta {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.skeletonLineShort {
+  width: 7rem;
+  height: 0.82rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg)) 0%,
+      color-mix(in srgb, white 12%, var(--tg-section-bg)) 50%,
+      color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg)) 100%
+    );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.3s linear infinite;
+}
+
+.skeletonPrice {
+  width: 5rem;
+  height: 2rem;
+}
+
+.skeletonPanelGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.skeletonPanel {
+  width: 100%;
+  min-height: 8.5rem;
+  border-radius: 1.25rem;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
   }
 
-  .coverShell {
-    order: -1;
-    aspect-ratio: 1.12;
+  100% {
+    background-position: -200% 0;
   }
+}
 
-  .accessGrid {
+@media (min-width: 700px) {
+  .hero,
+  .skeletonHero {
+    grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 699px) {
+  .panelGrid,
+  .skeletonPanelGrid {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   .page {
-    padding-top: calc(0.78rem + var(--safe-area-top));
-    padding-right: calc(0.78rem + var(--safe-area-right));
-    padding-bottom: calc(0.9rem + var(--safe-area-bottom));
-    padding-left: calc(0.78rem + var(--safe-area-left));
+    padding-inline: calc(0.8rem + var(--safe-area-left))
+      calc(0.8rem + var(--safe-area-right));
   }
 
-  .formatGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .titleRow,
-  .heroActions,
-  .priceRow,
-  .sectionHeader,
-  .modalActions,
-  .modalHead {
-    align-items: stretch;
-  }
-
-  .titleRow,
-  .heroActions,
-  .priceRow,
-  .sectionHeader,
-  .modalActions {
-    flex-direction: column;
-  }
-
-  .favoriteButton,
-  .primaryButton,
-  .secondaryButton,
-  .addButton,
-  .modalSecondary {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .tracklist li {
+  .trackRow {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .trackPlayButton {
+  .trackPurchase {
     grid-column: 1 / -1;
-    width: 100%;
+    grid-template-columns: 1fr auto;
+    justify-items: stretch;
+    align-items: center;
+  }
+
+  .releasePurchaseMeta > div {
+    flex-basis: 100%;
+  }
+
+  .formatRow {
+    margin-inline: calc(-0.8rem - var(--safe-area-left));
+    padding-inline: calc(0.8rem + var(--safe-area-left))
+      calc(0.8rem + var(--safe-area-right));
   }
 }

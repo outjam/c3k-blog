@@ -12,6 +12,7 @@ import {
   getSocialUserSnapshot,
   mintSocialPurchasedReleaseNft,
   purchaseSocialReleaseWithWallet,
+  purchaseSocialTrackWithWallet,
   redeemSocialTopupPromoCode,
   setSocialPurchasesVisibility,
   setSocialTonWalletAddress,
@@ -30,6 +31,7 @@ interface StateMutateBody {
   releaseSlug?: unknown;
   trackId?: unknown;
   trackIds?: unknown;
+  format?: unknown;
   code?: unknown;
   address?: unknown;
   txHash?: unknown;
@@ -69,6 +71,20 @@ const normalizeTrackId = (value: unknown): string => {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+};
+
+const normalizeReleaseFormat = (value: unknown): string => {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "aac":
+    case "alac":
+    case "flac":
+    case "mp3":
+    case "ogg":
+    case "wav":
+      return String(value).trim().toLowerCase();
+    default:
+      return "";
+  }
 };
 
 const normalizePromoCode = (value: unknown): string => {
@@ -286,15 +302,33 @@ export async function POST(request: Request) {
       const releaseSlug = normalizeSlug(payload.releaseSlug);
       const trackIds = normalizeTrackIdList(payload.trackIds);
       const amountCents = normalizePositiveInt(payload.amountCents);
+      const format = normalizeReleaseFormat(payload.format);
 
-      if (!releaseSlug || amountCents < 1) {
-        return NextResponse.json({ error: "releaseSlug and amountCents are required" }, { status: 400 });
+      if (!releaseSlug || !format || amountCents < 1) {
+        return NextResponse.json({ error: "releaseSlug, format and amountCents are required" }, { status: 400 });
       }
 
-      const result = await purchaseSocialReleaseWithWallet(auth.telegramUserId, releaseSlug, trackIds, amountCents);
+      const result = await purchaseSocialReleaseWithWallet(auth.telegramUserId, releaseSlug, trackIds, amountCents, format);
 
       if (!result) {
         return serverError("Failed to purchase release with wallet");
+      }
+
+      return NextResponse.json(result);
+    }
+    case "track_wallet_purchase": {
+      const releaseSlug = normalizeSlug(payload.releaseSlug);
+      const trackId = normalizeTrackId(payload.trackId);
+      const amountCents = normalizePositiveInt(payload.amountCents);
+
+      if (!releaseSlug || !trackId || amountCents < 1) {
+        return NextResponse.json({ error: "releaseSlug, trackId and amountCents are required" }, { status: 400 });
+      }
+
+      const result = await purchaseSocialTrackWithWallet(auth.telegramUserId, releaseSlug, trackId, amountCents);
+
+      if (!result) {
+        return serverError("Failed to purchase track with wallet");
       }
 
       return NextResponse.json(result);

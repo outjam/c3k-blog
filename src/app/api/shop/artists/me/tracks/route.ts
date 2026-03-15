@@ -21,6 +21,7 @@ interface CreateTrackBody {
   priceStarsCents?: number;
   formats?: ArtistTrack["formats"];
   releaseTracklist?: ArtistTrack["releaseTracklist"];
+  isMintable?: boolean;
 }
 
 interface PatchTrackBody extends CreateTrackBody {
@@ -162,6 +163,10 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
                 ? clampNumber(source.durationSec, 0, 60 * 60 * 12)
                 : undefined,
             previewUrl: normalizeOptionalText(source.previewUrl, 3000),
+            priceStarsCents:
+              typeof source.priceStarsCents === "number" && Number.isFinite(source.priceStarsCents)
+                ? clampNumber(source.priceStarsCents, 1, 200000)
+                : undefined,
             position:
               typeof source.position === "number" && Number.isFinite(source.position)
                 ? clampNumber(source.position, 1, 999)
@@ -268,6 +273,7 @@ export async function POST(request: Request) {
       genre: normalizeOptionalText(payload.genre, 64),
       tags: normalizeTags(payload.tags),
       priceStarsCents: defaultFormat.priceStarsCents,
+      isMintable: payload.isMintable !== false,
       status: "pending_moderation",
       moderationNote: undefined,
       playsCount: 0,
@@ -355,6 +361,7 @@ export async function PATCH(request: Request) {
       durationSec: payload.durationSec !== undefined ? clampNumber(payload.durationSec, 0, 60 * 60 * 12) : existing.durationSec,
       genre: payload.genre !== undefined ? normalizeOptionalText(payload.genre, 64) : existing.genre,
       tags: payload.tags !== undefined ? normalizeTags(payload.tags) : existing.tags,
+      isMintable: payload.isMintable !== undefined ? payload.isMintable !== false : existing.isMintable,
       status: existing.status === "published" ? "pending_moderation" : existing.status,
       moderationNote: undefined,
       updatedAt: now,

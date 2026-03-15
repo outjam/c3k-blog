@@ -210,6 +210,10 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
                 ? clampInt(source.durationSec, 0, 60 * 60 * 12)
                 : undefined,
             previewUrl: normalizeOptionalText(source.previewUrl, 3000),
+            priceStarsCents:
+              typeof source.priceStarsCents === "number" && Number.isFinite(source.priceStarsCents)
+                ? clampIntMin(source.priceStarsCents, 1)
+                : undefined,
             position:
               typeof source.position === "number" && Number.isFinite(source.position)
                 ? clampInt(source.position, 1, 999)
@@ -325,6 +329,7 @@ const sanitizeArtistTrack = (raw: unknown, fallbackKey: string, now: string): Ar
     genre: normalizeOptionalText(source.genre, 64),
     tags: normalizeTrackTags(source.tags),
     priceStarsCents: defaultFormat.priceStarsCents,
+    isMintable: typeof source.isMintable === "boolean" ? source.isMintable : true,
     status,
     moderationNote: normalizeOptionalText(source.moderationNote, 240),
     playsCount: clampIntMin(source.playsCount, 0),

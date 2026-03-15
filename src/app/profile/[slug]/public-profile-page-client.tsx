@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { BackButtonController } from "@/components/back-button-controller";
 import { SegmentedTabs } from "@/components/segmented-tabs";
 import { StarsIcon } from "@/components/stars-icon";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
@@ -49,6 +51,7 @@ interface SocialListEntry {
 type PublicProfileTab = "collection" | "awards";
 
 export function PublicProfilePageClient({ slug }: { slug: string }) {
+  const router = useRouter();
   const { user } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
   const viewerSlug = useMemo(
@@ -411,12 +414,18 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
   };
 
   if (loading) {
-    return <div className={styles.page}>Загружаем профиль...</div>;
+    return (
+      <div className={styles.page}>
+        <BackButtonController onBack={() => router.back()} visible />
+        Загружаем профиль...
+      </div>
+    );
   }
 
   if (!profile) {
     return (
       <div className={styles.page}>
+        <BackButtonController onBack={() => router.back()} visible />
         <div className={styles.missing}>
           <h1>Профиль не найден</h1>
           <p>Проверьте ссылку или откройте каталог релизов.</p>
@@ -428,6 +437,7 @@ export function PublicProfilePageClient({ slug }: { slug: string }) {
 
   return (
     <div className={styles.page}>
+      <BackButtonController onBack={() => router.back()} visible />
       <main className={styles.container}>
         <section className={styles.hero}>
           <div className={styles.identityRow}>

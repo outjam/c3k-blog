@@ -712,6 +712,7 @@ export const createMyArtistTrack = async (payload: {
   priceStarsCents: number;
   formats?: ArtistTrack["formats"];
   releaseTracklist?: ArtistTrack["releaseTracklist"];
+  isMintable?: boolean;
 }): Promise<{ track: ArtistTrack | null; error?: string }> => {
   try {
     const response = await fetch("/api/shop/artists/me/tracks", {

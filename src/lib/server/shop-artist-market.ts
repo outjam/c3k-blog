@@ -90,6 +90,7 @@ export const toArtistTrackProduct = (track: ArtistTrack, artist: ArtistProfile |
     releaseType: track.releaseType,
     formats,
     releaseTracklist: track.releaseTracklist,
+    isMintable: track.isMintable !== false,
     audioFileId: defaultFormat?.audioFileId ?? track.audioFileId,
     previewUrl: track.previewUrl,
     publishedAt: track.publishedAt,

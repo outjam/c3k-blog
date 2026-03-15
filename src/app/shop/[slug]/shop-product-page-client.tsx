@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SVGProps } from "react";
 import { TonConnectButton, useTonWallet } from "@tonconnect/ui-react";
 
 import { BackButtonController } from "@/components/back-button-controller";
@@ -13,13 +13,18 @@ import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   type MintedReleaseNft,
-  purchaseReleaseWithWallet,
   profileSlugFromIdentity,
+  purchaseReleaseWithWallet,
+  purchaseTrackWithWallet,
   readMintedReleaseNfts,
+  readPurchasedReleaseFormatKeys,
   readPurchasedReleaseSlugs,
+  readPurchasedTrackKeys,
   readTonWalletAddress,
   readWalletBalanceCents,
   resolveViewerKey,
+  toPurchasedReleaseFormatKey,
+  toPurchasedTrackKey,
   writeTonWalletAddress,
 } from "@/lib/social-hub";
 import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
@@ -38,14 +43,15 @@ import {
   getDefaultTrackFormat,
   getFormatLabel,
   getProductPriceByFormat,
+  getReleaseTrackPrice,
   getTrackFormats,
 } from "@/lib/shop-release-format";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
 import { mintViaSponsoredTon } from "@/lib/ton-sponsored-api";
 import {
-  TON_ONCHAIN_NFT_MINT_ENABLED,
   TON_NETWORK_LABEL,
+  TON_ONCHAIN_NFT_MINT_ENABLED,
   isTonWalletOnRequiredNetwork,
   toPreferredTonAddress,
 } from "@/lib/ton-network";
@@ -53,13 +59,96 @@ import {
   RELEASE_REACTION_OPTIONS,
   type ReleaseSocialSnapshot,
 } from "@/types/release-social";
-import type { ShopProduct } from "@/types/shop";
+import type { ArtistAudioFormat, ArtistReleaseTrackItem, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
 
 const buildWrongTonNetworkMessage = (): string => {
   return `Подключен кошелек не из сети ${TON_NETWORK_LABEL}. Переключите сеть и повторите.`;
 };
+
+const formatTrackDuration = (durationSec?: number): string => {
+  if (!durationSec || !Number.isFinite(durationSec) || durationSec <= 0) {
+    return "Preview";
+  }
+
+  const minutes = Math.floor(durationSec / 60);
+  const seconds = durationSec % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
+
+function PlayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path d="M7 5.25L14.5 10L7 14.75V5.25Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function HeartIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M10 16.2 3.8 10.2a4.04 4.04 0 0 1 0-5.76 4.14 4.14 0 0 1 5.84 0L10 4.8l.36-.36a4.14 4.14 0 0 1 5.84 0 4.04 4.04 0 0 1 0 5.76L10 16.2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function CommentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M4.5 4.75h11a1.75 1.75 0 0 1 1.75 1.75v6.25a1.75 1.75 0 0 1-1.75 1.75H9l-3.75 2v-2H4.5a1.75 1.75 0 0 1-1.75-1.75V6.5A1.75 1.75 0 0 1 4.5 4.75Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function ReleasePageSkeleton() {
+  return (
+    <div className={styles.skeletonStack} aria-hidden="true">
+      <section className={styles.skeletonHero}>
+        <span className={styles.skeletonCover} />
+        <div className={styles.skeletonMeta}>
+          <span className={styles.skeletonKicker} />
+          <span className={styles.skeletonTitle} />
+          <span className={styles.skeletonLine} />
+          <span className={styles.skeletonLineWide} />
+          <div className={styles.skeletonActions}>
+            <span className={styles.skeletonPill} />
+            <span className={styles.skeletonPill} />
+            <span className={styles.skeletonPill} />
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.skeletonSection}>
+        <div className={styles.skeletonTabs} />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <article key={index} className={styles.skeletonTrackRow}>
+            <span className={styles.skeletonTrackIndex} />
+            <div className={styles.skeletonTrackMeta}>
+              <span className={styles.skeletonLine} />
+              <span className={styles.skeletonLineShort} />
+            </div>
+            <span className={styles.skeletonPrice} />
+            <span className={styles.skeletonButton} />
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.skeletonSection}>
+        <div className={styles.skeletonPanelGrid}>
+          <article className={styles.skeletonPanel} />
+          <article className={styles.skeletonPanel} />
+        </div>
+      </section>
+    </div>
+  );
+}
 
 export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const router = useRouter();
@@ -68,19 +157,25 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const { user, refreshSession } = useAppAuthUser();
   const viewerKey = useMemo(() => resolveViewerKey(user), [user]);
 
+  const [bootLoading, setBootLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [selectedFormat, setSelectedFormat] = useState(() =>
+  const [selectedFormat, setSelectedFormat] = useState<ArtistAudioFormat>(() =>
     getDefaultTrackFormat(product),
   );
   const [walletBalanceCents, setWalletBalanceCents] = useState(0);
   const [ownedReleaseSlugs, setOwnedReleaseSlugs] = useState<string[]>([]);
-  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<
-    MintedReleaseNft[]
-  >([]);
+  const [ownedReleaseFormatKeys, setOwnedReleaseFormatKeys] = useState<string[]>(
+    [],
+  );
+  const [ownedTrackKeys, setOwnedTrackKeys] = useState<string[]>([]);
+  const [mintedReleaseNfts, setMintedReleaseNfts] = useState<MintedReleaseNft[]>(
+    [],
+  );
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [walletMessage, setWalletMessage] = useState("");
   const [minting, setMinting] = useState(false);
-
+  const [releasePurchasing, setReleasePurchasing] = useState(false);
+  const [pendingTrackId, setPendingTrackId] = useState("");
   const [socialSnapshot, setSocialSnapshot] =
     useState<ReleaseSocialSnapshot | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -89,6 +184,25 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const [reactionSubmitting, setReactionSubmitting] = useState(false);
   const [mintDialogOpen, setMintDialogOpen] = useState(false);
 
+  const formats = useMemo(() => getTrackFormats(product), [product]);
+  const releaseTracklist = useMemo<ArtistReleaseTrackItem[]>(
+    () =>
+      Array.isArray(product.releaseTracklist) && product.releaseTracklist.length > 0
+        ? product.releaseTracklist
+        : [
+            {
+              id: "track-1",
+              title: product.title,
+              previewUrl: product.previewUrl,
+              position: 1,
+            },
+          ],
+    [product.previewUrl, product.releaseTracklist, product.title],
+  );
+  const releaseQueue = useMemo(() => buildReleasePlaybackQueue(product), [product]);
+  const releaseComments = socialSnapshot?.comments ?? [];
+  const releaseReactions = socialSnapshot?.reactions;
+
   useEffect(() => {
     let mounted = true;
 
@@ -96,6 +210,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       readFavoriteProductIds(),
       readWalletBalanceCents(viewerKey),
       readPurchasedReleaseSlugs(viewerKey),
+      readPurchasedReleaseFormatKeys(viewerKey),
+      readPurchasedTrackKeys(viewerKey),
       readMintedReleaseNfts(viewerKey),
       readTonWalletAddress(viewerKey),
       fetchReleaseSocialSnapshot(product.slug),
@@ -104,6 +220,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         favoriteIds,
         balance,
         purchasedReleaseSlugs,
+        purchasedReleaseFormatKeys,
+        purchasedTrackKeys,
         mintedReleaseNfts,
         persistedTonWalletAddress,
         releaseSocial,
@@ -115,12 +233,16 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         setIsFavorite(favoriteIds.includes(product.id));
         setWalletBalanceCents(balance);
         setOwnedReleaseSlugs(purchasedReleaseSlugs);
+        setOwnedReleaseFormatKeys(purchasedReleaseFormatKeys);
+        setOwnedTrackKeys(purchasedTrackKeys);
         setMintedReleaseNfts(mintedReleaseNfts);
         setTonWalletAddress(persistedTonWalletAddress);
 
         if (releaseSocial.snapshot) {
           setSocialSnapshot(releaseSocial.snapshot);
         }
+
+        setBootLoading(false);
       },
     );
 
@@ -135,11 +257,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       tonWallet?.account?.chain,
     );
 
-    if (!connectedAddress) {
-      return;
-    }
-
-    if (connectedAddress === tonWalletAddress) {
+    if (!connectedAddress || connectedAddress === tonWalletAddress) {
       return;
     }
 
@@ -164,36 +282,60 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     });
   }, [product.id]);
 
-  const formats = getTrackFormats(product);
-  const selectedPriceStarsCents = getProductPriceByFormat(
-    product,
-    selectedFormat,
+  const selectedPriceStarsCents = useMemo(
+    () => getProductPriceByFormat(product, selectedFormat),
+    [product, selectedFormat],
   );
-  const releaseLabel =
-    product.releaseType === "album"
-      ? "Album"
-      : product.releaseType === "ep"
-        ? "EP"
-        : "Single";
-  const releaseTracklist = useMemo(
+  const fallbackOwnedFormatKey = useMemo(() => {
+    if (!ownedReleaseSlugs.includes(product.slug)) {
+      return "";
+    }
+
+    const hasExactReleaseFormat = ownedReleaseFormatKeys.some((entry) =>
+      entry.startsWith(`${product.slug}::`),
+    );
+
+    return hasExactReleaseFormat
+      ? ""
+      : toPurchasedReleaseFormatKey(product.slug, getDefaultTrackFormat(product));
+  }, [ownedReleaseFormatKeys, ownedReleaseSlugs, product]);
+  const releaseFormatKeys = useMemo(() => {
+    return Array.from(
+      new Set(
+        [fallbackOwnedFormatKey, ...ownedReleaseFormatKeys].filter(Boolean),
+      ),
+    );
+  }, [fallbackOwnedFormatKey, ownedReleaseFormatKeys]);
+  const selectedReleaseFormatKey = useMemo(
+    () => toPurchasedReleaseFormatKey(product.slug, selectedFormat),
+    [product.slug, selectedFormat],
+  );
+  const ownsReleaseInSelectedFormat = releaseFormatKeys.includes(
+    selectedReleaseFormatKey,
+  );
+  const ownsAnyReleaseFormat = releaseFormatKeys.some((entry) =>
+    entry.startsWith(`${product.slug}::`),
+  );
+  const ownsWholeRelease =
+    ownsAnyReleaseFormat || ownedReleaseSlugs.includes(product.slug);
+  const ownedFormatLabels = useMemo(
     () =>
-      Array.isArray(product.releaseTracklist) ? product.releaseTracklist : [],
-    [product.releaseTracklist],
-  );
-  const releaseQueue = useMemo(() => {
-    return buildReleasePlaybackQueue(product);
-  }, [product]);
-  const isPurchased = useMemo(
-    () => ownedReleaseSlugs.includes(product.slug),
-    [ownedReleaseSlugs, product.slug],
+      formats
+        .filter((entry) =>
+          releaseFormatKeys.includes(
+            toPurchasedReleaseFormatKey(product.slug, entry.format),
+          ),
+        )
+        .map((entry) => getFormatLabel(entry.format)),
+    [formats, product.slug, releaseFormatKeys],
   );
   const mintedNft = useMemo(
     () =>
-      mintedReleaseNfts.find((entry) => entry.releaseSlug === product.slug) ??
-      null,
+      mintedReleaseNfts.find((entry) => entry.releaseSlug === product.slug) ?? null,
     [mintedReleaseNfts, product.slug],
   );
   const isMintedInTon = Boolean(mintedNft);
+  const releaseMintable = product.isMintable !== false;
   const resolvedTonWalletAddress = useMemo(
     () =>
       toPreferredTonAddress(
@@ -201,6 +343,56 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         tonWallet?.account?.chain,
       ),
     [tonWallet?.account?.address, tonWallet?.account?.chain, tonWalletAddress],
+  );
+  const primaryGenre = product.subcategoryLabel ?? product.attributes.collection;
+  const releaseLabel =
+    product.releaseType === "album"
+      ? "Album"
+      : product.releaseType === "ep"
+        ? "EP"
+        : "Single";
+  const releaseReactionsTotal = useMemo(() => {
+    if (!releaseReactions) {
+      return 0;
+    }
+
+    return Object.values(releaseReactions).reduce(
+      (acc, value) => acc + (Number.isFinite(value) ? value : 0),
+      0,
+    );
+  }, [releaseReactions]);
+
+  const releaseStats = useMemo(
+    () => [
+      {
+        label: "Тип",
+        value: releaseLabel,
+      },
+      {
+        label: "Жанр",
+        value: primaryGenre,
+      },
+      {
+        label: "Треков",
+        value: String(releaseTracklist.length),
+      },
+      {
+        label: "Форматы",
+        value: formats.map((entry) => getFormatLabel(entry.format)).join(" · "),
+      },
+    ],
+    [formats, primaryGenre, releaseLabel, releaseTracklist.length],
+  );
+
+  const isTrackOwned = useCallback(
+    (trackId: string) => {
+      if (ownsWholeRelease) {
+        return true;
+      }
+
+      return ownedTrackKeys.includes(toPurchasedTrackKey(product.slug, trackId));
+    },
+    [ownedTrackKeys, ownsWholeRelease, product.slug],
   );
 
   const handlePlayTrack = (index: number) => {
@@ -222,39 +414,19 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     playQueue(releaseQueue, 0);
   };
 
-  const releaseComments = socialSnapshot?.comments ?? [];
-  const releaseReactions = socialSnapshot?.reactions;
-  const releaseReactionsTotal = useMemo(() => {
-    if (!releaseReactions) {
-      return 0;
-    }
-
-    return Object.values(releaseReactions).reduce(
-      (acc, value) => acc + (Number.isFinite(value) ? value : 0),
-      0,
-    );
-  }, [releaseReactions]);
-  const commentComposerHint = user?.id
-    ? "Короткий отзыв, впечатление от треклиста или любимый момент."
-    : "Чтобы оставить комментарий, войдите через Telegram.";
-  const primaryGenre = product.subcategoryLabel ?? product.attributes.collection;
-  const collectionStateLabel = isPurchased ? "в коллекции" : "не куплен";
-  const nftStateLabel = isMintedInTon
-    ? "выпущен"
-    : TON_ONCHAIN_NFT_MINT_ENABLED
-      ? TON_NETWORK_LABEL
-      : "disabled";
-
   const resolveMintOwnerAddress = (): string | null => {
     if (!user?.id) {
       setWalletMessage("Для минта войдите через Telegram Widget.");
       return null;
     }
 
-    if (!isPurchased) {
-      setWalletMessage(
-        "Сначала купите релиз, затем сможете сминтить NFT в TON.",
-      );
+    if (!releaseMintable) {
+      setWalletMessage("Для этого релиза NFT mint сейчас выключен.");
+      return null;
+    }
+
+    if (!ownsWholeRelease) {
+      setWalletMessage("NFT можно выпустить только после покупки всего релиза.");
       return null;
     }
 
@@ -283,7 +455,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     return connectedAddress;
   };
 
-  const buyWithWallet = async () => {
+  const buyReleaseWithWallet = async () => {
     setWalletMessage("");
 
     if (!user?.id) {
@@ -291,38 +463,80 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       return;
     }
 
-    if (isPurchased) {
-      setWalletMessage("Этот релиз уже куплен. Повторная покупка недоступна.");
+    if (ownsReleaseInSelectedFormat) {
+      setWalletMessage(
+        `Релиз уже куплен в формате ${getFormatLabel(selectedFormat)}.`,
+      );
       return;
     }
 
+    setReleasePurchasing(true);
     const payment = await purchaseReleaseWithWallet(viewerKey, {
       releaseSlug: product.slug,
       trackIds: releaseTracklist.map((track) => track.id),
       amountCents: selectedPriceStarsCents,
+      format: selectedFormat,
     });
+    setReleasePurchasing(false);
+
+    setWalletBalanceCents(payment.balanceCents);
+    setOwnedReleaseSlugs(payment.releaseSlugs);
+    setOwnedReleaseFormatKeys(payment.releaseFormatKeys);
+    setOwnedTrackKeys(payment.trackKeys);
 
     if (!payment.ok) {
-      setWalletBalanceCents(payment.balanceCents);
-      setOwnedReleaseSlugs(payment.releaseSlugs);
-
-      if (payment.reason === "already_owned") {
-        setWalletMessage(
-          "Этот релиз уже куплен. Повторная покупка недоступна.",
-        );
-      } else {
-        setWalletMessage("Недостаточно средств на внутреннем балансе.");
-      }
-
+      setWalletMessage(
+        payment.reason === "already_owned"
+          ? `Релиз уже куплен в формате ${getFormatLabel(selectedFormat)}.`
+          : "Недостаточно средств на внутреннем балансе.",
+      );
       hapticNotification("warning");
       return;
     }
 
+    setWalletMessage(
+      `Релиз добавлен в коллекцию в формате ${getFormatLabel(selectedFormat)}.`,
+    );
+    hapticNotification("success");
+  };
+
+  const buyTrack = async (track: ArtistReleaseTrackItem) => {
+    setWalletMessage("");
+
+    if (!user?.id) {
+      setWalletMessage("Для покупки войдите через Telegram Widget.");
+      return;
+    }
+
+    if (isTrackOwned(track.id)) {
+      setWalletMessage("Этот трек уже есть в вашей коллекции.");
+      return;
+    }
+
+    setPendingTrackId(track.id);
+    const payment = await purchaseTrackWithWallet(viewerKey, {
+      releaseSlug: product.slug,
+      trackId: track.id,
+      amountCents: getReleaseTrackPrice(product, track.id, selectedFormat),
+    });
+    setPendingTrackId("");
+
     setWalletBalanceCents(payment.balanceCents);
     setOwnedReleaseSlugs(payment.releaseSlugs);
-    setWalletMessage(
-      "Покупка оформлена с внутреннего баланса. Релиз добавлен в профиль.",
-    );
+    setOwnedReleaseFormatKeys(payment.releaseFormatKeys);
+    setOwnedTrackKeys(payment.trackKeys);
+
+    if (!payment.ok) {
+      setWalletMessage(
+        payment.reason === "already_owned"
+          ? "Этот трек уже есть в вашей коллекции."
+          : "Недостаточно средств на внутреннем балансе.",
+      );
+      hapticNotification("warning");
+      return;
+    }
+
+    setWalletMessage(`Трек «${track.title}» добавлен в вашу коллекцию.`);
     hapticNotification("success");
   };
 
@@ -348,13 +562,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     setMintDialogOpen(false);
     setMinting(true);
     setWalletMessage("");
+
     const mintResult = await mintViaSponsoredTon({
       releaseSlug: product.slug,
       ownerAddress: connectedAddress,
       collectionAddress:
-        String(
-          process.env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS ?? "",
-        ).trim() || undefined,
+        String(process.env.NEXT_PUBLIC_TON_NFT_COLLECTION_ADDRESS ?? "").trim() ||
+        undefined,
     });
 
     setMinting(false);
@@ -371,8 +585,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
       if (mintResult.reason === "relay_unavailable") {
         setWalletMessage(
-          mintResult.relayError ||
-            "On-chain mint сейчас не настроен на сервере.",
+          mintResult.relayError || "On-chain mint сейчас не настроен на сервере.",
         );
         return;
       }
@@ -385,7 +598,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       }
 
       if (mintResult.reason === "not_purchased") {
-        setWalletMessage("Нельзя запросить on-chain mint без покупки.");
+        setWalletMessage("Нельзя запросить on-chain mint без покупки релиза.");
         return;
       }
 
@@ -403,7 +616,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     setWalletMessage(
       mintResult.alreadyMinted
         ? "NFT для этого релиза уже был сминчен ранее."
-        : `NFT сминчен в ${TON_NETWORK_LABEL}. Списано ${formatStarsFromCents(mintResult.gasDebitedCents)} ⭐ за газ.`,
+        : `NFT сминчен в ${TON_NETWORK_LABEL}.`,
     );
     hapticNotification("success");
   };
@@ -420,7 +633,6 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
     setCommentSubmitting(true);
     const result = await createReleaseCommentApi(product.slug, commentDraft);
-
     setCommentSubmitting(false);
 
     if (!result.snapshot) {
@@ -459,13 +671,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     }
 
     setReactionSubmitting(true);
-
     const currentReaction = socialSnapshot?.myReaction ?? null;
     const result =
       currentReaction === reactionType
         ? await clearReleaseReactionApi(product.slug)
         : await setReleaseReactionApi(product.slug, reactionType);
-
     setReactionSubmitting(false);
 
     if (!result.snapshot) {
@@ -476,29 +686,32 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     setSocialSnapshot(result.snapshot);
   };
 
+  const commentComposerHint = user?.id
+    ? "Короткий отзыв о релизе, звучании или любимом моменте."
+    : "Чтобы оставить комментарий, войдите через Telegram.";
+
   return (
     <div className={styles.page}>
       <BackButtonController onBack={handleBack} visible />
 
       <article className={styles.container}>
         <section className={styles.hero}>
-          <div className={styles.heroContent}>
-            <p className={styles.kicker}>{product.subtitle || releaseLabel}</p>
-            <div className={styles.titleRow}>
-              <div className={styles.titleMeta}>
-                <h1>{product.title}</h1>
-                {product.artistName ? (
-                  <p className={styles.artistLine}>
-                    {product.artistSlug ? (
-                      <Link href={`/profile/${product.artistSlug}`}>
-                        {product.artistName}
-                      </Link>
-                    ) : (
-                      product.artistName
-                    )}
-                  </p>
-                ) : null}
-              </div>
+          <div className={styles.heroCoverWrap}>
+            <Image
+              src={product.image}
+              alt={product.title}
+              width={640}
+              height={640}
+              className={styles.cover}
+              priority
+            />
+          </div>
+
+          <div className={styles.heroBody}>
+            <div className={styles.heroTopline}>
+              <span className={styles.releaseTypePill}>
+                {product.subtitle || releaseLabel}
+              </span>
               <button
                 type="button"
                 className={styles.favoriteButton}
@@ -508,45 +721,32 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               </button>
             </div>
 
-            <p className={styles.description}>{product.description}</p>
-
-            <div className={styles.heroStats}>
-              <article>
-                <span>Релиз</span>
-                <strong>{releaseLabel}</strong>
-              </article>
-              <article>
-                <span>Жанр</span>
-                <strong>{primaryGenre}</strong>
-              </article>
-              <article>
-                <span>Треков</span>
-                <strong>{releaseTracklist.length || 1}</strong>
-              </article>
-              <article>
-                <span>Статус</span>
-                <strong>{collectionStateLabel}</strong>
-              </article>
+            <div className={styles.heroHeading}>
+              <h1>{product.title}</h1>
+              {product.artistName ? (
+                <p className={styles.artistLine}>
+                  {product.artistSlug ? (
+                    <Link href={`/profile/${product.artistSlug}`}>
+                      {product.artistName}
+                    </Link>
+                  ) : (
+                    product.artistName
+                  )}
+                </p>
+              ) : null}
             </div>
 
-            <div className={styles.priceRow}>
-              <p className={styles.price}>
-                <StarsIcon className={styles.priceIcon} />
-                {formatStarsFromCents(selectedPriceStarsCents)}
-              </p>
+            {product.description ? (
+              <p className={styles.description}>{product.description}</p>
+            ) : null}
 
-              <div className={styles.statusBadges}>
-                {isPurchased ? (
-                  <span className={styles.statusBadge}>В коллекции</span>
-                ) : null}
-                {isMintedInTon ? (
-                  <span
-                    className={`${styles.statusBadge} ${styles.statusBadgeAccent}`}
-                  >
-                    NFT
-                  </span>
-                ) : null}
-              </div>
+            <div className={styles.heroStats}>
+              {releaseStats.map((stat) => (
+                <article key={stat.label}>
+                  <span>{stat.label}</span>
+                  <strong>{stat.value}</strong>
+                </article>
+              ))}
             </div>
 
             <div className={styles.heroActions}>
@@ -556,348 +756,408 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 onClick={handlePlayAll}
                 disabled={releaseQueue.length === 0}
               >
+                <PlayIcon className={styles.buttonIcon} />
                 Слушать релиз
               </button>
 
-              {!isPurchased ? (
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={buyWithWallet}
-                >
-                  Купить с баланса
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  disabled={
-                    isMintedInTon ||
-                    minting ||
-                    !TON_ONCHAIN_NFT_MINT_ENABLED
-                  }
-                  onClick={openMintDialog}
-                >
-                  {isMintedInTon
-                    ? "NFT уже выпущен"
-                    : minting
-                      ? "Минтим..."
-                      : "Выпустить NFT"}
-                </button>
-              )}
-            </div>
-
-            {walletMessage ? (
-              <p className={styles.notice}>{walletMessage}</p>
-            ) : null}
-          </div>
-
-          <div className={styles.coverShell}>
-            <Image
-              src={product.image}
-              alt={product.title}
-              width={640}
-              height={480}
-              className={styles.cover}
-              priority
-            />
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Треки</h2>
-            <p>{releaseTracklist.length || 1}</p>
-          </div>
-
-          {formats.length > 1 ? (
-            <div className={styles.formatGrid}>
-              {formats.map((entry) => (
-                <button
-                  key={entry.format}
-                  type="button"
-                  className={`${styles.formatChip} ${selectedFormat === entry.format ? styles.formatChipActive : ""}`}
-                  onClick={() => setSelectedFormat(entry.format)}
-                >
-                  <span>{getFormatLabel(entry.format)}</span>
-                  <small>
-                    <span className={styles.inlineStars}>
-                      <StarsIcon className={styles.inlineStarsIcon} />
-                      {formatStarsFromCents(entry.priceStarsCents)}
-                    </span>
-                  </small>
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <ol className={styles.tracklist}>
-            {releaseTracklist.length > 0 ? (
-              releaseTracklist.map((track, index) => (
-                <li key={track.id}>
-                  <span className={styles.trackIndex}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <div className={styles.trackMeta}>
-                    <strong>{track.title}</strong>
-                    <small>
-                      {track.durationSec
-                        ? `${Math.floor(track.durationSec / 60)}:${String(track.durationSec % 60).padStart(2, "0")}`
-                        : "Preview по кнопке"}
-                    </small>
-                  </div>
-                  <button
-                    type="button"
-                    className={styles.trackPlayButton}
-                    onClick={() => handlePlayTrack(index)}
-                  >
-                    ▶
-                  </button>
-                </li>
-              ))
-            ) : (
-              <li>
-                <span className={styles.trackIndex}>01</span>
-                <div className={styles.trackMeta}>
-                  <strong>{product.title}</strong>
-                  <small>Preview по кнопке</small>
-                </div>
-                <button
-                  type="button"
-                  className={styles.trackPlayButton}
-                  onClick={() => handlePlayTrack(0)}
-                >
-                  ▶
-                </button>
-              </li>
-            )}
-          </ol>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Коллекция и NFT</h2>
-            <p>{isPurchased ? "активно" : "ожидает покупки"}</p>
-          </div>
-
-          <div className={styles.accessGrid}>
-            <section className={styles.accessPanel}>
-              <div className={styles.panelHeader}>
-                <h3>Коллекция</h3>
-                <span>{collectionStateLabel}</span>
-              </div>
-
-              <div className={styles.walletBalanceLine}>
-                <span>Баланс кошелька</span>
-                <strong>
-                  <StarsIcon className={styles.walletBalanceIcon} />
-                  {formatStarsFromCents(walletBalanceCents)}
-                </strong>
-              </div>
-
-              <p className={styles.panelText}>
-                {isPurchased
-                  ? "Релиз уже находится в вашей коллекции и доступен для прослушивания без ограничений."
-                  : "После покупки релиз сразу появится в вашей коллекции и станет доступен для дальнейшего улучшения."}
-              </p>
-
-              {!isPurchased ? (
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={buyWithWallet}
-                >
-                  Купить с баланса
-                </button>
-              ) : null}
-            </section>
-
-            <section className={styles.accessPanel}>
-              <div className={styles.panelHeader}>
-                <h3>NFT</h3>
-                <span>{nftStateLabel}</span>
-              </div>
-
-              <p className={styles.panelText}>
-                {TON_ONCHAIN_NFT_MINT_ENABLED
-                  ? `После выпуска релиз получит NFT-версию в сети ${TON_NETWORK_LABEL} и будет закреплен за вашим TON-кошельком.`
-                  : "On-chain mint сейчас выключен. Пока релиз существует только внутри коллекции приложения."}
-              </p>
-
-              <div className={styles.nftActions}>
-                <TonConnectButton className={styles.tonConnectButton} />
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  disabled={
-                    !isPurchased ||
-                    isMintedInTon ||
-                    minting ||
-                    !TON_ONCHAIN_NFT_MINT_ENABLED
-                  }
-                  onClick={openMintDialog}
-                >
-                  {isMintedInTon
-                    ? "NFT уже выпущен"
-                    : minting
-                      ? "Минтим в TON..."
-                      : "Выпустить NFT"}
-                </button>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Реакции</h2>
-            <p>{releaseReactionsTotal}</p>
-          </div>
-
-          <div className={styles.reactionRow}>
-            {RELEASE_REACTION_OPTIONS.map((option) => {
-              const isActive = socialSnapshot?.myReaction === option.key;
-              const total = socialSnapshot?.reactions?.[option.key] ?? 0;
-
-              return (
-                <button
-                  key={option.key}
-                  type="button"
-                  className={`${styles.reactionButton} ${isActive ? styles.reactionButtonActive : ""}`}
-                  disabled={reactionSubmitting}
-                  onClick={() => void handleSetReaction(option.key)}
-                  aria-label={option.label}
-                >
-                  <span className={styles.reactionEmoji}>{option.emoji}</span>
-                  <small className={styles.reactionCount}>{total}</small>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Комментарии</h2>
-            <p>{releaseComments.length}</p>
-          </div>
-
-          {user?.id ? (
-            <div className={styles.commentComposer}>
-              <div className={styles.commentComposerMeta}>
-                <p>{commentComposerHint}</p>
-                <span>{commentDraft.length}/600</span>
-              </div>
-              <textarea
-                value={commentDraft}
-                onChange={(event) => setCommentDraft(event.target.value)}
-                maxLength={600}
-                placeholder="Поделитесь впечатлениями о релизе"
-              />
               <button
                 type="button"
-                className={styles.primaryButton}
-                disabled={
-                  commentSubmitting || commentDraft.trim().length === 0
-                }
-                onClick={() => void submitComment()}
+                className={styles.secondaryButton}
+                onClick={buyReleaseWithWallet}
+                disabled={releasePurchasing || ownsReleaseInSelectedFormat}
               >
-                {commentSubmitting ? "Публикуем..." : "Отправить комментарий"}
+                {ownsReleaseInSelectedFormat
+                  ? `Уже куплен в ${getFormatLabel(selectedFormat)}`
+                  : releasePurchasing
+                    ? "Покупаем..."
+                    : ownsWholeRelease
+                      ? `Купить ещё в ${getFormatLabel(selectedFormat)}`
+                      : "Купить релиз"}
               </button>
             </div>
-          ) : (
-            <div className={styles.commentAuthState}>
-              <p>{commentComposerHint}</p>
-              <TelegramLoginWidget
-                onAuthorized={() => {
-                  void refreshSession();
-                }}
-              />
+
+            <div className={styles.heroBadges}>
+              {ownsWholeRelease ? (
+                <span className={styles.statusBadge}>В коллекции</span>
+              ) : null}
+              {isMintedInTon ? (
+                <span className={`${styles.statusBadge} ${styles.statusBadgeAccent}`}>
+                  NFT
+                </span>
+              ) : null}
+              {!releaseMintable ? (
+                <span className={styles.statusBadge}>Mint off</span>
+              ) : null}
             </div>
-          )}
 
-          <div className={styles.commentsList}>
-            {releaseComments.length > 0 ? (
-              releaseComments.map((comment) => (
-                <article key={comment.id} className={styles.commentCard}>
-                  <header>
-                    <div className={styles.commentAuthor}>
-                      {comment.author.photoUrl ? (
-                        <Image
-                          src={comment.author.photoUrl}
-                          alt=""
-                          width={36}
-                          height={36}
-                          className={styles.commentAvatar}
-                        />
-                      ) : (
-                        <div className={styles.commentAvatarFallback}>
-                          {(
-                            `${comment.author.firstName ?? ""}${comment.author.lastName ?? ""}`.trim() ||
-                            comment.author.username ||
-                            "U"
-                          )
-                            .slice(0, 2)
-                            .toUpperCase()}
-                        </div>
-                      )}
-
-                      <div>
-                        <Link
-                          href={`/profile/${profileSlugFromIdentity({
-                            username: comment.author.username,
-                            telegramUserId: comment.author.telegramUserId,
-                            fallback: `user-${comment.author.telegramUserId}`,
-                          })}`}
-                        >
-                          {`${comment.author.firstName ?? ""} ${comment.author.lastName ?? ""}`.trim() ||
-                            (comment.author.username
-                              ? `@${comment.author.username}`
-                              : `User ${comment.author.telegramUserId}`)}
-                        </Link>
-                        <time>
-                          {new Date(comment.createdAt).toLocaleString("ru-RU")}
-                        </time>
-                      </div>
-                    </div>
-                    {comment.canDelete ? (
-                      <button
-                        type="button"
-                        disabled={deletingCommentId === comment.id}
-                        onClick={() => void removeComment(comment.id)}
-                      >
-                        {deletingCommentId === comment.id ? "..." : "Удалить"}
-                      </button>
-                    ) : null}
-                  </header>
-                  <p>{comment.text}</p>
-                </article>
-              ))
-            ) : (
-              <p className={styles.emptyComments}>
-                {user?.id
-                  ? "Пока нет комментариев. Откройте обсуждение первым."
-                  : "Пока нет комментариев. Авторизуйтесь и начните обсуждение."}
-              </p>
-            )}
+            {walletMessage ? <p className={styles.notice}>{walletMessage}</p> : null}
           </div>
         </section>
+
+        {bootLoading ? (
+          <ReleasePageSkeleton />
+        ) : (
+          <>
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <span className={styles.sectionEyebrow}>Покупка релиза</span>
+                  <h2>Выберите формат и собирайте релиз целиком</h2>
+                </div>
+                <div className={styles.releasePurchaseCard}>
+                  <span className={styles.releasePurchaseLabel}>Полный релиз</span>
+                  <div className={styles.starsBadge}>
+                    <StarsIcon className={styles.starsBadgeIcon} />
+                    {formatStarsFromCents(selectedPriceStarsCents)}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.formatRow} role="tablist" aria-label="Формат релиза">
+                {formats.map((entry) => {
+                  const isActive = selectedFormat === entry.format;
+                  const isOwned = releaseFormatKeys.includes(
+                    toPurchasedReleaseFormatKey(product.slug, entry.format),
+                  );
+
+                  return (
+                    <button
+                      key={entry.format}
+                      type="button"
+                      className={`${styles.formatButton} ${isActive ? styles.formatButtonActive : ""}`}
+                      onClick={() => setSelectedFormat(entry.format)}
+                    >
+                      <span>{getFormatLabel(entry.format)}</span>
+                      <div className={styles.starsBadge}>
+                        <StarsIcon className={styles.starsBadgeIcon} />
+                        {formatStarsFromCents(entry.priceStarsCents)}
+                      </div>
+                      {isOwned ? <small>Куплен</small> : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className={styles.releasePurchaseMeta}>
+                <div>
+                  <span>Коллекция</span>
+                  <strong>
+                    {ownsWholeRelease
+                      ? ownedFormatLabels.length > 0
+                        ? ownedFormatLabels.join(", ")
+                        : "Куплен"
+                      : "Ещё не куплен"}
+                  </strong>
+                </div>
+                <div>
+                  <span>Кошелек приложения</span>
+                  <div className={styles.starsBadge}>
+                    <StarsIcon className={styles.starsBadgeIcon} />
+                    {formatStarsFromCents(walletBalanceCents)}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <span className={styles.sectionEyebrow}>Tracklist</span>
+                  <h2>Треки</h2>
+                </div>
+                <p>{releaseTracklist.length}</p>
+              </div>
+
+              <ol className={styles.trackList}>
+                {releaseTracklist.map((track, index) => {
+                  const trackOwned = isTrackOwned(track.id);
+                  const trackPrice = getReleaseTrackPrice(
+                    product,
+                    track.id,
+                    selectedFormat,
+                  );
+
+                  return (
+                    <li key={track.id} className={styles.trackRow}>
+                      <button
+                        type="button"
+                        className={styles.trackPlayButton}
+                        onClick={() => handlePlayTrack(index)}
+                        aria-label={`Слушать ${track.title}`}
+                      >
+                        <PlayIcon className={styles.trackPlayIcon} />
+                      </button>
+
+                      <div className={styles.trackMeta}>
+                        <strong>{track.title}</strong>
+                        <small>{formatTrackDuration(track.durationSec)}</small>
+                      </div>
+
+                      <div className={styles.trackPurchase}>
+                        <div className={styles.starsBadge}>
+                          <StarsIcon className={styles.starsBadgeIcon} />
+                          {formatStarsFromCents(trackPrice)}
+                        </div>
+                        <button
+                          type="button"
+                          className={styles.trackBuyButton}
+                          onClick={() => void buyTrack(track)}
+                          disabled={trackOwned || pendingTrackId === track.id}
+                        >
+                          {trackOwned
+                            ? "В коллекции"
+                            : pendingTrackId === track.id
+                              ? "..."
+                              : "Купить"}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+
+            <section className={styles.panelGrid}>
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <span className={styles.sectionEyebrow}>Коллекция</span>
+                    <h3>Покупка релиза целиком</h3>
+                  </div>
+                  <span className={styles.panelState}>
+                    {ownsWholeRelease ? "Активно" : "Доступно"}
+                  </span>
+                </div>
+
+                <p className={styles.panelText}>
+                  Полная покупка добавляет релиз в профиль, открывает все треки и
+                  позволяет выпускать NFT для релиза целиком.
+                </p>
+
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={buyReleaseWithWallet}
+                  disabled={releasePurchasing || ownsReleaseInSelectedFormat}
+                >
+                  {ownsReleaseInSelectedFormat
+                    ? `Куплен в ${getFormatLabel(selectedFormat)}`
+                    : releasePurchasing
+                      ? "Покупаем..."
+                      : `Купить релиз за ${formatStarsFromCents(selectedPriceStarsCents)}`}
+                </button>
+              </article>
+
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <span className={styles.sectionEyebrow}>NFT upgrade</span>
+                    <h3>Улучшить фиктовку</h3>
+                  </div>
+                  <span className={styles.panelState}>
+                    {isMintedInTon
+                      ? "Выпущен"
+                      : releaseMintable
+                        ? TON_NETWORK_LABEL
+                        : "Недоступно"}
+                  </span>
+                </div>
+
+                <p className={styles.panelText}>
+                  NFT выпускается только для полного релиза. Отдельные покупки
+                  треков не участвуют в mint flow.
+                </p>
+
+                {releaseMintable ? (
+                  <div className={styles.panelActions}>
+                    <TonConnectButton className={styles.tonConnectButton} />
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      disabled={
+                        !ownsWholeRelease ||
+                        isMintedInTon ||
+                        minting ||
+                        !TON_ONCHAIN_NFT_MINT_ENABLED
+                      }
+                      onClick={openMintDialog}
+                    >
+                      {isMintedInTon
+                        ? "NFT уже выпущен"
+                        : minting
+                          ? "Минтим..."
+                          : "Улучшить фиктовку"}
+                    </button>
+                  </div>
+                ) : (
+                  <p className={styles.inlineHint}>
+                    Для этого релиза mint пока выключен в настройках каталога.
+                  </p>
+                )}
+              </article>
+            </section>
+
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <span className={styles.sectionEyebrow}>Реакции</span>
+                  <h2>Оценка релиза</h2>
+                </div>
+                <div className={styles.socialCounters}>
+                  <span>
+                    <HeartIcon className={styles.counterIcon} />
+                    {releaseReactionsTotal}
+                  </span>
+                  <span>
+                    <CommentIcon className={styles.counterIcon} />
+                    {releaseComments.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.reactionRow}>
+                {RELEASE_REACTION_OPTIONS.map((option) => {
+                  const isActive = socialSnapshot?.myReaction === option.key;
+                  const total = socialSnapshot?.reactions?.[option.key] ?? 0;
+
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      className={`${styles.reactionButton} ${isActive ? styles.reactionButtonActive : ""}`}
+                      disabled={reactionSubmitting}
+                      onClick={() => void handleSetReaction(option.key)}
+                      aria-label={option.label}
+                    >
+                      <span>{option.emoji}</span>
+                      <small>{total}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <span className={styles.sectionEyebrow}>Комментарии</span>
+                  <h2>Обсуждение релиза</h2>
+                </div>
+                <p>{releaseComments.length}</p>
+              </div>
+
+              {user?.id ? (
+                <div className={styles.commentComposer}>
+                  <div className={styles.commentComposerMeta}>
+                    <p>{commentComposerHint}</p>
+                    <span>{commentDraft.length}/600</span>
+                  </div>
+                  <textarea
+                    value={commentDraft}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    maxLength={600}
+                    placeholder="Напишите, что особенно зацепило в релизе"
+                  />
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    disabled={commentSubmitting || commentDraft.trim().length === 0}
+                    onClick={() => void submitComment()}
+                  >
+                    {commentSubmitting ? "Публикуем..." : "Отправить"}
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.commentAuthState}>
+                  <p>{commentComposerHint}</p>
+                  <TelegramLoginWidget
+                    onAuthorized={() => {
+                      void refreshSession();
+                    }}
+                  />
+                </div>
+              )}
+
+              <div className={styles.commentsList}>
+                {releaseComments.length > 0 ? (
+                  releaseComments.map((comment) => (
+                    <article key={comment.id} className={styles.commentCard}>
+                      <header className={styles.commentHeader}>
+                        <div className={styles.commentAuthor}>
+                          {comment.author.photoUrl ? (
+                            <Image
+                              src={comment.author.photoUrl}
+                              alt=""
+                              width={36}
+                              height={36}
+                              className={styles.commentAvatar}
+                            />
+                          ) : (
+                            <div className={styles.commentAvatarFallback}>
+                              {(
+                                `${comment.author.firstName ?? ""}${comment.author.lastName ?? ""}`.trim() ||
+                                comment.author.username ||
+                                "U"
+                              )
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </div>
+                          )}
+
+                          <div>
+                            <Link
+                              href={`/profile/${profileSlugFromIdentity({
+                                username: comment.author.username,
+                                telegramUserId: comment.author.telegramUserId,
+                                fallback: `user-${comment.author.telegramUserId}`,
+                              })}`}
+                            >
+                              {`${comment.author.firstName ?? ""} ${comment.author.lastName ?? ""}`.trim() ||
+                                (comment.author.username
+                                  ? `@${comment.author.username}`
+                                  : `User ${comment.author.telegramUserId}`)}
+                            </Link>
+                            <time>
+                              {new Date(comment.createdAt).toLocaleString("ru-RU")}
+                            </time>
+                          </div>
+                        </div>
+
+                        {comment.canDelete ? (
+                          <button
+                            type="button"
+                            className={styles.inlineAction}
+                            disabled={deletingCommentId === comment.id}
+                            onClick={() => void removeComment(comment.id)}
+                          >
+                            {deletingCommentId === comment.id ? "..." : "Удалить"}
+                          </button>
+                        ) : null}
+                      </header>
+                      <p>{comment.text}</p>
+                    </article>
+                  ))
+                ) : (
+                  <p className={styles.emptyState}>
+                    {user?.id
+                      ? "Пока нет комментариев. Начните обсуждение первым."
+                      : "Пока нет комментариев. Авторизуйтесь и начните обсуждение."}
+                  </p>
+                )}
+              </div>
+            </section>
+          </>
+        )}
       </article>
 
       {mintDialogOpen ? (
-        <div
-          className={styles.modalBackdrop}
-          onClick={() => setMintDialogOpen(false)}
-        >
-          <div
-            className={styles.modalCard}
-            onClick={(event) => event.stopPropagation()}
-          >
+        <div className={styles.modalBackdrop} onClick={() => setMintDialogOpen(false)}>
+          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
             <div className={styles.modalHead}>
               <h2>Улучшить фиктовку</h2>
               <button
                 type="button"
-                className={styles.modalClose}
+                className={styles.inlineAction}
                 onClick={() => setMintDialogOpen(false)}
               >
                 Закрыть
@@ -917,22 +1177,22 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
             <div className={styles.modalNotes}>
               <p>Mint запускается sponsored relay от имени приложения.</p>
               <p>
-                После выпуска релиз останется в вашей коллекции и получит
-                on-chain NFT-версию.
+                В профиль релиз уже добавлен, а NFT зафиксирует on-chain ownership
+                именно полного релиза.
               </p>
             </div>
 
             <div className={styles.modalActions}>
               <button
                 type="button"
-                className={styles.modalSecondary}
+                className={styles.secondaryButton}
                 onClick={() => setMintDialogOpen(false)}
               >
                 Отмена
               </button>
               <button
                 type="button"
-                className={styles.addButton}
+                className={styles.primaryButton}
                 onClick={() => void handleMintNft()}
                 disabled={minting}
               >

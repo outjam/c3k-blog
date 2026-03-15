@@ -26,6 +26,7 @@ interface SocialHubState {
   walletCentsByUser: Record<string, number>;
   purchasesVisibleByUser: Record<string, boolean>;
   purchasedReleaseSlugsByUser: Record<string, string[]>;
+  purchasedReleaseFormatKeysByUser: Record<string, string[]>;
   purchasedTrackKeysByUser: Record<string, string[]>;
   redeemedTopupPromoCodesByUser: Record<string, string[]>;
   tonWalletAddressByUser: Record<string, string>;
@@ -80,6 +81,7 @@ const DEFAULT_STATE: SocialHubState = {
   walletCentsByUser: {},
   purchasesVisibleByUser: {},
   purchasedReleaseSlugsByUser: {},
+  purchasedReleaseFormatKeysByUser: {},
   purchasedTrackKeysByUser: {},
   redeemedTopupPromoCodesByUser: {},
   tonWalletAddressByUser: {},
@@ -198,6 +200,20 @@ const normalizeTrackId = (value: unknown): string => {
     .slice(0, 80);
 };
 
+const normalizeReleaseFormat = (value: unknown): string => {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "aac":
+    case "alac":
+    case "flac":
+    case "mp3":
+    case "ogg":
+    case "wav":
+      return String(value).trim().toLowerCase();
+    default:
+      return "";
+  }
+};
+
 const toTrackPurchaseKey = (releaseSlug: unknown, trackId: unknown): string => {
   const release = normalizeSlug(releaseSlug);
   const track = normalizeTrackId(trackId);
@@ -209,9 +225,25 @@ const toTrackPurchaseKey = (releaseSlug: unknown, trackId: unknown): string => {
   return `${release}::${track}`;
 };
 
+const toReleaseFormatPurchaseKey = (releaseSlug: unknown, format: unknown): string => {
+  const release = normalizeSlug(releaseSlug);
+  const normalizedFormat = normalizeReleaseFormat(format);
+
+  if (!release || !normalizedFormat) {
+    return "";
+  }
+
+  return `${release}::${normalizedFormat}`;
+};
+
 const normalizeTrackPurchaseKey = (value: unknown): string => {
   const [releaseSlug = "", trackId = ""] = String(value ?? "").split("::", 2);
   return toTrackPurchaseKey(releaseSlug, trackId);
+};
+
+const normalizeReleaseFormatPurchaseKey = (value: unknown): string => {
+  const [releaseSlug = "", format = ""] = String(value ?? "").split("::", 2);
+  return toReleaseFormatPurchaseKey(releaseSlug, format);
 };
 
 const normalizeTrackPurchaseKeyList = (value: unknown): string[] => {
@@ -223,6 +255,25 @@ const normalizeTrackPurchaseKeyList = (value: unknown): string[] => {
 
   return value
     .map((entry) => normalizeTrackPurchaseKey(entry))
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) {
+        return false;
+      }
+
+      seen.add(entry);
+      return true;
+    });
+};
+
+const normalizeReleaseFormatPurchaseKeyList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value
+    .map((entry) => normalizeReleaseFormatPurchaseKey(entry))
     .filter((entry) => {
       if (!entry || seen.has(entry)) {
         return false;
@@ -418,6 +469,16 @@ const normalizeState = (value: unknown): SocialHubState => {
         )
       : {};
 
+  const purchasedReleaseFormatKeysByUser =
+    source.purchasedReleaseFormatKeysByUser && typeof source.purchasedReleaseFormatKeysByUser === "object"
+      ? Object.fromEntries(
+          Object.entries(source.purchasedReleaseFormatKeysByUser as Record<string, unknown>).map(([key, item]) => [
+            String(key),
+            normalizeReleaseFormatPurchaseKeyList(item),
+          ]),
+        )
+      : {};
+
   const purchasedTrackKeysByUser =
     source.purchasedTrackKeysByUser && typeof source.purchasedTrackKeysByUser === "object"
       ? Object.fromEntries(
@@ -463,6 +524,7 @@ const normalizeState = (value: unknown): SocialHubState => {
     walletCentsByUser,
     purchasesVisibleByUser,
     purchasedReleaseSlugsByUser,
+    purchasedReleaseFormatKeysByUser,
     purchasedTrackKeysByUser,
     redeemedTopupPromoCodesByUser,
     tonWalletAddressByUser,
@@ -881,6 +943,7 @@ interface SocialStateSnapshotPayload {
   walletCents?: unknown;
   purchasesVisible?: unknown;
   purchasedReleaseSlugs?: unknown;
+  purchasedReleaseFormatKeys?: unknown;
   purchasedTrackKeys?: unknown;
   redeemedTopupPromoCodes?: unknown;
   tonWalletAddress?: unknown;
@@ -894,10 +957,21 @@ interface SocialPublicPurchasesPayload {
 }
 
 const normalizeSocialStateSnapshotPayload = (payload: SocialStateSnapshotPayload) => {
+  const purchasedReleaseFormatKeys = normalizeReleaseFormatPurchaseKeyList(payload.purchasedReleaseFormatKeys);
+  const purchasedReleaseSlugs = Array.from(
+    new Set([
+      ...normalizeStringList(payload.purchasedReleaseSlugs),
+      ...purchasedReleaseFormatKeys
+        .map((entry) => entry.split("::", 1)[0] ?? "")
+        .filter(Boolean),
+    ]),
+  );
+
   return {
     walletCents: normalizeStarsCents(payload.walletCents),
     purchasesVisible: typeof payload.purchasesVisible === "boolean" ? payload.purchasesVisible : true,
-    purchasedReleaseSlugs: normalizeStringList(payload.purchasedReleaseSlugs),
+    purchasedReleaseSlugs,
+    purchasedReleaseFormatKeys,
     purchasedTrackKeys: normalizeTrackPurchaseKeyList(payload.purchasedTrackKeys),
     redeemedTopupPromoCodes: normalizePromoCodeList(payload.redeemedTopupPromoCodes),
     tonWalletAddress: normalizeTonAddress(payload.tonWalletAddress) || undefined,
@@ -1267,7 +1341,34 @@ export const readPurchasedReleaseSlugs = async (viewerKey: string): Promise<stri
   }
 
   const state = await readState();
-  return normalizeStringList(state.purchasedReleaseSlugsByUser[viewerKey]);
+  const releaseFormatKeys = normalizeReleaseFormatPurchaseKeyList(
+    state.purchasedReleaseFormatKeysByUser[viewerKey],
+  );
+
+  return Array.from(
+    new Set([
+      ...normalizeStringList(state.purchasedReleaseSlugsByUser[viewerKey]),
+      ...releaseFormatKeys
+        .map((entry) => entry.split("::", 1)[0] ?? "")
+        .filter(Boolean),
+    ]),
+  );
+};
+
+export const readPurchasedReleaseFormatKeys = async (viewerKey: string): Promise<string[]> => {
+  if (isServerBackedViewerKey(viewerKey)) {
+    const snapshot = await readServerBackedSocialState(viewerKey);
+    return snapshot?.purchasedReleaseFormatKeys ?? [];
+  }
+
+  const state = await readState();
+  return normalizeReleaseFormatPurchaseKeyList(
+    state.purchasedReleaseFormatKeysByUser[viewerKey],
+  );
+};
+
+export const toPurchasedReleaseFormatKey = (releaseSlug: string, format: string): string => {
+  return toReleaseFormatPurchaseKey(releaseSlug, format);
 };
 
 export const appendPurchasedReleaseSlug = async (viewerKey: string, releaseSlug: string): Promise<string[]> => {
@@ -1507,12 +1608,14 @@ export const purchaseReleaseWithWallet = async (
     releaseSlug: string;
     trackIds: string[];
     amountCents: number;
+    format: string;
   },
 ): Promise<
   | {
       ok: true;
       balanceCents: number;
       releaseSlugs: string[];
+      releaseFormatKeys: string[];
       trackKeys: string[];
     }
   | {
@@ -1520,19 +1623,26 @@ export const purchaseReleaseWithWallet = async (
       reason: "already_owned" | "insufficient_funds";
       balanceCents: number;
       releaseSlugs: string[];
+      releaseFormatKeys: string[];
       trackKeys: string[];
     }
 > => {
   const normalizedReleaseSlug = normalizeSlug(input.releaseSlug);
+  const normalizedFormat = normalizeReleaseFormat(input.format);
+  const normalizedReleaseFormatKey = toReleaseFormatPurchaseKey(
+    input.releaseSlug,
+    input.format,
+  );
   const normalizedAmount = Math.max(1, normalizeStarsCents(input.amountCents));
   const normalizedTrackIds = Array.isArray(input.trackIds) ? input.trackIds : [];
 
-  if (!normalizedReleaseSlug) {
+  if (!normalizedReleaseSlug || !normalizedFormat || !normalizedReleaseFormatKey) {
     return {
       ok: false,
       reason: "already_owned",
       balanceCents: await readWalletBalanceCents(viewerKey),
       releaseSlugs: await readPurchasedReleaseSlugs(viewerKey),
+      releaseFormatKeys: await readPurchasedReleaseFormatKeys(viewerKey),
       trackKeys: await readPurchasedTrackKeys(viewerKey),
     };
   }
@@ -1543,12 +1653,16 @@ export const purchaseReleaseWithWallet = async (
       releaseSlug: normalizedReleaseSlug,
       trackIds: normalizedTrackIds,
       amountCents: normalizedAmount,
+      format: normalizedFormat,
     });
 
     if (payload && Object.prototype.hasOwnProperty.call(payload, "ok")) {
       const normalized = {
         balanceCents: normalizeStarsCents(payload.balanceCents),
         releaseSlugs: normalizeStringList(payload.releaseSlugs),
+        releaseFormatKeys: normalizeReleaseFormatPurchaseKeyList(
+          payload.releaseFormatKeys,
+        ),
         trackKeys: normalizeTrackPurchaseKeyList(payload.trackKeys),
       };
 
@@ -1568,15 +1682,17 @@ export const purchaseReleaseWithWallet = async (
   }
 
   const releaseSlugs = await readPurchasedReleaseSlugs(viewerKey);
+  const releaseFormatKeys = await readPurchasedReleaseFormatKeys(viewerKey);
   const trackKeys = await readPurchasedTrackKeys(viewerKey);
   const balanceCents = await readWalletBalanceCents(viewerKey);
 
-  if (releaseSlugs.includes(normalizedReleaseSlug)) {
+  if (releaseFormatKeys.includes(normalizedReleaseFormatKey)) {
     return {
       ok: false,
       reason: "already_owned",
       balanceCents,
       releaseSlugs,
+      releaseFormatKeys,
       trackKeys,
     };
   }
@@ -1587,6 +1703,7 @@ export const purchaseReleaseWithWallet = async (
       reason: "insufficient_funds",
       balanceCents,
       releaseSlugs,
+      releaseFormatKeys,
       trackKeys,
     };
   }
@@ -1598,16 +1715,195 @@ export const purchaseReleaseWithWallet = async (
       reason: "insufficient_funds",
       balanceCents: payment.balanceCents,
       releaseSlugs,
+      releaseFormatKeys,
       trackKeys,
     };
   }
 
-  const appended = await appendPurchasedReleaseWithTracks(viewerKey, normalizedReleaseSlug, normalizedTrackIds);
+  const state = await readState();
+  const existingReleaseSlugs = normalizeStringList(
+    state.purchasedReleaseSlugsByUser[viewerKey],
+  );
+  const existingReleaseFormatKeys = normalizeReleaseFormatPurchaseKeyList(
+    state.purchasedReleaseFormatKeysByUser[viewerKey],
+  );
+  const existingTrackKeys = normalizeTrackPurchaseKeyList(
+    state.purchasedTrackKeysByUser[viewerKey],
+  );
+  const nextReleaseSlugs = existingReleaseSlugs.includes(normalizedReleaseSlug)
+    ? existingReleaseSlugs
+    : [normalizedReleaseSlug, ...existingReleaseSlugs];
+  const nextReleaseFormatKeys = prependUniqueValues(existingReleaseFormatKeys, [
+    normalizedReleaseFormatKey,
+  ]);
+  const nextTrackKeys = prependUniqueValues(
+    existingTrackKeys,
+    normalizedTrackIds
+      .map((trackId) => toTrackPurchaseKey(normalizedReleaseSlug, trackId))
+      .filter(Boolean),
+  );
+
+  await writeState({
+    ...state,
+    purchasedReleaseSlugsByUser: {
+      ...state.purchasedReleaseSlugsByUser,
+      [viewerKey]: nextReleaseSlugs,
+    },
+    purchasedReleaseFormatKeysByUser: {
+      ...state.purchasedReleaseFormatKeysByUser,
+      [viewerKey]: nextReleaseFormatKeys,
+    },
+    purchasedTrackKeysByUser: {
+      ...state.purchasedTrackKeysByUser,
+      [viewerKey]: nextTrackKeys,
+    },
+  });
+
   return {
     ok: true,
     balanceCents: payment.balanceCents,
-    releaseSlugs: appended.releaseSlugs,
-    trackKeys: appended.trackKeys,
+    releaseSlugs: nextReleaseSlugs,
+    releaseFormatKeys: nextReleaseFormatKeys,
+    trackKeys: nextTrackKeys,
+  };
+};
+
+export const purchaseTrackWithWallet = async (
+  viewerKey: string,
+  input: {
+    releaseSlug: string;
+    trackId: string;
+    amountCents: number;
+  },
+): Promise<
+  | {
+      ok: true;
+      balanceCents: number;
+      releaseSlugs: string[];
+      releaseFormatKeys: string[];
+      trackKeys: string[];
+    }
+  | {
+      ok: false;
+      reason: "already_owned" | "insufficient_funds";
+      balanceCents: number;
+      releaseSlugs: string[];
+      releaseFormatKeys: string[];
+      trackKeys: string[];
+    }
+> => {
+  const normalizedReleaseSlug = normalizeSlug(input.releaseSlug);
+  const normalizedTrackKey = toTrackPurchaseKey(input.releaseSlug, input.trackId);
+  const normalizedAmount = Math.max(1, normalizeStarsCents(input.amountCents));
+
+  if (!normalizedReleaseSlug || !normalizedTrackKey) {
+    return {
+      ok: false,
+      reason: "already_owned",
+      balanceCents: await readWalletBalanceCents(viewerKey),
+      releaseSlugs: await readPurchasedReleaseSlugs(viewerKey),
+      releaseFormatKeys: await readPurchasedReleaseFormatKeys(viewerKey),
+      trackKeys: await readPurchasedTrackKeys(viewerKey),
+    };
+  }
+
+  if (isServerBackedViewerKey(viewerKey)) {
+    const payload = await mutateServerBackedSocialState(viewerKey, {
+      action: "track_wallet_purchase",
+      releaseSlug: normalizedReleaseSlug,
+      trackId: input.trackId,
+      amountCents: normalizedAmount,
+    });
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, "ok")) {
+      const normalized = {
+        balanceCents: normalizeStarsCents(payload.balanceCents),
+        releaseSlugs: normalizeStringList(payload.releaseSlugs),
+        releaseFormatKeys: normalizeReleaseFormatPurchaseKeyList(
+          payload.releaseFormatKeys,
+        ),
+        trackKeys: normalizeTrackPurchaseKeyList(payload.trackKeys),
+      };
+
+      if (Boolean(payload.ok)) {
+        return {
+          ok: true,
+          ...normalized,
+        };
+      }
+
+      return {
+        ok: false,
+        reason:
+          String(payload.reason ?? "") === "insufficient_funds"
+            ? "insufficient_funds"
+            : "already_owned",
+        ...normalized,
+      };
+    }
+  }
+
+  const releaseSlugs = await readPurchasedReleaseSlugs(viewerKey);
+  const releaseFormatKeys = await readPurchasedReleaseFormatKeys(viewerKey);
+  const trackKeys = await readPurchasedTrackKeys(viewerKey);
+  const balanceCents = await readWalletBalanceCents(viewerKey);
+
+  if (trackKeys.includes(normalizedTrackKey)) {
+    return {
+      ok: false,
+      reason: "already_owned",
+      balanceCents,
+      releaseSlugs,
+      releaseFormatKeys,
+      trackKeys,
+    };
+  }
+
+  if (balanceCents < normalizedAmount) {
+    return {
+      ok: false,
+      reason: "insufficient_funds",
+      balanceCents,
+      releaseSlugs,
+      releaseFormatKeys,
+      trackKeys,
+    };
+  }
+
+  const payment = await spendWalletBalanceCents(viewerKey, normalizedAmount);
+  if (!payment.ok) {
+    return {
+      ok: false,
+      reason: "insufficient_funds",
+      balanceCents: payment.balanceCents,
+      releaseSlugs,
+      releaseFormatKeys,
+      trackKeys,
+    };
+  }
+
+  const state = await readState();
+  const existingTrackKeys = normalizeTrackPurchaseKeyList(
+    state.purchasedTrackKeysByUser[viewerKey],
+  );
+  const nextTrackKeys = prependUniqueValues(existingTrackKeys, [
+    normalizedTrackKey,
+  ]);
+
+  await writeState({
+    ...state,
+    purchasedTrackKeysByUser: {
+      ...state.purchasedTrackKeysByUser,
+      [viewerKey]: nextTrackKeys,
+    },
+  });
+
+  return {
+    ok: true,
+    balanceCents: payment.balanceCents,
+    releaseSlugs,
+    releaseFormatKeys,
+    trackKeys: nextTrackKeys,
   };
 };
 

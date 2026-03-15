@@ -1,58 +1,105 @@
 .page {
   min-height: 100%;
   display: grid;
-  gap: 0.8rem;
-  padding-top: 0.9rem;
+  gap: 1rem;
+  padding-top: calc(0.9rem + var(--safe-area-top));
   padding-right: calc(1rem + var(--safe-area-right));
-  padding-bottom: calc(1rem + 74px + var(--safe-area-bottom));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
   padding-left: calc(1rem + var(--safe-area-left));
+  background: var(--tg-bg);
+}
+
+.hero,
+.supportPanel,
+.catalog,
+.supportPanel button,
+.supportRow input,
+.trackCard,
+.walletAction,
+.error,
+.walletSupportMessage {
+  border-radius: 1.25rem;
 }
 
 .hero {
-  border-radius: 1rem;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
-  background: var(--tg-section-bg);
-  display: grid;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
 }
 
 .cover {
   width: 100%;
-  height: 170px;
+  height: 200px;
   object-fit: cover;
   display: block;
 }
 
 .heroBody {
   display: grid;
-  gap: 0.7rem;
-  padding: 0.8rem;
+  gap: 0.95rem;
+  padding: 1rem;
 }
 
-.artistRow {
+.identityRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.identityMeta {
+  min-width: 0;
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.55rem;
-  align-items: center;
+  gap: 0.28rem;
 }
 
-.artistRow h1 {
+.identityHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.identityHeading h1,
+.sectionHeader h2 {
   margin: 0;
   color: var(--tg-text);
-  font-size: 1.1rem;
 }
 
-.artistRow p {
-  margin: 0.3rem 0 0;
+.identityHeading h1 {
+  font-size: clamp(1.25rem, 5vw, 1.8rem);
+  line-height: 1.02;
+}
+
+.identityMeta p,
+.panelText,
+.empty,
+.error,
+.walletSupportMessage {
+  margin: 0;
   color: var(--tg-subtitle-text);
-  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.kicker,
+.sectionEyebrow {
+  min-height: 1.55rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.68rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, var(--tg-bg));
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .avatar,
-.avatarFallback {
-  width: 3rem;
-  height: 3rem;
+.avatarFallback,
+.skeletonAvatar {
+  width: 3.75rem;
+  height: 3.75rem;
   border-radius: 999px;
+  flex-shrink: 0;
 }
 
 .avatar {
@@ -62,219 +109,314 @@
 .avatarFallback {
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--tg-accent) 18%, var(--tg-bg));
-  color: var(--tg-text);
-  font-weight: 700;
+  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-weight: 800;
 }
 
 .stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.42rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.stats article,
+.supportPanel,
+.catalog,
+.trackCard {
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+}
+
+.stats article {
+  padding: 0.92rem;
+  display: grid;
+  gap: 0.24rem;
 }
 
 .stats span {
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
-  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
-  color: var(--tg-subtitle-text);
-  padding: 0.24rem 0.52rem;
+  color: var(--tg-hint);
   font-size: 0.74rem;
 }
 
-.support {
+.stats strong {
+  color: var(--tg-text);
+  font-size: 0.92rem;
+}
+
+.starsBadge {
+  width: fit-content;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  background: #ffc53525;
+  color: #ffc535;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.starsIcon {
+  width: 0.92rem;
+  height: 0.92rem;
+  color: #ffc535;
+  flex-shrink: 0;
+}
+
+.supportGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
 
-.supportCard {
-  border-radius: 0.86rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
-  background: var(--tg-section-bg);
+.supportPanel,
+.catalog {
+  padding: 1rem;
   display: grid;
-  gap: 0.45rem;
-  padding: 0.76rem;
+  gap: 0.82rem;
 }
 
-.supportCard h2 {
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.sectionHeader > div {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.supportPanel h2 {
   margin: 0;
   color: var(--tg-text);
-  font-size: 0.9rem;
-}
-
-.supportCard p {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.76rem;
-}
-
-.walletHint {
-  color: color-mix(in srgb, var(--tg-accent) 76%, var(--tg-text)) !important;
-  font-weight: 700;
-}
-
-.supportCard button {
-  border: 0;
-  min-height: 2.2rem;
-  border-radius: 0.66rem;
-  background: var(--tg-btn);
-  color: var(--tg-btn-text);
-  font-weight: 700;
-}
-
-.supportCard button:disabled {
-  opacity: 0.58;
-}
-
-.walletAction {
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent) !important;
-  background: color-mix(in srgb, var(--tg-bg) 66%, var(--tg-section-bg)) !important;
-  color: var(--tg-text) !important;
+  font-size: 1rem;
 }
 
 .supportRow {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 
 .supportRow input {
-  border-radius: 0.66rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  min-height: 2.45rem;
+  border: 0;
   background: var(--tg-bg);
   color: var(--tg-text);
-  min-height: 2.2rem;
-  padding: 0 0.56rem;
+  padding: 0 0.85rem;
   font: inherit;
 }
 
+.supportPanel button,
+.trackActions button,
+.trackActions a,
+.inlineLink {
+  min-height: 2.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tg-accent);
+  color: var(--tg-button-text, #fff);
+  padding: 0 0.95rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.walletAction {
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, var(--tg-bg)) !important;
+  color: var(--tg-text) !important;
+}
+
+.supportPanel button:disabled,
+.trackActions button:disabled {
+  opacity: 0.55;
+}
+
+.error,
+.walletSupportMessage {
+  padding: 0.78rem 0.92rem;
+  font-size: 0.82rem;
+}
+
 .error {
-  margin: 0;
-  border-radius: 0.65rem;
-  padding: 0.52rem 0.62rem;
+  background: color-mix(in srgb, var(--tg-destructive-text) 12%, var(--tg-section-bg));
   color: var(--tg-destructive-text);
-  background: color-mix(in srgb, var(--tg-destructive-text) 16%, var(--tg-section-bg));
 }
 
 .walletSupportMessage {
-  margin: 0;
-  border-radius: 0.65rem;
-  padding: 0.52rem 0.62rem;
-  color: var(--tg-subtitle-text);
-  background: color-mix(in srgb, var(--tg-accent) 12%, var(--tg-section-bg));
-}
-
-.tracks {
-  border-radius: 1rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
-  background: var(--tg-section-bg);
-  padding: 0.82rem;
-  display: grid;
-  gap: 0.7rem;
-}
-
-.tracksHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-}
-
-.tracksHead h2 {
-  margin: 0;
+  background: color-mix(in srgb, var(--tg-accent) 10%, var(--tg-section-bg));
   color: var(--tg-text);
-  font-size: 0.95rem;
-}
-
-.tracksHead a {
-  color: var(--tg-accent);
-  text-decoration: none;
-  font-size: 0.8rem;
 }
 
 .trackGrid {
   display: grid;
-  gap: 0.56rem;
+  gap: 0.72rem;
 }
 
 .trackCard {
-  border-radius: 0.84rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
-  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
-  padding: 0.58rem;
+  padding: 0.78rem;
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 0.54rem;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 0.72rem;
   align-items: center;
 }
 
 .trackCard img {
-  width: 90px;
-  height: 64px;
-  border-radius: 0.56rem;
+  width: 92px;
+  height: 92px;
+  border-radius: 1rem;
   object-fit: cover;
+}
+
+.trackMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.32rem;
 }
 
 .trackMeta h3 {
   margin: 0;
   color: var(--tg-text);
-  font-size: 0.88rem;
+  font-size: 0.94rem;
 }
 
 .trackMeta p {
-  margin: 0.24rem 0 0;
+  margin: 0;
   color: var(--tg-subtitle-text);
-  font-size: 0.75rem;
-}
-
-.trackMeta strong {
-  color: var(--tg-text);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .trackActions {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.42rem;
+  gap: 0.55rem;
 }
 
-.trackActions button,
-.trackActions a {
-  border: 0;
-  min-height: 2.1rem;
-  border-radius: 0.6rem;
-  background: color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg));
-  color: var(--tg-accent);
-  font-weight: 700;
-  padding: 0 0.62rem;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.74rem;
+.actionIcon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
 }
 
-.trackActions button:disabled {
-  opacity: 0.5;
-}
-
-.trackActions a {
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
-  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+.inlineLink {
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, var(--tg-bg));
   color: var(--tg-text);
 }
 
-.empty {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.84rem;
+.skeletonHero,
+.skeletonSupport,
+.skeletonGrid {
+  display: grid;
+  gap: 0.75rem;
 }
 
-@media (max-width: 700px) {
-  .support {
+.skeletonHero {
+  padding: 1rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+}
+
+.skeletonMeta {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.skeletonAvatar,
+.skeletonLine,
+.skeletonLineShort,
+.skeletonTitle,
+.skeletonPanel,
+.skeletonReleaseMedia {
+  display: block;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg)) 0%,
+      color-mix(in srgb, white 12%, var(--tg-section-bg)) 50%,
+      color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg)) 100%
+    );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.3s linear infinite;
+}
+
+.skeletonTitle {
+  width: 11rem;
+  height: 1.4rem;
+  border-radius: 999px;
+}
+
+.skeletonLine {
+  width: 100%;
+  height: 0.86rem;
+  border-radius: 999px;
+}
+
+.skeletonLineShort {
+  width: 7rem;
+  height: 0.86rem;
+  border-radius: 999px;
+}
+
+.skeletonSupport {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.skeletonPanel {
+  min-height: 9rem;
+  border-radius: 1.25rem;
+}
+
+.skeletonGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.skeletonRelease {
+  padding: 0.8rem;
+  border-radius: 1.2rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+  display: grid;
+  gap: 0.55rem;
+}
+
+.skeletonReleaseMedia {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 1rem;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .supportGrid,
+  .skeletonSupport,
+  .skeletonGrid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding-inline: calc(0.8rem + var(--safe-area-left))
+      calc(0.8rem + var(--safe-area-right));
   }
 
   .trackCard {
@@ -283,10 +425,15 @@
 
   .trackCard img {
     width: 100%;
-    height: 140px;
+    height: auto;
+    aspect-ratio: 1;
   }
 
   .trackActions {
+    grid-template-columns: 1fr;
+  }
+
+  .stats {
     grid-template-columns: 1fr;
   }
 }

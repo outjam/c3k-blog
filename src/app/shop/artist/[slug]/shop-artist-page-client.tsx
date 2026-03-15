@@ -3,9 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type SVGProps } from "react";
 
+import { BackButtonController } from "@/components/back-button-controller";
 import { useGlobalPlayer } from "@/components/player/global-player-provider";
+import { StarsIcon } from "@/components/stars-icon";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
@@ -33,6 +35,57 @@ interface SupportPayload {
   order?: ShopOrder;
   kind?: "donation" | "subscription";
   error?: string;
+}
+
+function PlayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path d="M7 5.25L14.5 10L7 14.75V5.25Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function QueueIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M5 5.5h8.5M5 9.5h8.5M5 13.5h5.5M14.5 12v4M12.5 14h4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ArtistPageSkeleton() {
+  return (
+    <div className={styles.page}>
+      <section className={styles.skeletonHero} aria-hidden="true">
+        <span className={styles.skeletonAvatar} />
+        <div className={styles.skeletonMeta}>
+          <span className={styles.skeletonLineShort} />
+          <span className={styles.skeletonTitle} />
+          <span className={styles.skeletonLine} />
+        </div>
+      </section>
+
+      <section className={styles.skeletonSupport} aria-hidden="true">
+        <span className={styles.skeletonPanel} />
+        <span className={styles.skeletonPanel} />
+      </section>
+
+      <section className={styles.skeletonGrid} aria-hidden="true">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <article key={index} className={styles.skeletonRelease}>
+            <span className={styles.skeletonReleaseMedia} />
+            <span className={styles.skeletonLine} />
+            <span className={styles.skeletonLineShort} />
+          </article>
+        ))}
+      </section>
+    </div>
+  );
 }
 
 export function ShopArtistPageClient({ slug }: { slug: string }) {
@@ -261,12 +314,18 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
   };
 
   if (loading) {
-    return <div className={styles.page}>Загрузка артиста...</div>;
+    return (
+      <>
+        <BackButtonController onBack={() => router.back()} visible />
+        <ArtistPageSkeleton />
+      </>
+    );
   }
 
   if (!artist) {
     return (
       <div className={styles.page}>
+        <BackButtonController onBack={() => router.back()} visible />
         <p>{error || "Артист не найден"}</p>
         <Link href="/shop">Вернуться в магазин</Link>
       </div>
@@ -275,34 +334,84 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
 
   return (
     <div className={styles.page}>
+      <BackButtonController onBack={() => router.back()} visible />
       <section className={styles.hero}>
-        {artist.coverUrl ? <Image src={artist.coverUrl} alt={artist.displayName} width={1200} height={170} className={styles.cover} /> : null}
+        {artist.coverUrl ? (
+          <Image
+            src={artist.coverUrl}
+            alt={artist.displayName}
+            width={1200}
+            height={320}
+            className={styles.cover}
+          />
+        ) : null}
+
         <div className={styles.heroBody}>
-          <div className={styles.artistRow}>
-            {artist.avatarUrl ? (
-              <Image src={artist.avatarUrl} alt={artist.displayName} width={48} height={48} className={styles.avatar} />
-            ) : (
-              <div className={styles.avatarFallback}>{artist.displayName.slice(0, 2).toUpperCase()}</div>
-            )}
-            <div>
-              <h1>{artist.displayName}</h1>
-              <p>{artist.bio || "Автор публикует релизы в витрине C3K."}</p>
+          <div className={styles.identityRow}>
+            <div className={styles.identityMeta}>
+              <div className={styles.identityHeading}>
+                <h1>{artist.displayName}</h1>
+                <span className={styles.kicker}>Артист</span>
+              </div>
+              <p>{artist.bio || "Автор публикует релизы в витрине Culture3k."}</p>
             </div>
+
+            {artist.avatarUrl ? (
+              <Image
+                src={artist.avatarUrl}
+                alt={artist.displayName}
+                width={60}
+                height={60}
+                className={styles.avatar}
+              />
+            ) : (
+              <div className={styles.avatarFallback}>
+                {artist.displayName.slice(0, 2).toUpperCase()}
+              </div>
+            )}
           </div>
+
           <div className={styles.stats}>
-            <span>Треки: {tracks.length}</span>
-            <span>Подписчики: {artist.followersCount}</span>
-            <span>Донатов: {formatStarsFromCents(stats.donationsTotal)} ⭐</span>
-            <span>Подписок: {stats.activeSubscribers}</span>
+            <article>
+              <span>Релизы</span>
+              <strong>{tracks.length}</strong>
+            </article>
+            <article>
+              <span>Подписчики</span>
+              <strong>{artist.followersCount}</strong>
+            </article>
+            <article>
+              <span>Донаты</span>
+              <div className={styles.starsBadge}>
+                <StarsIcon className={styles.starsIcon} />
+                {formatStarsFromCents(stats.donationsTotal)}
+              </div>
+            </article>
+            <article>
+              <span>Подписка</span>
+              <strong>{stats.activeSubscribers}</strong>
+            </article>
           </div>
         </div>
       </section>
 
-      <section className={styles.support}>
-        <div className={styles.supportCard}>
-          <h2>Поддержать донатом</h2>
-          <p>Сумма в cents Stars</p>
-          <p className={styles.walletHint}>Баланс: {formatStarsFromCents(walletBalanceCents)} ⭐</p>
+      <section className={styles.supportGrid}>
+        <article className={styles.supportPanel}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <span className={styles.sectionEyebrow}>Поддержка</span>
+              <h2>Донат артисту</h2>
+            </div>
+            <div className={styles.starsBadge}>
+              <StarsIcon className={styles.starsIcon} />
+              {formatStarsFromCents(walletBalanceCents)}
+            </div>
+          </div>
+
+          <p className={styles.panelText}>
+            Быстрый способ поддержать релизы артиста с баланса приложения или через Stars.
+          </p>
+
           <div className={styles.supportRow}>
             <input
               type="number"
@@ -310,42 +419,73 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
               value={donationAmount}
               onChange={(event) => setDonationAmount(event.target.value)}
             />
-            <button type="button" disabled={isPayingDonation || !artist.donationEnabled} onClick={() => void runSupportPayment("donation")}>
-              {artist.donationEnabled ? (isPayingDonation ? "Оплата..." : "Донат") : "Донаты отключены"}
+            <button
+              type="button"
+              disabled={isPayingDonation || !artist.donationEnabled}
+              onClick={() => void runSupportPayment("donation")}
+            >
+              {artist.donationEnabled
+                ? isPayingDonation
+                  ? "Оплата..."
+                  : "Через Stars"
+                : "Донаты отключены"}
             </button>
           </div>
-          <button type="button" className={styles.walletAction} disabled={!artist.donationEnabled} onClick={() => void runWalletSupport("donation")}>
-            Донат с баланса
-          </button>
-        </div>
 
-        <div className={styles.supportCard}>
-          <h2>Подписка</h2>
-          <p>{formatStarsFromCents(artist.subscriptionPriceStarsCents)} ⭐ за период</p>
-          <p className={styles.walletHint}>Баланс: {formatStarsFromCents(walletBalanceCents)} ⭐</p>
+          <button
+            type="button"
+            className={styles.walletAction}
+            disabled={!artist.donationEnabled}
+            onClick={() => void runWalletSupport("donation")}
+          >
+            С баланса приложения
+          </button>
+        </article>
+
+        <article className={styles.supportPanel}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <span className={styles.sectionEyebrow}>Подписка</span>
+              <h2>Поддержка по подписке</h2>
+            </div>
+            <div className={styles.starsBadge}>
+              <StarsIcon className={styles.starsIcon} />
+              {formatStarsFromCents(artist.subscriptionPriceStarsCents)}
+            </div>
+          </div>
+
+          <p className={styles.panelText}>
+            Оформите подписку и поддерживайте новые релизы артиста регулярно.
+          </p>
+
           <button
             type="button"
             disabled={isPayingSubscription || !artist.subscriptionEnabled}
             onClick={() => void runSupportPayment("subscription")}
           >
-            {artist.subscriptionEnabled ? (isPayingSubscription ? "Оплата..." : "Оформить подписку") : "Подписка отключена"}
+            {artist.subscriptionEnabled
+              ? isPayingSubscription
+                ? "Оплата..."
+                : "Оформить через Stars"
+              : "Подписка отключена"}
           </button>
+
           <button
             type="button"
             className={styles.walletAction}
             disabled={!artist.subscriptionEnabled}
             onClick={() => void runWalletSupport("subscription")}
           >
-            Подписка с баланса
+            Оформить с баланса
           </button>
-        </div>
+        </article>
       </section>
 
       {error ? <p className={styles.error}>{error}</p> : null}
       {walletSupportMessage ? <p className={styles.walletSupportMessage}>{walletSupportMessage}</p> : null}
 
       {!user && !isSessionLoading ? (
-        <section className={styles.supportCard}>
+        <section className={styles.supportPanel}>
           <h2>Авторизация</h2>
           <p>Войдите через Telegram Widget, чтобы поддерживать артистов и оформлять подписку.</p>
           <TelegramLoginWidget
@@ -356,11 +496,14 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
         </section>
       ) : null}
 
-      <section className={styles.tracks}>
-        <div className={styles.tracksHead}>
-          <h2>Релизы артиста</h2>
-          <Link href="/shop" onClick={() => hapticSelection()}>
-            Назад в витрину
+      <section className={styles.catalog}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <span className={styles.sectionEyebrow}>Каталог</span>
+            <h2>Релизы артиста</h2>
+          </div>
+          <Link href="/shop" className={styles.inlineLink} onClick={() => hapticSelection()}>
+            В каталог
           </Link>
         </div>
         {tracks.length === 0 ? (
@@ -375,13 +518,18 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
                 <div className={styles.trackMeta}>
                   <h3>{track.title}</h3>
                   <p>{track.subtitle}</p>
-                  <strong>{formatStarsFromCents(track.priceStarsCents)} ⭐</strong>
+                  <div className={styles.starsBadge}>
+                    <StarsIcon className={styles.starsIcon} />
+                    {formatStarsFromCents(track.priceStarsCents)}
+                  </div>
                 </div>
                 <div className={styles.trackActions}>
                   <button type="button" onClick={() => handlePlayRelease(track.id)} disabled={!playbackQueueByTrackId.get(track.id)?.length}>
+                    <PlayIcon className={styles.actionIcon} />
                     Слушать
                   </button>
                   <button type="button" onClick={() => handleQueueRelease(track.id)} disabled={!playbackQueueByTrackId.get(track.id)?.length}>
+                    <QueueIcon className={styles.actionIcon} />
                     В очередь
                   </button>
                   <Link href={`/shop/${track.slug}`}>Открыть релиз</Link>
