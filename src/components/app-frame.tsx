@@ -8,7 +8,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { hapticSelection } from "@/lib/telegram";
 import { MiniTabBar } from "@/components/mini-tab-bar";
 import { GlobalPlayerBar } from "@/components/player/global-player-bar";
-import { StarsIcon } from "@/components/stars-icon";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 
 import styles from "./app-frame.module.scss";
@@ -44,7 +43,14 @@ function ProfileIcon() {
 }
 
 function ShopIcon() {
-  return <StarsIcon />;
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden>
+      <path
+        d="M23.2969 9.33276C23.2969 9.52808 23.2383 9.69605 23.1211 9.83667C23.0039 9.96948 22.8477 10.0593 22.6523 10.1062L17.2969 11.2781C17.0156 11.3406 16.832 11.4265 16.7461 11.5359C16.668 11.6375 16.6289 11.8406 16.6289 12.1453V22.8679C16.6289 23.7195 16.4883 24.4421 16.207 25.0359C15.9258 25.6375 15.5625 26.1218 15.1172 26.489C14.6797 26.8562 14.2109 27.1218 13.7109 27.2859C13.2188 27.4578 12.7578 27.5437 12.3281 27.5437C11.3516 27.5437 10.5508 27.2585 9.92578 26.6882C9.30859 26.1257 9 25.3953 9 24.4968C9 23.614 9.28125 22.8796 9.84375 22.2937C10.4062 21.7078 11.2734 21.2898 12.4453 21.0398L14.3086 20.6531C14.8555 20.5437 15.0977 20.1921 15.0352 19.5984L15.0117 6.56714C15.0117 5.9187 15.3984 5.50855 16.1719 5.33667L22.1953 4.02417C22.4922 3.96167 22.75 4.02026 22.9688 4.19995C23.1875 4.37183 23.2969 4.61401 23.2969 4.92651V9.33276Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 export function AppFrame({ children }: AppFrameProps) {

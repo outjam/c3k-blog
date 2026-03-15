@@ -2,167 +2,393 @@
   min-height: 100%;
   display: grid;
   justify-items: center;
-  padding: 0.9rem;
+  background: var(--tg-bg);
   padding-top: calc(0.9rem + var(--safe-area-top));
   padding-right: calc(1rem + var(--safe-area-right));
-  padding-left: calc(1rem + var(--safe-area-left));
   padding-bottom: calc(1rem + var(--safe-area-bottom));
+  padding-left: calc(1rem + var(--safe-area-left));
+  overflow-x: clip;
 }
 
 .container {
-  width: 100%;
-  max-width: 760px;
+  width: min(100%, 760px);
   display: grid;
-  gap: 0.8rem;
+  gap: 1rem;
 }
 
-.card {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--tg-section-separator);
-  background: var(--tg-section-bg);
-  padding: 0.85rem;
+.header,
+.panel,
+.group {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.72rem;
 }
 
 .header {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.85rem;
+}
+
+.backButton,
+.heroLink,
+.secondaryButton {
+  min-height: 2.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+  color: var(--tg-text);
+  padding: 0 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.backButton,
+.heroLink {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.headerCopy {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.headerCopy h1 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: clamp(1.14rem, 4vw, 1.46rem);
+  line-height: 1.08;
+}
+
+.headerCopy p,
+.groupHeader p,
+.tonWalletMeta small,
+.promoHint,
+.notice {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.79rem;
+  line-height: 1.45;
+}
+
+.walletHero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.02rem 1.05rem;
+  border-radius: 1.28rem;
+  background:
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--tg-section-bg) 96%, transparent),
+      color-mix(in srgb, var(--tg-bg) 86%, var(--tg-section-bg))
+    );
+  box-shadow:
+    0 14px 34px color-mix(in srgb, #000 8%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.walletHero::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -40% auto;
+  width: 50%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--tg-accent) 16%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.walletHeroMeta {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.walletHeroMeta span,
+.walletHeroMeta small {
+  color: var(--tg-subtitle-text);
+}
+
+.walletHeroMeta span {
+  font-size: 0.76rem;
+}
+
+.walletHeroMeta small {
+  font-size: 0.74rem;
+}
+
+.walletValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: var(--tg-text);
+  font-size: clamp(1.2rem, 5vw, 1.56rem);
+  font-weight: 800;
+}
+
+.walletValueIcon,
+.inlineAmountIcon,
+.buttonIcon {
+  flex-shrink: 0;
+  color: var(--tg-accent);
+}
+
+.walletValueIcon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.heroLink {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.tabsWrap {
+  display: grid;
+  justify-content: center;
+}
+
+.panel {
+  gap: 1rem;
+}
+
+.group {
+  padding: 1rem;
+  border-radius: 1.18rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+}
+
+.groupHeader {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.groupHeader h2 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.96rem;
+}
+
+.inputWrap {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.inputWrap span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.inputWrap input {
+  min-height: 2.7rem;
+  border: 0;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font: inherit;
+  padding: 0.62rem 0.78rem;
+}
+
+.promoHint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.promoHint span {
+  color: var(--tg-text);
+}
+
+.inlineAmount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+  color: var(--tg-accent);
+  font-size: 0.78rem;
+}
+
+.inlineAmountIcon,
+.buttonIcon {
+  width: 0.86rem;
+  height: 0.86rem;
+}
+
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.presetButton,
+.primaryButton {
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.presetButton {
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-text);
+}
+
+.primaryButton {
+  background: var(--tg-accent);
+  color: var(--tg-accent-text, #fff);
+}
+
+.primaryButton svg,
+.presetButton svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.primaryButton:disabled,
+.presetButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.58;
+}
+
+.actionRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.tonHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
-.header h1 {
-  margin: 0;
-  color: var(--tg-text);
-  font-size: 1.05rem;
-}
-
-.header a {
-  color: color-mix(in srgb, var(--tg-accent) 74%, var(--tg-text));
-  text-decoration: none;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.balanceLine {
-  margin: 0;
-  color: var(--tg-subtitle-text);
-  font-size: 0.82rem;
-}
-
-.balanceLine strong {
-  color: var(--tg-text);
-}
-
-.presetRow {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.presetRow button,
-.customRow button {
-  min-height: 2.6rem;
-  border: 0;
-  border-radius: 0.72rem;
-  background: var(--tg-btn);
-  color: var(--tg-btn-text);
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
-.customRow {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.5rem;
-  align-items: end;
-}
-
-.customRow label,
-.promoBlock label {
-  display: grid;
-  gap: 0.32rem;
-  color: var(--tg-subtitle-text);
-  font-size: 0.76rem;
-}
-
-.customRow input,
-.promoBlock input {
-  min-height: 2.4rem;
-  border-radius: 0.68rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
-  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
-  color: var(--tg-text);
-  font: inherit;
-  padding: 0.42rem 0.56rem;
-}
-
-.promoBlock {
-  display: grid;
-  gap: 0.32rem;
-}
-
-.tonBlock {
-  border-radius: 0.74rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
-  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
-  padding: 0.66rem;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.tonHead {
-  display: flex;
+.networkPill {
+  min-height: 1.6rem;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.45rem;
-}
-
-.tonHead h2 {
-  margin: 0;
-  color: var(--tg-text);
-  font-size: 0.9rem;
+  padding: 0 0.62rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-accent) 14%, var(--tg-section-bg));
+  color: var(--tg-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .tonConnectButton {
-  display: inline-flex;
+  flex-shrink: 0;
 }
 
-.tonHint {
-  margin: 0;
-  color: var(--tg-hint);
-  font-size: 0.74rem;
+.tonWalletCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.94rem 1rem;
+  border-radius: 1.08rem;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
 }
 
-.disconnectButton {
-  min-height: 2.2rem;
-  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 42%, transparent);
-  border-radius: 0.68rem;
-  background: color-mix(in srgb, var(--tg-bg) 70%, var(--tg-section-bg));
-  color: var(--tg-text);
+.tonWalletCard svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex-shrink: 0;
+  color: var(--tg-accent);
+}
+
+.tonWalletMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.tonWalletMeta span {
+  color: var(--tg-subtitle-text);
   font-size: 0.76rem;
+}
+
+.tonWalletMeta strong {
+  color: var(--tg-text);
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
-.promoHint {
-  margin: 0;
-  color: var(--tg-hint);
-  font-size: 0.74rem;
+.notice {
+  padding: 0.92rem 1rem;
+  border-radius: 1.05rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
 }
 
-.message {
-  margin: 0;
-  color: color-mix(in srgb, var(--tg-accent) 74%, var(--tg-text));
-  font-size: 0.78rem;
+.noticeSuccess {
+  background: color-mix(in srgb, var(--tg-accent) 12%, var(--tg-section-bg));
+  color: var(--tg-text);
+}
+
+.noticeError {
+  background: color-mix(
+    in srgb,
+    var(--tg-destructive-text) 10%,
+    var(--tg-section-bg)
+  );
+  color: var(--tg-text);
+}
+
+.noticeNeutral {
+  color: var(--tg-subtitle-text);
 }
 
 @media (max-width: 640px) {
-  .presetRow {
+  .page {
+    padding-top: calc(0.78rem + var(--safe-area-top));
+    padding-right: calc(0.78rem + var(--safe-area-right));
+    padding-bottom: calc(0.9rem + var(--safe-area-bottom));
+    padding-left: calc(0.78rem + var(--safe-area-left));
+  }
+
+  .header,
+  .walletHero,
+  .tonHeader {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .backButton,
+  .heroLink,
+  .primaryButton,
+  .secondaryButton,
+  .presetButton {
+    width: 100%;
+  }
+
+  .presetGrid,
+  .actionRow {
     grid-template-columns: 1fr;
   }
 
-  .customRow {
-    grid-template-columns: 1fr;
+  .tonWalletCard {
+    align-items: flex-start;
   }
 }
