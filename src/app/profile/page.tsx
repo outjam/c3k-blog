@@ -207,6 +207,7 @@ export default function ProfilePage() {
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [artists, setArtists] = useState<ShopCatalogArtist[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [profileBootLoading, setProfileBootLoading] = useState(true);
 
   const [orders, setOrders] = useState<ShopOrder[]>([]);
 
@@ -292,6 +293,8 @@ export default function ProfilePage() {
     let mounted = true;
 
     void (async () => {
+      setProfileBootLoading(true);
+
       const [
         savedMode,
         balance,
@@ -324,6 +327,7 @@ export default function ProfilePage() {
       setPurchasedReleaseSlugs(purchases);
       setTonWalletAddress(connectedTonWalletAddress);
       setMintedReleaseNfts(mintedNfts);
+      setProfileBootLoading(false);
     })();
 
     return () => {
@@ -1007,6 +1011,62 @@ export default function ProfilePage() {
     0;
   const socialOverlayPeople =
     socialOverlay === "following" ? followingPeople : followerPeople;
+  const profileLoading = isSessionLoading || catalogLoading || profileBootLoading;
+
+  if (profileLoading) {
+    return (
+      <div className={styles.page}>
+        <main className={styles.container}>
+          <section className={styles.profileSkeleton}>
+            <div className={styles.profileSkeletonHero}>
+              <div className={styles.profileSkeletonIdentity}>
+                <div className={styles.profileSkeletonMeta}>
+                  <span className={styles.profileSkeletonLineShort} />
+                  <span className={styles.profileSkeletonLineTitle} />
+                  <span className={styles.profileSkeletonLine} />
+                </div>
+                <span className={styles.profileSkeletonAvatar} />
+              </div>
+
+              <span className={styles.profileSkeletonLineWide} />
+
+              <div className={styles.profileSkeletonStats}>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <article key={index}>
+                    <span className={styles.profileSkeletonLineShort} />
+                    <span className={styles.profileSkeletonLine} />
+                  </article>
+                ))}
+              </div>
+
+              <div className={styles.profileSkeletonButtons}>
+                <span className={styles.profileSkeletonButton} />
+                <span className={styles.profileSkeletonButton} />
+              </div>
+
+              <div className={styles.profileSkeletonWallet}>
+                <span className={styles.profileSkeletonLineShort} />
+                <span className={styles.profileSkeletonLineTitle} />
+                <span className={styles.profileSkeletonLineWide} />
+              </div>
+            </div>
+
+            <div className={styles.profileSkeletonTabs} />
+
+            <div className={styles.profileSkeletonGrid}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <article key={index} className={styles.profileSkeletonCard}>
+                  <span className={styles.profileSkeletonMedia} />
+                  <span className={styles.profileSkeletonLine} />
+                  <span className={styles.profileSkeletonLineMuted} />
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>

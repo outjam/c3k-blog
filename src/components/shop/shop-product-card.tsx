@@ -7,8 +7,8 @@ import { useMemo, type MouseEventHandler } from "react";
 
 import { useGlobalPlayer } from "@/components/player/global-player-provider";
 import { buildReleasePlaybackQueue } from "@/lib/player-release-queue";
-import { hapticSelection } from "@/lib/telegram";
 import { formatStarsFromCents } from "@/lib/stars-format";
+import { hapticSelection } from "@/lib/telegram";
 import type { ShopProduct } from "@/types/shop";
 
 import styles from "./shop-product-card.module.scss";
@@ -19,6 +19,50 @@ interface ShopProductCardProps {
   isFavorite: boolean;
 }
 
+function HeartIcon({ filled }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M12 20.4 4.84 13.6a4.8 4.8 0 0 1 6.8-6.8L12 7.16l.36-.36a4.8 4.8 0 1 1 6.8 6.8L12 20.4Z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M8.8 6.8 18 12l-9.2 5.2V6.8Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function QueueIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M4 7h10M4 12h10M4 17h7m5-5 4 3-4 3v-6Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ShopProductCard({
   product,
   onToggleFavorite,
@@ -27,6 +71,16 @@ export function ShopProductCard({
   const { playQueue, enqueueTracks } = useGlobalPlayer();
   const playbackQueue = useMemo(() => buildReleasePlaybackQueue(product), [product]);
   const canPreview = playbackQueue.length > 0;
+  const trackCount =
+    Array.isArray(product.releaseTracklist) && product.releaseTracklist.length > 0
+      ? product.releaseTracklist.length
+      : 1;
+  const releaseTypeLabel =
+    product.releaseType === "album"
+      ? "Album"
+      : product.releaseType === "ep"
+        ? "EP"
+        : "Single";
 
   const handleFavorite: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
@@ -38,6 +92,7 @@ export function ShopProductCard({
   const handlePlayNow: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
+
     if (!canPreview) {
       return;
     }
@@ -49,6 +104,7 @@ export function ShopProductCard({
   const handleEnqueue: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
+
     if (!canPreview) {
       return;
     }
@@ -58,68 +114,70 @@ export function ShopProductCard({
   };
 
   return (
-    <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+    >
       <Link href={`/shop/${product.slug}`} className={styles.card}>
         <div className={styles.mediaWrap}>
-          <Image src={product.image} alt={product.title} fill sizes="(max-width: 700px) 100vw, 188px" className={styles.media} />
+          <Image
+            src={product.image}
+            alt={product.title}
+            fill
+            sizes="(max-width: 700px) 100vw, 188px"
+            className={styles.media}
+          />
+
           <div className={styles.badges}>
-            {product.isNew ? <span className={styles.badgeNew}>NEW</span> : null}
-            {product.isHit ? <span className={styles.badgeHit}>HIT</span> : null}
+            <span className={styles.kindBadge}>{releaseTypeLabel}</span>
+            {product.isNew ? <span className={styles.stateBadge}>NEW</span> : null}
+            {product.isHit ? <span className={styles.stateBadge}>HIT</span> : null}
           </div>
+
           <button
             type="button"
             className={`${styles.favoriteButton} ${isFavorite ? styles.favoriteButtonActive : ""}`}
             onClick={handleFavorite}
             aria-label={isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
           >
-            {isFavorite ? "★" : "☆"}
+            <HeartIcon filled={isFavorite} />
           </button>
         </div>
 
         <div className={styles.body}>
-          <p className={styles.subtitle}>{product.subtitle}</p>
-          <p className={styles.categoryMeta}>
-            {product.categoryLabel ?? "Музыка"}
-            {product.subcategoryLabel ? ` · ${product.subcategoryLabel}` : " · Треки"}
-          </p>
+          <div className={styles.metaTop}>
+            <span>{product.subtitle || product.categoryLabel || "Релиз"}</span>
+            {product.artistName ? <span>{product.artistName}</span> : null}
+          </div>
+
           <h3 className={styles.title}>{product.title}</h3>
-          {product.artistName ? <p className={styles.artistMeta}>Артист: {product.artistName}</p> : null}
           <p className={styles.description}>{product.description}</p>
-          <p className={styles.socialProof}>Продаж: {product.reviewsCount}</p>
 
-          <dl className={styles.attrs}>
-            <div>
-              <dt>Релиз</dt>
-              <dd>{product.releaseType === "album" ? "Album" : product.releaseType === "ep" ? "EP" : "Single"}</dd>
-            </div>
-            <div>
-              <dt>Жанр</dt>
-              <dd>{product.subcategoryLabel ?? product.attributes.collection}</dd>
-            </div>
-            <div>
-              <dt>Форматы</dt>
-              <dd>{product.formats?.length ? `${product.formats.length} варианта` : "1 вариант"}</dd>
-            </div>
-            <div>
-              <dt>Доступ</dt>
-              <dd>Мгновенно</dd>
-            </div>
-          </dl>
-
-          <div className={styles.footer}>
-            <div className={styles.prices}>
-              <p className={styles.priceStars}>{formatStarsFromCents(product.priceStarsCents)} ⭐</p>
-              {product.oldPriceStarsCents ? <p className={styles.oldPrice}>{formatStarsFromCents(product.oldPriceStarsCents)} ⭐</p> : null}
-            </div>
-
-            <span className={styles.balanceOnlyBadge}>Оплата только с баланса</span>
+          <div className={styles.metaRow}>
+            <span>{product.subcategoryLabel ?? product.attributes.collection}</span>
+            <span>{trackCount} треков</span>
+            <strong>{formatStarsFromCents(product.priceStarsCents)}</strong>
           </div>
 
           <div className={styles.playerActions}>
-            <button type="button" className={styles.playerButton} onClick={handlePlayNow} disabled={!canPreview}>
+            <button
+              type="button"
+              className={styles.playerButton}
+              onClick={handlePlayNow}
+              disabled={!canPreview}
+            >
+              <PlayIcon />
               Слушать
             </button>
-            <button type="button" className={styles.playerButton} onClick={handleEnqueue} disabled={!canPreview}>
+            <button
+              type="button"
+              className={styles.playerButton}
+              onClick={handleEnqueue}
+              disabled={!canPreview}
+            >
+              <QueueIcon />
               В очередь
             </button>
           </div>

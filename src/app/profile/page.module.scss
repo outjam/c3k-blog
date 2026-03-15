@@ -565,6 +565,168 @@
   font-size: 0.82rem;
 }
 
+.profileSkeleton,
+.profileSkeletonHero,
+.profileSkeletonGrid,
+.profileSkeletonCard,
+.profileSkeletonMeta,
+.profileSkeletonStats,
+.profileSkeletonButtons,
+.profileSkeletonWallet,
+.profileSkeletonIdentity {
+  display: grid;
+}
+
+.profileSkeleton {
+  gap: 1rem;
+}
+
+.profileSkeletonHero {
+  gap: 0.95rem;
+}
+
+.profileSkeletonIdentity {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profileSkeletonMeta {
+  gap: 0.35rem;
+}
+
+.profileSkeletonAvatar,
+.profileSkeletonLineShort,
+.profileSkeletonLineTitle,
+.profileSkeletonLine,
+.profileSkeletonLineWide,
+.profileSkeletonButton,
+.profileSkeletonTabs,
+.profileSkeletonMedia,
+.profileSkeletonLineMuted {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+}
+
+.profileSkeletonAvatar::after,
+.profileSkeletonLineShort::after,
+.profileSkeletonLineTitle::after,
+.profileSkeletonLine::after,
+.profileSkeletonLineWide::after,
+.profileSkeletonButton::after,
+.profileSkeletonTabs::after,
+.profileSkeletonMedia::after,
+.profileSkeletonLineMuted::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.35),
+    transparent
+  );
+  animation: shimmerProfile 1.2s ease-in-out infinite;
+}
+
+.profileSkeletonAvatar {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 999px;
+}
+
+.profileSkeletonLineShort,
+.profileSkeletonLine,
+.profileSkeletonLineWide,
+.profileSkeletonLineMuted {
+  height: 0.82rem;
+  border-radius: 999px;
+}
+
+.profileSkeletonLineShort {
+  width: 30%;
+}
+
+.profileSkeletonLineTitle {
+  width: 48%;
+  height: 1.18rem;
+  border-radius: 999px;
+}
+
+.profileSkeletonLine {
+  width: 62%;
+}
+
+.profileSkeletonLineWide {
+  width: 84%;
+}
+
+.profileSkeletonLineMuted {
+  width: 54%;
+}
+
+.profileSkeletonStats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.profileSkeletonStats article {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.profileSkeletonButtons {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.profileSkeletonButton {
+  height: 2.35rem;
+  border-radius: 0.68rem;
+}
+
+.profileSkeletonWallet {
+  gap: 0.3rem;
+  padding: 1rem 1.05rem;
+  border-radius: 1.3rem;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--tg-section-bg) 96%, transparent),
+      color-mix(in srgb, var(--tg-bg) 86%, var(--tg-section-bg))
+    );
+}
+
+.profileSkeletonTabs {
+  width: min(100%, 320px);
+  height: 48px;
+  justify-self: center;
+  border-radius: 999px;
+}
+
+.profileSkeletonGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem 0.7rem;
+}
+
+.profileSkeletonCard {
+  gap: 0.45rem;
+}
+
+.profileSkeletonMedia {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0.82rem;
+}
+
+@keyframes shimmerProfile {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .warning {
   margin: 0;
   color: var(--tg-destructive-text);

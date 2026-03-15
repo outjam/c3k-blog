@@ -4,20 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { ShopCatalogControls } from "@/components/shop/shop-catalog-controls";
+import { SegmentedTabs } from "@/components/segmented-tabs";
 import { ShopProductCard } from "@/components/shop/shop-product-card";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
-import { readFavoriteProductIds, toggleFavoriteProductId } from "@/lib/product-favorites";
-import { formatStarsFromCents } from "@/lib/stars-format";
+import {
+  readFavoriteProductIds,
+  toggleFavoriteProductId,
+} from "@/lib/product-favorites";
 import { hapticSelection } from "@/lib/telegram";
 import type {
   ProductSort,
   ShopAppSettings,
   ShopCatalogArtist,
   ShopProduct,
-  ShopShowcaseCollectionView,
 } from "@/types/shop";
 
 import styles from "./page.module.scss";
@@ -30,6 +31,13 @@ const defaultCatalogSettings: ShopAppSettings = {
   freeDeliveryThresholdStarsCents: 0,
   updatedAt: "",
 };
+
+const QUICK_FILTERS = [
+  { id: "all", label: "Все" },
+  { id: "new", label: "Новые" },
+  { id: "hit", label: "Хиты" },
+  { id: "sale", label: "Скидки" },
+] as const;
 
 const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
   const list = [...items];
@@ -49,18 +57,66 @@ const sortProducts = (items: ShopProduct[], sort: ProductSort) => {
   }
 };
 
+function ShopSkeleton() {
+  return (
+    <div className={styles.page}>
+      <main className={styles.container}>
+        <section className={styles.skeletonHero}>
+          <span className={styles.skeletonShort} />
+          <span className={styles.skeletonTitle} />
+          <span className={styles.skeletonText} />
+          <span className={styles.skeletonTextWide} />
+        </section>
+
+        <section className={styles.skeletonControls}>
+          <span className={styles.skeletonInput} />
+          <span className={styles.skeletonTabs} />
+        </section>
+
+        <section className={styles.skeletonArtistRail}>
+          {Array.from({ length: 4 }).map((_, index) => (
+            <article key={index} className={styles.skeletonArtistCard}>
+              <span className={styles.skeletonAvatar} />
+              <span className={styles.skeletonLine} />
+              <span className={styles.skeletonLineMuted} />
+            </article>
+          ))}
+        </section>
+
+        <section className={styles.skeletonList}>
+          {Array.from({ length: 5 }).map((_, index) => (
+            <article key={index} className={styles.skeletonReleaseCard}>
+              <span className={styles.skeletonReleaseCover} />
+              <div className={styles.skeletonReleaseBody}>
+                <span className={styles.skeletonShort} />
+                <span className={styles.skeletonTitle} />
+                <span className={styles.skeletonTextWide} />
+                <span className={styles.skeletonLineMuted} />
+              </div>
+            </article>
+          ))}
+        </section>
+      </main>
+    </div>
+  );
+}
+
 export default function ShopPage() {
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
 
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<ProductSort>("popular");
-  const [quickFilter, setQuickFilter] = useState<"all" | "new" | "hit" | "sale">("all");
+  const [quickFilter, setQuickFilter] = useState<
+    "all" | "new" | "hit" | "sale"
+  >("all");
   const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([]);
   const [catalogArtists, setCatalogArtists] = useState<ShopCatalogArtist[]>([]);
-  const [showcaseCollections, setShowcaseCollections] = useState<ShopShowcaseCollectionView[]>([]);
-  const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(defaultCatalogSettings);
+  const [catalogSettings, setCatalogSettings] = useState<ShopAppSettings>(
+    defaultCatalogSettings,
+  );
   const [catalogError, setCatalogError] = useState("");
+  const [catalogLoading, setCatalogLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -79,24 +135,29 @@ export default function ShopPage() {
   useEffect(() => {
     let mounted = true;
 
-    void fetchPublicCatalog().then((snapshot) => {
+    void (async () => {
+      setCatalogLoading(true);
+      const snapshot = await fetchPublicCatalog();
+
       if (!mounted) {
         return;
       }
 
       if (snapshot.error) {
         setCatalogError(snapshot.error);
-        return;
+      } else {
+        setCatalogError("");
       }
 
       setCatalogProducts(snapshot.products);
       setCatalogArtists(snapshot.artists);
-      setShowcaseCollections(snapshot.showcaseCollections);
 
       if (snapshot.settings) {
         setCatalogSettings(snapshot.settings);
       }
-    });
+
+      setCatalogLoading(false);
+    })();
 
     return () => {
       mounted = false;
@@ -111,53 +172,57 @@ export default function ShopPage() {
         return false;
       }
 
-      if (!normalizedQuery) {
-        if (quickFilter === "new") {
-          return product.isNew;
-        }
+      const matchesQuickFilter =
+        quickFilter === "all" ||
+        (quickFilter === "new" && product.isNew) ||
+        (quickFilter === "hit" && product.isHit) ||
+        (quickFilter === "sale" && Boolean(product.oldPriceStarsCents));
 
-        if (quickFilter === "hit") {
-          return product.isHit;
-        }
-
-        if (quickFilter === "sale") {
-          return Boolean(product.oldPriceStarsCents);
-        }
-
-        return true;
-      }
-
-      const textBlob = `${product.title} ${product.subtitle} ${product.attributes.sku} ${product.attributes.collection} ${product.artistName ?? ""}`.toLowerCase();
-      if (!textBlob.includes(normalizedQuery)) {
+      if (!matchesQuickFilter) {
         return false;
       }
 
-      if (quickFilter === "new") {
-        return product.isNew;
+      if (!normalizedQuery) {
+        return true;
       }
 
-      if (quickFilter === "hit") {
-        return product.isHit;
-      }
+      const textBlob =
+        `${product.title} ${product.subtitle} ${product.attributes.sku} ${product.attributes.collection} ${product.artistName ?? ""}`.toLowerCase();
 
-      if (quickFilter === "sale") {
-        return Boolean(product.oldPriceStarsCents);
-      }
-
-      return true;
+      return textBlob.includes(normalizedQuery);
     });
 
     return sortProducts(filtered, sort);
   }, [catalogProducts, quickFilter, search, sort]);
 
-  const activeFiltersCount = [Boolean(search.trim()), sort !== "popular", quickFilter !== "all"].filter(Boolean).length;
+  const releaseCount = useMemo(
+    () =>
+      catalogProducts.filter((product) => product.kind === "digital_track")
+        .length,
+    [catalogProducts],
+  );
 
-  const resetFilters = () => {
-    setSearch("");
-    setSort("popular");
-    setQuickFilter("all");
-    hapticSelection();
-  };
+  const filterTabs = useMemo(
+    () =>
+      QUICK_FILTERS.map((tab) => ({
+        id: tab.id,
+        label: tab.label,
+        badge:
+          tab.id === "all"
+            ? releaseCount
+            : tab.id === "new"
+              ? catalogProducts.filter((product) => product.isNew).length
+              : tab.id === "hit"
+                ? catalogProducts.filter((product) => product.isHit).length
+                : catalogProducts.filter((product) =>
+                    Boolean(product.oldPriceStarsCents),
+                  ).length,
+      })),
+    [catalogProducts, releaseCount],
+  );
+
+  const favoriteCount = favoriteProductIds.length;
+  const featuredArtists = useMemo(() => catalogArtists.slice(0, 8), [catalogArtists]);
 
   const handleToggleFavorite = (productId: string) => {
     void toggleFavoriteProductId(productId).then((next) => {
@@ -165,41 +230,63 @@ export default function ShopPage() {
     });
   };
 
-  const tracksCount = useMemo(
-    () => catalogProducts.filter((product) => product.kind === "digital_track").length,
-    [catalogProducts],
+  const activeFilterIndex = Math.max(
+    0,
+    QUICK_FILTERS.findIndex((item) => item.id === quickFilter),
   );
+
+  if (catalogLoading) {
+    return <ShopSkeleton />;
+  }
 
   return (
     <div className={styles.page}>
       <main className={styles.container}>
         <section className={styles.hero}>
-          <p className={styles.kicker}>C3K Music Showcase</p>
-          <h1>Витрина артистов и цифровых релизов</h1>
-          <p>
-            Покупка релизов и поддержка артистов выполняются только через внутренний баланс, пополняемый Telegram Stars.
-          </p>
-          <div className={styles.heroMeta}>
+          <div className={styles.heroCopy}>
+            <p className={styles.kicker}>Релизы</p>
+            <h1>Каталог цифровых релизов</h1>
             <p>
-              Артисты: <strong>{catalogArtists.length}</strong>
-            </p>
-            <p>
-              Треки: <strong>{tracksCount}</strong>
-            </p>
-            <p>
-              Формат: <strong>Balance only</strong>
+              Покупка релизов, коллекция в профиле и NFT улучшения собраны в
+              одном потоке.
             </p>
           </div>
-          {catalogSettings.maintenanceMode ? <p className={styles.paymentError}>Режим обслуживания включен администратором.</p> : null}
-          {catalogError ? <p className={styles.paymentError}>Ошибка синхронизации каталога: {catalogError}</p> : null}
+
+          <div className={styles.heroStats}>
+            <article>
+              <span>Релизы</span>
+              <strong>{releaseCount}</strong>
+            </article>
+            <article>
+              <span>Артисты</span>
+              <strong>{catalogArtists.length}</strong>
+            </article>
+            <article>
+              <span>Избранное</span>
+              <strong>{favoriteCount}</strong>
+            </article>
+          </div>
         </section>
 
+        {catalogSettings.maintenanceMode ? (
+          <p className={styles.notice}>
+            Режим обслуживания включен администратором.
+          </p>
+        ) : null}
+
+        {catalogError ? (
+          <p className={`${styles.notice} ${styles.noticeError}`}>
+            Ошибка синхронизации каталога: {catalogError}
+          </p>
+        ) : null}
+
         {!user && !isSessionLoading ? (
-          <section className={styles.showcaseSection}>
-            <div className={styles.showcaseHeader}>
+          <section className={styles.authPanel}>
+            <div className={styles.sectionHeader}>
               <h2>Вход через Telegram</h2>
-              <p>Для покупки и донатов</p>
+              <p>Нужен для покупок, коллекции и NFT улучшений.</p>
             </div>
+
             <TelegramLoginWidget
               onAuthorized={() => {
                 void refreshSession();
@@ -208,53 +295,36 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        {showcaseCollections.length > 0 ? (
-          <section className={styles.showcaseSection}>
-            <div className={styles.showcaseHeader}>
-              <h2>Подборки витрины</h2>
-              <p>Управляются из админки</p>
-            </div>
-
-            {showcaseCollections.map((collection) => (
-              <article key={collection.id} className={styles.showcaseCollection}>
-                <header>
-                  <h3>{collection.title}</h3>
-                  {collection.subtitle ? <p>{collection.subtitle}</p> : null}
-                </header>
-                <div className={styles.showcaseRail}>
-                  {collection.products.slice(0, 12).map((product) => (
-                    <Link key={`${collection.id}-${product.id}`} href={`/shop/${product.slug}`} className={styles.showcaseCard}>
-                      <Image src={product.image} alt={product.title} width={180} height={118} />
-                      <div>
-                        <strong>{product.title}</strong>
-                        <span>{formatStarsFromCents(product.priceStarsCents)} ⭐</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </section>
-        ) : null}
-
-        {catalogArtists.length > 0 ? (
+        {featuredArtists.length > 0 ? (
           <section className={styles.artistSection}>
-            <div className={styles.showcaseHeader}>
+            <div className={styles.sectionHeader}>
               <h2>Артисты</h2>
-              <p>Поддерживайте авторов донатами и подпиской</p>
+              <p>Открывайте авторов и переходите в их релизы.</p>
             </div>
-            <div className={styles.artistsRail}>
-              {catalogArtists.map((artist) => (
-                <Link key={artist.telegramUserId} href={`/shop/artist/${artist.slug}`} className={styles.artistCard}>
+
+            <div className={styles.artistRail}>
+              {featuredArtists.map((artist) => (
+                <Link
+                  key={artist.telegramUserId}
+                  href={`/shop/artist/${artist.slug}`}
+                  className={styles.artistCard}
+                >
                   {artist.avatarUrl ? (
-                    <Image src={artist.avatarUrl} alt={artist.displayName} width={42} height={42} />
+                    <Image
+                      src={artist.avatarUrl}
+                      alt={artist.displayName}
+                      width={44}
+                      height={44}
+                      className={styles.artistAvatar}
+                    />
                   ) : (
-                    <div className={styles.artistAvatarFallback}>{artist.displayName.slice(0, 2).toUpperCase()}</div>
+                    <div className={styles.artistAvatarFallback}>
+                      {artist.displayName.slice(0, 2).toUpperCase()}
+                    </div>
                   )}
                   <div>
                     <strong>{artist.displayName}</strong>
-                    <span>{artist.tracksCount} треков</span>
-                    <span>{artist.followersCount} подписчиков</span>
+                    <span>{artist.tracksCount} релизов</span>
                   </div>
                 </Link>
               ))}
@@ -262,48 +332,81 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        <ShopCatalogControls
-          search={search}
-          onSearchChange={setSearch}
-          sort={sort}
-          onSortChange={setSort}
-          quickFilter={quickFilter}
-          onQuickFilterChange={setQuickFilter}
-          activeFiltersCount={activeFiltersCount}
-          onResetFilters={resetFilters}
-        />
+        <section className={styles.controls}>
+          <label className={styles.searchWrap}>
+            <span>Поиск</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Название, артист или жанр"
+            />
+          </label>
 
-        <section className={styles.resultsBar}>
-          <p>
-            Найдено релизов: <strong>{filteredProducts.length}</strong>
-          </p>
-          <p>
-            Избранное: <strong>{favoriteProductIds.length}</strong>
-          </p>
-          <p>
-            Артистов: <strong>{catalogArtists.length}</strong>
-          </p>
+          <div className={styles.controlsRow}>
+            <div className={styles.tabsWrap}>
+              <SegmentedTabs
+                activeIndex={activeFilterIndex}
+                items={filterTabs}
+                onChange={(index) =>
+                  setQuickFilter(QUICK_FILTERS[index]?.id ?? "all")
+                }
+                ariaLabel="Фильтр релизов"
+              />
+            </div>
+
+            <label className={styles.sortWrap}>
+              <span>Сортировка</span>
+              <select
+                value={sort}
+                onChange={(event) =>
+                  setSort(event.target.value as ProductSort)
+                }
+              >
+                <option value="popular">Популярные</option>
+                <option value="new">Сначала новинки</option>
+                <option value="rating">По рейтингу</option>
+                <option value="price_asc">Цена ниже</option>
+                <option value="price_desc">Цена выше</option>
+              </select>
+            </label>
+          </div>
         </section>
 
-        <section className={styles.grid}>
-          {filteredProducts.length > 0 ? (
-            filteredProducts.map((product) => (
-              <ShopProductCard
-                key={product.id}
-                product={product}
-                onToggleFavorite={handleToggleFavorite}
-                isFavorite={favoriteProductIds.includes(product.id)}
-              />
-            ))
-          ) : (
-            <article className={styles.emptyState}>
-              <h3>Ничего не найдено</h3>
-              <p>Попробуйте сбросить фильтры или изменить поисковый запрос.</p>
-              <button type="button" onClick={resetFilters}>
-                Сбросить фильтры
-              </button>
-            </article>
-          )}
+        <section className={styles.releaseSection}>
+          <div className={styles.sectionHeader}>
+            <h2>Релизы</h2>
+            <p>{filteredProducts.length}</p>
+          </div>
+
+          <div className={styles.releaseList}>
+            {filteredProducts.length > 0 ? (
+              filteredProducts.map((product) => (
+                <ShopProductCard
+                  key={product.id}
+                  product={product}
+                  onToggleFavorite={handleToggleFavorite}
+                  isFavorite={favoriteProductIds.includes(product.id)}
+                />
+              ))
+            ) : (
+              <article className={styles.emptyState}>
+                <h3>Ничего не найдено</h3>
+                <p>Попробуйте изменить фильтр или поисковый запрос.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setSort("popular");
+                    setQuickFilter("all");
+                    hapticSelection();
+                  }}
+                >
+                  Сбросить фильтры
+                </button>
+              </article>
+            )}
+          </div>
         </section>
       </main>
     </div>
