@@ -60,6 +60,16 @@ export interface AdminSocialEntitlementBackfillResult {
   sourceUpdatedAt: string;
 }
 
+export interface AdminArtistCatalogBackfillResult {
+  ok: true;
+  dryRun: boolean;
+  selectedArtists: number;
+  processedArtists: number;
+  profiles: number;
+  tracks: number;
+  sourceUpdatedAt: string;
+}
+
 export interface AdminCustomer {
   telegramUserId: number;
   username?: string;
@@ -169,6 +179,32 @@ export const runAdminSocialEntitlementBackfill = async (payload: {
     }
 
     return { result: (await response.json()) as AdminSocialEntitlementBackfillResult };
+  } catch {
+    return { result: null, error: "Network error" };
+  }
+};
+
+export const runAdminArtistCatalogBackfill = async (payload: {
+  dryRun?: boolean;
+  limit?: number;
+  telegramUserIds?: number[];
+}): Promise<{ result: AdminArtistCatalogBackfillResult | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/artists/backfill", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { result: null, error: await parseApiError(response) };
+    }
+
+    return { result: (await response.json()) as AdminArtistCatalogBackfillResult };
   } catch {
     return { result: null, error: "Network error" };
   }
