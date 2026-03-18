@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "desktop:install": "npm install --prefix desktop",
+    "desktop:dev": "npm run dev --prefix desktop",
+    "desktop:gateway": "npm run gateway --prefix desktop",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

@@ -336,3 +336,62 @@
   - `src/app/api/storage/downloads/track/route.ts`
   - `src/app/api/storage/downloads/[id]/route.ts`
   - `src/lib/storage-delivery-api.ts`
+
+### Sprint 07 slice: desktop runtime contract and shell scaffold
+
+- Вынесен общий worker auth helper, чтобы worker routes больше не дублировали auth/limit contract:
+  - [src/lib/server/worker-auth.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/worker-auth.ts)
+- На этот helper переведены:
+  - [src/app/api/telegram/notifications/worker/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/notifications/worker/route.ts)
+  - [src/app/api/storage/downloads/worker/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/worker/route.ts)
+- Добавлен desktop domain contract:
+  - [src/types/desktop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/desktop.ts)
+  - [src/lib/desktop-runtime.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime.ts)
+  - [src/lib/server/desktop-runtime.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts)
+- Поднят runtime API:
+  - [src/app/api/desktop/runtime/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/desktop/runtime/route.ts)
+- Добавлен desktop onboarding surface:
+  - [src/app/storage/desktop/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx)
+  - [src/app/storage/desktop/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.module.scss)
+- Добавлен client helper для desktop handoff:
+  - [src/lib/desktop-runtime-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts)
+- Web surfaces теперь умеют передавать `storagePointer` в desktop flow:
+  - [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/[slug]/shop-product-page-client.tsx)
+  - [src/app/downloads/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.tsx)
+  - [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx)
+- В репозитории появился отдельный desktop scaffold:
+  - [desktop/package.json](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/package.json)
+  - [desktop/main.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs)
+  - [desktop/preload.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/preload.mjs)
+  - [desktop/gateway.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/gateway.mjs)
+  - [desktop/README.md](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/README.md)
+
+### Что это даёт спринту
+
+- `Sprint 07` больше не существует только на уровне ADR и мечты
+- у web и desktop теперь есть единый runtime contract
+- `desktop_download` перестал быть чисто серверным enum и стал user-facing handoff path
+- local gateway для `c3k.ton` уже оформлен как отдельный runtime stub, который можно дальше развивать без перепридумывания контракта
+
+### Ограничения текущего slice
+
+- desktop scaffold не запускался в этой среде, потому что `electron` dependency не устанавливалась и desktop runtime пока не собирался отдельно
+- local gateway пока stub, а не настоящий TON Site runtime
+- реальный retrieval из `TON Storage` по `storagePointer` ещё не реализован
+
+### Проверка Sprint 07 slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/worker-auth.ts`
+  - `src/app/api/telegram/notifications/worker/route.ts`
+  - `src/app/api/storage/downloads/worker/route.ts`
+  - `src/types/desktop.ts`
+  - `src/lib/desktop-runtime.ts`
+  - `src/lib/server/desktop-runtime.ts`
+  - `src/app/api/desktop/runtime/route.ts`
+  - `src/lib/desktop-runtime-api.ts`
+  - `src/app/downloads/page.tsx`
+  - `src/app/storage/page.tsx`
+  - `src/app/shop/[slug]/shop-product-page-client.tsx`
+  - `src/app/storage/desktop/page.tsx`

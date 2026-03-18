@@ -178,3 +178,15 @@ Go рассматривается как хороший будущий язык 
 - downloads center есть
 - profile file visibility есть
 - Telegram delivery worker есть
+
+## Дополнение по Sprint 07
+
+Следующим sprint slice было реализовано:
+
+- общий worker auth contract для queue/worker routes
+- desktop runtime contract и `/api/desktop/runtime`
+- user-facing экран `/storage/desktop`
+- desktop handoff для `storagePointer` на экранах релиза, storage и downloads
+- отдельный `desktop/` scaffold в основном репозитории
+
+Это впервые перевело desktop/TON Site направление из чисто документационного состояния в реальный кодовой foundation layer.

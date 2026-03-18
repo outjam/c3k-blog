@@ -37,8 +37,8 @@
 ## Текущий фокус
 
 - Текущая большая фаза: `Phase 5 groundwork`
-- Текущий спринт: `Sprint 07 — Desktop client skeleton and c3k.ton gateway`
-- Следующий спринт: `Sprint 08 — Backend normalization and ledger hardening`
+- Текущий спринт: `Sprint 08 — Backend normalization and ledger hardening`
+- Следующий спринт: `Sprint 09 — Production hardening`
 
 ## Спринты
 
@@ -164,21 +164,21 @@ Status: done
 
 ### Sprint 07 — Desktop Client Skeleton and c3k.ton Gateway
 
-Status: current
+Status: done
 
 Цель:
 - собрать первый рабочий desktop contour для `C3K Storage Node` и локального клиента открытия `c3k.ton`
 
 Что должно быть доставлено:
-- [ ] Первый `Electron` shell
-- [ ] Local gateway для `c3k.ton`
-- [ ] Storage node onboarding screen
-- [ ] Desktop handling для `storagePointer`
-- [ ] Первый desktop settings/runtime contract
+- [x] Первый `Electron` shell
+- [x] Local gateway для `c3k.ton`
+- [x] Storage node onboarding screen
+- [x] Desktop handling для `storagePointer`
+- [x] Первый desktop settings/runtime contract
 
 ### Sprint 08 — Backend Normalization and Ledger Hardening
 
-Status: queued
+Status: current
 
 Цель:
 - вынести критичную доменную модель из `app_state`

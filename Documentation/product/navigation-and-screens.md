@@ -15,6 +15,7 @@
 - `/balance` — пополнение баланса
 - `/downloads` — библиотека файлов и delivery requests
 - `/storage` — программа `C3K Storage`
+- `/storage/desktop` — onboarding и runtime surface для `C3K Desktop Client`
 - `/shop/[slug]` — страница релиза
 - `/shop/artist/[slug]` — публичная страница артиста
 - `/profile/[slug]` — внешний публичный профиль пользователя
@@ -221,7 +222,18 @@
 - node/desktop/TON Site контур
 - служебная история delivery requests как часть storage layer
 
-## 14. Cart и Orders
+## 14. Экран `Desktop beta`
+
+Маршрут: `/storage/desktop`
+
+Назначение:
+
+- onboarding для `C3K Desktop Client`
+- показ desktop runtime contract
+- входная точка в local gateway и будущее открытие `c3k.ton`
+- user-facing объяснение node mode и disk allocation
+
+## 15. Cart и Orders
 
 ### `/shop/cart`
 
@@ -236,7 +248,7 @@
 - будут ли они основным путем покупки
 - или покупка целиком уйдет в inline purchase прямо из релиза
 
-## 15. Служебные зоны
+## 16. Служебные зоны
 
 ### `/admin`
 

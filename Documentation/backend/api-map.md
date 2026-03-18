@@ -209,6 +209,9 @@
 - `/api/storage/downloads/worker`
   - worker для Telegram delivery queue
   - `mode=status` возвращает размер очереди
+- `/api/desktop/runtime`
+  - runtime contract для `C3K Desktop Client`
+  - единая конфигурация для Electron shell, local gateway и web onboarding
 
 ## 12. Tools
 

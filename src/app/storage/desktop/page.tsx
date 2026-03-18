@@ -42,8 +42,7 @@ export default function StorageDesktopPage() {
 
   useEffect(() => {
     let mounted = true;
-
-    window.setTimeout(() => {
+    const timerId = window.setTimeout(() => {
       void fetchDesktopRuntimeContract().then((response) => {
         if (!mounted) {
           return;
@@ -57,6 +56,7 @@ export default function StorageDesktopPage() {
 
     return () => {
       mounted = false;
+      window.clearTimeout(timerId);
     };
   }, []);
 

@@ -82,6 +82,18 @@
 - В основном профиле появилась видимость file activity и переход в библиотеку загрузок.
 - Telegram delivery переведён на отдельный worker route и queue-подобную обработку.
 
+### Desktop foundation
+
+- Добавлен общий worker auth helper для background/worker routes.
+- Поднят desktop runtime contract и публичный `/api/desktop/runtime`.
+- Добавлен отдельный экран `Desktop beta` внутри storage flow.
+- В release/download/storage экранах появился первый desktop handoff по `storagePointer`.
+- В репозитории появился отдельный `desktop/` scaffold:
+  - Electron shell
+  - preload bridge
+  - local gateway stub для `c3k.ton`
+  - desktop README и runtime scripts
+
 ### Admin и документация
 
 - Расширена документация по бизнес-логике, backend, навигации и roadmap.
@@ -98,6 +110,5 @@
 ## Темы, которые уже начали, но ещё не считаются завершёнными
 
 - Ingest pipeline для storage content
-- Telegram delivery worker
-- Desktop client `Electron`
+- Production-grade desktop client `Electron`
 - Полная нормализация backend-модели без зависимости от `app_state`

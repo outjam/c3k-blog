@@ -11,6 +11,29 @@ interface DesktopRuntimeResponseShape {
   error?: string;
 }
 
+const openDesktopTarget = (target: { gatewayUrl: string; deepLink: string }) => {
+  if (typeof window === "undefined") {
+    return target;
+  }
+
+  const fallbackTimer = window.setTimeout(() => {
+    if (document.visibilityState === "visible") {
+      window.location.assign(target.gatewayUrl);
+    }
+  }, 900);
+
+  const clearFallback = () => {
+    window.clearTimeout(fallbackTimer);
+    window.removeEventListener("pagehide", clearFallback);
+    window.removeEventListener("blur", clearFallback);
+  };
+
+  window.addEventListener("pagehide", clearFallback, { once: true });
+  window.addEventListener("blur", clearFallback, { once: true });
+  window.location.assign(target.deepLink);
+  return target;
+};
+
 export const fetchDesktopRuntimeContract = async (): Promise<{
   runtime: C3kDesktopRuntimeContract | null;
   error?: string;
@@ -47,12 +70,7 @@ export const openTonSiteInDesktop = (
   runtime?: C3kDesktopRuntimeContract | null,
 ): { gatewayUrl: string; deepLink: string } => {
   const target = buildDesktopTonSiteOpenUrl(runtime ?? undefined);
-
-  if (typeof window !== "undefined") {
-    window.location.href = target.deepLink;
-  }
-
-  return target;
+  return openDesktopTarget(target);
 };
 
 export const openStorageDeliveryInDesktop = (
@@ -71,9 +89,5 @@ export const openStorageDeliveryInDesktop = (
     runtime ?? undefined,
   );
 
-  if (typeof window !== "undefined") {
-    window.location.href = target.deepLink;
-  }
-
-  return target;
+  return openDesktopTarget(target);
 };
