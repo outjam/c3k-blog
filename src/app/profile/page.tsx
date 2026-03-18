@@ -24,6 +24,7 @@ import { SegmentedTabs } from "@/components/segmented-tabs";
 import { StarsIcon } from "@/components/stars-icon";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchMyArtistProfile, fetchPublicCatalog } from "@/lib/admin-api";
+import { fetchMyStorageDeliveryRequests } from "@/lib/storage-delivery-api";
 import {
   buildPublicProfiles,
   buildTelegramShareUrl,
@@ -46,6 +47,7 @@ import { fetchMyShopOrders } from "@/lib/shop-orders-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { ProfileMode } from "@/types/social";
+import type { StorageDeliveryRequest } from "@/types/storage";
 import type {
   ArtistProfile,
   ArtistTrack,
@@ -158,6 +160,7 @@ export default function ProfilePage() {
   const [mintedReleaseNfts, setMintedReleaseNfts] = useState<
     MintedReleaseNft[]
   >([]);
+  const [deliveryHistory, setDeliveryHistory] = useState<StorageDeliveryRequest[]>([]);
   const [activeTab, setActiveTab] = useState<ProfileTab>("collection");
 
   const [products, setProducts] = useState<ShopProduct[]>([]);
@@ -240,6 +243,7 @@ export default function ProfilePage() {
         purchasedTracks,
         connectedTonWalletAddress,
         mintedNfts,
+        deliveryRequests,
       ] = await Promise.all([
         readProfileMode(viewerKey),
         readWalletBalanceCents(viewerKey),
@@ -249,6 +253,7 @@ export default function ProfilePage() {
         readPurchasedTrackKeys(viewerKey),
         readTonWalletAddress(viewerKey),
         readMintedReleaseNfts(viewerKey),
+        user?.id ? fetchMyStorageDeliveryRequests(20) : Promise.resolve({ requests: [] }),
       ]);
 
       if (!mounted) {
@@ -266,13 +271,14 @@ export default function ProfilePage() {
       setPurchasedTrackKeys(purchasedTracks);
       setTonWalletAddress(connectedTonWalletAddress);
       setMintedReleaseNfts(mintedNfts);
+      setDeliveryHistory(deliveryRequests.requests);
       setProfileBootLoading(false);
     })();
 
     return () => {
       mounted = false;
     };
-  }, [viewerKey, viewerSlug]);
+  }, [user?.id, viewerKey, viewerSlug]);
 
   useEffect(() => {
     if (!copyToast) {
@@ -562,6 +568,26 @@ export default function ProfilePage() {
               : undefined,
       })),
     [awards.length, collectionEntries.length, profileTabs],
+  );
+  const readyDeliveryCount = useMemo(
+    () =>
+      deliveryHistory.filter((entry) => entry.status === "ready" || entry.status === "delivered")
+        .length,
+    [deliveryHistory],
+  );
+  const activeDeliveryCount = useMemo(
+    () =>
+      deliveryHistory.filter(
+        (entry) =>
+          entry.status === "requested" ||
+          entry.status === "processing" ||
+          entry.status === "pending_asset_mapping",
+      ).length,
+    [deliveryHistory],
+  );
+  const failedDeliveryCount = useMemo(
+    () => deliveryHistory.filter((entry) => entry.status === "failed").length,
+    [deliveryHistory],
   );
   const hasMultipleTabs = profileTabs.length > 1;
   const currentTab: ProfileTab = profileTabs.some((tab) => tab.id === activeTab)
@@ -993,6 +1019,39 @@ export default function ProfilePage() {
             </div>
             <div className={styles.heroBalanceActions}>
               <Link href="/balance">Пополнить баланс</Link>
+            </div>
+          </div>
+
+          <div className={styles.heroDownloads}>
+            <div className={styles.heroDownloadsMeta}>
+              <span>Файлы</span>
+              <strong>
+                {deliveryHistory.length > 0
+                  ? `${readyDeliveryCount} готово`
+                  : "История выдач появится после покупок"}
+              </strong>
+              <small>
+                {deliveryHistory.length > 0
+                  ? `${activeDeliveryCount} в работе · ${failedDeliveryCount} с ошибкой`
+                  : "Здесь будут собираться загрузки релизов и треков"}
+              </small>
+            </div>
+            <div className={styles.heroDownloadsStats}>
+              <span>
+                <strong>{readyDeliveryCount}</strong>
+                Готово
+              </span>
+              <span>
+                <strong>{activeDeliveryCount}</strong>
+                В работе
+              </span>
+              <span>
+                <strong>{failedDeliveryCount}</strong>
+                Ошибки
+              </span>
+            </div>
+            <div className={styles.heroDownloadsActions}>
+              <Link href="/downloads">Открыть файлы</Link>
             </div>
           </div>
 

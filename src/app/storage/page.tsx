@@ -12,6 +12,7 @@ import {
   fetchStorageProgramSnapshot,
   joinMyStorageProgram,
 } from "@/lib/admin-api";
+import { openStorageDeliveryInDesktop } from "@/lib/desktop-runtime-api";
 import {
   fetchMyStorageDeliveryRequests,
   retryStorageDeliveryRequestApi,
@@ -199,6 +200,14 @@ export default function StorageProgramPage() {
   };
 
   const openDelivery = (request: StorageDeliveryRequest) => {
+    if (
+      request.channel === "desktop_download" &&
+      (request.storagePointer || request.deliveryUrl)
+    ) {
+      openStorageDeliveryInDesktop(request);
+      return;
+    }
+
     if (!request.deliveryUrl) {
       return;
     }
@@ -392,6 +401,9 @@ export default function StorageProgramPage() {
                 <Link href="/profile/edit" className={styles.secondaryLink}>
                   Вернуться в настройки
                 </Link>
+                <Link href="/storage/desktop" className={styles.secondaryLink}>
+                  Desktop beta
+                </Link>
               </div>
             </section>
 
@@ -445,14 +457,17 @@ export default function StorageProgramPage() {
                       {request.failureMessage ? (
                         <p className={styles.deliveryMessage}>{request.failureMessage}</p>
                       ) : null}
-                      {request.status === "ready" && request.deliveryUrl ? (
+                      {request.status === "ready" &&
+                      (request.deliveryUrl || request.storagePointer) ? (
                         <div className={styles.deliveryActions}>
                           <button
                             type="button"
                             className={styles.primaryButton}
                             onClick={() => openDelivery(request)}
                           >
-                            Открыть файл
+                            {request.channel === "desktop_download"
+                              ? "Открыть в Desktop"
+                              : "Открыть файл"}
                           </button>
                         </div>
                       ) : null}

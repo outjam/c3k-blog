@@ -206,6 +206,9 @@
 - `/api/storage/downloads/[id]`
   - `GET`: статус конкретного delivery request
   - `POST`: retry/reopen delivery request
+- `/api/storage/downloads/worker`
+  - worker для Telegram delivery queue
+  - `mode=status` возвращает размер очереди
 
 ## 12. Tools
 

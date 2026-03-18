@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
-  getTelegramNotificationQueueSize,
-  processTelegramNotificationQueue,
-} from "@/lib/server/telegram-notification-queue";
+  getTelegramStorageDeliveryQueueSize,
+  processTelegramStorageDeliveryQueue,
+} from "@/lib/server/storage-delivery";
 import {
   isAuthorizedWorkerRequest,
   parseWorkerQueueLimit,
@@ -20,11 +20,11 @@ export async function GET(request: Request) {
   const mode = (new URL(request.url).searchParams.get("mode") ?? "").trim().toLowerCase();
 
   if (mode === "status") {
-    const size = await getTelegramNotificationQueueSize();
-    return NextResponse.json({ ok: true, queueSize: size });
+    const queueSize = await getTelegramStorageDeliveryQueueSize();
+    return NextResponse.json({ ok: true, queueSize });
   }
 
-  const stats = await processTelegramNotificationQueue(parseWorkerQueueLimit(request));
+  const stats = await processTelegramStorageDeliveryQueue(parseWorkerQueueLimit(request));
   return NextResponse.json({ ok: true, ...stats });
 }
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const size = await getTelegramNotificationQueueSize();
-  const stats = await processTelegramNotificationQueue(parseWorkerQueueLimit(request));
-  return NextResponse.json({ ok: true, queueSizeBefore: size, ...stats });
+  const queueSizeBefore = await getTelegramStorageDeliveryQueueSize();
+  const stats = await processTelegramStorageDeliveryQueue(parseWorkerQueueLimit(request));
+  return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
 }

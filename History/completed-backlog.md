@@ -78,6 +78,9 @@
 - Добавлена user-facing history выдач в `C3K Storage Program`.
 - Добавлен retry/reopen flow для failed и pending delivery requests.
 - На экране релиза появилась видимость последних delivery requests по текущему релизу.
+- Добавлен отдельный экран `Файлы` как post-purchase library/download center.
+- В основном профиле появилась видимость file activity и переход в библиотеку загрузок.
+- Telegram delivery переведён на отдельный worker route и queue-подобную обработку.
 
 ### Admin и документация
 

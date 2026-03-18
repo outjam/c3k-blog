@@ -307,6 +307,8 @@ export const getStorageDeliveryState = async (): Promise<StorageDeliveryState | 
 
 export const listStorageDeliveryRequests = async (options?: {
   telegramUserId?: number;
+  channel?: StorageDeliveryChannel;
+  statuses?: StorageDeliveryRequestStatus[];
   limit?: number;
 }): Promise<StorageDeliveryRequest[]> => {
   const snapshot = await getStorageDeliveryState();
@@ -316,12 +318,19 @@ export const listStorageDeliveryRequests = async (options?: {
   }
 
   const telegramUserId = normalizeNonNegativeInt(options?.telegramUserId);
+  const channel = options?.channel ? normalizeChannel(options.channel) : undefined;
+  const statuses =
+    Array.isArray(options?.statuses) && options?.statuses.length > 0
+      ? options.statuses.map((entry) => normalizeStatus(entry))
+      : [];
   const limit = Math.max(1, Math.min(200, normalizeNonNegativeInt(options?.limit ?? 50) || 50));
 
   return Object.values(snapshot.requests)
     .filter((request) =>
       telegramUserId > 0 ? request.telegramUserId === telegramUserId : true,
     )
+    .filter((request) => (channel ? request.channel === channel : true))
+    .filter((request) => (statuses.length > 0 ? statuses.includes(request.status) : true))
     .sort((left, right) => {
       const leftTime = new Date(left.createdAt).getTime();
       const rightTime = new Date(right.createdAt).getTime();

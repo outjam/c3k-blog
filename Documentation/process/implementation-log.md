@@ -267,3 +267,72 @@
   - `src/lib/storage-delivery-api.ts`
   - `src/app/storage/page.tsx`
   - `src/app/shop/[slug]/shop-product-page-client.tsx`
+
+### Sprint 06 slice: downloads center and profile visibility
+
+- Добавлен отдельный consumer-facing экран файлов:
+  - [src/app/downloads/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.tsx)
+  - [src/app/downloads/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.module.scss)
+  - [src/app/downloads/loading.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/loading.tsx)
+- Экран `Файлы` показывает:
+  - все delivery requests пользователя
+  - фильтры `Все / Готово / В работе / Ошибки`
+  - retry для `failed` и `pending_asset_mapping`
+  - переход к релизу
+- В основном профиле появился компактный summary block по файлам и delivery activity:
+  - [src/app/profile/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.tsx)
+  - [src/app/profile/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.module.scss)
+
+### Что это даёт спринту
+
+- у пользователя появился отдельный entry point в post-purchase библиотеку
+- delivery history больше не привязана только к `C3K Storage` и экрану релиза
+- профиль начал показывать реальную file activity, а не только покупки и коллекцию
+
+### Проверка downloads center slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/app/downloads/page.tsx`
+  - `src/app/downloads/loading.tsx`
+  - `src/app/profile/page.tsx`
+  - `src/lib/storage-delivery-api.ts`
+
+### Sprint 06 slice: Telegram delivery worker
+
+- Telegram delivery больше не зависит только от lifecycle user request
+- В [src/lib/server/storage-delivery.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts):
+  - Telegram requests теперь ставятся в queue-like `processing` state
+  - добавлены:
+    - `getTelegramStorageDeliveryQueueSize`
+    - `processTelegramStorageDeliveryQueue`
+- Delivery store теперь умеет фильтровать requests по `channel/status`:
+  - [src/lib/server/storage-delivery-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery-store.ts)
+- Добавлен worker route:
+  - [src/app/api/storage/downloads/worker/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/worker/route.ts)
+
+### Как работает worker slice
+
+- пользовательский запрос на `telegram_bot` больше не отправляет файл синхронно
+- request получает статус `processing`
+- worker берёт queued Telegram delivery requests отдельно
+- worker пытается скачать файл по `deliveryUrl` и отправить в Telegram
+- после этого request обновляется в `delivered` или `failed`
+
+### Почему это важно
+
+- Telegram delivery теперь можно запускать независимо от UI-request
+- появляется нормальный путь для cron/manual worker processing
+- это закрывает последний крупный deliverable `Sprint 06`
+
+### Проверка Telegram worker slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/storage-delivery-store.ts`
+  - `src/lib/server/storage-delivery.ts`
+  - `src/app/api/storage/downloads/worker/route.ts`
+  - `src/app/api/storage/downloads/release/route.ts`
+  - `src/app/api/storage/downloads/track/route.ts`
+  - `src/app/api/storage/downloads/[id]/route.ts`
+  - `src/lib/storage-delivery-api.ts`

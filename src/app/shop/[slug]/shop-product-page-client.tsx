@@ -47,6 +47,8 @@ import {
   getTrackFormats,
 } from "@/lib/shop-release-format";
 import { formatStarsFromCents } from "@/lib/stars-format";
+import { openStorageDeliveryInDesktop } from "@/lib/desktop-runtime-api";
+import { C3K_STORAGE_DESKTOP_CLIENT_ENABLED } from "@/lib/storage-config";
 import {
   fetchMyStorageDeliveryRequests,
   requestReleaseDownload,
@@ -65,7 +67,7 @@ import {
   RELEASE_REACTION_OPTIONS,
   type ReleaseSocialSnapshot,
 } from "@/types/release-social";
-import type { StorageDeliveryRequest } from "@/types/storage";
+import type { StorageDeliveryChannel, StorageDeliveryRequest } from "@/types/storage";
 import type { ArtistAudioFormat, ArtistReleaseTrackItem, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
@@ -158,6 +160,17 @@ function TelegramIcon(props: SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
       <path
         d="m16.8 4.28-2.17 10.25c-.16.73-.58.91-1.18.57l-3.27-2.41-1.58 1.52c-.17.17-.32.32-.65.32l.24-3.38 6.16-5.56c.27-.24-.06-.37-.41-.13L6.3 10.22 3 9.19c-.72-.23-.73-.72.15-1.06l12.9-4.98c.6-.22 1.13.15.75 1.13Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function DesktopIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M4.75 4A1.75 1.75 0 0 0 3 5.75v7.5C3 14.22 3.78 15 4.75 15h3.38l-.88 1.25a.75.75 0 1 0 1.22.86L9.7 15h.6l1.22 2.11a.75.75 0 1 0 1.3-.72L11.87 15h3.38A1.75 1.75 0 0 0 17 13.25v-7.5A1.75 1.75 0 0 0 15.25 4h-10.5ZM4.5 6a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V6Z"
         fill="currentColor"
       />
     </svg>
@@ -451,6 +464,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     () => deliveryHistory.filter((entry) => entry.releaseSlug === product.slug).slice(0, 6),
     [deliveryHistory, product.slug],
   );
+  const desktopDownloadsEnabled = C3K_STORAGE_DESKTOP_CLIENT_ENABLED;
 
   const isTrackOwned = useCallback(
     (trackId: string) => {
@@ -503,7 +517,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   }, []);
 
   const requestReleaseFile = useCallback(
-    async (channel: "telegram_bot" | "web_download") => {
+    async (channel: StorageDeliveryChannel) => {
       if (!user?.id) {
         setWalletMessage("Для выдачи файла войдите через Telegram Widget.");
         return;
@@ -534,11 +548,19 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       if (channel === "web_download" && result.request.deliveryUrl) {
         triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
       }
+      if (
+        channel === "desktop_download" &&
+        (result.request.storagePointer || result.request.deliveryUrl)
+      ) {
+        openStorageDeliveryInDesktop(result.request);
+      }
 
       setWalletMessage(
         result.message ??
           (channel === "telegram_bot"
             ? "Файл релиза отправлен в Telegram."
+            : channel === "desktop_download"
+              ? "Файл релиза передан в C3K Desktop."
             : "Файл релиза подготовлен к скачиванию."),
       );
       hapticNotification("success");
@@ -554,7 +576,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   );
 
   const requestTrackFile = useCallback(
-    async (track: ArtistReleaseTrackItem, channel: "telegram_bot" | "web_download") => {
+    async (track: ArtistReleaseTrackItem, channel: StorageDeliveryChannel) => {
       if (!user?.id) {
         setWalletMessage("Для выдачи файла войдите через Telegram Widget.");
         return;
@@ -587,11 +609,19 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       if (channel === "web_download" && result.request.deliveryUrl) {
         triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
       }
+      if (
+        channel === "desktop_download" &&
+        (result.request.storagePointer || result.request.deliveryUrl)
+      ) {
+        openStorageDeliveryInDesktop(result.request);
+      }
 
       setWalletMessage(
         result.message ??
           (channel === "telegram_bot"
             ? `Трек «${track.title}» отправлен в Telegram.`
+            : channel === "desktop_download"
+              ? `Трек «${track.title}» передан в C3K Desktop.`
             : `Трек «${track.title}» подготовлен к скачиванию.`),
       );
       hapticNotification("success");
@@ -621,8 +651,19 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
       upsertDeliveryRequest(result.request);
 
-      if (result.request.channel === "web_download" && result.request.deliveryUrl && result.request.status === "ready") {
+      if (
+        result.request.channel === "web_download" &&
+        result.request.deliveryUrl &&
+        result.request.status === "ready"
+      ) {
         triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
+      }
+      if (
+        result.request.channel === "desktop_download" &&
+        result.request.status === "ready" &&
+        (result.request.storagePointer || result.request.deliveryUrl)
+      ) {
+        openStorageDeliveryInDesktop(result.request);
       }
 
       setWalletMessage(result.message ?? "Запрос на выдачу обновлён.");
@@ -1106,16 +1147,27 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                         <p className={styles.deliveryRequestMessage}>{request.failureMessage}</p>
                       ) : null}
                       <div className={styles.deliveryRequestActions}>
-                        {request.status === "ready" && request.deliveryUrl ? (
+                        {request.status === "ready" &&
+                        (request.deliveryUrl || request.storagePointer) ? (
                           <button
                             type="button"
                             className={styles.secondaryButton}
                             onClick={() =>
-                              triggerBrowserDownload(request.deliveryUrl!, request.fileName)
+                              request.channel === "desktop_download"
+                                ? openStorageDeliveryInDesktop(request)
+                                : request.deliveryUrl
+                                  ? triggerBrowserDownload(request.deliveryUrl, request.fileName)
+                                  : undefined
                             }
                           >
-                            <DownloadIcon className={styles.buttonIcon} />
-                            Открыть файл
+                            {request.channel === "desktop_download" ? (
+                              <DesktopIcon className={styles.buttonIcon} />
+                            ) : (
+                              <DownloadIcon className={styles.buttonIcon} />
+                            )}
+                            {request.channel === "desktop_download"
+                              ? "Открыть в Desktop"
+                              : "Открыть файл"}
                           </button>
                         ) : null}
                         {(request.status === "failed" ||
@@ -1197,6 +1249,19 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                             >
                               <TelegramIcon className={styles.buttonIcon} />
                             </button>
+                            {desktopDownloadsEnabled ? (
+                              <button
+                                type="button"
+                                className={styles.inlineAction}
+                                onClick={() => void requestTrackFile(track, "desktop_download")}
+                                disabled={
+                                  deliveryPendingKey === `track:${track.id}:desktop_download`
+                                }
+                                aria-label={`Открыть ${track.title} в C3K Desktop`}
+                              >
+                                <DesktopIcon className={styles.buttonIcon} />
+                              </button>
+                            ) : null}
                           </div>
                         ) : (
                           <button
@@ -1256,6 +1321,19 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                         ? "Отправляем..."
                         : "В Telegram"}
                     </button>
+                    {desktopDownloadsEnabled ? (
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        onClick={() => void requestReleaseFile("desktop_download")}
+                        disabled={deliveryPendingKey === "release:desktop_download"}
+                      >
+                        <DesktopIcon className={styles.buttonIcon} />
+                        {deliveryPendingKey === "release:desktop_download"
+                          ? "Открываем..."
+                          : "В Desktop"}
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <button

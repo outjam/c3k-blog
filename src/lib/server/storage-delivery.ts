@@ -13,6 +13,7 @@ import {
 import {
   createStorageDeliveryRequest,
   getStorageDeliveryRequest,
+  listStorageDeliveryRequests,
   updateStorageDeliveryRequest,
 } from "@/lib/server/storage-delivery-store";
 import { getCatalogSnapshot } from "@/lib/server/shop-catalog";
@@ -28,6 +29,14 @@ type DeliveryFailureReason =
   | "format_not_owned"
   | "telegram_delivery_disabled"
   | "telegram_delivery_failed";
+
+export interface TelegramStorageDeliveryWorkerStats {
+  queueSize: number;
+  processed: number;
+  delivered: number;
+  failed: number;
+  skipped: number;
+}
 
 interface DeliveryAccessResolution {
   allowed: boolean;
@@ -388,6 +397,34 @@ const buildDeliveryCaption = (input: {
   return `Файл релиза «${input.product.title}» (${input.resolvedFormat.toUpperCase()}).`;
 };
 
+const buildDeliveryCaptionFromRequest = async (
+  request: StorageDeliveryRequest,
+): Promise<string> => {
+  const product = await resolveProductBySlug(request.releaseSlug);
+
+  if (!product) {
+    if (request.targetType === "track" && request.trackId) {
+      return `Файл трека ${request.trackId} (${String(request.resolvedFormat ?? request.requestedFormat ?? "").toUpperCase()}).`;
+    }
+
+    return `Файл релиза ${request.releaseSlug} (${String(request.resolvedFormat ?? request.requestedFormat ?? "").toUpperCase()}).`;
+  }
+
+  const resolvedFormat = normalizeOptionalFormat(request.resolvedFormat ?? request.requestedFormat) ??
+    getDefaultTrackFormat(product);
+  const track =
+    request.targetType === "track"
+      ? (product.releaseTracklist ?? []).find((entry) => entry.id === request.trackId)
+      : undefined;
+
+  return buildDeliveryCaption({
+    product,
+    track,
+    targetType: request.targetType,
+    resolvedFormat,
+  });
+};
+
 const requestDelivery = async (input: {
   telegramUserId: number;
   releaseSlug: string;
@@ -587,46 +624,17 @@ const requestDelivery = async (input: {
         message: "Запрос сохранён, но Telegram delivery станет доступен после настройки storage gateway.",
       };
     }
-
-    const delivered = await deliverToTelegram({
-      chatId: telegramUserId,
-      fileName: resolved.fileName,
-      mimeType: resolved.mimeType,
-      deliveryUrl: resolved.deliveryUrl,
-      caption: buildDeliveryCaption({
-        product,
-        track: track ?? undefined,
-        targetType: input.targetType,
-        resolvedFormat: access.resolvedFormat,
-      }),
-    });
-
-    if (!delivered) {
-      const failedRequest = await updateStorageDeliveryRequest(activeRequest.id, {
-        status: "failed",
-        failureCode: "telegram_delivery_failed",
-        failureMessage: "Не удалось отправить файл в Telegram.",
-      });
-
-      return {
-        ok: false,
-        reason: "telegram_delivery_failed",
-        message: "Не удалось отправить файл в Telegram.",
-        request: failedRequest ?? activeRequest,
-      };
-    }
-
-    const deliveredRequest = await updateStorageDeliveryRequest(activeRequest.id, {
-      status: "delivered",
-      deliveredAt: new Date().toISOString(),
+    const queuedRequest = await updateStorageDeliveryRequest(activeRequest.id, {
+      status: "processing",
       failureCode: "",
       failureMessage: "",
+      deliveredAt: null,
     });
 
     return {
       ok: true,
-      request: deliveredRequest ?? activeRequest,
-      message: "Файл отправлен в личные сообщения Telegram.",
+      request: queuedRequest ?? activeRequest,
+      message: "Файл поставлен в очередь на отправку в Telegram.",
     };
   }
 
@@ -717,4 +725,97 @@ export const retryStorageDeliveryRequest = async (input: {
     publicBaseUrl: input.publicBaseUrl,
     existingRequestId: request.id,
   });
+};
+
+export const getTelegramStorageDeliveryQueueSize = async (): Promise<number> => {
+  const requests = await listStorageDeliveryRequests({
+    channel: "telegram_bot",
+    statuses: ["processing"],
+    limit: 200,
+  });
+
+  return requests.filter((entry) => Boolean(entry.deliveryUrl)).length;
+};
+
+export const processTelegramStorageDeliveryQueue = async (
+  limit = 25,
+): Promise<TelegramStorageDeliveryWorkerStats> => {
+  const config = getC3kStorageConfig();
+  const queue = (await listStorageDeliveryRequests({
+    channel: "telegram_bot",
+    statuses: ["processing"],
+    limit: Math.max(1, Math.min(100, limit)),
+  }))
+    .filter((entry) => Boolean(entry.deliveryUrl))
+    .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
+
+  if (!config.telegramBotDeliveryEnabled) {
+    return {
+      queueSize: queue.length,
+      processed: 0,
+      delivered: 0,
+      failed: 0,
+      skipped: queue.length,
+    };
+  }
+
+  let processed = 0;
+  let delivered = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const request of queue) {
+    processed += 1;
+
+    if (!request.deliveryUrl || !request.telegramChatId) {
+      await updateStorageDeliveryRequest(request.id, {
+        status: "failed",
+        failureCode: "telegram_delivery_unresolvable",
+        failureMessage: "Запрос не содержит deliveryUrl или telegramChatId.",
+      });
+      failed += 1;
+      continue;
+    }
+
+    const deliveredOk = await deliverToTelegram({
+      chatId: request.telegramChatId,
+      fileName: request.fileName || "c3k-file",
+      mimeType: request.mimeType || "application/octet-stream",
+      deliveryUrl: request.deliveryUrl,
+      caption: await buildDeliveryCaptionFromRequest(request),
+    });
+
+    if (!deliveredOk) {
+      await updateStorageDeliveryRequest(request.id, {
+        status: "failed",
+        failureCode: "telegram_delivery_failed",
+        failureMessage: "Не удалось отправить файл в Telegram worker-ом.",
+      });
+      failed += 1;
+      continue;
+    }
+
+    const nextStatus = request.deliveryUrl ? "delivered" : "failed";
+
+    if (nextStatus === "delivered") {
+      await updateStorageDeliveryRequest(request.id, {
+        status: "delivered",
+        deliveredAt: new Date().toISOString(),
+        failureCode: "",
+        failureMessage: "",
+      });
+      delivered += 1;
+      continue;
+    }
+
+    skipped += 1;
+  }
+
+  return {
+    queueSize: queue.length,
+    processed,
+    delivered,
+    failed,
+    skipped,
+  };
 };

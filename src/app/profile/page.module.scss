@@ -293,6 +293,73 @@
   background: var(--tg-btn);
 }
 
+.heroDownloads {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--tg-section-separator) 20%, transparent);
+}
+
+.heroDownloadsMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.heroDownloadsMeta span,
+.heroDownloadsMeta small {
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
+}
+
+.heroDownloadsMeta strong {
+  color: var(--tg-text);
+  font-size: 0.92rem;
+}
+
+.heroDownloadsStats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.heroDownloadsStats span {
+  display: grid;
+  gap: 0.1rem;
+  color: var(--tg-subtitle-text);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.heroDownloadsStats strong {
+  color: var(--tg-text);
+  font-size: 0.9rem;
+}
+
+.heroDownloadsActions {
+  display: flex;
+  align-items: center;
+}
+
+.heroDownloadsActions a {
+  min-height: 2.2rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  padding: 0 0.85rem;
+  color: var(--tg-text);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+}
+
 .heroActions button,
 .heroActions a,
 .primaryButton,
@@ -1268,6 +1335,15 @@
 
   .heroBalanceActions {
     margin-left: 0;
+  }
+
+  .heroDownloads {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .heroDownloadsStats {
+    justify-content: space-between;
   }
 
   .artistFormGrid,

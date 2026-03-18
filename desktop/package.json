@@ -1,0 +1,15 @@
+{
+  "name": "c3k-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Electron shell for C3K Storage Node and c3k.ton gateway",
+  "main": "main.mjs",
+  "scripts": {
+    "dev": "electron .",
+    "gateway": "node gateway.mjs"
+  },
+  "dependencies": {
+    "electron": "^37.2.1"
+  }
+}

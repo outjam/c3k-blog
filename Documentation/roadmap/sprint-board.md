@@ -37,8 +37,8 @@
 ## Текущий фокус
 
 - Текущая большая фаза: `Phase 5 groundwork`
-- Текущий спринт: `Sprint 06 — Telegram delivery worker and library visibility`
-- Следующий спринт: `Sprint 07 — Desktop client skeleton and c3k.ton gateway`
+- Текущий спринт: `Sprint 07 — Desktop client skeleton and c3k.ton gateway`
+- Следующий спринт: `Sprint 08 — Backend normalization and ledger hardening`
 
 ## Спринты
 
@@ -146,17 +146,17 @@ Status: done
 
 ### Sprint 06 — Telegram Delivery Worker and Library Visibility
 
-Status: current
+Status: done
 
 Цель:
 - довести выдачу файлов до отдельного устойчивого delivery flow и показать её в интерфейсе пользователя
 
 Что должно быть доставлено:
-- [ ] Отдельный Telegram delivery worker
+- [x] Отдельный Telegram delivery worker
 - [x] Retry/reopen flow для failed delivery requests
 - [x] Явный статус выдачи на экране релиза
-- [ ] История скачиваний и delivery requests в профиле
-- [ ] Library/download center без привязки только к экрану релиза
+- [x] История скачиваний и delivery requests в профиле
+- [x] Library/download center без привязки только к экрану релиза
 
 Критерий выхода:
 - запросы на выдачу файлов не зависят только от route execution
@@ -164,7 +164,7 @@ Status: current
 
 ### Sprint 07 — Desktop Client Skeleton and c3k.ton Gateway
 
-Status: queued
+Status: current
 
 Цель:
 - собрать первый рабочий desktop contour для `C3K Storage Node` и локального клиента открытия `c3k.ton`
