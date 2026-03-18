@@ -405,7 +405,44 @@ export const createStorageDeliveryRequest = async (
 
 export const updateStorageDeliveryRequest = async (
   id: string,
-  patch: Partial<Omit<StorageDeliveryRequest, "id" | "telegramUserId" | "targetType" | "releaseSlug" | "trackId" | "createdAt">>,
+  patch: Partial<
+    Omit<
+      StorageDeliveryRequest,
+      | "id"
+      | "telegramUserId"
+      | "targetType"
+      | "releaseSlug"
+      | "trackId"
+      | "createdAt"
+      | "requestedFormat"
+      | "resolvedFormat"
+      | "resolvedAssetId"
+      | "resolvedBagId"
+      | "resolvedSourceUrl"
+      | "storagePointer"
+      | "deliveryUrl"
+      | "fileName"
+      | "mimeType"
+      | "telegramChatId"
+      | "failureCode"
+      | "failureMessage"
+      | "deliveredAt"
+    >
+  > & {
+    requestedFormat?: string | null;
+    resolvedFormat?: string | null;
+    resolvedAssetId?: string | null;
+    resolvedBagId?: string | null;
+    resolvedSourceUrl?: string | null;
+    storagePointer?: string | null;
+    deliveryUrl?: string | null;
+    fileName?: string | null;
+    mimeType?: string | null;
+    telegramChatId?: number | null;
+    failureCode?: string | null;
+    failureMessage?: string | null;
+    deliveredAt?: string | null;
+  },
 ): Promise<StorageDeliveryRequest | null> => {
   const normalizedId = normalizeSafeId(id, 120);
 
@@ -423,7 +460,9 @@ export const updateStorageDeliveryRequest = async (
     const now = new Date().toISOString();
     const deliveredAt =
       patch.deliveredAt !== undefined
-        ? patch.deliveredAt
+        ? patch.deliveredAt === null
+          ? undefined
+          : patch.deliveredAt
           ? normalizeIsoDateTime(patch.deliveredAt, now)
           : undefined
         : existing.deliveredAt;
@@ -437,52 +476,76 @@ export const updateStorageDeliveryRequest = async (
           channel: patch.channel ? normalizeChannel(patch.channel) : existing.channel,
           requestedFormat:
             patch.requestedFormat !== undefined
-              ? normalizeOptionalText(patch.requestedFormat, 32)
+              ? patch.requestedFormat === null
+                ? undefined
+                : normalizeOptionalText(patch.requestedFormat, 32)
               : existing.requestedFormat,
           resolvedFormat:
             patch.resolvedFormat !== undefined
-              ? normalizeOptionalText(patch.resolvedFormat, 32)
+              ? patch.resolvedFormat === null
+                ? undefined
+                : normalizeOptionalText(patch.resolvedFormat, 32)
               : existing.resolvedFormat,
           status: patch.status ? normalizeStatus(patch.status) : existing.status,
           resolvedAssetId:
             patch.resolvedAssetId !== undefined
-              ? normalizeOptionalText(patch.resolvedAssetId, 120)
+              ? patch.resolvedAssetId === null
+                ? undefined
+                : normalizeOptionalText(patch.resolvedAssetId, 120)
               : existing.resolvedAssetId,
           resolvedBagId:
             patch.resolvedBagId !== undefined
-              ? normalizeOptionalText(patch.resolvedBagId, 120)
+              ? patch.resolvedBagId === null
+                ? undefined
+                : normalizeOptionalText(patch.resolvedBagId, 120)
               : existing.resolvedBagId,
           resolvedSourceUrl:
             patch.resolvedSourceUrl !== undefined
-              ? normalizeOptionalText(patch.resolvedSourceUrl, 3000)
+              ? patch.resolvedSourceUrl === null
+                ? undefined
+                : normalizeOptionalText(patch.resolvedSourceUrl, 3000)
               : existing.resolvedSourceUrl,
           storagePointer:
             patch.storagePointer !== undefined
-              ? normalizeOptionalText(patch.storagePointer, 500)
+              ? patch.storagePointer === null
+                ? undefined
+                : normalizeOptionalText(patch.storagePointer, 500)
               : existing.storagePointer,
           deliveryUrl:
             patch.deliveryUrl !== undefined
-              ? normalizeOptionalText(patch.deliveryUrl, 3000)
+              ? patch.deliveryUrl === null
+                ? undefined
+                : normalizeOptionalText(patch.deliveryUrl, 3000)
               : existing.deliveryUrl,
           fileName:
             patch.fileName !== undefined
-              ? normalizeOptionalText(patch.fileName, 255)
+              ? patch.fileName === null
+                ? undefined
+                : normalizeOptionalText(patch.fileName, 255)
               : existing.fileName,
           mimeType:
             patch.mimeType !== undefined
-              ? normalizeOptionalText(patch.mimeType, 180)
+              ? patch.mimeType === null
+                ? undefined
+                : normalizeOptionalText(patch.mimeType, 180)
               : existing.mimeType,
           telegramChatId:
             patch.telegramChatId !== undefined
-              ? normalizeNonNegativeInt(patch.telegramChatId) || undefined
+              ? patch.telegramChatId === null
+                ? undefined
+                : normalizeNonNegativeInt(patch.telegramChatId) || undefined
               : existing.telegramChatId,
           failureCode:
             patch.failureCode !== undefined
-              ? normalizeOptionalText(patch.failureCode, 120)
+              ? patch.failureCode === null
+                ? undefined
+                : normalizeOptionalText(patch.failureCode, 120)
               : existing.failureCode,
           failureMessage:
             patch.failureMessage !== undefined
-              ? normalizeOptionalText(patch.failureMessage, 500)
+              ? patch.failureMessage === null
+                ? undefined
+                : normalizeOptionalText(patch.failureMessage, 500)
               : existing.failureMessage,
           deliveredAt,
           updatedAt: now,

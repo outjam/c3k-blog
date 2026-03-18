@@ -153,8 +153,8 @@ Status: current
 
 Что должно быть доставлено:
 - [ ] Отдельный Telegram delivery worker
-- [ ] Retry/reopen flow для failed delivery requests
-- [ ] Явный статус выдачи на экране релиза
+- [x] Retry/reopen flow для failed delivery requests
+- [x] Явный статус выдачи на экране релиза
 - [ ] История скачиваний и delivery requests в профиле
 - [ ] Library/download center без привязки только к экрану релиза
 

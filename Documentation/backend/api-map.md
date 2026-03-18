@@ -204,7 +204,8 @@
 - `/api/storage/downloads/track`
   - запрос выдачи файла отдельного трека
 - `/api/storage/downloads/[id]`
-  - статус конкретного delivery request
+  - `GET`: статус конкретного delivery request
+  - `POST`: retry/reopen delivery request
 
 ## 12. Tools
 

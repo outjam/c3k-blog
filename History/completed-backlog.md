@@ -76,6 +76,8 @@
   - скачивания купленного трека
   - отправки купленного трека в Telegram
 - Добавлена user-facing history выдач в `C3K Storage Program`.
+- Добавлен retry/reopen flow для failed и pending delivery requests.
+- На экране релиза появилась видимость последних delivery requests по текущему релизу.
 
 ### Admin и документация
 

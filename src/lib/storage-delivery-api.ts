@@ -135,6 +135,47 @@ export const fetchStorageDeliveryRequest = async (
   }
 };
 
+export const retryStorageDeliveryRequestApi = async (id: string): Promise<{
+  ok: boolean;
+  request: StorageDeliveryRequest | null;
+  message?: string;
+  reason?: string;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch(`/api/storage/downloads/${encodeURIComponent(id)}`, {
+      method: "POST",
+      headers: storageHeaders(),
+      body: JSON.stringify({}),
+      cache: "no-store",
+    });
+    const data = (await response.json()) as StorageDeliveryResponseShape;
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        request: data.request ?? null,
+        message: data.message,
+        reason: data.reason,
+        error: data.error ?? data.message ?? `HTTP ${response.status}`,
+      };
+    }
+
+    return {
+      ok: Boolean(data.ok),
+      request: data.request ?? null,
+      message: data.message,
+      reason: data.reason,
+    };
+  } catch {
+    return {
+      ok: false,
+      request: null,
+      error: "Network error",
+    };
+  }
+};
+
 export const fetchMyStorageDeliveryRequests = async (
   limit = 20,
 ): Promise<{ requests: StorageDeliveryRequest[]; error?: string }> => {

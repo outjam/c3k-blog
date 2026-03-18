@@ -246,6 +246,49 @@
   gap: 0.9rem;
 }
 
+.deliveryRequestList {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.deliveryRequestCard {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.95rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+  border-radius: 1.35rem;
+}
+
+.deliveryRequestTopline,
+.deliveryRequestMeta,
+.deliveryRequestActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.deliveryRequestTopline {
+  justify-content: space-between;
+}
+
+.deliveryRequestTopline strong {
+  color: var(--tg-text);
+  font-size: 0.88rem;
+}
+
+.deliveryRequestTopline span,
+.deliveryRequestMeta span,
+.deliveryRequestMessage {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.deliveryRequestMessage {
+  margin: 0;
+  line-height: 1.5;
+}
+
 .sectionHeader,
 .panelHeader,
 .modalHead,

@@ -12,7 +12,10 @@ import {
   fetchStorageProgramSnapshot,
   joinMyStorageProgram,
 } from "@/lib/admin-api";
-import { fetchMyStorageDeliveryRequests } from "@/lib/storage-delivery-api";
+import {
+  fetchMyStorageDeliveryRequests,
+  retryStorageDeliveryRequestApi,
+} from "@/lib/storage-delivery-api";
 import type { StorageDeliveryRequest } from "@/types/storage";
 
 import styles from "./page.module.scss";
@@ -68,6 +71,17 @@ const formatDeliveryTarget = (request: StorageDeliveryRequest): string => {
   return "Полный релиз";
 };
 
+const formatDeliveryChannel = (value: StorageDeliveryRequest["channel"]): string => {
+  switch (value) {
+    case "telegram_bot":
+      return "Telegram";
+    case "desktop_download":
+      return "Desktop";
+    default:
+      return "Web";
+  }
+};
+
 export default function StorageProgramPage() {
   const router = useRouter();
   const tonWallet = useTonWallet();
@@ -80,6 +94,7 @@ export default function StorageProgramPage() {
   const [note, setNote] = useState("");
   const [joining, setJoining] = useState(false);
   const [deliveryHistory, setDeliveryHistory] = useState<StorageDeliveryRequest[]>([]);
+  const [retryingRequestId, setRetryingRequestId] = useState("");
   const [snapshot, setSnapshot] = useState<Awaited<
     ReturnType<typeof fetchStorageProgramSnapshot>
   >["snapshot"]>(null);
@@ -189,6 +204,31 @@ export default function StorageProgramPage() {
     }
 
     window.open(request.deliveryUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const updateDeliveryRequest = (nextRequest: StorageDeliveryRequest) => {
+    setDeliveryHistory((current) => {
+      const next = current.filter((entry) => entry.id !== nextRequest.id);
+      return [nextRequest, ...next].slice(0, 20);
+    });
+  };
+
+  const retryDelivery = async (request: StorageDeliveryRequest) => {
+    setRetryingRequestId(request.id);
+    setError("");
+    setMessage("");
+
+    const response = await retryStorageDeliveryRequestApi(request.id);
+
+    setRetryingRequestId("");
+
+    if (!response.ok || !response.request) {
+      setError(response.error ?? response.message ?? "Не удалось повторить выдачу файла.");
+      return;
+    }
+
+    updateDeliveryRequest(response.request);
+    setMessage(response.message ?? "Запрос на выдачу обновлён.");
   };
 
   return (
@@ -399,20 +439,33 @@ export default function StorageProgramPage() {
                       </div>
                       <div className={styles.deliveryMeta}>
                         <span>{formatDeliveryTarget(request)}</span>
-                        <span>{request.channel}</span>
+                        <span>{formatDeliveryChannel(request.channel)}</span>
                         <span>{request.resolvedFormat || request.requestedFormat || "no format"}</span>
                       </div>
                       {request.failureMessage ? (
                         <p className={styles.deliveryMessage}>{request.failureMessage}</p>
                       ) : null}
                       {request.status === "ready" && request.deliveryUrl ? (
-                        <div className={styles.panelActions}>
+                        <div className={styles.deliveryActions}>
                           <button
                             type="button"
                             className={styles.primaryButton}
                             onClick={() => openDelivery(request)}
                           >
                             Открыть файл
+                          </button>
+                        </div>
+                      ) : null}
+                      {(request.status === "failed" ||
+                        request.status === "pending_asset_mapping") ? (
+                        <div className={styles.deliveryActions}>
+                          <button
+                            type="button"
+                            className={styles.secondaryAction}
+                            onClick={() => void retryDelivery(request)}
+                            disabled={retryingRequestId === request.id}
+                          >
+                            {retryingRequestId === request.id ? "Повторяем..." : "Повторить"}
                           </button>
                         </div>
                       ) : null}

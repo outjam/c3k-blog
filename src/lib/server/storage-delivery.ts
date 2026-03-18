@@ -12,6 +12,7 @@ import {
 } from "@/lib/server/storage-registry-store";
 import {
   createStorageDeliveryRequest,
+  getStorageDeliveryRequest,
   updateStorageDeliveryRequest,
 } from "@/lib/server/storage-delivery-store";
 import { getCatalogSnapshot } from "@/lib/server/shop-catalog";
@@ -395,6 +396,7 @@ const requestDelivery = async (input: {
   requestedFormat?: string;
   channel: StorageDeliveryChannel;
   publicBaseUrl?: string;
+  existingRequestId?: string;
 }): Promise<StorageDeliveryServiceResult> => {
   const config = getC3kStorageConfig();
   const telegramUserId = normalizeTelegramUserId(input.telegramUserId);
@@ -480,17 +482,35 @@ const requestDelivery = async (input: {
     };
   }
 
-  const draftRequest = await createStorageDeliveryRequest({
-    telegramUserId,
-    channel: input.channel,
-    targetType: input.targetType,
-    releaseSlug,
-    trackId: input.targetType === "track" ? trackId : undefined,
-    requestedFormat,
-    resolvedFormat: access.resolvedFormat,
-    status: "processing",
-    telegramChatId: telegramUserId,
-  });
+  const draftRequest = input.existingRequestId
+    ? await updateStorageDeliveryRequest(input.existingRequestId, {
+        channel: input.channel,
+        requestedFormat: requestedFormat ?? null,
+        resolvedFormat: access.resolvedFormat,
+        status: "processing",
+        resolvedAssetId: null,
+        resolvedBagId: null,
+        resolvedSourceUrl: null,
+        storagePointer: null,
+        deliveryUrl: null,
+        fileName: null,
+        mimeType: null,
+        telegramChatId: telegramUserId,
+        failureCode: null,
+        failureMessage: null,
+        deliveredAt: null,
+      })
+    : await createStorageDeliveryRequest({
+        telegramUserId,
+        channel: input.channel,
+        targetType: input.targetType,
+        releaseSlug,
+        trackId: input.targetType === "track" ? trackId : undefined,
+        requestedFormat,
+        resolvedFormat: access.resolvedFormat,
+        status: "processing",
+        telegramChatId: telegramUserId,
+      });
 
   if (!draftRequest) {
     return {
@@ -669,5 +689,32 @@ export const requestTrackStorageDelivery = async (input: {
     requestedFormat: input.requestedFormat,
     channel: input.channel,
     publicBaseUrl: input.publicBaseUrl,
+  });
+};
+
+export const retryStorageDeliveryRequest = async (input: {
+  telegramUserId: number;
+  requestId: string;
+  publicBaseUrl?: string;
+}): Promise<StorageDeliveryServiceResult> => {
+  const request = await getStorageDeliveryRequest(input.requestId);
+
+  if (!request || request.telegramUserId !== normalizeTelegramUserId(input.telegramUserId)) {
+    return {
+      ok: false,
+      reason: "not_purchased",
+      message: "Delivery request не найден или недоступен.",
+    };
+  }
+
+  return requestDelivery({
+    telegramUserId: input.telegramUserId,
+    releaseSlug: request.releaseSlug,
+    trackId: request.trackId,
+    targetType: request.targetType,
+    requestedFormat: request.requestedFormat ?? request.resolvedFormat,
+    channel: request.channel,
+    publicBaseUrl: input.publicBaseUrl,
+    existingRequestId: request.id,
   });
 };

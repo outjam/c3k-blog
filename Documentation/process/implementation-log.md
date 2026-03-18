@@ -231,3 +231,39 @@
   - `src/app/api/admin/storage/ingest/route.ts`
   - `src/lib/admin-api.ts`
   - `src/app/admin/storage/page.tsx`
+
+### Sprint 06 slice: retryable delivery flow and release-level visibility
+
+- Delivery state теперь поддерживает clean reset optional fields при повторном запуске request:
+  - [src/lib/server/storage-delivery-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery-store.ts)
+- Delivery service теперь умеет повторно запускать существующий request:
+  - [src/lib/server/storage-delivery.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts)
+- Route [src/app/api/storage/downloads/[id]/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/[id]/route.ts) теперь поддерживает:
+  - `GET` статуса
+  - `POST` retry/reopen
+- Client delivery API получил retry helper:
+  - [src/lib/storage-delivery-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/storage-delivery-api.ts)
+- На экране [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx):
+  - появились retry actions для `failed` и `pending_asset_mapping`
+  - улучшено отображение channel/status для user-facing delivery history
+- На экране релиза [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/[slug]/shop-product-page-client.tsx):
+  - появились последние delivery requests по текущему релизу
+  - добавлены явные статусы выдачи
+  - добавлен retry прямо с экрана релиза
+
+### Что это даёт спринту
+
+- delivery flow стал менее одноразовым
+- пользователь теперь видит, что происходит с его файлом, а не только нажимает кнопку
+- failed и pending requests можно повторно запускать без ручного админского вмешательства
+
+### Проверка Sprint 06 slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/storage-delivery-store.ts`
+  - `src/lib/server/storage-delivery.ts`
+  - `src/app/api/storage/downloads/[id]/route.ts`
+  - `src/lib/storage-delivery-api.ts`
+  - `src/app/storage/page.tsx`
+  - `src/app/shop/[slug]/shop-product-page-client.tsx`

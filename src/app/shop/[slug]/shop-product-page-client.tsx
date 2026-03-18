@@ -48,7 +48,9 @@ import {
 } from "@/lib/shop-release-format";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import {
+  fetchMyStorageDeliveryRequests,
   requestReleaseDownload,
+  retryStorageDeliveryRequestApi,
   requestTrackDownload,
 } from "@/lib/storage-delivery-api";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
@@ -63,6 +65,7 @@ import {
   RELEASE_REACTION_OPTIONS,
   type ReleaseSocialSnapshot,
 } from "@/types/release-social";
+import type { StorageDeliveryRequest } from "@/types/storage";
 import type { ArtistAudioFormat, ArtistReleaseTrackItem, ShopProduct } from "@/types/shop";
 
 import styles from "./page.module.scss";
@@ -79,6 +82,34 @@ const formatTrackDuration = (durationSec?: number): string => {
   const minutes = Math.floor(durationSec / 60);
   const seconds = durationSec % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
+
+const formatDeliveryStatus = (value: StorageDeliveryRequest["status"]): string => {
+  switch (value) {
+    case "processing":
+      return "Обрабатывается";
+    case "pending_asset_mapping":
+      return "Ждёт mapping";
+    case "ready":
+      return "Готово";
+    case "delivered":
+      return "Доставлено";
+    case "failed":
+      return "Ошибка";
+    default:
+      return "Запрошено";
+  }
+};
+
+const formatDeliveryChannel = (value: StorageDeliveryRequest["channel"]): string => {
+  switch (value) {
+    case "telegram_bot":
+      return "Telegram";
+    case "desktop_download":
+      return "Desktop";
+    default:
+      return "Web";
+  }
 };
 
 function PlayIcon(props: SVGProps<SVGSVGElement>) {
@@ -210,6 +241,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const [reactionSubmitting, setReactionSubmitting] = useState(false);
   const [mintDialogOpen, setMintDialogOpen] = useState(false);
   const [deliveryPendingKey, setDeliveryPendingKey] = useState("");
+  const [deliveryHistory, setDeliveryHistory] = useState<StorageDeliveryRequest[]>([]);
+  const [retryingDeliveryId, setRetryingDeliveryId] = useState("");
 
   const formats = useMemo(() => getTrackFormats(product), [product]);
   const releaseTracklist = useMemo<ArtistReleaseTrackItem[]>(
@@ -242,6 +275,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       readMintedReleaseNfts(viewerKey),
       readTonWalletAddress(viewerKey),
       fetchReleaseSocialSnapshot(product.slug),
+      user?.id ? fetchMyStorageDeliveryRequests(30) : Promise.resolve({ requests: [] }),
     ]).then(
       ([
         favoriteIds,
@@ -252,6 +286,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         mintedReleaseNfts,
         persistedTonWalletAddress,
         releaseSocial,
+        deliveryHistory,
       ]) => {
         if (!mounted) {
           return;
@@ -269,6 +304,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           setSocialSnapshot(releaseSocial.snapshot);
         }
 
+        setDeliveryHistory(deliveryHistory.requests);
+
         setBootLoading(false);
       },
     );
@@ -276,7 +313,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     return () => {
       mounted = false;
     };
-  }, [product.id, product.slug, viewerKey]);
+  }, [product.id, product.slug, user?.id, viewerKey]);
 
   useEffect(() => {
     const connectedAddress = toPreferredTonAddress(
@@ -410,6 +447,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     ],
     [formats, primaryGenre, releaseLabel, releaseTracklist.length],
   );
+  const releaseDeliveryRequests = useMemo(
+    () => deliveryHistory.filter((entry) => entry.releaseSlug === product.slug).slice(0, 6),
+    [deliveryHistory, product.slug],
+  );
 
   const isTrackOwned = useCallback(
     (trackId: string) => {
@@ -454,6 +495,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     anchor.remove();
   }, []);
 
+  const upsertDeliveryRequest = useCallback((request: StorageDeliveryRequest) => {
+    setDeliveryHistory((current) => {
+      const next = current.filter((entry) => entry.id !== request.id);
+      return [request, ...next].slice(0, 30);
+    });
+  }, []);
+
   const requestReleaseFile = useCallback(
     async (channel: "telegram_bot" | "web_download") => {
       if (!user?.id) {
@@ -481,6 +529,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         return;
       }
 
+      upsertDeliveryRequest(result.request);
+
       if (channel === "web_download" && result.request.deliveryUrl) {
         triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
       }
@@ -498,6 +548,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       product.slug,
       selectedFormat,
       triggerBrowserDownload,
+      upsertDeliveryRequest,
       user?.id,
     ],
   );
@@ -531,6 +582,8 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         return;
       }
 
+      upsertDeliveryRequest(result.request);
+
       if (channel === "web_download" && result.request.deliveryUrl) {
         triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
       }
@@ -549,8 +602,33 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       product,
       selectedFormat,
       triggerBrowserDownload,
+      upsertDeliveryRequest,
       user?.id,
     ],
+  );
+
+  const retryDeliveryRequest = useCallback(
+    async (request: StorageDeliveryRequest) => {
+      setRetryingDeliveryId(request.id);
+      const result = await retryStorageDeliveryRequestApi(request.id);
+      setRetryingDeliveryId("");
+
+      if (!result.ok || !result.request) {
+        setWalletMessage(result.error ?? result.message ?? "Не удалось повторить выдачу файла.");
+        hapticNotification("warning");
+        return;
+      }
+
+      upsertDeliveryRequest(result.request);
+
+      if (result.request.channel === "web_download" && result.request.deliveryUrl && result.request.status === "ready") {
+        triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
+      }
+
+      setWalletMessage(result.message ?? "Запрос на выдачу обновлён.");
+      hapticNotification("success");
+    },
+    [triggerBrowserDownload, upsertDeliveryRequest],
   );
 
   const resolveMintOwnerAddress = (): string | null => {
@@ -997,6 +1075,66 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 </div>
               </div>
             </section>
+
+            {releaseDeliveryRequests.length > 0 ? (
+              <section className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <div>
+                    <span className={styles.sectionEyebrow}>Выдача файлов</span>
+                    <h2>Последние запросы по релизу</h2>
+                  </div>
+                  <p>{releaseDeliveryRequests.length}</p>
+                </div>
+
+                <div className={styles.deliveryRequestList}>
+                  {releaseDeliveryRequests.map((request) => (
+                    <article key={request.id} className={styles.deliveryRequestCard}>
+                      <div className={styles.deliveryRequestTopline}>
+                        <strong>
+                          {request.targetType === "track"
+                            ? request.trackId || "Трек"
+                            : "Полный релиз"}
+                        </strong>
+                        <span>{formatDeliveryStatus(request.status)}</span>
+                      </div>
+                      <div className={styles.deliveryRequestMeta}>
+                        <span>{formatDeliveryChannel(request.channel)}</span>
+                        <span>{request.resolvedFormat || request.requestedFormat || "no format"}</span>
+                        <span>{request.fileName || "file pending"}</span>
+                      </div>
+                      {request.failureMessage ? (
+                        <p className={styles.deliveryRequestMessage}>{request.failureMessage}</p>
+                      ) : null}
+                      <div className={styles.deliveryRequestActions}>
+                        {request.status === "ready" && request.deliveryUrl ? (
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={() =>
+                              triggerBrowserDownload(request.deliveryUrl!, request.fileName)
+                            }
+                          >
+                            <DownloadIcon className={styles.buttonIcon} />
+                            Открыть файл
+                          </button>
+                        ) : null}
+                        {(request.status === "failed" ||
+                          request.status === "pending_asset_mapping") ? (
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={() => void retryDeliveryRequest(request)}
+                            disabled={retryingDeliveryId === request.id}
+                          >
+                            {retryingDeliveryId === request.id ? "Повторяем..." : "Повторить"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <section className={styles.section}>
               <div className={styles.sectionHeader}>

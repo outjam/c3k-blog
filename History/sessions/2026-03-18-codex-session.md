@@ -147,3 +147,14 @@ Go рассматривается как хороший будущий язык 
 - видимость ingest jobs в storage dashboard
 
 Это закрыло следующий бесплатный/test-first шаг между `asset sync` и будущим real TON Storage runtime.
+
+## Дополнение по Sprint 06
+
+Следующим delivery slice было реализовано:
+
+- retry/reopen flow для delivery requests
+- user-facing retry на экране `C3K Storage`
+- явная история последних delivery requests по текущему релизу
+- повторный запуск выдачи прямо со страницы релиза
+
+Это стало первым реальным шагом внутри `Sprint 06`, где delivery начал выглядеть как управляемый пользовательский процесс, а не как одноразовая кнопка.
