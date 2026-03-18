@@ -49,6 +49,36 @@ export interface AdminDashboardData {
   statusCounters: Record<string, number>;
 }
 
+export interface AdminMigrationMetric {
+  id: string;
+  label: string;
+  legacyCount: number;
+  normalizedCount: number;
+}
+
+export interface AdminMigrationDomainStatus {
+  id: "entitlements" | "artist_applications" | "artist_catalog" | "artist_finance";
+  label: string;
+  source: "postgres" | "legacy";
+  cutoverState: "legacy_only" | "dual_write" | "ready";
+  coveragePercent: number;
+  legacyTotal: number;
+  normalizedTotal: number;
+  metrics: AdminMigrationMetric[];
+  notes: string[];
+  updatedAt: string;
+}
+
+export interface AdminMigrationStatusSnapshot {
+  updatedAt: string;
+  postgresEnabled: boolean;
+  overallState: "legacy_only" | "dual_write" | "ready";
+  readyDomains: number;
+  inProgressDomains: number;
+  legacyDomains: number;
+  domains: AdminMigrationDomainStatus[];
+}
+
 export interface AdminSocialEntitlementBackfillResult {
   ok: true;
   dryRun: boolean;
@@ -77,6 +107,14 @@ export interface AdminArtistFinanceBackfillResult {
   earnings: number;
   payoutRequests: number;
   payoutAuditEntries: number;
+  sourceUpdatedAt: string;
+}
+
+export interface AdminArtistApplicationBackfillResult {
+  ok: true;
+  dryRun: boolean;
+  selectedUsers: number;
+  applications: number;
   sourceUpdatedAt: string;
 }
 
@@ -168,6 +206,27 @@ export const fetchAdminDashboard = async (): Promise<{ data: AdminDashboardData 
   }
 };
 
+export const fetchAdminMigrationStatus = async (): Promise<{
+  status: AdminMigrationStatusSnapshot | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/migrations/status", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { status: null, error: await parseApiError(response) };
+    }
+
+    return { status: (await response.json()) as AdminMigrationStatusSnapshot };
+  } catch {
+    return { status: null, error: "Network error" };
+  }
+};
+
 export const runAdminSocialEntitlementBackfill = async (payload: {
   dryRun?: boolean;
   limit?: number;
@@ -241,6 +300,32 @@ export const runAdminArtistFinanceBackfill = async (payload: {
     }
 
     return { result: (await response.json()) as AdminArtistFinanceBackfillResult };
+  } catch {
+    return { result: null, error: "Network error" };
+  }
+};
+
+export const runAdminArtistApplicationBackfill = async (payload: {
+  dryRun?: boolean;
+  limit?: number;
+  telegramUserIds?: number[];
+}): Promise<{ result: AdminArtistApplicationBackfillResult | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/artist-applications/backfill", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { result: null, error: await parseApiError(response) };
+    }
+
+    return { result: (await response.json()) as AdminArtistApplicationBackfillResult };
   } catch {
     return { result: null, error: "Network error" };
   }

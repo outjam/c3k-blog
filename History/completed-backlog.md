@@ -133,6 +133,12 @@
   - видно, читает ли artist-domain и finance-domain уже `postgres`, либо ещё работает `legacy fallback`
 - Source visibility дополнительно выведена в `Студию` артиста.
 - `artist applications` переведены на merge-store и dual-write.
+- Для `artist applications` добавлены dry-run и real backfill triggers в админке.
+- В admin dashboard появился отдельный migration status block:
+  - source по доменам
+  - legacy/postgres counts
+  - coverage %
+  - cutover readiness по ownership, applications, artist catalog и finance
 
 ### Entitlement and mint normalization foundation
 
@@ -180,6 +186,7 @@
   - strategic roadmap
   - sprint board
   - product capability status
+- В operational слое админки появилась прозрачная cutover visibility для `Sprint 08`, чтобы миграция больше не зависела от ручного знания разработчика.
 
 ## Темы, которые уже начали, но ещё не считаются завершёнными
 

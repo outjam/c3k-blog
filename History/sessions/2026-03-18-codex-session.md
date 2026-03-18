@@ -239,6 +239,18 @@ Go рассматривается как хороший будущий язык 
 
 ## Дополнение по payout audit
 
+Следующим slice внутри `Sprint 08` было реализовано:
+
+- общий migration status service по доменам
+- подсчёт legacy/postgres coverage через admin route
+- отдельный dashboard block в админке с:
+  - source visibility
+  - legacy/postgres counts
+  - coverage %
+  - cutover readiness
+
+Это закрыло важную управленческую дыру: migration/backfill в проекте перестали быть набором несвязанных действий и стали наблюдаемым operational процессом.
+
 Следующим slice в `Sprint 08` было сделано:
 
 - добавлена нормализованная таблица `artist_payout_audit_log`
@@ -291,3 +303,10 @@ Go рассматривается как хороший будущий язык 
 - admin moderation стал видеть `Applications` source рядом с artist/finance sources
 
 Это закрыло ещё один важный legacy-only домен внутри artist-side модели.
+
+После этого application-domain был доведён до operational migration уровня:
+
+- добавлен admin backfill для `artist_applications`
+- trigger вынесен в dashboard админки
+
+Теперь application-domain мигрируется и наблюдается так же, как ownership, artist catalog и finance.

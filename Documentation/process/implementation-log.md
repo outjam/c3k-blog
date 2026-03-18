@@ -451,6 +451,67 @@
   - `src/lib/admin-api.ts`
   - `src/app/admin/artists/page.tsx`
 
+### Дополнение: application backfill
+
+- Добавлен helper:
+  - [src/lib/server/artist-application-backfill.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-application-backfill.ts)
+- Добавлен admin route:
+  - [src/app/api/admin/artist-applications/backfill/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-applications/backfill/route.ts)
+- Admin dashboard получил:
+  - `Dry-run application backfill`
+  - `Запустить application backfill`
+  - summary результата
+  - [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx)
+
+### Что это дало
+
+- application-domain теперь доведён до того же operational уровня, что ownership, artist catalog и finance
+- migration можно запускать из UI, а не только через route
+
+### Проверка application backfill slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/artist-application-backfill.ts`
+  - `src/app/api/admin/artist-applications/backfill/route.ts`
+  - `src/lib/admin-api.ts`
+  - `src/app/admin/page.tsx`
+
+### Sprint 08 slice: admin migration status and cutover visibility
+
+- Добавлен общий helper для Postgres row counts:
+  - [src/lib/server/postgres-http.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/postgres-http.ts)
+- Добавлен server-side migration status service:
+  - [src/lib/server/migration-status.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/migration-status.ts)
+- Добавлен admin route:
+  - [src/app/api/admin/migrations/status/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/migrations/status/route.ts)
+- Client admin layer получил новый fetch helper и типы snapshot:
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- Dashboard админки теперь показывает:
+  - общий migration state
+  - source по доменам
+  - legacy/postgres counts
+  - coverage %
+  - cutover readiness
+  - [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx)
+  - [src/app/admin/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.module.scss)
+
+### Что это дало
+
+- `Sprint 08` перестал быть набором отдельных backfill-кнопок без общей картины
+- оператор теперь видит, какие домены реально догнали legacy слой, а какие ещё отстают
+- cutover visibility стала частью продукта и процесса, а не только внутренней инженерной памяти
+
+### Проверка migration status slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/postgres-http.ts`
+  - `src/lib/server/migration-status.ts`
+  - `src/app/api/admin/migrations/status/route.ts`
+  - `src/lib/admin-api.ts`
+  - `src/app/admin/page.tsx`
+
 - `npm run typecheck`
 - targeted `eslint` по:
   - `src/lib/server/storage-delivery-store.ts`

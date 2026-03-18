@@ -13,6 +13,7 @@ import {
   deleteAdminPromo,
   fetchAdminCustomers,
   fetchAdminDashboard,
+  fetchAdminMigrationStatus,
   fetchAdminMembers,
   fetchAdminProductCategories,
   fetchAdminProducts,
@@ -24,11 +25,14 @@ import {
   patchAdminPromo,
   patchAdminSettings,
   removeAdminMember,
+  runAdminArtistApplicationBackfill,
   runAdminArtistCatalogBackfill,
   runAdminArtistFinanceBackfill,
   runAdminSocialEntitlementBackfill,
+  type AdminArtistApplicationBackfillResult,
   type AdminArtistCatalogBackfillResult,
   type AdminArtistFinanceBackfillResult,
+  type AdminMigrationStatusSnapshot,
   upsertAdminMember,
   type AdminSocialEntitlementBackfillResult,
   type AdminCustomer,
@@ -105,6 +109,11 @@ const TABS: Array<{ id: AdminTab; label: string }> = [
 ];
 
 const ROLE_OPTIONS: ShopAdminRole[] = ["owner", "admin", "orders", "catalog", "support"];
+const CUTOVER_LABELS: Record<AdminMigrationStatusSnapshot["overallState"], string> = {
+  legacy_only: "Legacy only",
+  dual_write: "Dual-write",
+  ready: "Ready for cutover",
+};
 
 const toProductDraft = (product: AdminProductWithMeta): ProductDraft => {
   return {
@@ -133,6 +142,7 @@ export default function AdminPage() {
   const [session, setSession] = useState<AdminSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
+  const [migrationStatus, setMigrationStatus] = useState<AdminMigrationStatusSnapshot | null>(null);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [products, setProducts] = useState<AdminProductWithMeta[]>([]);
   const [productCategories, setProductCategories] = useState<ShopProductCategory[]>([]);
@@ -174,6 +184,8 @@ export default function AdminPage() {
   const [newAdminLastName, setNewAdminLastName] = useState("");
   const [backfillLoading, setBackfillLoading] = useState<"dry-run" | "run" | null>(null);
   const [backfillResult, setBackfillResult] = useState<AdminSocialEntitlementBackfillResult | null>(null);
+  const [applicationBackfillLoading, setApplicationBackfillLoading] = useState<"dry-run" | "run" | null>(null);
+  const [applicationBackfillResult, setApplicationBackfillResult] = useState<AdminArtistApplicationBackfillResult | null>(null);
   const [artistBackfillLoading, setArtistBackfillLoading] = useState<"dry-run" | "run" | null>(null);
   const [artistBackfillResult, setArtistBackfillResult] = useState<AdminArtistCatalogBackfillResult | null>(null);
   const [financeBackfillLoading, setFinanceBackfillLoading] = useState<"dry-run" | "run" | null>(null);
@@ -228,6 +240,14 @@ export default function AdminPage() {
       jobs.push(
         fetchAdminDashboard().then((response) => {
           setDashboard(response.data);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
+      jobs.push(
+        fetchAdminMigrationStatus().then((response) => {
+          setMigrationStatus(response.status);
           if (response.error) {
             errors.push(response.error);
           }
@@ -611,12 +631,69 @@ export default function AdminPage() {
                 </p>
               ))}
             </div>
+            {migrationStatus ? (
+              <div className={styles.migrationBlock}>
+                <div className={styles.migrationSummary}>
+                  <div>
+                    <span>Migration state</span>
+                    <b>{CUTOVER_LABELS[migrationStatus.overallState]}</b>
+                  </div>
+                  <div>
+                    <span>Домены</span>
+                    <b>
+                      ready {migrationStatus.readyDomains} · active {migrationStatus.inProgressDomains} · legacy{" "}
+                      {migrationStatus.legacyDomains}
+                    </b>
+                  </div>
+                  <div>
+                    <span>Postgres</span>
+                    <b>{migrationStatus.postgresEnabled ? "enabled" : "disabled"}</b>
+                  </div>
+                </div>
+                <div className={styles.migrationGrid}>
+                  {migrationStatus.domains.map((domain) => (
+                    <article key={domain.id} className={styles.migrationCard}>
+                      <div className={styles.migrationCardHead}>
+                        <div>
+                          <h3>{domain.label}</h3>
+                          <p>
+                            Source: {domain.source} · {CUTOVER_LABELS[domain.cutoverState]}
+                          </p>
+                        </div>
+                        <strong>{domain.coveragePercent}%</strong>
+                      </div>
+                      <div className={styles.migrationMetrics}>
+                        {domain.metrics.map((metric) => (
+                          <p key={metric.id}>
+                            <span>{metric.label}</span>
+                            <b>
+                              legacy {metric.legacyCount} · pg {metric.normalizedCount}
+                            </b>
+                          </p>
+                        ))}
+                      </div>
+                      <div className={styles.migrationNotes}>
+                        {domain.notes.map((note) => (
+                          <p key={note}>{note}</p>
+                        ))}
+                      </div>
+                      <p className={styles.migrationUpdatedAt}>
+                        Updated {new Date(domain.updatedAt).toLocaleString("ru-RU")}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {hasPermission("settings:manage") ? (
               <div className={styles.promoActions}>
                 <button
                   type="button"
                   disabled={
-                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
                   }
                   onClick={async () => {
                     setBackfillLoading("dry-run");
@@ -639,7 +716,10 @@ export default function AdminPage() {
                 <button
                   type="button"
                   disabled={
-                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
                   }
                   onClick={async () => {
                     setBackfillLoading("run");
@@ -662,7 +742,62 @@ export default function AdminPage() {
                 <button
                   type="button"
                   disabled={
-                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
+                  }
+                  onClick={async () => {
+                    setApplicationBackfillLoading("dry-run");
+                    const response = await runAdminArtistApplicationBackfill({
+                      dryRun: true,
+                      limit: 500,
+                    });
+                    setApplicationBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setApplicationBackfillResult(response.result);
+                  }}
+                >
+                  {applicationBackfillLoading === "dry-run" ? "Считаем..." : "Dry-run application backfill"}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
+                  }
+                  onClick={async () => {
+                    setApplicationBackfillLoading("run");
+                    const response = await runAdminArtistApplicationBackfill({
+                      dryRun: false,
+                      limit: 500,
+                    });
+                    setApplicationBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setApplicationBackfillResult(response.result);
+                  }}
+                >
+                  {applicationBackfillLoading === "run" ? "Переносим..." : "Запустить application backfill"}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
                   }
                   onClick={async () => {
                     setArtistBackfillLoading("dry-run");
@@ -685,7 +820,10 @@ export default function AdminPage() {
                 <button
                   type="button"
                   disabled={
-                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
                   }
                   onClick={async () => {
                     setArtistBackfillLoading("run");
@@ -708,7 +846,10 @@ export default function AdminPage() {
                 <button
                   type="button"
                   disabled={
-                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
                   }
                   onClick={async () => {
                     setFinanceBackfillLoading("dry-run");
@@ -731,7 +872,10 @@ export default function AdminPage() {
                 <button
                   type="button"
                   disabled={
-                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                    backfillLoading !== null ||
+                    applicationBackfillLoading !== null ||
+                    artistBackfillLoading !== null ||
+                    financeBackfillLoading !== null
                   }
                   onClick={async () => {
                     setFinanceBackfillLoading("run");
@@ -765,6 +909,13 @@ export default function AdminPage() {
                 {artistBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists {artistBackfillResult.selectedArtists}
                 {" · "}profiles {artistBackfillResult.profiles} · tracks {artistBackfillResult.tracks} · source{" "}
                 {new Date(artistBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
+              </p>
+            ) : null}
+            {applicationBackfillResult ? (
+              <p className={styles.hint}>
+                {applicationBackfillResult.dryRun ? "Dry-run" : "Backfill"}: users{" "}
+                {applicationBackfillResult.selectedUsers} · applications {applicationBackfillResult.applications} ·
+                source {new Date(applicationBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
               </p>
             ) : null}
             {financeBackfillResult ? (

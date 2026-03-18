@@ -97,6 +97,50 @@ export const postgresTableRequest = async <T,>(options: {
   }
 };
 
+export const postgresTableCount = async (options: {
+  path: string;
+  query?: URLSearchParams;
+}): Promise<number | null> => {
+  const config = getPostgresHttpConfig();
+
+  if (!config) {
+    return null;
+  }
+
+  try {
+    const query = new URLSearchParams(options.query);
+    if (!query.has("select")) {
+      query.set("select", "id");
+    }
+
+    const headers = buildHeaders(false) as Record<string, string>;
+    headers.prefer = "count=exact";
+    headers.range = "0-0";
+
+    const response = await fetch(buildUrl(options.path, query), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const contentRange = response.headers.get("content-range");
+    const rangeMatch = contentRange ? /\/(\d+)$/.exec(contentRange) : null;
+    if (rangeMatch) {
+      const count = Number(rangeMatch[1]);
+      return Number.isFinite(count) && count >= 0 ? count : null;
+    }
+
+    const payload = (await response.json().catch(() => null)) as unknown;
+    return Array.isArray(payload) ? payload.length : 0;
+  } catch {
+    return null;
+  }
+};
+
 export const postgresRpc = async <T,>(functionName: string, args?: Record<string, unknown>): Promise<T | null> => {
   return postgresTableRequest<T>({
     method: "POST",
@@ -104,4 +148,3 @@ export const postgresRpc = async <T,>(functionName: string, args?: Record<string
     body: args ?? {},
   });
 };
-

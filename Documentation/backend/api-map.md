@@ -129,6 +129,9 @@
 
 - `/api/admin/session`
 - `/api/admin/dashboard`
+- `/api/admin/migrations/status`
+  - сводный migration status по ownership, applications, artist catalog и finance
+  - source visibility, legacy/postgres counts и cutover readiness
 
 ### Catalog and settings
 
@@ -156,6 +159,8 @@
   - список заявок
   - approve / reject / needs_info
   - читает merged application snapshot
+- `/api/admin/artist-applications/backfill`
+  - dry-run и запуск backfill `artist_applications` из legacy application state
 - `/api/admin/artist-payouts`
   - список payout requests и payout audit trail
   - approve / reject / paid
