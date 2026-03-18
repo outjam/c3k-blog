@@ -184,6 +184,7 @@ Status: current
 - вынести критичную доменную модель из `app_state`
 
 Что должно быть доставлено:
+- [x] Первый нормализованный finance slice для `artist_earnings_ledger` и `artist_payout_requests`
 - [ ] Нормализованные таблицы для artist/release/entitlement/payment flows
 - [ ] Ledger-first finance model
 - [ ] Mint history и payout audit log

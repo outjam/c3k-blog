@@ -395,3 +395,43 @@
   - `src/app/storage/page.tsx`
   - `src/app/shop/[slug]/shop-product-page-client.tsx`
   - `src/app/storage/desktop/page.tsx`
+
+### Sprint 08 slice: normalized artist finance foundation
+
+- В schema baseline добавлены таблицы:
+  - `artist_earnings_ledger`
+  - `artist_payout_requests`
+  - [db/schema.sql](/Users/culture3k/Documents/GitHub/c3k-blog/db/schema.sql)
+- Добавлен normalized finance store с Postgres read/write и legacy fallback:
+  - [src/lib/server/artist-finance-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-finance-store.ts)
+- `applyArtistPayoutsForPaidOrder(...)` теперь возвращает newly created earnings, чтобы их можно было dual-write'ить в Postgres:
+  - [src/lib/server/shop-artist-market.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-market.ts)
+- Telegram payment webhook теперь после paid-order dual-write'ит новые earning entries:
+  - [src/app/api/telegram/webhook/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/webhook/route.ts)
+- Artist payout routes и studio snapshot теперь читают finance state через normalized store:
+  - [src/app/api/shop/artists/me/payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/payouts/route.ts)
+  - [src/app/api/admin/artist-payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-payouts/route.ts)
+  - [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+
+### Что это даёт спринту
+
+- `Sprint 08` перестал быть только планом на “когда-нибудь вынести всё из app_state”
+- finance-контур впервые получил нормализованное Postgres-представление без немедленного destructive migration
+- payout summary и payout admin flows уже могут читать данные из нового слоя и не терять legacy state во время перехода
+
+### Ограничения текущего slice
+
+- artist profiles, releases и entitlements всё ещё живут в legacy JSON config
+- finance store пока делает dual-write/fallback, а не окончательный cutover
+- migration/backfill существующих finance records в таблицы ещё не реализован
+
+### Проверка Sprint 08 foundation slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/artist-finance-store.ts`
+  - `src/lib/server/shop-artist-market.ts`
+  - `src/app/api/telegram/webhook/route.ts`
+  - `src/app/api/shop/artists/me/payouts/route.ts`
+  - `src/app/api/admin/artist-payouts/route.ts`
+  - `src/app/api/shop/artists/me/route.ts`

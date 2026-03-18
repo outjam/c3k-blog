@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
+import { upsertArtistEarningLedgerEntries } from "@/lib/server/artist-finance-store";
 import { applyArtistPayoutsForPaidOrder } from "@/lib/server/shop-artist-market";
 import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
@@ -283,7 +284,19 @@ export async function POST(request: Request) {
         await bumpPromoUsage(promoCodeToApply);
       }
 
-      await mutateShopAdminConfig((current) => applyArtistPayoutsForPaidOrder(current, updatedOrder).config);
+      let createdArtistEarnings: ReturnType<
+        typeof applyArtistPayoutsForPaidOrder
+      >["createdEarnings"] = [];
+
+      await mutateShopAdminConfig((current) => {
+        const applied = applyArtistPayoutsForPaidOrder(current, updatedOrder);
+        createdArtistEarnings = applied.createdEarnings;
+        return applied.config;
+      });
+
+      if (createdArtistEarnings.length) {
+        await upsertArtistEarningLedgerEntries(createdArtistEarnings).catch(() => undefined);
+      }
 
       await notifyAdminsAboutNewOrder(updatedOrder, baseUrl);
 

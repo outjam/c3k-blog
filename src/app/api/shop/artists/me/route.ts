@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { buildArtistPayoutSummary, buildArtistStudioStats } from "@/lib/server/shop-artist-studio";
 import { listReleaseSocialFeedSummaries } from "@/lib/server/release-social-store";
@@ -98,18 +99,20 @@ export async function GET(request: Request) {
     (entry) => entry.artistTelegramUserId === auth.telegramUserId && entry.status === "active",
   ).length;
   const socialBySlug = await listReleaseSocialFeedSummaries(tracks.map((track) => track.slug));
+  const finance = await readArtistFinanceSnapshot({
+    config,
+    artistTelegramUserId: auth.telegramUserId,
+  });
   const studioStats = buildArtistStudioStats({
     tracks,
     donationsCount: donations,
     activeSubscriptionsCount: subscriptions,
     socialBySlug,
   });
-  const payoutRequests = config.artistPayoutRequests.filter(
-    (entry) => entry.artistTelegramUserId === auth.telegramUserId,
-  );
+  const payoutRequests = finance.payoutRequests;
   const payoutSummary = buildArtistPayoutSummary({
     profile,
-    earnings: config.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+    earnings: finance.earnings,
     requests: payoutRequests,
   });
 

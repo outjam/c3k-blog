@@ -1,4 +1,11 @@
-import type { ArtistProfile, ArtistTrack, ShopAdminConfig, ShopOrder, ShopProduct } from "@/types/shop";
+import type {
+  ArtistEarningLedgerEntry,
+  ArtistProfile,
+  ArtistTrack,
+  ShopAdminConfig,
+  ShopOrder,
+  ShopProduct,
+} from "@/types/shop";
 import { addArtistPayoutHold } from "@/lib/server/shop-artist-studio";
 
 const DEFAULT_TRACK_IMAGE = "/posts/cover-pattern.svg";
@@ -134,13 +141,18 @@ export const listPublishedArtistProducts = (config: ShopAdminConfig): ShopProduc
 export const applyArtistPayoutsForPaidOrder = (
   config: ShopAdminConfig,
   order: ShopOrder,
-): { config: ShopAdminConfig; touchedArtistIds: number[] } => {
+): {
+  config: ShopAdminConfig;
+  touchedArtistIds: number[];
+  createdEarnings: ShopAdminConfig["artistEarningsLedger"];
+} => {
   const now = new Date().toISOString();
   const profiles = { ...config.artistProfiles };
   const tracks = { ...config.artistTracks };
   const donations = [...config.artistDonations];
   const subscriptions = [...config.artistSubscriptions];
   const earningsLedger = [...config.artistEarningsLedger];
+  const createdEarnings: ShopAdminConfig["artistEarningsLedger"] = [];
   const existingEarningIds = new Set(earningsLedger.map((entry) => entry.id));
   const touchedArtistIds = new Set<number>();
   const existingDonationIds = new Set(donations.map((item) => item.id));
@@ -172,7 +184,7 @@ export const applyArtistPayoutsForPaidOrder = (
         };
         const earningId = `earn-track-${order.id}-${track.id}`.toLowerCase();
         if (!existingEarningIds.has(earningId)) {
-          earningsLedger.unshift({
+          const earningEntry: ArtistEarningLedgerEntry = {
             id: earningId,
             artistTelegramUserId: profile.telegramUserId,
             source: "release_sale",
@@ -182,7 +194,9 @@ export const applyArtistPayoutsForPaidOrder = (
             amountStarsCents: payout,
             earnedAt: now,
             holdUntil: addArtistPayoutHold(now),
-          });
+          };
+          earningsLedger.unshift(earningEntry);
+          createdEarnings.push(earningEntry);
           existingEarningIds.add(earningId);
         }
 
@@ -232,7 +246,7 @@ export const applyArtistPayoutsForPaidOrder = (
       };
       const earningId = `earn-donation-${order.id}-${synthetic.artistTelegramUserId}`.toLowerCase();
       if (!existingEarningIds.has(earningId)) {
-        earningsLedger.unshift({
+        const earningEntry: ArtistEarningLedgerEntry = {
           id: earningId,
           artistTelegramUserId: profile.telegramUserId,
           source: "donation",
@@ -242,7 +256,9 @@ export const applyArtistPayoutsForPaidOrder = (
           amountStarsCents: payout,
           earnedAt: now,
           holdUntil: addArtistPayoutHold(now),
-        });
+        };
+        earningsLedger.unshift(earningEntry);
+        createdEarnings.push(earningEntry);
         existingEarningIds.add(earningId);
       }
 
@@ -258,7 +274,7 @@ export const applyArtistPayoutsForPaidOrder = (
     };
     const earningId = `earn-subscription-${order.id}-${synthetic.artistTelegramUserId}`.toLowerCase();
     if (!existingEarningIds.has(earningId)) {
-      earningsLedger.unshift({
+      const earningEntry: ArtistEarningLedgerEntry = {
         id: earningId,
         artistTelegramUserId: profile.telegramUserId,
         source: "subscription",
@@ -268,7 +284,9 @@ export const applyArtistPayoutsForPaidOrder = (
         amountStarsCents: payout,
         earnedAt: now,
         holdUntil: addArtistPayoutHold(now),
-      });
+      };
+      earningsLedger.unshift(earningEntry);
+      createdEarnings.push(earningEntry);
       existingEarningIds.add(earningId);
     }
 
@@ -304,7 +322,7 @@ export const applyArtistPayoutsForPaidOrder = (
   }
 
   if (touchedArtistIds.size === 0) {
-    return { config, touchedArtistIds: [] };
+    return { config, touchedArtistIds: [], createdEarnings: [] };
   }
 
   return {
@@ -318,5 +336,6 @@ export const applyArtistPayoutsForPaidOrder = (
       updatedAt: now,
     },
     touchedArtistIds: Array.from(touchedArtistIds),
+    createdEarnings,
   };
 };

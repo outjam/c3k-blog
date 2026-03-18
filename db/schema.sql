@@ -182,6 +182,35 @@ CREATE TABLE IF NOT EXISTS post_reactions (
   UNIQUE (post_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS artist_earnings_ledger (
+  id TEXT PRIMARY KEY,
+  artist_telegram_user_id BIGINT NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('release_sale', 'donation', 'subscription')),
+  source_id TEXT NOT NULL,
+  order_id TEXT,
+  buyer_telegram_user_id BIGINT,
+  amount_stars_cents INTEGER NOT NULL CHECK (amount_stars_cents >= 0),
+  earned_at TIMESTAMPTZ NOT NULL,
+  hold_until TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS artist_payout_requests (
+  id TEXT PRIMARY KEY,
+  artist_telegram_user_id BIGINT NOT NULL,
+  ton_wallet_address TEXT NOT NULL,
+  amount_stars_cents INTEGER NOT NULL CHECK (amount_stars_cents >= 0),
+  note TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending_review', 'approved', 'rejected', 'paid')),
+  admin_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by_telegram_user_id BIGINT,
+  paid_at TIMESTAMPTZ
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status_updated ON orders(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
@@ -192,6 +221,10 @@ CREATE INDEX IF NOT EXISTS idx_promo_usage_promo_created ON promo_usage(promo_co
 CREATE INDEX IF NOT EXISTS idx_blog_posts_published ON blog_posts(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_post_comments_post_created ON post_comments(post_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_post_reactions_post_type ON post_reactions(post_id, reaction_type);
+CREATE INDEX IF NOT EXISTS idx_artist_earnings_artist_earned ON artist_earnings_ledger(artist_telegram_user_id, earned_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_earnings_order_id ON artist_earnings_ledger(order_id);
+CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_artist_updated ON artist_payout_requests(artist_telegram_user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_status_updated ON artist_payout_requests(status, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS app_state (
   key TEXT PRIMARY KEY,

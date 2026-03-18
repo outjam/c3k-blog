@@ -9,6 +9,10 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
+import {
+  readArtistFinanceSnapshot,
+  upsertArtistPayoutRequestRecord,
+} from "@/lib/server/artist-finance-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistPayoutRequest } from "@/types/shop";
 
@@ -56,7 +60,8 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const payoutRequests = [...config.artistPayoutRequests].sort((a, b) => {
+  const finance = await readArtistFinanceSnapshot({ config });
+  const payoutRequests = [...finance.payoutRequests].sort((a, b) => {
     const left = new Date(a.updatedAt || a.createdAt).getTime();
     const right = new Date(b.updatedAt || b.createdAt).getTime();
     return right - left;
@@ -151,6 +156,7 @@ export async function PATCH(request: Request) {
   const payoutRequest = updated.artistPayoutRequests.find((entry) => entry.id === id) ?? null;
 
   if (payoutRequest) {
+    await upsertArtistPayoutRequestRecord(payoutRequest).catch(() => undefined);
     await notifyUserAboutArtistPayoutStatus(payoutRequest, resolvePublicBaseUrl(request));
   }
 

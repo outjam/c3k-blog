@@ -5,6 +5,10 @@ import {
   ARTIST_PAYOUT_MIN_STARS_CENTS,
   buildArtistPayoutSummary,
 } from "@/lib/server/shop-artist-studio";
+import {
+  readArtistFinanceSnapshot,
+  upsertArtistPayoutRequestRecord,
+} from "@/lib/server/artist-finance-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
@@ -31,12 +35,14 @@ export async function GET(request: Request) {
 
   const config = await readShopAdminConfig();
   const profile = config.artistProfiles[String(auth.telegramUserId)] ?? null;
-  const payoutRequests = config.artistPayoutRequests.filter(
-    (entry) => entry.artistTelegramUserId === auth.telegramUserId,
-  );
+  const finance = await readArtistFinanceSnapshot({
+    config,
+    artistTelegramUserId: auth.telegramUserId,
+  });
+  const payoutRequests = finance.payoutRequests;
   const payoutSummary = buildArtistPayoutSummary({
     profile,
-    earnings: config.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+    earnings: finance.earnings,
     requests: payoutRequests,
   });
 
@@ -77,13 +83,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "TON wallet is required for payout requests" }, { status: 409 });
   }
 
-  const existingRequests = config.artistPayoutRequests.filter(
-    (entry) => entry.artistTelegramUserId === auth.telegramUserId,
-  );
+  const finance = await readArtistFinanceSnapshot({
+    config,
+    artistTelegramUserId: auth.telegramUserId,
+  });
   const payoutSummary = buildArtistPayoutSummary({
     profile,
-    earnings: config.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
-    requests: existingRequests,
+    earnings: finance.earnings,
+    requests: finance.payoutRequests,
   });
 
   const requestedAmount = Math.max(0, Math.round(Number(payload.amountStarsCents ?? 0)));
@@ -128,6 +135,7 @@ export async function POST(request: Request) {
     null;
 
   if (payoutRequest) {
+    await upsertArtistPayoutRequestRecord(payoutRequest).catch(() => undefined);
     await notifyAdminsAboutArtistPayoutRequest(
       payoutRequest,
       updated.artistProfiles[String(auth.telegramUserId)] ?? null,

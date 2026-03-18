@@ -94,6 +94,15 @@
   - local gateway stub для `c3k.ton`
   - desktop README и runtime scripts
 
+### Finance normalization foundation
+
+- В `db/schema.sql` добавлены первые нормализованные finance-таблицы:
+  - `artist_earnings_ledger`
+  - `artist_payout_requests`
+- Добавлен server-side normalized finance store с Postgres read/write и legacy fallback.
+- Earnings от paid-order теперь dual-write'ятся из Telegram payment webhook в новый ledger.
+- Artist payout API и studio summary уже читают finance state через новый store, но не ломаются без полной миграции.
+
 ### Admin и документация
 
 - Расширена документация по бизнес-логике, backend, навигации и roadmap.

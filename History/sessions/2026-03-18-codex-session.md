@@ -190,3 +190,14 @@ Go рассматривается как хороший будущий язык 
 - отдельный `desktop/` scaffold в основном репозитории
 
 Это впервые перевело desktop/TON Site направление из чисто документационного состояния в реальный кодовой foundation layer.
+
+## Дополнение по Sprint 08
+
+Следующим sprint slice было реализовано:
+
+- первые нормализованные Postgres-таблицы для artist finance
+- normalized finance store с legacy fallback
+- dual-write earnings из paid-order webhook
+- чтение payout summary и payout requests через новый finance layer
+
+Это стало первым реальным шагом по выносу бизнес-критичного контура из `app_state`, не ломая текущую test-first совместимость.
