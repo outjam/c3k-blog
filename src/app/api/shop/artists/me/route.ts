@@ -110,6 +110,7 @@ export async function GET(request: Request) {
     socialBySlug,
   });
   const payoutRequests = finance.payoutRequests;
+  const payoutAuditEntries = finance.payoutAuditEntries;
   const payoutSummary = buildArtistPayoutSummary({
     profile,
     earnings: finance.earnings,
@@ -125,6 +126,7 @@ export async function GET(request: Request) {
     studioStats,
     payoutSummary,
     payoutRequests,
+    payoutAuditEntries,
   });
 }
 

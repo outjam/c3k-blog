@@ -7,12 +7,13 @@ import {
 } from "@/lib/server/shop-artist-studio";
 import {
   readArtistFinanceSnapshot,
+  upsertArtistPayoutAuditEntries,
   upsertArtistPayoutRequestRecord,
 } from "@/lib/server/artist-finance-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
-import type { ArtistPayoutRequest } from "@/types/shop";
+import type { ArtistPayoutAuditEntry, ArtistPayoutRequest } from "@/types/shop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
     artistTelegramUserId: auth.telegramUserId,
   });
   const payoutRequests = finance.payoutRequests;
+  const payoutAuditEntries = finance.payoutAuditEntries;
   const payoutSummary = buildArtistPayoutSummary({
     profile,
     earnings: finance.earnings,
@@ -49,6 +51,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     profile,
     payoutRequests,
+    payoutAuditEntries,
     payoutSummary,
   });
 }
@@ -107,9 +110,11 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
+  const requestId = `artist-payout-${auth.telegramUserId}-${Date.now()}`;
+  const auditEntryId = `artist-payout-audit-${requestId}-requested`;
   const updated = await mutateShopAdminConfig((current) => {
     const requestRecord: ArtistPayoutRequest = {
-      id: `artist-payout-${auth.telegramUserId}-${Date.now()}`,
+      id: requestId,
       artistTelegramUserId: auth.telegramUserId,
       tonWalletAddress: profile.tonWalletAddress!,
       amountStarsCents: requestedAmount,
@@ -123,19 +128,34 @@ export async function POST(request: Request) {
       paidAt: undefined,
     };
 
+    const auditEntry: ArtistPayoutAuditEntry = {
+      id: auditEntryId,
+      payoutRequestId: requestRecord.id,
+      artistTelegramUserId: auth.telegramUserId,
+      actor: "artist",
+      actorTelegramUserId: auth.telegramUserId,
+      action: "requested",
+      statusAfter: "pending_review",
+      note: requestRecord.note,
+      createdAt: now,
+    };
+
     return {
       ...current,
       artistPayoutRequests: [requestRecord, ...current.artistPayoutRequests].slice(0, 5000),
+      artistPayoutAuditLog: [auditEntry, ...current.artistPayoutAuditLog].slice(0, 20000),
       updatedAt: now,
     };
   });
 
-  const payoutRequest =
-    updated.artistPayoutRequests.find((entry) => entry.artistTelegramUserId === auth.telegramUserId && entry.createdAt === now) ??
-    null;
+  const payoutRequest = updated.artistPayoutRequests.find((entry) => entry.id === requestId) ?? null;
+  const payoutAuditEntry = updated.artistPayoutAuditLog.find((entry) => entry.id === auditEntryId) ?? null;
 
   if (payoutRequest) {
     await upsertArtistPayoutRequestRecord(payoutRequest).catch(() => undefined);
+    if (payoutAuditEntry) {
+      await upsertArtistPayoutAuditEntries([payoutAuditEntry]).catch(() => undefined);
+    }
     await notifyAdminsAboutArtistPayoutRequest(
       payoutRequest,
       updated.artistProfiles[String(auth.telegramUserId)] ?? null,
@@ -143,5 +163,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ payoutRequest });
+  return NextResponse.json({ payoutRequest, payoutAuditEntry });
 }

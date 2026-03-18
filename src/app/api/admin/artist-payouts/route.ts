@@ -11,10 +11,11 @@ import {
 } from "@/lib/server/shop-api-auth";
 import {
   readArtistFinanceSnapshot,
+  upsertArtistPayoutAuditEntries,
   upsertArtistPayoutRequestRecord,
 } from "@/lib/server/artist-finance-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
-import type { ArtistPayoutRequest } from "@/types/shop";
+import type { ArtistPayoutAuditEntry, ArtistPayoutRequest } from "@/types/shop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,7 +68,10 @@ export async function GET(request: Request) {
     return right - left;
   });
 
-  return NextResponse.json({ payoutRequests });
+  return NextResponse.json({
+    payoutRequests,
+    payoutAuditEntries: finance.payoutAuditEntries,
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -110,6 +114,10 @@ export async function PATCH(request: Request) {
     }
 
     const requestRecord = current.artistPayoutRequests[index];
+    const nextAuditEntries = [...current.artistPayoutAuditLog];
+    const statusChanged = requestRecord.status !== status;
+    const noteChanged = (requestRecord.adminNote ?? "") !== (adminNote ?? "");
+
     const nextRequest: ArtistPayoutRequest = {
       ...requestRecord,
       status,
@@ -134,9 +142,26 @@ export async function PATCH(request: Request) {
       };
     }
 
+    if (statusChanged || noteChanged) {
+      const auditEntry: ArtistPayoutAuditEntry = {
+        id: `artist-payout-audit-${requestRecord.id}-${Date.now()}-${statusChanged ? "status" : "note"}`,
+        payoutRequestId: requestRecord.id,
+        artistTelegramUserId: requestRecord.artistTelegramUserId,
+        actor: "admin",
+        actorTelegramUserId: auth.telegramUserId,
+        action: statusChanged ? "status_changed" : "note_updated",
+        statusBefore: statusChanged ? requestRecord.status : undefined,
+        statusAfter: statusChanged ? status : requestRecord.status,
+        note: adminNote,
+        createdAt: now,
+      };
+      nextAuditEntries.unshift(auditEntry);
+    }
+
     return {
       ...current,
       artistPayoutRequests: nextRequests,
+      artistPayoutAuditLog: nextAuditEntries.slice(0, 20000),
       artistProfiles: nextProfiles,
       updatedAt: now,
     };
@@ -154,11 +179,22 @@ export async function PATCH(request: Request) {
   }
 
   const payoutRequest = updated.artistPayoutRequests.find((entry) => entry.id === id) ?? null;
+  const payoutAuditEntry =
+    updated.artistPayoutAuditLog.find(
+      (entry) =>
+        entry.payoutRequestId === id &&
+        entry.actor === "admin" &&
+        entry.actorTelegramUserId === auth.telegramUserId &&
+        entry.createdAt === now,
+    ) ?? null;
 
   if (payoutRequest) {
     await upsertArtistPayoutRequestRecord(payoutRequest).catch(() => undefined);
-    await notifyUserAboutArtistPayoutStatus(payoutRequest, resolvePublicBaseUrl(request));
+    if (payoutAuditEntry) {
+      await upsertArtistPayoutAuditEntries([payoutAuditEntry]).catch(() => undefined);
+      await notifyUserAboutArtistPayoutStatus(payoutRequest, resolvePublicBaseUrl(request));
+    }
   }
 
-  return NextResponse.json({ payoutRequest });
+  return NextResponse.json({ payoutRequest, payoutAuditEntry });
 }

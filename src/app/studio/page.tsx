@@ -17,6 +17,7 @@ import {
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import type {
+  ArtistPayoutAuditEntry,
   ArtistPayoutRequest,
   ArtistPayoutSummary,
   ArtistProfile,
@@ -124,6 +125,7 @@ export default function StudioPage() {
   const [stats, setStats] = useState<ArtistStudioStats | null>(null);
   const [payoutSummary, setPayoutSummary] = useState<ArtistPayoutSummary | null>(null);
   const [payoutRequests, setPayoutRequests] = useState<ArtistPayoutRequest[]>([]);
+  const [payoutAuditEntries, setPayoutAuditEntries] = useState<ArtistPayoutAuditEntry[]>([]);
   const [profileSaving, setProfileSaving] = useState(false);
   const [releaseSaving, setReleaseSaving] = useState(false);
   const [payoutSaving, setPayoutSaving] = useState(false);
@@ -178,6 +180,7 @@ export default function StudioPage() {
     setStats(response.studioStats);
     setPayoutSummary(response.payoutSummary);
     setPayoutRequests(response.payoutRequests);
+    setPayoutAuditEntries(response.payoutAuditEntries);
 
     if (response.profile) {
       setProfileDraft({
@@ -378,6 +381,37 @@ export default function StudioPage() {
 
     return "На модерации";
   }, [profile]);
+
+  const payoutAuditByRequestId = useMemo(() => {
+    const map = new Map<string, ArtistPayoutAuditEntry[]>();
+    for (const entry of payoutAuditEntries) {
+      const current = map.get(entry.payoutRequestId) ?? [];
+      current.push(entry);
+      map.set(entry.payoutRequestId, current);
+    }
+
+    map.forEach((entries) => {
+      entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    });
+
+    return map;
+  }, [payoutAuditEntries]);
+
+  const formatPayoutAuditAction = (entry: ArtistPayoutAuditEntry): string => {
+    if (entry.action === "requested") {
+      return "Запрос создан";
+    }
+
+    if (entry.action === "note_updated") {
+      return "Комментарий обновлён";
+    }
+
+    if (entry.statusBefore && entry.statusAfter && entry.statusBefore !== entry.statusAfter) {
+      return `${entry.statusBefore} -> ${entry.statusAfter}`;
+    }
+
+    return entry.statusAfter ?? "Статус обновлён";
+  };
 
   if (isSessionLoading || (Boolean(user?.id) && loading)) {
     return (
@@ -894,11 +928,26 @@ export default function StudioPage() {
                 <div className={styles.payoutList}>
                   {payoutRequests.map((request) => (
                     <article key={request.id} className={styles.payoutRow}>
-                      <div>
+                      <div className={styles.payoutRowMain}>
                         <strong>{formatStarsFromCents(request.amountStarsCents)}</strong>
                         <span>{request.status}</span>
                       </div>
                       <small>{new Date(request.createdAt).toLocaleDateString("ru-RU")}</small>
+                      {payoutAuditByRequestId.get(request.id)?.length ? (
+                        <div className={styles.auditTrail}>
+                          {payoutAuditByRequestId.get(request.id)?.slice(0, 4).map((entry) => (
+                            <div key={entry.id} className={styles.auditRow}>
+                              <strong>{formatPayoutAuditAction(entry)}</strong>
+                              <span>
+                                {entry.actor === "artist" ? "Артист" : entry.actor === "admin" ? "Админ" : "Система"}
+                                {" · "}
+                                {new Date(entry.createdAt).toLocaleString("ru-RU")}
+                              </span>
+                              {entry.note ? <small>{entry.note}</small> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </article>
                   ))}
                 </div>

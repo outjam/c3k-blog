@@ -3,6 +3,7 @@
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import type {
   ArtistApplication,
+  ArtistPayoutAuditEntry,
   ArtistPayoutRequest,
   ArtistPayoutSummary,
   ArtistProfile,
@@ -975,6 +976,7 @@ export const fetchMyArtistProfile = async (): Promise<{
   studioStats: ArtistStudioStats | null;
   payoutSummary: ArtistPayoutSummary | null;
   payoutRequests: ArtistPayoutRequest[];
+  payoutAuditEntries: ArtistPayoutAuditEntry[];
   error?: string;
 }> => {
   try {
@@ -994,6 +996,7 @@ export const fetchMyArtistProfile = async (): Promise<{
         studioStats: null,
         payoutSummary: null,
         payoutRequests: [],
+        payoutAuditEntries: [],
         error: await parseApiError(response),
       };
     }
@@ -1007,6 +1010,7 @@ export const fetchMyArtistProfile = async (): Promise<{
       studioStats?: ArtistStudioStats | null;
       payoutSummary?: ArtistPayoutSummary | null;
       payoutRequests?: ArtistPayoutRequest[];
+      payoutAuditEntries?: ArtistPayoutAuditEntry[];
     };
 
     return {
@@ -1018,6 +1022,7 @@ export const fetchMyArtistProfile = async (): Promise<{
       studioStats: payload.studioStats ?? null,
       payoutSummary: payload.payoutSummary ?? null,
       payoutRequests: payload.payoutRequests ?? [],
+      payoutAuditEntries: payload.payoutAuditEntries ?? [],
     };
   } catch {
     return {
@@ -1029,6 +1034,7 @@ export const fetchMyArtistProfile = async (): Promise<{
       studioStats: null,
       payoutSummary: null,
       payoutRequests: [],
+      payoutAuditEntries: [],
       error: "Network error",
     };
   }
@@ -1234,6 +1240,7 @@ export const patchAdminArtistApplication = async (payload: {
 
 export const fetchAdminArtistPayouts = async (): Promise<{
   payoutRequests: ArtistPayoutRequest[];
+  payoutAuditEntries: ArtistPayoutAuditEntry[];
   error?: string;
 }> => {
   try {
@@ -1244,13 +1251,19 @@ export const fetchAdminArtistPayouts = async (): Promise<{
     });
 
     if (!response.ok) {
-      return { payoutRequests: [], error: await parseApiError(response) };
+      return { payoutRequests: [], payoutAuditEntries: [], error: await parseApiError(response) };
     }
 
-    const payload = (await response.json()) as { payoutRequests?: ArtistPayoutRequest[] };
-    return { payoutRequests: payload.payoutRequests ?? [] };
+    const payload = (await response.json()) as {
+      payoutRequests?: ArtistPayoutRequest[];
+      payoutAuditEntries?: ArtistPayoutAuditEntry[];
+    };
+    return {
+      payoutRequests: payload.payoutRequests ?? [],
+      payoutAuditEntries: payload.payoutAuditEntries ?? [],
+    };
   } catch {
-    return { payoutRequests: [], error: "Network error" };
+    return { payoutRequests: [], payoutAuditEntries: [], error: "Network error" };
   }
 };
 

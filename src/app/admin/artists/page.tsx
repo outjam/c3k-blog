@@ -15,7 +15,13 @@ import {
   type AdminSession,
 } from "@/lib/admin-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import type { ArtistApplication, ArtistPayoutRequest, ArtistProfile, ArtistTrack } from "@/types/shop";
+import type {
+  ArtistApplication,
+  ArtistPayoutAuditEntry,
+  ArtistPayoutRequest,
+  ArtistProfile,
+  ArtistTrack,
+} from "@/types/shop";
 
 import styles from "./page.module.scss";
 
@@ -25,6 +31,7 @@ export default function AdminArtistsPage() {
   const [profiles, setProfiles] = useState<ArtistProfile[]>([]);
   const [tracks, setTracks] = useState<ArtistTrack[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<ArtistPayoutRequest[]>([]);
+  const [payoutAuditEntries, setPayoutAuditEntries] = useState<ArtistPayoutAuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [applicationStatusDrafts, setApplicationStatusDrafts] = useState<Record<number, ArtistApplication["status"]>>({});
@@ -55,6 +62,22 @@ export default function AdminArtistsPage() {
     return map;
   }, [tracks]);
 
+  const payoutAuditByRequestId = useMemo(() => {
+    const map = new Map<string, ArtistPayoutAuditEntry[]>();
+
+    for (const entry of payoutAuditEntries) {
+      const current = map.get(entry.payoutRequestId) ?? [];
+      current.push(entry);
+      map.set(entry.payoutRequestId, current);
+    }
+
+    map.forEach((entries) => {
+      entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    });
+
+    return map;
+  }, [payoutAuditEntries]);
+
   const load = async () => {
     setLoading(true);
     setError("");
@@ -81,6 +104,7 @@ export default function AdminArtistsPage() {
       setProfiles([]);
       setTracks([]);
       setPayoutRequests([]);
+      setPayoutAuditEntries([]);
       setLoading(false);
       return;
     }
@@ -89,6 +113,7 @@ export default function AdminArtistsPage() {
     setProfiles(artistsResponse.profiles);
     setTracks(artistsResponse.tracks);
     setPayoutRequests(payoutsResponse.payoutRequests);
+    setPayoutAuditEntries(payoutsResponse.payoutAuditEntries);
     setApplicationStatusDrafts(
       Object.fromEntries(applicationsResponse.applications.map((application) => [application.telegramUserId, application.status])),
     );
@@ -394,6 +419,21 @@ export default function AdminArtistsPage() {
                   <span>Артист: {request.artistTelegramUserId}</span>
                   <span>Статус: {request.status}</span>
                 </div>
+                {payoutAuditByRequestId.get(request.id)?.length ? (
+                  <div className={styles.meta}>
+                    {payoutAuditByRequestId.get(request.id)?.slice(0, 3).map((entry) => (
+                      <span key={entry.id}>
+                        {entry.actor === "artist" ? "Артист" : entry.actor === "admin" ? "Админ" : "Система"}
+                        {" · "}
+                        {entry.action === "requested"
+                          ? "создал запрос"
+                          : entry.action === "note_updated"
+                            ? "обновил note"
+                            : `${entry.statusBefore ?? "-"} -> ${entry.statusAfter ?? "-"}`}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className={styles.row}>
                   <label>
                     Статус выплаты

@@ -77,6 +77,7 @@
 .infoBanner,
 .releaseRow,
 .payoutRow,
+.auditRow,
 .toggleRow,
 .trackDraftRow {
   border-radius: 1rem;
@@ -273,14 +274,12 @@
 .releaseRow,
 .payoutRow {
   padding: 0.85rem 0.9rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
+  display: grid;
+  gap: 0.7rem;
 }
 
 .releaseRow div,
-.payoutRow div {
+.payoutRowMain {
   min-width: 0;
   display: grid;
   gap: 0.16rem;
@@ -288,8 +287,27 @@
 
 .releaseRow strong,
 .payoutRow strong,
+.auditRow strong,
 .infoBanner strong {
   color: var(--tg-text);
+}
+
+.auditTrail {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.auditRow {
+  padding: 0.72rem 0.8rem;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.auditRow span,
+.auditRow small {
+  color: var(--tg-subtitle-text);
+  margin: 0;
+  font-size: 0.72rem;
 }
 
 .trackDraftRow {
