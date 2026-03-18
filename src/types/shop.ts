@@ -133,10 +133,13 @@ export interface ShopAdminMember {
 }
 
 export type ArtistProfileStatus = "pending" | "approved" | "rejected" | "suspended";
+export type ArtistApplicationStatus = "pending" | "needs_info" | "approved" | "rejected";
 export type ArtistTrackStatus = "draft" | "pending_moderation" | "published" | "rejected";
 export type ArtistSubscriptionStatus = "active" | "paused" | "cancelled";
 export type ArtistReleaseType = "single" | "ep" | "album";
 export type ArtistAudioFormat = "mp3" | "aac" | "flac" | "wav" | "alac" | "ogg";
+export type ArtistPayoutRequestStatus = "pending_review" | "approved" | "rejected" | "paid";
+export type ArtistEarningSource = "release_sale" | "donation" | "subscription";
 
 export interface ArtistTrackFormat {
   format: ArtistAudioFormat;
@@ -162,6 +165,7 @@ export interface ArtistProfile {
   bio: string;
   avatarUrl?: string;
   coverUrl?: string;
+  tonWalletAddress?: string;
   status: ArtistProfileStatus;
   moderationNote?: string;
   donationEnabled: boolean;
@@ -172,6 +176,73 @@ export interface ArtistProfile {
   followersCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ArtistApplication {
+  id: string;
+  telegramUserId: number;
+  displayName: string;
+  bio: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  tonWalletAddress?: string;
+  referenceLinks: string[];
+  note?: string;
+  status: ArtistApplicationStatus;
+  moderationNote?: string;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+}
+
+export interface ArtistEarningLedgerEntry {
+  id: string;
+  artistTelegramUserId: number;
+  source: ArtistEarningSource;
+  sourceId: string;
+  orderId?: string;
+  buyerTelegramUserId?: number;
+  amountStarsCents: number;
+  earnedAt: string;
+  holdUntil: string;
+}
+
+export interface ArtistPayoutRequest {
+  id: string;
+  artistTelegramUserId: number;
+  tonWalletAddress: string;
+  amountStarsCents: number;
+  note?: string;
+  status: ArtistPayoutRequestStatus;
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+  reviewedByTelegramUserId?: number;
+  paidAt?: string;
+}
+
+export interface ArtistPayoutSummary {
+  availableStarsCents: number;
+  pendingHoldStarsCents: number;
+  requestedStarsCents: number;
+  paidOutStarsCents: number;
+  minimumRequestStarsCents: number;
+  canRequest: boolean;
+  nextHoldReleaseAt?: string;
+}
+
+export interface ArtistStudioStats {
+  releasesCount: number;
+  publishedReleasesCount: number;
+  pendingReleasesCount: number;
+  draftReleasesCount: number;
+  salesCount: number;
+  playsCount: number;
+  reactionsCount: number;
+  commentsCount: number;
+  donationsCount: number;
+  activeSubscriptionsCount: number;
 }
 
 export interface ArtistTrack {
@@ -251,11 +322,14 @@ export interface ShopAdminConfig {
   productRecords: Record<string, ShopProduct>;
   productOverrides: Record<string, ShopProductOverride>;
   productCategories: ShopProductCategory[];
+  artistApplications: Record<string, ArtistApplication>;
   artistProfiles: Record<string, ArtistProfile>;
   artistTracks: Record<string, ArtistTrack>;
   showcaseCollections: ShowcaseCollection[];
   artistDonations: ArtistDonation[];
   artistSubscriptions: ArtistSubscription[];
+  artistEarningsLedger: ArtistEarningLedgerEntry[];
+  artistPayoutRequests: ArtistPayoutRequest[];
   blogPostRecords: Record<string, import("@/types/blog").BlogPost>;
   hiddenPostSlugs: string[];
   promoCodes: ShopPromoCode[];

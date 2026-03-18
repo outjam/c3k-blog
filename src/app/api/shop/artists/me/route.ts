@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
-import type { ArtistProfile } from "@/types/shop";
+import { buildArtistPayoutSummary, buildArtistStudioStats } from "@/lib/server/shop-artist-studio";
+import { listReleaseSocialFeedSummaries } from "@/lib/server/release-social-store";
+import type { ArtistApplication, ArtistProfile } from "@/types/shop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +14,7 @@ interface UpsertArtistProfileBody {
   bio?: string;
   avatarUrl?: string;
   coverUrl?: string;
+  tonWalletAddress?: string;
   donationEnabled?: boolean;
   subscriptionEnabled?: boolean;
   subscriptionPriceStarsCents?: number;
@@ -53,6 +56,29 @@ const sortTracks = <T extends { updatedAt?: string; createdAt?: string }>(tracks
   });
 };
 
+const buildLegacyApplication = (profile: ArtistProfile | null): ArtistApplication | null => {
+  if (!profile || profile.status === "approved") {
+    return null;
+  }
+
+  return {
+    id: `artist-application-${profile.telegramUserId}`,
+    telegramUserId: profile.telegramUserId,
+    displayName: profile.displayName,
+    bio: profile.bio,
+    avatarUrl: profile.avatarUrl,
+    coverUrl: profile.coverUrl,
+    tonWalletAddress: profile.tonWalletAddress,
+    referenceLinks: [],
+    note: undefined,
+    status: profile.status === "rejected" ? "rejected" : "pending",
+    moderationNote: profile.moderationNote,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+    reviewedAt: profile.updatedAt,
+  };
+};
+
 export async function GET(request: Request) {
   const auth = getShopApiAuth(request);
 
@@ -62,6 +88,8 @@ export async function GET(request: Request) {
 
   const config = await readShopAdminConfig();
   const profile = config.artistProfiles[String(auth.telegramUserId)] ?? null;
+  const application =
+    config.artistApplications[String(auth.telegramUserId)] ?? buildLegacyApplication(profile);
   const tracks = sortTracks(
     Object.values(config.artistTracks).filter((track) => track.artistTelegramUserId === auth.telegramUserId),
   );
@@ -69,12 +97,31 @@ export async function GET(request: Request) {
   const subscriptions = config.artistSubscriptions.filter(
     (entry) => entry.artistTelegramUserId === auth.telegramUserId && entry.status === "active",
   ).length;
+  const socialBySlug = await listReleaseSocialFeedSummaries(tracks.map((track) => track.slug));
+  const studioStats = buildArtistStudioStats({
+    tracks,
+    donationsCount: donations,
+    activeSubscriptionsCount: subscriptions,
+    socialBySlug,
+  });
+  const payoutRequests = config.artistPayoutRequests.filter(
+    (entry) => entry.artistTelegramUserId === auth.telegramUserId,
+  );
+  const payoutSummary = buildArtistPayoutSummary({
+    profile,
+    earnings: config.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+    requests: payoutRequests,
+  });
 
   return NextResponse.json({
+    application,
     profile,
     tracks,
     donations,
     subscriptions,
+    studioStats,
+    payoutSummary,
+    payoutRequests,
   });
 }
 
@@ -106,6 +153,9 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
     const existing = current.artistProfiles[String(auth.telegramUserId)];
+    if (!existing) {
+      throw new Error("artist_application_required");
+    }
     const nextStatus: ArtistProfile["status"] =
       existing?.status === "approved" || existing?.status === "suspended" ? existing.status : "pending";
     const slugBase = normalizeSlug(`${displayName}-${auth.telegramUserId}`) || `artist-${auth.telegramUserId}`;
@@ -117,6 +167,7 @@ export async function POST(request: Request) {
       bio: normalizeText(payload.bio ?? existing?.bio, 1200),
       avatarUrl: normalizeOptionalText(payload.avatarUrl ?? existing?.avatarUrl, 3000),
       coverUrl: normalizeOptionalText(payload.coverUrl ?? existing?.coverUrl, 3000),
+      tonWalletAddress: normalizeOptionalText(payload.tonWalletAddress ?? existing?.tonWalletAddress, 128),
       status: nextStatus,
       moderationNote: existing?.moderationNote,
       donationEnabled:
@@ -144,7 +195,18 @@ export async function POST(request: Request) {
       },
       updatedAt: now,
     };
+  }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "artist_application_required") {
+      return message;
+    }
+
+    throw error;
   });
+
+  if (typeof updated === "string") {
+    return NextResponse.json({ error: "Сначала подайте и подтвердите заявку артиста." }, { status: 409 });
+  }
 
   return NextResponse.json({
     profile: updated.artistProfiles[String(auth.telegramUserId)] ?? null,

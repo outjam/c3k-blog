@@ -1,4 +1,5 @@
 import type { ArtistProfile, ArtistTrack, ShopAdminConfig, ShopOrder, ShopProduct } from "@/types/shop";
+import { addArtistPayoutHold } from "@/lib/server/shop-artist-studio";
 
 const DEFAULT_TRACK_IMAGE = "/posts/cover-pattern.svg";
 const DIGITAL_TRACK_STOCK = 9999;
@@ -139,6 +140,8 @@ export const applyArtistPayoutsForPaidOrder = (
   const tracks = { ...config.artistTracks };
   const donations = [...config.artistDonations];
   const subscriptions = [...config.artistSubscriptions];
+  const earningsLedger = [...config.artistEarningsLedger];
+  const existingEarningIds = new Set(earningsLedger.map((entry) => entry.id));
   const touchedArtistIds = new Set<number>();
   const existingDonationIds = new Set(donations.map((item) => item.id));
   const subscriptionByComposite = new Map<string, number>();
@@ -167,6 +170,21 @@ export const applyArtistPayoutsForPaidOrder = (
           lifetimeEarningsStarsCents: clampMoney(profile.lifetimeEarningsStarsCents + payout),
           updatedAt: now,
         };
+        const earningId = `earn-track-${order.id}-${track.id}`.toLowerCase();
+        if (!existingEarningIds.has(earningId)) {
+          earningsLedger.unshift({
+            id: earningId,
+            artistTelegramUserId: profile.telegramUserId,
+            source: "release_sale",
+            sourceId: track.id,
+            orderId: order.id,
+            buyerTelegramUserId: order.telegramUserId,
+            amountStarsCents: payout,
+            earnedAt: now,
+            holdUntil: addArtistPayoutHold(now),
+          });
+          existingEarningIds.add(earningId);
+        }
 
         tracks[item.productId] = {
           ...track,
@@ -212,6 +230,21 @@ export const applyArtistPayoutsForPaidOrder = (
         lifetimeEarningsStarsCents: clampMoney(profile.lifetimeEarningsStarsCents + payout),
         updatedAt: now,
       };
+      const earningId = `earn-donation-${order.id}-${synthetic.artistTelegramUserId}`.toLowerCase();
+      if (!existingEarningIds.has(earningId)) {
+        earningsLedger.unshift({
+          id: earningId,
+          artistTelegramUserId: profile.telegramUserId,
+          source: "donation",
+          sourceId: donationId,
+          orderId: order.id,
+          buyerTelegramUserId: order.telegramUserId,
+          amountStarsCents: payout,
+          earnedAt: now,
+          holdUntil: addArtistPayoutHold(now),
+        });
+        existingEarningIds.add(earningId);
+      }
 
       continue;
     }
@@ -223,6 +256,21 @@ export const applyArtistPayoutsForPaidOrder = (
       lifetimeEarningsStarsCents: clampMoney(profile.lifetimeEarningsStarsCents + payout),
       updatedAt: now,
     };
+    const earningId = `earn-subscription-${order.id}-${synthetic.artistTelegramUserId}`.toLowerCase();
+    if (!existingEarningIds.has(earningId)) {
+      earningsLedger.unshift({
+        id: earningId,
+        artistTelegramUserId: profile.telegramUserId,
+        source: "subscription",
+        sourceId: `sub-${synthetic.artistTelegramUserId}-${order.telegramUserId}`,
+        orderId: order.id,
+        buyerTelegramUserId: order.telegramUserId,
+        amountStarsCents: payout,
+        earnedAt: now,
+        holdUntil: addArtistPayoutHold(now),
+      });
+      existingEarningIds.add(earningId);
+    }
 
     const compositeKey = `${synthetic.artistTelegramUserId}:${order.telegramUserId}`;
     const existingIndex = subscriptionByComposite.get(compositeKey);
@@ -266,6 +314,7 @@ export const applyArtistPayoutsForPaidOrder = (
       artistTracks: tracks,
       artistDonations: donations.slice(0, 5000),
       artistSubscriptions: subscriptions.slice(0, 5000),
+      artistEarningsLedger: earningsLedger.slice(0, 10000),
       updatedAt: now,
     },
     touchedArtistIds: Array.from(touchedArtistIds),

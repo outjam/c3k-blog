@@ -9,7 +9,7 @@ import { BackButtonController } from "@/components/back-button-controller";
 import { SegmentedTabs } from "@/components/segmented-tabs";
 import { StarsIcon } from "@/components/stars-icon";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
-import { fetchMyArtistProfile } from "@/lib/admin-api";
+import { fetchMyArtistProfile, submitMyArtistApplication } from "@/lib/admin-api";
 import {
   APP_LOCALE_OPTIONS,
   applyAppLocale,
@@ -43,7 +43,7 @@ import {
   type UserProfileEditorPayload,
 } from "@/lib/social-hub";
 import { formatStarsFromCents } from "@/lib/stars-format";
-import type { ShopOrder } from "@/types/shop";
+import type { ArtistApplication, ShopOrder } from "@/types/shop";
 import type { ProfileMode } from "@/types/social";
 
 import styles from "./page.module.scss";
@@ -99,6 +99,8 @@ export default function ProfileEditPage() {
   const [purchasesVisible, setPurchasesVisible] = useState(true);
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [canEnableArtistMode, setCanEnableArtistMode] = useState(false);
+  const [artistApplication, setArtistApplication] = useState<ArtistApplication | null>(null);
+  const [artistProfileName, setArtistProfileName] = useState("");
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [themePreference, setThemePreference] = useState<AppTheme>("light");
@@ -106,6 +108,7 @@ export default function ProfileEditPage() {
 
   const [profileSaving, setProfileSaving] = useState(false);
   const [modeSaving, setModeSaving] = useState(false);
+  const [applicationSaving, setApplicationSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [warning, setWarning] = useState("");
   const [userDraft, setUserDraft] = useState<UserProfileEditorPayload>(() => ({
@@ -114,6 +117,14 @@ export default function ProfileEditPage() {
     avatarUrl: user?.photo_url || "",
     coverUrl: "",
     bio: "",
+  }));
+  const [applicationDraft, setApplicationDraft] = useState(() => ({
+    displayName: fullName,
+    bio: "",
+    avatarUrl: user?.photo_url || "",
+    coverUrl: "",
+    tonWalletAddress: "",
+    note: "",
   }));
 
   const resolvedTonWalletAddress = useMemo(
@@ -157,9 +168,32 @@ export default function ProfileEditPage() {
       setWalletCents(balance);
       setPurchasesVisible(visibility);
       setTonWalletAddress(persistedTonWalletAddress);
-      setCanEnableArtistMode(Boolean(artistResult.profile));
+      setArtistApplication(artistResult.application);
+      setCanEnableArtistMode(artistResult.profile?.status === "approved");
+      setArtistProfileName(artistResult.profile?.displayName ?? "");
       setOrders(ordersResult.orders ?? []);
       setOrdersLoading(false);
+      setApplicationDraft({
+        displayName:
+          artistResult.application?.displayName ||
+          artistResult.profile?.displayName ||
+          fullName,
+        bio: artistResult.application?.bio || artistResult.profile?.bio || "",
+        avatarUrl:
+          artistResult.application?.avatarUrl ||
+          artistResult.profile?.avatarUrl ||
+          user.photo_url ||
+          "",
+        coverUrl:
+          artistResult.application?.coverUrl ||
+          artistResult.profile?.coverUrl ||
+          "",
+        tonWalletAddress:
+          artistResult.application?.tonWalletAddress ||
+          artistResult.profile?.tonWalletAddress ||
+          persistedTonWalletAddress,
+        note: artistResult.application?.note || "",
+      });
 
       if (profileResult.profile) {
         setUserDraft({
@@ -313,6 +347,46 @@ export default function ProfileEditPage() {
     const savedMode = await writeProfileMode(viewerKey, nextMode);
     setMode(savedMode);
     setModeSaving(false);
+  };
+
+  const handleSubmitArtistApplication = async () => {
+    if (!user?.id) {
+      setWarning("Войдите через Telegram, чтобы подать заявку на артиста.");
+      return;
+    }
+
+    if (!applicationDraft.displayName.trim()) {
+      setWarning("Укажите имя артиста для заявки.");
+      return;
+    }
+
+    if (!applicationDraft.tonWalletAddress.trim()) {
+      setWarning("Укажите TON-кошелёк для будущих выплат.");
+      return;
+    }
+
+    setApplicationSaving(true);
+    setWarning("");
+    setMessage("");
+
+    const result = await submitMyArtistApplication({
+      displayName: applicationDraft.displayName.trim(),
+      bio: applicationDraft.bio.trim() || undefined,
+      avatarUrl: applicationDraft.avatarUrl.trim() || undefined,
+      coverUrl: applicationDraft.coverUrl.trim() || undefined,
+      tonWalletAddress: applicationDraft.tonWalletAddress.trim(),
+      note: applicationDraft.note.trim() || undefined,
+    });
+
+    setApplicationSaving(false);
+
+    if (result.error || !result.application) {
+      setWarning(result.error ?? "Не удалось отправить заявку.");
+      return;
+    }
+
+    setArtistApplication(result.application);
+    setMessage("Заявка на артиста отправлена в модерацию.");
   };
 
   const handleThemeChange = async (theme: AppTheme) => {
@@ -675,30 +749,154 @@ export default function ProfileEditPage() {
               <section className={styles.panel}>
                 <div className={styles.group}>
                   <div className={styles.groupHeading}>
-                    <h2>Доступ и студия</h2>
-                    <p>Режим артиста и связанные с ним возможности.</p>
+                    <h2>Заявка на артиста</h2>
+                    <p>Сначала создаётся заявка, после одобрения откроется отдельная студия артиста.</p>
                   </div>
 
-                  <label className={styles.toggleRow}>
-                    <span className={styles.toggleCopy}>
-                      <strong>Показывать вкладку «Студия»</strong>
-                      <small>
-                        {canEnableArtistMode
-                          ? "Подтверждённый артист может включать и выключать режим в любой момент."
-                          : "Сначала нужно пройти подтверждение артиста в Culture3k."}
-                      </small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={mode === "artist"}
-                      disabled={
-                        modeSaving || (!canEnableArtistMode && mode !== "artist")
-                      }
-                      onChange={(event) =>
-                        void handleArtistModeChange(event.target.checked)
-                      }
-                    />
-                  </label>
+                  <div className={styles.infoRow}>
+                    <span>Статус</span>
+                    <strong>
+                      {canEnableArtistMode
+                        ? "Одобрено"
+                        : artistApplication?.status === "pending"
+                          ? "На модерации"
+                          : artistApplication?.status === "needs_info"
+                            ? "Нужны уточнения"
+                            : artistApplication?.status === "rejected"
+                              ? "Отклонено"
+                              : "Не подана"}
+                    </strong>
+                  </div>
+
+                  {artistApplication?.moderationNote ? (
+                    <div className={styles.noticeError}>{artistApplication.moderationNote}</div>
+                  ) : null}
+
+                  {!canEnableArtistMode ? (
+                    <>
+                      <div className={styles.fieldGrid}>
+                        <label className={styles.field}>
+                          <span>Имя артиста</span>
+                          <input
+                            value={applicationDraft.displayName}
+                            onChange={(event) =>
+                              setApplicationDraft((current) => ({
+                                ...current,
+                                displayName: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className={styles.field}>
+                          <span>TON-кошелёк</span>
+                          <input
+                            value={applicationDraft.tonWalletAddress}
+                            onChange={(event) =>
+                              setApplicationDraft((current) => ({
+                                ...current,
+                                tonWalletAddress: event.target.value,
+                              }))
+                            }
+                            placeholder="EQ..."
+                          />
+                        </label>
+
+                        <label className={`${styles.field} ${styles.fieldWide}`}>
+                          <span>Описание</span>
+                          <textarea
+                            value={applicationDraft.bio}
+                            onChange={(event) =>
+                              setApplicationDraft((current) => ({
+                                ...current,
+                                bio: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className={styles.field}>
+                          <span>Аватар</span>
+                          <input
+                            value={applicationDraft.avatarUrl}
+                            onChange={(event) =>
+                              setApplicationDraft((current) => ({
+                                ...current,
+                                avatarUrl: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className={styles.field}>
+                          <span>Обложка</span>
+                          <input
+                            value={applicationDraft.coverUrl}
+                            onChange={(event) =>
+                              setApplicationDraft((current) => ({
+                                ...current,
+                                coverUrl: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className={`${styles.field} ${styles.fieldWide}`}>
+                          <span>Комментарий к заявке</span>
+                          <textarea
+                            value={applicationDraft.note}
+                            onChange={(event) =>
+                              setApplicationDraft((current) => ({
+                                ...current,
+                                note: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className={styles.panelActions}>
+                        <button
+                          type="button"
+                          className={styles.primaryButton}
+                          onClick={() => void handleSubmitArtistApplication()}
+                          disabled={applicationSaving}
+                        >
+                          {applicationSaving ? "Отправляем..." : "Подать заявку"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.infoRow}>
+                        <span>Профиль артиста</span>
+                        <strong>{artistProfileName || "Подтверждён"}</strong>
+                      </div>
+
+                      <label className={styles.toggleRow}>
+                        <span className={styles.toggleCopy}>
+                          <strong>Показывать вкладку «Студия»</strong>
+                          <small>
+                            Одобренный артист может включать и выключать studio dashboard в профиле.
+                          </small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={mode === "artist"}
+                          disabled={modeSaving}
+                          onChange={(event) =>
+                            void handleArtistModeChange(event.target.checked)
+                          }
+                        />
+                      </label>
+
+                      <div className={styles.panelActions}>
+                        <Link href="/studio" className={styles.primaryButton}>
+                          Перейти в студию
+                        </Link>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className={styles.group}>

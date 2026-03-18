@@ -1,0 +1,377 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  justify-items: center;
+  padding-top: 0.85rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+  padding-left: calc(1rem + var(--safe-area-left));
+  overflow-x: clip;
+}
+
+.container {
+  width: min(100%, 760px);
+  display: grid;
+  gap: 0.95rem;
+}
+
+.hero,
+.card,
+.error,
+.success,
+.emptyState {
+  border-radius: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+  box-shadow: 0 14px 32px color-mix(in srgb, #000 8%, transparent);
+}
+
+.hero,
+.card {
+  padding: 1rem;
+  display: grid;
+  gap: 0.95rem;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.backButton {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--tg-text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.statusChip {
+  min-height: 1.8rem;
+  padding: 0 0.72rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-accent) 12%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 84%, var(--tg-text));
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.heroMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  align-items: stretch;
+}
+
+.heroMeta,
+.heroBalance,
+.metricCard,
+.infoBanner,
+.releaseRow,
+.payoutRow,
+.toggleRow,
+.trackDraftRow {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+}
+
+.heroMeta {
+  padding: 1rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.heroMeta span,
+.heroMeta p,
+.heroMeta small,
+.metricCard span,
+.field span,
+.sectionHeader p,
+.releaseRow span,
+.payoutRow span,
+.infoBanner span,
+.emptyState,
+.error,
+.success {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+}
+
+.heroMeta h1,
+.sectionHeader h2 {
+  margin: 0;
+  color: var(--tg-text);
+}
+
+.heroMeta h1 {
+  font-size: 1.36rem;
+  line-height: 1.05;
+}
+
+.heroBalance {
+  min-width: 14rem;
+  padding: 1rem;
+  display: grid;
+  align-content: center;
+  gap: 0.22rem;
+}
+
+.heroBalance span {
+  font-size: 0.75rem;
+}
+
+.inlineAmount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: var(--tg-text);
+  font-size: 1.18rem;
+  font-weight: 800;
+}
+
+.inlineAmountIcon {
+  width: 1rem;
+  height: 1rem;
+  color: var(--tg-accent);
+}
+
+.tabsWrap {
+  position: sticky;
+  top: calc(var(--app-header-height, 0px) + var(--safe-area-top) + 0.4rem);
+  z-index: 4;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.metricCard {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.metricCard strong {
+  color: var(--tg-text);
+  font-size: 1.02rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.field span,
+.toggleRow span {
+  color: var(--tg-text);
+  font-size: 0.79rem;
+  font-weight: 700;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 32%, transparent);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
+  color: var(--tg-text);
+  padding: 0.72rem 0.82rem;
+  font: inherit;
+}
+
+.field textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.toggleList {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.toggleRow {
+  padding: 0.85rem 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.toggleRow input {
+  accent-color: var(--tg-accent);
+}
+
+.primaryButton,
+.secondaryButton,
+.releaseRow a {
+  min-height: 2.75rem;
+  border-radius: 0.95rem;
+  padding: 0 1rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.primaryButton {
+  border: 0;
+  background: color-mix(in srgb, var(--tg-accent) 84%, white);
+  color: white;
+}
+
+.secondaryButton,
+.releaseRow a {
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 26%, transparent);
+  background: transparent;
+  color: var(--tg-text);
+}
+
+.listSection {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.releaseList,
+.payoutList,
+.trackDraftList {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.releaseRow,
+.payoutRow {
+  padding: 0.85rem 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.releaseRow div,
+.payoutRow div {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.releaseRow strong,
+.payoutRow strong,
+.infoBanner strong {
+  color: var(--tg-text);
+}
+
+.trackDraftRow {
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.actionRow {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.infoBanner {
+  padding: 0.85rem 0.9rem;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.error,
+.success,
+.emptyState {
+  padding: 0.9rem 1rem;
+}
+
+.error {
+  color: var(--tg-destructive-text);
+}
+
+.success {
+  color: color-mix(in srgb, var(--tg-accent) 84%, var(--tg-text));
+}
+
+.skeletonHero,
+.skeletonGrid span {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+}
+
+.skeletonHero::after,
+.skeletonGrid span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  animation: studio-skeleton 1.25s ease-in-out infinite;
+}
+
+.skeletonHero {
+  height: 9rem;
+  border-radius: 1rem;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.skeletonGrid span {
+  height: 5rem;
+  border-radius: 1rem;
+}
+
+@keyframes studio-skeleton {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 760px) {
+  .heroMain,
+  .fieldGrid,
+  .metricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroBalance {
+    min-width: 0;
+  }
+}

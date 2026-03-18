@@ -2,7 +2,11 @@
 
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import type {
+  ArtistApplication,
+  ArtistPayoutRequest,
+  ArtistPayoutSummary,
   ArtistProfile,
+  ArtistStudioStats,
   ArtistTrack,
   ShowcaseCollection,
   ShopAdminMember,
@@ -626,10 +630,14 @@ export const fetchPublicCatalog = async (): Promise<{
 };
 
 export const fetchMyArtistProfile = async (): Promise<{
+  application: ArtistApplication | null;
   profile: ArtistProfile | null;
   tracks: ArtistTrack[];
   donations: number;
   subscriptions: number;
+  studioStats: ArtistStudioStats | null;
+  payoutSummary: ArtistPayoutSummary | null;
+  payoutRequests: ArtistPayoutRequest[];
   error?: string;
 }> => {
   try {
@@ -641,29 +649,108 @@ export const fetchMyArtistProfile = async (): Promise<{
 
     if (!response.ok) {
       return {
+        application: null,
         profile: null,
         tracks: [],
         donations: 0,
         subscriptions: 0,
+        studioStats: null,
+        payoutSummary: null,
+        payoutRequests: [],
         error: await parseApiError(response),
       };
     }
 
     const payload = (await response.json()) as {
+      application?: ArtistApplication | null;
       profile?: ArtistProfile | null;
       tracks?: ArtistTrack[];
       donations?: number;
       subscriptions?: number;
+      studioStats?: ArtistStudioStats | null;
+      payoutSummary?: ArtistPayoutSummary | null;
+      payoutRequests?: ArtistPayoutRequest[];
     };
 
     return {
+      application: payload.application ?? null,
       profile: payload.profile ?? null,
       tracks: payload.tracks ?? [],
       donations: Math.max(0, Math.round(Number(payload.donations ?? 0))),
       subscriptions: Math.max(0, Math.round(Number(payload.subscriptions ?? 0))),
+      studioStats: payload.studioStats ?? null,
+      payoutSummary: payload.payoutSummary ?? null,
+      payoutRequests: payload.payoutRequests ?? [],
     };
   } catch {
-    return { profile: null, tracks: [], donations: 0, subscriptions: 0, error: "Network error" };
+    return {
+      application: null,
+      profile: null,
+      tracks: [],
+      donations: 0,
+      subscriptions: 0,
+      studioStats: null,
+      payoutSummary: null,
+      payoutRequests: [],
+      error: "Network error",
+    };
+  }
+};
+
+export const submitMyArtistApplication = async (payload: {
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  tonWalletAddress: string;
+  referenceLinks?: string[];
+  note?: string;
+}): Promise<{ application: ArtistApplication | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/shop/artists/me/application", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { application: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { application?: ArtistApplication | null };
+    return { application: data.application ?? null };
+  } catch {
+    return { application: null, error: "Network error" };
+  }
+};
+
+export const requestMyArtistPayout = async (payload: {
+  amountStarsCents: number;
+  note?: string;
+}): Promise<{ payoutRequest: ArtistPayoutRequest | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/shop/artists/me/payouts", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { payoutRequest: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { payoutRequest?: ArtistPayoutRequest | null };
+    return { payoutRequest: data.payoutRequest ?? null };
+  } catch {
+    return { payoutRequest: null, error: "Network error" };
   }
 };
 
@@ -672,6 +759,7 @@ export const upsertMyArtistProfile = async (payload: {
   bio?: string;
   avatarUrl?: string;
   coverUrl?: string;
+  tonWalletAddress?: string;
   donationEnabled?: boolean;
   subscriptionEnabled?: boolean;
   subscriptionPriceStarsCents?: number;
@@ -756,6 +844,102 @@ export const fetchAdminArtists = async (): Promise<{
     return { profiles: payload.profiles ?? [], tracks: payload.tracks ?? [] };
   } catch {
     return { profiles: [], tracks: [], error: "Network error" };
+  }
+};
+
+export const fetchAdminArtistApplications = async (): Promise<{
+  applications: ArtistApplication[];
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/artist-applications", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { applications: [], error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as { applications?: ArtistApplication[] };
+    return { applications: payload.applications ?? [] };
+  } catch {
+    return { applications: [], error: "Network error" };
+  }
+};
+
+export const patchAdminArtistApplication = async (payload: {
+  telegramUserId: number;
+  status: ArtistApplication["status"];
+  moderationNote?: string;
+}): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/artist-applications", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: await parseApiError(response) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+};
+
+export const fetchAdminArtistPayouts = async (): Promise<{
+  payoutRequests: ArtistPayoutRequest[];
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/artist-payouts", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { payoutRequests: [], error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as { payoutRequests?: ArtistPayoutRequest[] };
+    return { payoutRequests: payload.payoutRequests ?? [] };
+  } catch {
+    return { payoutRequests: [], error: "Network error" };
+  }
+};
+
+export const patchAdminArtistPayout = async (payload: {
+  id: string;
+  status: ArtistPayoutRequest["status"];
+  adminNote?: string;
+}): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/artist-payouts", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: await parseApiError(response) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
   }
 };
 
