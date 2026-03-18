@@ -110,6 +110,21 @@
   - обновление admin note
 - Audit trail выведен и в `Студию`, и в admin payout moderation.
 
+### Artist catalog normalization foundation
+
+- В `db/schema.sql` добавлены таблицы:
+  - `artist_profiles`
+  - `artist_tracks`
+- Добавлен отдельный normalized artist merge-store.
+- Публичный каталог, публичная страница артиста, artist self-service и admin artist routes начали читать artist snapshot через новый слой.
+- Ключевые artist mutation flows теперь dual-write'ят profile/release state в Postgres:
+  - application approval
+  - artist profile update
+  - release create/update
+  - admin moderation
+  - paid-order webhook
+  - payout completion balance update
+
 ### Entitlement and mint normalization foundation
 
 - В `db/schema.sql` добавлены таблицы:

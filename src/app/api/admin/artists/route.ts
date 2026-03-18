@@ -7,6 +7,7 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
+import { readArtistCatalogSnapshot, upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
 import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistProfile, ArtistTrack } from "@/types/shop";
@@ -74,16 +75,9 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const profiles = Object.values(config.artistProfiles).sort((a, b) => {
-    const left = new Date(a.updatedAt || a.createdAt).getTime();
-    const right = new Date(b.updatedAt || b.createdAt).getTime();
-    return right - left;
-  });
-  const tracks = Object.values(config.artistTracks).sort((a, b) => {
-    const left = new Date(a.updatedAt || a.createdAt).getTime();
-    const right = new Date(b.updatedAt || b.createdAt).getTime();
-    return right - left;
-  });
+  const artistCatalog = await readArtistCatalogSnapshot({ config });
+  const profiles = artistCatalog.profiles;
+  const tracks = artistCatalog.tracks;
 
   return NextResponse.json({ profiles, tracks });
 }
@@ -160,8 +154,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
   }
 
+  const nextProfile = updated.artistProfiles[String(telegramUserId)] ?? null;
+  if (nextProfile) {
+    await upsertArtistProfiles([nextProfile]).catch(() => undefined);
+  }
+
   return NextResponse.json({
-    profile: updated.artistProfiles[String(telegramUserId)] ?? null,
+    profile: nextProfile,
   });
 }
 
@@ -262,6 +261,9 @@ export async function PUT(request: Request) {
   }
 
   const nextTrack = updated.artistTracks[trackId] ?? null;
+  if (nextTrack) {
+    await upsertArtistTracks([nextTrack]).catch(() => undefined);
+  }
 
   let storageSync:
     | {

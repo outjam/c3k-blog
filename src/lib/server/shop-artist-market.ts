@@ -116,11 +116,13 @@ export const toArtistTrackProduct = (track: ArtistTrack, artist: ArtistProfile |
   };
 };
 
-export const listPublishedArtistProducts = (config: ShopAdminConfig): ShopProduct[] => {
-  const profiles = Object.values(config.artistProfiles);
+export const listPublishedArtistProductsFromSnapshot = (
+  profiles: ArtistProfile[],
+  tracks: ArtistTrack[],
+): ShopProduct[] => {
   const profileById = new Map(profiles.map((profile) => [profile.telegramUserId, profile]));
 
-  return Object.values(config.artistTracks)
+  return tracks
     .filter((track) => track.status === "published")
     .map((track) => {
       const artist = profileById.get(track.artistTelegramUserId);
@@ -136,6 +138,13 @@ export const listPublishedArtistProducts = (config: ShopAdminConfig): ShopProduc
       const right = new Date(b.publishedAt ?? 0).getTime();
       return right - left;
     });
+};
+
+export const listPublishedArtistProducts = (config: ShopAdminConfig): ShopProduct[] => {
+  return listPublishedArtistProductsFromSnapshot(
+    Object.values(config.artistProfiles),
+    Object.values(config.artistTracks),
+  );
 };
 
 export const applyArtistPayoutsForPaidOrder = (

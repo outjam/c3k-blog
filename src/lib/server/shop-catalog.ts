@@ -1,4 +1,5 @@
-import { listPublishedArtistProducts } from "@/lib/server/shop-artist-market";
+import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
+import { listPublishedArtistProductsFromSnapshot } from "@/lib/server/shop-artist-market";
 import { readShopAdminConfig, toActivePromoRules } from "@/lib/server/shop-admin-config-store";
 import type {
   ShopAppSettings,
@@ -57,7 +58,15 @@ export const getCatalogSnapshot = async (): Promise<{
   const config = await readShopAdminConfig();
   const category = MUSIC_CATEGORY;
   const subcategory = category.subcategories[0];
-  const artistProducts = listPublishedArtistProducts(config);
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    onlyApprovedProfiles: true,
+    onlyPublishedTracks: true,
+  });
+  const artistProducts = listPublishedArtistProductsFromSnapshot(
+    artistCatalog.profiles,
+    artistCatalog.tracks,
+  );
 
   const products = artistProducts
     .map((trackProduct) => {
@@ -103,7 +112,7 @@ export const getCatalogSnapshot = async (): Promise<{
     tracksByArtist.set(trackProduct.artistTelegramUserId, current);
   });
 
-  const artists = Object.values(config.artistProfiles)
+  const artists = artistCatalog.profiles
     .filter((artist) => artist.status === "approved")
     .map((artist) => {
       const artistTracks = tracksByArtist.get(artist.telegramUserId) ?? ([] as ShopProduct[]);

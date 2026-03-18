@@ -303,6 +303,54 @@
   - `src/app/studio/page.tsx`
   - `src/app/admin/artists/page.tsx`
 
+### Sprint 08 slice: normalized artist catalog layer
+
+- В `db/schema.sql` добавлены таблицы:
+  - `artist_profiles`
+  - `artist_tracks`
+- Добавлен отдельный merged store:
+  - [src/lib/server/artist-catalog-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-store.ts)
+- Store умеет:
+  - читать artist profiles и artist tracks из Postgres
+  - безопасно падать обратно в legacy `shop_admin_config`
+  - merge'ить normalized rows с legacy fallback
+  - upsert'ить profiles и tracks обратно в Postgres
+- Обновлены consumer/admin read paths:
+  - [src/lib/server/shop-catalog.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-catalog.ts)
+  - [src/app/api/shop/artists/[slug]/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/[slug]/route.ts)
+  - [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+  - [src/app/api/shop/artists/me/tracks/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/tracks/route.ts)
+  - [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+- Обновлены dual-write mutation paths:
+  - artist profile update
+  - artist application approval
+  - artist release create/update
+  - admin track/profile moderation
+  - Telegram paid-order webhook для balance/sales updates
+  - admin payout completion для profile balance updates
+
+### Что это дало
+
+- artist-domain больше не живёт только внутри `app_state`
+- публичный каталог и artist public routes уже получают normalized snapshot
+- changes в artist profile/release flow теперь записываются и в Postgres, и в legacy config
+- подготовлен следующий шаг для backfill/cutover artist domain без большого rewrite
+
+### Проверка normalized artist slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/artist-catalog-store.ts`
+  - `src/lib/server/shop-catalog.ts`
+  - `src/lib/server/shop-artist-market.ts`
+  - `src/app/api/shop/artists/me/route.ts`
+  - `src/app/api/shop/artists/me/tracks/route.ts`
+  - `src/app/api/shop/artists/[slug]/route.ts`
+  - `src/app/api/admin/artists/route.ts`
+  - `src/app/api/admin/artist-applications/route.ts`
+  - `src/app/api/admin/artist-payouts/route.ts`
+  - `src/app/api/telegram/webhook/route.ts`
+
 - `npm run typecheck`
 - targeted `eslint` по:
   - `src/lib/server/storage-delivery-store.ts`

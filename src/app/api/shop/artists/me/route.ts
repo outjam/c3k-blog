@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { buildArtistPayoutSummary, buildArtistStudioStats } from "@/lib/server/shop-artist-studio";
@@ -88,12 +89,14 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const profile = config.artistProfiles[String(auth.telegramUserId)] ?? null;
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    artistTelegramUserId: auth.telegramUserId,
+  });
+  const profile = artistCatalog.profiles[0] ?? null;
   const application =
     config.artistApplications[String(auth.telegramUserId)] ?? buildLegacyApplication(profile);
-  const tracks = sortTracks(
-    Object.values(config.artistTracks).filter((track) => track.artistTelegramUserId === auth.telegramUserId),
-  );
+  const tracks = sortTracks(artistCatalog.tracks);
   const donations = config.artistDonations.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId).length;
   const subscriptions = config.artistSubscriptions.filter(
     (entry) => entry.artistTelegramUserId === auth.telegramUserId && entry.status === "active",
@@ -213,7 +216,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Сначала подайте и подтвердите заявку артиста." }, { status: 409 });
   }
 
+  const nextProfile = updated.artistProfiles[String(auth.telegramUserId)] ?? null;
+  if (nextProfile) {
+    await upsertArtistProfiles([nextProfile]).catch(() => undefined);
+  }
+
   return NextResponse.json({
-    profile: updated.artistProfiles[String(auth.telegramUserId)] ?? null,
+    profile: nextProfile,
   });
 }

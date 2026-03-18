@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
+import { upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
 import { upsertArtistEarningLedgerEntries } from "@/lib/server/artist-finance-store";
 import { applyArtistPayoutsForPaidOrder } from "@/lib/server/shop-artist-market";
 import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
@@ -15,7 +16,7 @@ import {
   enqueueTelegramMessageNotification,
 } from "@/lib/server/telegram-notification-queue";
 import type { TelegramInlineButton } from "@/lib/server/telegram-bot";
-import type { ShopOrder } from "@/types/shop";
+import type { ArtistProfile, ArtistTrack, ShopOrder } from "@/types/shop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -287,15 +288,29 @@ export async function POST(request: Request) {
       let createdArtistEarnings: ReturnType<
         typeof applyArtistPayoutsForPaidOrder
       >["createdEarnings"] = [];
+      let updatedArtistProfiles: ArtistProfile[] = [];
+      let updatedArtistTracks: ArtistTrack[] = [];
 
       await mutateShopAdminConfig((current) => {
         const applied = applyArtistPayoutsForPaidOrder(current, updatedOrder);
         createdArtistEarnings = applied.createdEarnings;
+        updatedArtistProfiles = applied.touchedArtistIds
+          .map((telegramUserId) => applied.config.artistProfiles[String(telegramUserId)])
+          .filter((entry): entry is ArtistProfile => Boolean(entry));
+        updatedArtistTracks = updatedOrder.items
+          .map((item) => applied.config.artistTracks[item.productId])
+          .filter((entry): entry is ArtistTrack => Boolean(entry));
         return applied.config;
       });
 
       if (createdArtistEarnings.length) {
         await upsertArtistEarningLedgerEntries(createdArtistEarnings).catch(() => undefined);
+      }
+      if (updatedArtistProfiles.length) {
+        await upsertArtistProfiles(updatedArtistProfiles).catch(() => undefined);
+      }
+      if (updatedArtistTracks.length) {
+        await upsertArtistTracks(updatedArtistTracks).catch(() => undefined);
       }
 
       await notifyAdminsAboutNewOrder(updatedOrder, baseUrl);

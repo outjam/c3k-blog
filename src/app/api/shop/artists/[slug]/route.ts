@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { toArtistTrackProduct } from "@/lib/server/shop-artist-market";
 import { listFollowStatsBySlugs } from "@/lib/server/social-follow-store";
@@ -13,13 +14,19 @@ export async function GET(
 ) {
   const { slug } = await context.params;
   const config = await readShopAdminConfig();
-  const profile = Object.values(config.artistProfiles).find((item) => item.slug === slug && item.status === "approved");
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    profileSlug: slug,
+    onlyApprovedProfiles: true,
+    onlyPublishedTracks: true,
+  });
+  const profile = artistCatalog.profiles[0] ?? null;
 
   if (!profile) {
     return NextResponse.json({ error: "Artist not found" }, { status: 404 });
   }
 
-  const tracks = Object.values(config.artistTracks)
+  const tracks = artistCatalog.tracks
     .filter((track) => track.artistTelegramUserId === profile.telegramUserId && track.status === "published")
     .sort((a, b) => new Date(b.publishedAt ?? b.updatedAt).getTime() - new Date(a.publishedAt ?? a.updatedAt).getTime())
     .map((track) => toArtistTrackProduct(track, profile));

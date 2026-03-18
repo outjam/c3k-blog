@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { notifyUserAboutArtistApplicationStatus } from "@/lib/server/shop-artist-notify";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 import {
@@ -165,6 +166,10 @@ export async function PATCH(request: Request) {
 
   const application = updated.artistApplications[String(telegramUserId)] ?? null;
   const profile = updated.artistProfiles[String(telegramUserId)] ?? null;
+
+  if (profile) {
+    await upsertArtistProfiles([profile]).catch(() => undefined);
+  }
 
   if (application) {
     await notifyUserAboutArtistApplicationStatus(application, profile, resolvePublicBaseUrl(request));

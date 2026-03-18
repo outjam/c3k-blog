@@ -211,6 +211,53 @@ CREATE TABLE IF NOT EXISTS artist_payout_requests (
   paid_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS artist_profiles (
+  telegram_user_id BIGINT PRIMARY KEY,
+  slug TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  bio TEXT NOT NULL DEFAULT '',
+  avatar_url TEXT,
+  cover_url TEXT,
+  ton_wallet_address TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'suspended')),
+  moderation_note TEXT,
+  donation_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  subscription_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  subscription_price_stars_cents INTEGER NOT NULL CHECK (subscription_price_stars_cents >= 0),
+  balance_stars_cents INTEGER NOT NULL CHECK (balance_stars_cents >= 0),
+  lifetime_earnings_stars_cents INTEGER NOT NULL CHECK (lifetime_earnings_stars_cents >= 0),
+  followers_count INTEGER NOT NULL CHECK (followers_count >= 0),
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS artist_tracks (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL,
+  artist_telegram_user_id BIGINT NOT NULL,
+  title TEXT NOT NULL,
+  release_type TEXT NOT NULL CHECK (release_type IN ('single', 'ep', 'album')),
+  subtitle TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  cover_image TEXT NOT NULL DEFAULT '',
+  formats JSONB NOT NULL DEFAULT '[]'::jsonb,
+  release_tracklist JSONB NOT NULL DEFAULT '[]'::jsonb,
+  audio_file_id TEXT NOT NULL,
+  preview_url TEXT,
+  duration_sec INTEGER NOT NULL DEFAULT 0,
+  genre TEXT,
+  tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+  price_stars_cents INTEGER NOT NULL CHECK (price_stars_cents >= 0),
+  is_mintable BOOLEAN NOT NULL DEFAULT TRUE,
+  status TEXT NOT NULL CHECK (status IN ('draft', 'pending_moderation', 'published', 'rejected')),
+  moderation_note TEXT,
+  plays_count INTEGER NOT NULL CHECK (plays_count >= 0),
+  sales_count INTEGER NOT NULL CHECK (sales_count >= 0),
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  published_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS artist_payout_audit_log (
   id TEXT PRIMARY KEY,
   payout_request_id TEXT NOT NULL,
@@ -273,6 +320,11 @@ CREATE INDEX IF NOT EXISTS idx_artist_earnings_artist_earned ON artist_earnings_
 CREATE INDEX IF NOT EXISTS idx_artist_earnings_order_id ON artist_earnings_ledger(order_id);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_artist_updated ON artist_payout_requests(artist_telegram_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_status_updated ON artist_payout_requests(status, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artist_profiles_slug ON artist_profiles(slug);
+CREATE INDEX IF NOT EXISTS idx_artist_profiles_status_updated ON artist_profiles(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_tracks_artist_updated ON artist_tracks(artist_telegram_user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_tracks_status_updated ON artist_tracks(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_tracks_slug ON artist_tracks(slug);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_audit_request_created ON artist_payout_audit_log(payout_request_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_audit_artist_created ON artist_payout_audit_log(artist_telegram_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_release_entitlements_user_acquired ON user_release_entitlements(telegram_user_id, acquired_at DESC);

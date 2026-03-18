@@ -64,6 +64,7 @@
 
 - `/api/shop/catalog`
   - публичный каталог релизов, артистов, promo rules, showcase, settings
+  - artist catalog snapshot уже собирается через normalized `artist_profiles` / `artist_tracks` merge-store
 
 ### Orders
 
@@ -90,6 +91,7 @@
 
 - `/api/shop/artists/[slug]`
   - публичные данные артиста
+  - artist profile и published releases читаются через normalized artist snapshot
 - `/api/shop/artists/[slug]/support`
   - поддержка артиста, донаты/подписки и related flows
 
@@ -100,6 +102,7 @@
 - `/api/shop/artists/me`
   - чтение approved artist profile
   - обновление artist profile
+  - dual-write в normalized `artist_profiles`
 
 ### Artist application
 
@@ -111,6 +114,7 @@
 
 - `/api/shop/artists/me/tracks`
   - создание и редактирование релизов/треков артиста
+  - dual-write в normalized `artist_tracks`
 
 ### Artist payouts
 
@@ -146,6 +150,7 @@
 
 - `/api/admin/artists`
   - общий artist moderation/data route
+  - читает merged artist snapshot
 - `/api/admin/artist-applications`
   - список заявок
   - approve / reject / needs_info

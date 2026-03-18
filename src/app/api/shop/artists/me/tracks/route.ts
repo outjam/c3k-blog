@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { readArtistCatalogSnapshot, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
 import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistTrack } from "@/types/shop";
@@ -205,9 +206,11 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const tracks = Object.values(config.artistTracks)
-    .filter((track) => track.artistTelegramUserId === auth.telegramUserId)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    artistTelegramUserId: auth.telegramUserId,
+  });
+  const tracks = artistCatalog.tracks;
 
   return NextResponse.json({ tracks });
 }
@@ -312,6 +315,9 @@ export async function POST(request: Request) {
   const created = Object.values(updated.artistTracks)
     .filter((track) => track.artistTelegramUserId === auth.telegramUserId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  if (created) {
+    await upsertArtistTracks([created]).catch(() => undefined);
+  }
 
   let storageSync:
     | {
@@ -434,6 +440,9 @@ export async function PATCH(request: Request) {
   }
 
   const nextTrack = updated.artistTracks[trackId] ?? null;
+  if (nextTrack) {
+    await upsertArtistTracks([nextTrack]).catch(() => undefined);
+  }
 
   let storageSync:
     | {

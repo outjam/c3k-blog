@@ -9,6 +9,7 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
+import { upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import {
   readArtistFinanceSnapshot,
   upsertArtistPayoutAuditEntries,
@@ -179,6 +180,9 @@ export async function PATCH(request: Request) {
   }
 
   const payoutRequest = updated.artistPayoutRequests.find((entry) => entry.id === id) ?? null;
+  const nextProfile = payoutRequest
+    ? updated.artistProfiles[String(payoutRequest.artistTelegramUserId)] ?? null
+    : null;
   const payoutAuditEntry =
     updated.artistPayoutAuditLog.find(
       (entry) =>
@@ -190,6 +194,9 @@ export async function PATCH(request: Request) {
 
   if (payoutRequest) {
     await upsertArtistPayoutRequestRecord(payoutRequest).catch(() => undefined);
+    if (nextProfile) {
+      await upsertArtistProfiles([nextProfile]).catch(() => undefined);
+    }
     if (payoutAuditEntry) {
       await upsertArtistPayoutAuditEntries([payoutAuditEntry]).catch(() => undefined);
       await notifyUserAboutArtistPayoutStatus(payoutRequest, resolvePublicBaseUrl(request));

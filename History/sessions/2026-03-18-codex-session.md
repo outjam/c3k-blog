@@ -250,3 +250,15 @@ Go рассматривается как хороший будущий язык 
   - admin payout moderation
 
 Это стало следующим шагом в сторону ledger-first finance модели: payout flow перестал быть только текущим snapshot статуса и получил историю изменений.
+
+## Дополнение по normalized artist catalog
+
+Следующим slice в `Sprint 08` было сделано:
+
+- добавлены таблицы `artist_profiles` и `artist_tracks`
+- поднят отдельный normalized artist merge-store
+- public catalog и public artist route начали читать artist snapshot через новый слой
+- ключевые artist mutation paths получили dual-write в Postgres
+- webhook paid-order теперь синхронизирует profile balance и track salesCount не только в legacy config, но и в normalized artist layer
+
+Это стало первым реальным выносом artist-domain из `shop_admin_config`, сохраняя при этом test-first совместимость и fallback на legacy state.
