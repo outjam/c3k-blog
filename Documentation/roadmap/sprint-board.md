@@ -186,10 +186,11 @@ Status: current
 Что должно быть доставлено:
 - [x] Первый нормализованный finance slice для `artist_earnings_ledger` и `artist_payout_requests`
 - [x] Нормализованные таблицы и merge-store для user entitlements и NFT mint history
+- [x] Первый backfill/migration path для ownership и mint history из legacy social state
 - [ ] Нормализованные таблицы для artist/release/payment flows вне finance foundation
 - [ ] Ledger-first finance model
 - [ ] Payout audit log и backfill/migration jobs
-- [ ] Слой миграции с JSON state в таблицы
+- [ ] Слой миграции с JSON state в таблицы для оставшихся доменов
 
 ### Sprint 09 — Production Hardening
 

@@ -1,6 +1,7 @@
 import { getPostgresHttpConfig, postgresTableRequest } from "@/lib/server/postgres-http";
 import type {
   ArtistEarningLedgerEntry,
+  ArtistPayoutAuditEntry,
   ArtistPayoutRequest,
   ShopAdminConfig,
 } from "@/types/shop";
@@ -30,6 +31,19 @@ interface ArtistPayoutRequestRow {
   reviewed_at?: unknown;
   reviewed_by_telegram_user_id?: unknown;
   paid_at?: unknown;
+}
+
+interface ArtistPayoutAuditRow {
+  id?: unknown;
+  payout_request_id?: unknown;
+  artist_telegram_user_id?: unknown;
+  actor?: unknown;
+  actor_telegram_user_id?: unknown;
+  action?: unknown;
+  status_before?: unknown;
+  status_after?: unknown;
+  note?: unknown;
+  created_at?: unknown;
 }
 
 const normalizeTelegramUserId = (value: unknown): number => {
@@ -64,6 +78,14 @@ const normalizePayoutStatus = (value: unknown): ArtistPayoutRequest["status"] =>
   return value === "approved" || value === "rejected" || value === "paid"
     ? value
     : "pending_review";
+};
+
+const normalizePayoutAuditActor = (value: unknown): ArtistPayoutAuditEntry["actor"] => {
+  return value === "admin" || value === "system" ? value : "artist";
+};
+
+const normalizePayoutAuditAction = (value: unknown): ArtistPayoutAuditEntry["action"] => {
+  return value === "status_changed" || value === "note_updated" ? value : "requested";
 };
 
 const toArtistEarningLedgerEntry = (
@@ -119,6 +141,32 @@ const toArtistPayoutRequest = (
   };
 };
 
+const toArtistPayoutAuditEntry = (
+  row: ArtistPayoutAuditRow,
+): ArtistPayoutAuditEntry | null => {
+  const id = normalizeText(row.id, 120);
+  const payoutRequestId = normalizeText(row.payout_request_id, 120);
+  const artistTelegramUserId = normalizeTelegramUserId(row.artist_telegram_user_id);
+  const createdAt = normalizeIso(row.created_at, new Date().toISOString());
+
+  if (!id || !payoutRequestId || !artistTelegramUserId) {
+    return null;
+  }
+
+  return {
+    id,
+    payoutRequestId,
+    artistTelegramUserId,
+    actor: normalizePayoutAuditActor(row.actor),
+    actorTelegramUserId: normalizeTelegramUserId(row.actor_telegram_user_id) || undefined,
+    action: normalizePayoutAuditAction(row.action),
+    statusBefore: row.status_before ? normalizePayoutStatus(row.status_before) : undefined,
+    statusAfter: row.status_after ? normalizePayoutStatus(row.status_after) : undefined,
+    note: normalizeOptionalText(row.note, 240),
+    createdAt,
+  };
+};
+
 const sortEarnings = (entries: ArtistEarningLedgerEntry[]): ArtistEarningLedgerEntry[] => {
   return [...entries].sort((a, b) => {
     const left = new Date(a.earnedAt).getTime();
@@ -131,6 +179,14 @@ const sortPayoutRequests = (entries: ArtistPayoutRequest[]): ArtistPayoutRequest
   return [...entries].sort((a, b) => {
     const left = new Date(a.updatedAt || a.createdAt).getTime();
     const right = new Date(b.updatedAt || b.createdAt).getTime();
+    return right - left || b.id.localeCompare(a.id);
+  });
+};
+
+const sortPayoutAuditEntries = (entries: ArtistPayoutAuditEntry[]): ArtistPayoutAuditEntry[] => {
+  return [...entries].sort((a, b) => {
+    const left = new Date(a.createdAt).getTime();
+    const right = new Date(b.createdAt).getTime();
     return right - left || b.id.localeCompare(a.id);
   });
 };
@@ -157,6 +213,18 @@ const legacyPayoutRequestsForArtist = (
       : config.artistPayoutRequests;
 
   return sortPayoutRequests(entries);
+};
+
+const legacyPayoutAuditEntriesForArtist = (
+  config: ShopAdminConfig,
+  artistTelegramUserId?: number,
+): ArtistPayoutAuditEntry[] => {
+  const entries =
+    typeof artistTelegramUserId === "number"
+      ? config.artistPayoutAuditLog.filter((entry) => entry.artistTelegramUserId === artistTelegramUserId)
+      : config.artistPayoutAuditLog;
+
+  return sortPayoutAuditEntries(entries);
 };
 
 const mergeEarnings = (
@@ -189,6 +257,21 @@ const mergePayoutRequests = (
   return sortPayoutRequests(Array.from(entries.values()));
 };
 
+const mergePayoutAuditEntries = (
+  primary: ArtistPayoutAuditEntry[],
+  fallback: ArtistPayoutAuditEntry[],
+): ArtistPayoutAuditEntry[] => {
+  const entries = new Map<string, ArtistPayoutAuditEntry>();
+
+  [...primary, ...fallback].forEach((entry) => {
+    if (!entries.has(entry.id)) {
+      entries.set(entry.id, entry);
+    }
+  });
+
+  return sortPayoutAuditEntries(Array.from(entries.values()));
+};
+
 const isConfigured = (): boolean => Boolean(getPostgresHttpConfig());
 
 export const readArtistFinanceSnapshot = async (options: {
@@ -196,15 +279,18 @@ export const readArtistFinanceSnapshot = async (options: {
   artistTelegramUserId?: number;
   earningsLimit?: number;
   payoutRequestsLimit?: number;
+  payoutAuditEntriesLimit?: number;
 }): Promise<{
   earnings: ArtistEarningLedgerEntry[];
   payoutRequests: ArtistPayoutRequest[];
+  payoutAuditEntries: ArtistPayoutAuditEntry[];
   source: "postgres" | "legacy";
 }> => {
   if (!isConfigured()) {
     return {
       earnings: legacyEarningsForArtist(options.config, options.artistTelegramUserId),
       payoutRequests: legacyPayoutRequestsForArtist(options.config, options.artistTelegramUserId),
+      payoutAuditEntries: legacyPayoutAuditEntriesForArtist(options.config, options.artistTelegramUserId),
       source: "legacy",
     };
   }
@@ -234,7 +320,21 @@ export const readArtistFinanceSnapshot = async (options: {
     payoutsQuery.set("artist_telegram_user_id", `eq.${options.artistTelegramUserId}`);
   }
 
-  const [earningsRows, payoutRows] = await Promise.all([
+  const payoutAuditQuery = new URLSearchParams();
+  payoutAuditQuery.set(
+    "select",
+    "id,payout_request_id,artist_telegram_user_id,actor,actor_telegram_user_id,action,status_before,status_after,note,created_at",
+  );
+  payoutAuditQuery.set("order", "created_at.desc");
+  payoutAuditQuery.set(
+    "limit",
+    String(Math.max(1, Math.min(options.payoutAuditEntriesLimit ?? 5000, 20000))),
+  );
+  if (typeof options.artistTelegramUserId === "number") {
+    payoutAuditQuery.set("artist_telegram_user_id", `eq.${options.artistTelegramUserId}`);
+  }
+
+  const [earningsRows, payoutRows, payoutAuditRows] = await Promise.all([
     postgresTableRequest<ArtistEarningLedgerRow[]>({
       method: "GET",
       path: "/artist_earnings_ledger",
@@ -245,12 +345,18 @@ export const readArtistFinanceSnapshot = async (options: {
       path: "/artist_payout_requests",
       query: payoutsQuery,
     }),
+    postgresTableRequest<ArtistPayoutAuditRow[]>({
+      method: "GET",
+      path: "/artist_payout_audit_log",
+      query: payoutAuditQuery,
+    }),
   ]);
 
-  if (!earningsRows || !payoutRows) {
+  if (!earningsRows || !payoutRows || !payoutAuditRows) {
     return {
       earnings: legacyEarningsForArtist(options.config, options.artistTelegramUserId),
       payoutRequests: legacyPayoutRequestsForArtist(options.config, options.artistTelegramUserId),
+      payoutAuditEntries: legacyPayoutAuditEntriesForArtist(options.config, options.artistTelegramUserId),
       source: "legacy",
     };
   }
@@ -267,6 +373,12 @@ export const readArtistFinanceSnapshot = async (options: {
         .map((row) => toArtistPayoutRequest(row))
         .filter((entry): entry is ArtistPayoutRequest => Boolean(entry)),
       legacyPayoutRequestsForArtist(options.config, options.artistTelegramUserId),
+    ),
+    payoutAuditEntries: mergePayoutAuditEntries(
+      payoutAuditRows
+        .map((row) => toArtistPayoutAuditEntry(row))
+        .filter((entry): entry is ArtistPayoutAuditEntry => Boolean(entry)),
+      legacyPayoutAuditEntriesForArtist(options.config, options.artistTelegramUserId),
     ),
     source: "postgres",
   };
@@ -333,6 +445,40 @@ export const upsertArtistPayoutRequestRecord = async (
       reviewed_by_telegram_user_id: normalizeTelegramUserId(request.reviewedByTelegramUserId) || null,
       paid_at: normalizeOptionalText(request.paidAt, 64) ?? null,
     },
+    prefer: "resolution=merge-duplicates,return=representation",
+  });
+
+  return result !== null;
+};
+
+export const upsertArtistPayoutAuditEntries = async (
+  entries: ArtistPayoutAuditEntry[],
+): Promise<boolean> => {
+  if (!isConfigured() || entries.length === 0) {
+    return false;
+  }
+
+  const query = new URLSearchParams();
+  query.set("on_conflict", "id");
+
+  const body = entries.map((entry) => ({
+    id: normalizeText(entry.id, 120),
+    payout_request_id: normalizeText(entry.payoutRequestId, 120),
+    artist_telegram_user_id: normalizeTelegramUserId(entry.artistTelegramUserId),
+    actor: normalizePayoutAuditActor(entry.actor),
+    actor_telegram_user_id: normalizeTelegramUserId(entry.actorTelegramUserId) || null,
+    action: normalizePayoutAuditAction(entry.action),
+    status_before: entry.statusBefore ? normalizePayoutStatus(entry.statusBefore) : null,
+    status_after: entry.statusAfter ? normalizePayoutStatus(entry.statusAfter) : null,
+    note: normalizeOptionalText(entry.note, 240) ?? null,
+    created_at: normalizeIso(entry.createdAt, new Date().toISOString()),
+  }));
+
+  const result = await postgresTableRequest<unknown>({
+    method: "POST",
+    path: "/artist_payout_audit_log",
+    query,
+    body,
     prefer: "resolution=merge-duplicates,return=representation",
   });
 

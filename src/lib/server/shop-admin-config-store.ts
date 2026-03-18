@@ -11,6 +11,7 @@ import type {
   ArtistApplication,
   ArtistDonation,
   ArtistEarningLedgerEntry,
+  ArtistPayoutAuditEntry,
   ArtistPayoutRequest,
   ArtistProfile,
   ArtistSubscription,
@@ -263,6 +264,14 @@ const normalizeArtistPayoutRequestStatus = (value: unknown): ArtistPayoutRequest
   return value === "approved" || value === "rejected" || value === "paid" ? value : "pending_review";
 };
 
+const normalizeArtistPayoutAuditActor = (value: unknown): ArtistPayoutAuditEntry["actor"] => {
+  return value === "admin" || value === "system" ? value : "artist";
+};
+
+const normalizeArtistPayoutAuditAction = (value: unknown): ArtistPayoutAuditEntry["action"] => {
+  return value === "status_changed" || value === "note_updated" ? value : "requested";
+};
+
 const normalizeArtistEarningSource = (value: unknown): ArtistEarningLedgerEntry["source"] => {
   return value === "donation" || value === "subscription" ? value : "release_sale";
 };
@@ -465,6 +474,34 @@ const sanitizeArtistPayoutRequest = (raw: unknown, now: string): ArtistPayoutReq
     reviewedAt: normalizeOptionalText(source.reviewedAt, 120),
     reviewedByTelegramUserId: normalizeTelegramUserId(source.reviewedByTelegramUserId) || undefined,
     paidAt: normalizeOptionalText(source.paidAt, 120),
+  };
+};
+
+const sanitizeArtistPayoutAuditEntry = (raw: unknown, now: string): ArtistPayoutAuditEntry | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const source = raw as Partial<ArtistPayoutAuditEntry>;
+  const id = normalizeSafeId(source.id, 120);
+  const payoutRequestId = normalizeSafeId(source.payoutRequestId, 120);
+  const artistTelegramUserId = normalizeTelegramUserId(source.artistTelegramUserId);
+
+  if (!id || !payoutRequestId || !artistTelegramUserId) {
+    return null;
+  }
+
+  return {
+    id,
+    payoutRequestId,
+    artistTelegramUserId,
+    actor: normalizeArtistPayoutAuditActor(source.actor),
+    actorTelegramUserId: normalizeTelegramUserId(source.actorTelegramUserId) || undefined,
+    action: normalizeArtistPayoutAuditAction(source.action),
+    statusBefore: source.statusBefore ? normalizeArtistPayoutRequestStatus(source.statusBefore) : undefined,
+    statusAfter: source.statusAfter ? normalizeArtistPayoutRequestStatus(source.statusAfter) : undefined,
+    note: normalizeOptionalText(source.note, 240),
+    createdAt: String(source.createdAt ?? now),
   };
 };
 
@@ -838,6 +875,7 @@ const buildDefaultConfig = (): ShopAdminConfig => {
     artistSubscriptions: [],
     artistEarningsLedger: [],
     artistPayoutRequests: [],
+    artistPayoutAuditLog: [],
     blogPostRecords: {},
     hiddenPostSlugs: [],
     promoCodes: [],
@@ -1099,6 +1137,15 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5000);
 
+  const validPayoutRequestIds = new Set(artistPayoutRequests.map((entry) => entry.id));
+
+  const artistPayoutAuditLog = (Array.isArray(row.artistPayoutAuditLog) ? row.artistPayoutAuditLog : [])
+    .map((entry) => sanitizeArtistPayoutAuditEntry(entry, now))
+    .filter((entry): entry is ArtistPayoutAuditEntry => Boolean(entry))
+    .filter((entry) => validArtistIds.has(entry.artistTelegramUserId) && validPayoutRequestIds.has(entry.payoutRequestId))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 20000);
+
   const promoCodes = Array.isArray(row.promoCodes)
     ? row.promoCodes
         .map((promo) => {
@@ -1158,6 +1205,7 @@ const sanitizeConfig = (input: unknown): ShopAdminConfig => {
     artistSubscriptions,
     artistEarningsLedger,
     artistPayoutRequests,
+    artistPayoutAuditLog,
     blogPostRecords,
     hiddenPostSlugs,
     promoCodes,

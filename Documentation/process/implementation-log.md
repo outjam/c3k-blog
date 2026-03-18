@@ -474,6 +474,26 @@
   - `src/lib/server/social-entitlement-store.ts`
   - `src/lib/server/social-user-state-store.ts`
 
+### Sprint 08 slice: ownership and mint backfill path
+
+- Добавлен server-side helper для controlled backfill:
+  - [src/lib/server/social-entitlement-backfill.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/social-entitlement-backfill.ts)
+- Legacy social state теперь можно читать пачками как migration source:
+  - [src/lib/server/social-user-state-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/social-user-state-store.ts)
+- Добавлен admin route:
+  - [src/app/api/admin/social/entitlements/backfill/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/social/entitlements/backfill/route.ts)
+- В админке появился trigger для:
+  - dry-run ownership backfill
+  - real ownership backfill
+  - [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx)
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+
+### Что это даёт
+
+- migration перестала быть только внутренней реализацией и стала управляемой операцией для тестовой среды
+- можно безопасно посмотреть объём переноса через dry-run до записи в таблицы
+- ownership и mint normalization получили первый реальный cutover path из legacy JSON state
+
 ### Browser auth modernization: Telegram Login OIDC SDK
 
 - Найден и подтверждён новый официальный browser auth flow Telegram:

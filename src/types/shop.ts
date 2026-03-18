@@ -142,6 +142,8 @@ export type ArtistReleaseType = "single" | "ep" | "album";
 export type ArtistAudioFormat = "mp3" | "aac" | "flac" | "wav" | "alac" | "ogg";
 export type ArtistPayoutRequestStatus = "pending_review" | "approved" | "rejected" | "paid";
 export type ArtistEarningSource = "release_sale" | "donation" | "subscription";
+export type ArtistPayoutAuditActor = "artist" | "admin" | "system";
+export type ArtistPayoutAuditAction = "requested" | "status_changed" | "note_updated";
 
 export interface ArtistTrackFormat {
   format: ArtistAudioFormat;
@@ -222,6 +224,19 @@ export interface ArtistPayoutRequest {
   reviewedAt?: string;
   reviewedByTelegramUserId?: number;
   paidAt?: string;
+}
+
+export interface ArtistPayoutAuditEntry {
+  id: string;
+  payoutRequestId: string;
+  artistTelegramUserId: number;
+  actor: ArtistPayoutAuditActor;
+  actorTelegramUserId?: number;
+  action: ArtistPayoutAuditAction;
+  statusBefore?: ArtistPayoutRequestStatus;
+  statusAfter?: ArtistPayoutRequestStatus;
+  note?: string;
+  createdAt: string;
 }
 
 export interface ArtistPayoutSummary {
@@ -332,6 +347,7 @@ export interface ShopAdminConfig {
   artistSubscriptions: ArtistSubscription[];
   artistEarningsLedger: ArtistEarningLedgerEntry[];
   artistPayoutRequests: ArtistPayoutRequest[];
+  artistPayoutAuditLog: ArtistPayoutAuditEntry[];
   blogPostRecords: Record<string, import("@/types/blog").BlogPost>;
   hiddenPostSlugs: string[];
   promoCodes: ShopPromoCode[];

@@ -225,3 +225,14 @@ Go рассматривается как хороший будущий язык 
 - legacy browser widget verification оставлена как fallback
 
 Это убирает зависимость browser-режима от deprecated Telegram widget flow и не затрагивает Mini App `initData` auth внутри Telegram.
+
+## Дополнение по ownership backfill
+
+Следующим slice в `Sprint 08` было сделано:
+
+- чтение legacy social ownership state как migration source
+- отдельный backfill helper для release ownership, track ownership и NFT mint history
+- admin route для dry-run и реального backfill
+- dashboard-trigger в админке для запуска backfill
+
+Это перевело migration слой из purely server-side заготовки в реальный operational инструмент для тестовой среды.

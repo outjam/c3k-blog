@@ -128,6 +128,15 @@
   - отдавать browser login config
   - принимать новый Telegram Login payload
 
+### Ownership and mint backfill path
+
+- Добавлен controlled backfill из legacy `social_user_state_v1` в:
+  - `user_release_entitlements`
+  - `user_track_entitlements`
+  - `user_release_nft_mints`
+- Добавлен admin route для dry-run и реального запуска backfill.
+- В dashboard admin-панели появился user-facing trigger backfill, чтобы migration можно было выполнять без ручного вызова API.
+
 ### Admin и документация
 
 - Расширена документация по бизнес-логике, backend, навигации и roadmap.

@@ -48,6 +48,17 @@ export interface AdminDashboardData {
   statusCounters: Record<string, number>;
 }
 
+export interface AdminSocialEntitlementBackfillResult {
+  ok: true;
+  dryRun: boolean;
+  selectedUsers: number;
+  processedUsers: number;
+  releaseEntitlements: number;
+  trackEntitlements: number;
+  nftMints: number;
+  sourceUpdatedAt: string;
+}
+
 export interface AdminCustomer {
   telegramUserId: number;
   username?: string;
@@ -133,6 +144,32 @@ export const fetchAdminDashboard = async (): Promise<{ data: AdminDashboardData 
     return { data: (await response.json()) as AdminDashboardData };
   } catch {
     return { data: null, error: "Network error" };
+  }
+};
+
+export const runAdminSocialEntitlementBackfill = async (payload: {
+  dryRun?: boolean;
+  limit?: number;
+  telegramUserIds?: number[];
+}): Promise<{ result: AdminSocialEntitlementBackfillResult | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/social/entitlements/backfill", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { result: null, error: await parseApiError(response) };
+    }
+
+    return { result: (await response.json()) as AdminSocialEntitlementBackfillResult };
+  } catch {
+    return { result: null, error: "Network error" };
   }
 };
 

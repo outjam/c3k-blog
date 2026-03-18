@@ -16,12 +16,6 @@ interface TelegramLoginSdkCallbackPayload {
   error?: string;
 }
 
-interface TelegramLoginSdkOptions {
-  client_id: number;
-  request_access?: Array<"phone" | "write">;
-  lang?: string;
-}
-
 interface TelegramLoginWidgetProps {
   onAuthorized?: () => void;
 }

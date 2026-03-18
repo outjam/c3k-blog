@@ -152,6 +152,8 @@
 - `/api/admin/artist-payouts`
   - список payout requests
   - approve / reject / paid
+- `/api/admin/social/entitlements/backfill`
+  - dry-run и запуск backfill ownership/mint history из legacy `social_user_state_v1`
 - `/api/admin/storage/sync-tracks`
   - backfill и повторная синхронизация storage assets из artist releases
 - `/api/admin/storage/ingest`

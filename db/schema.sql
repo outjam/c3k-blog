@@ -211,6 +211,19 @@ CREATE TABLE IF NOT EXISTS artist_payout_requests (
   paid_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS artist_payout_audit_log (
+  id TEXT PRIMARY KEY,
+  payout_request_id TEXT NOT NULL,
+  artist_telegram_user_id BIGINT NOT NULL,
+  actor TEXT NOT NULL CHECK (actor IN ('artist', 'admin', 'system')),
+  actor_telegram_user_id BIGINT,
+  action TEXT NOT NULL CHECK (action IN ('requested', 'status_changed', 'note_updated')),
+  status_before TEXT CHECK (status_before IN ('pending_review', 'approved', 'rejected', 'paid')),
+  status_after TEXT CHECK (status_after IN ('pending_review', 'approved', 'rejected', 'paid')),
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS user_release_entitlements (
   id TEXT PRIMARY KEY,
   telegram_user_id BIGINT NOT NULL,
@@ -260,6 +273,8 @@ CREATE INDEX IF NOT EXISTS idx_artist_earnings_artist_earned ON artist_earnings_
 CREATE INDEX IF NOT EXISTS idx_artist_earnings_order_id ON artist_earnings_ledger(order_id);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_artist_updated ON artist_payout_requests(artist_telegram_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_status_updated ON artist_payout_requests(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_payout_audit_request_created ON artist_payout_audit_log(payout_request_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_payout_audit_artist_created ON artist_payout_audit_log(artist_telegram_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_release_entitlements_user_acquired ON user_release_entitlements(telegram_user_id, acquired_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_release_entitlements_release ON user_release_entitlements(release_slug, acquired_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_track_entitlements_user_acquired ON user_track_entitlements(telegram_user_id, acquired_at DESC);

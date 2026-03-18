@@ -24,7 +24,9 @@ import {
   patchAdminPromo,
   patchAdminSettings,
   removeAdminMember,
+  runAdminSocialEntitlementBackfill,
   upsertAdminMember,
+  type AdminSocialEntitlementBackfillResult,
   type AdminCustomer,
   type AdminDashboardData,
   type AdminProductWithMeta,
@@ -166,6 +168,8 @@ export default function AdminPage() {
   const [newAdminUsername, setNewAdminUsername] = useState("");
   const [newAdminFirstName, setNewAdminFirstName] = useState("");
   const [newAdminLastName, setNewAdminLastName] = useState("");
+  const [backfillLoading, setBackfillLoading] = useState<"dry-run" | "run" | null>(null);
+  const [backfillResult, setBackfillResult] = useState<AdminSocialEntitlementBackfillResult | null>(null);
 
   const hasPermission = useCallback(
     (permission: ShopAdminPermission): boolean => {
@@ -599,6 +603,59 @@ export default function AdminPage() {
                 </p>
               ))}
             </div>
+            {hasPermission("settings:manage") ? (
+              <div className={styles.promoActions}>
+                <button
+                  type="button"
+                  disabled={backfillLoading !== null}
+                  onClick={async () => {
+                    setBackfillLoading("dry-run");
+                    const response = await runAdminSocialEntitlementBackfill({
+                      dryRun: true,
+                      limit: 500,
+                    });
+                    setBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setBackfillResult(response.result);
+                  }}
+                >
+                  {backfillLoading === "dry-run" ? "Считаем..." : "Dry-run ownership backfill"}
+                </button>
+                <button
+                  type="button"
+                  disabled={backfillLoading !== null}
+                  onClick={async () => {
+                    setBackfillLoading("run");
+                    const response = await runAdminSocialEntitlementBackfill({
+                      dryRun: false,
+                      limit: 500,
+                    });
+                    setBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setBackfillResult(response.result);
+                  }}
+                >
+                  {backfillLoading === "run" ? "Переносим..." : "Запустить ownership backfill"}
+                </button>
+              </div>
+            ) : null}
+            {backfillResult ? (
+              <p className={styles.hint}>
+                {backfillResult.dryRun ? "Dry-run" : "Backfill"}: users {backfillResult.processedUsers} · releases{" "}
+                {backfillResult.releaseEntitlements} · tracks {backfillResult.trackEntitlements} · nft{" "}
+                {backfillResult.nftMints} · source {new Date(backfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
+              </p>
+            ) : null}
           </section>
         ) : null}
 
