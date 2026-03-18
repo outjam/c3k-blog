@@ -11,7 +11,8 @@
 - `/api/auth/logout`
   - завершить сессию
 - `/api/auth/telegram/widget`
-  - вход через Telegram widget
+  - `GET`: отдать browser Telegram Login config
+  - `POST`: принять и проверить Telegram Login `id_token` / legacy widget payload
 
 ## 2. Social
 

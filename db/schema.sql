@@ -211,6 +211,41 @@ CREATE TABLE IF NOT EXISTS artist_payout_requests (
   paid_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS user_release_entitlements (
+  id TEXT PRIMARY KEY,
+  telegram_user_id BIGINT NOT NULL,
+  release_slug TEXT NOT NULL,
+  format_key TEXT,
+  acquired_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_track_entitlements (
+  id TEXT PRIMARY KEY,
+  telegram_user_id BIGINT NOT NULL,
+  release_slug TEXT NOT NULL,
+  track_id TEXT NOT NULL,
+  acquired_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_release_nft_mints (
+  id TEXT PRIMARY KEY,
+  telegram_user_id BIGINT NOT NULL,
+  release_slug TEXT NOT NULL,
+  owner_address TEXT NOT NULL,
+  collection_address TEXT,
+  item_address TEXT,
+  item_index TEXT,
+  tx_hash TEXT,
+  minted_at TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('minted')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status_updated ON orders(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
@@ -225,6 +260,12 @@ CREATE INDEX IF NOT EXISTS idx_artist_earnings_artist_earned ON artist_earnings_
 CREATE INDEX IF NOT EXISTS idx_artist_earnings_order_id ON artist_earnings_ledger(order_id);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_artist_updated ON artist_payout_requests(artist_telegram_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_status_updated ON artist_payout_requests(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_release_entitlements_user_acquired ON user_release_entitlements(telegram_user_id, acquired_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_release_entitlements_release ON user_release_entitlements(release_slug, acquired_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_track_entitlements_user_acquired ON user_track_entitlements(telegram_user_id, acquired_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_track_entitlements_release ON user_track_entitlements(release_slug, acquired_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_release_nft_mints_user_minted ON user_release_nft_mints(telegram_user_id, minted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_release_nft_mints_release ON user_release_nft_mints(release_slug, minted_at DESC);
 
 CREATE TABLE IF NOT EXISTS app_state (
   key TEXT PRIMARY KEY,

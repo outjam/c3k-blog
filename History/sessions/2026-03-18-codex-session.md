@@ -201,3 +201,27 @@ Go рассматривается как хороший будущий язык 
 - чтение payout summary и payout requests через новый finance layer
 
 Это стало первым реальным шагом по выносу бизнес-критичного контура из `app_state`, не ломая текущую test-first совместимость.
+
+Следующим slice внутри того же спринта было реализовано:
+
+- нормализованные Postgres-таблицы для:
+  - release ownership
+  - track ownership
+  - minted NFT history
+- merge-store для social entitlements с legacy fallback
+- чтение merged ownership state через `getSocialUserSnapshot(...)`
+- dual-write из purchase и mint mutation flows в новый normalized слой
+
+Это стало вторым крупным шагом `Sprint 08`: consumer ownership и NFT state перестали жить только внутри `social_user_state_v1`, при этом текущий test-mode продукт не потребовал destructive cutover.
+
+## Дополнение по browser auth
+
+Отдельным fix/modernization slice было сделано:
+
+- исследован новый официальный browser auth API Telegram
+- подтверждён переход с legacy widget на новый `Log In with Telegram` / OIDC-based SDK
+- обновлён browser login компонент
+- обновлена серверная валидация на `id_token` + JWKS
+- legacy browser widget verification оставлена как fallback
+
+Это убирает зависимость browser-режима от deprecated Telegram widget flow и не затрагивает Mini App `initData` auth внутри Telegram.

@@ -3,11 +3,26 @@ import { NextResponse } from "next/server";
 import {
   buildBrowserAuthCookie,
   issueTelegramBrowserSession,
+  resolveTelegramLoginClientId,
   verifyTelegramBrowserLogin,
 } from "@/lib/server/telegram-browser-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const botToken = (process.env.TELEGRAM_BOT_TOKEN ?? process.env.BOT_TOKEN ?? "").trim();
+  const clientId = resolveTelegramLoginClientId(botToken);
+
+  if (!clientId) {
+    return NextResponse.json({ error: "Telegram Login client ID is not configured" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    clientId,
+  });
+}
 
 export async function POST(request: Request) {
   const botToken = (process.env.TELEGRAM_BOT_TOKEN ?? process.env.BOT_TOKEN ?? "").trim();
@@ -22,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const verified = verifyTelegramBrowserLogin(payload, botToken);
+  const verified = await verifyTelegramBrowserLogin(payload, botToken);
   if (!verified) {
     return NextResponse.json({ error: "Invalid Telegram login payload" }, { status: 401 });
   }

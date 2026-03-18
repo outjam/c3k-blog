@@ -95,7 +95,7 @@ export function useAppAuthUser() {
   }, [refreshSession]);
 
   const user = useMemo(() => webAppUser ?? sessionUser, [sessionUser, webAppUser]);
-  const source = webAppUser ? "telegram-webapp" : sessionUser ? "browser-widget" : "anonymous";
+  const source = webAppUser ? "telegram-webapp" : sessionUser ? "browser-telegram-login" : "anonymous";
 
   return {
     user,

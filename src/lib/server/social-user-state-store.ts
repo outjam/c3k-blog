@@ -1,4 +1,10 @@
 import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
+import {
+  readSocialEntitlementSnapshot,
+  upsertUserReleaseEntitlements,
+  upsertUserReleaseNftMints,
+  upsertUserTrackEntitlements,
+} from "@/lib/server/social-entitlement-store";
 
 const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1" || process.env.NODE_ENV === "production";
 const SOCIAL_USER_STATE_KEY = "social_user_state_v1";
@@ -48,6 +54,11 @@ export interface SocialUserSnapshot {
   redeemedTopupPromoCodes: string[];
   tonWalletAddress?: string;
   mintedReleaseNfts: SocialMintedReleaseNft[];
+}
+
+export interface LegacySocialUserBackfillEntry {
+  telegramUserId: number;
+  snapshot: SocialUserSnapshot;
 }
 
 const normalizeText = (value: unknown, maxLength: number): string => {
@@ -652,6 +663,50 @@ const buildSnapshot = (state: SocialUserState, userKey: string): SocialUserSnaps
   };
 };
 
+const mergeNormalizedSnapshot = async (
+  telegramUserId: number,
+  snapshot: SocialUserSnapshot,
+): Promise<SocialUserSnapshot> => {
+  const normalized = await readSocialEntitlementSnapshot({
+    telegramUserId,
+    fallback: {
+      purchasedReleaseSlugs: snapshot.purchasedReleaseSlugs,
+      purchasedReleaseFormatKeys: snapshot.purchasedReleaseFormatKeys,
+      purchasedTrackKeys: snapshot.purchasedTrackKeys,
+      mintedReleaseNfts: snapshot.mintedReleaseNfts.map((entry) => ({
+        ...entry,
+        telegramUserId,
+      })),
+    },
+  });
+
+  return {
+    ...snapshot,
+    purchasedReleaseSlugs: normalized.purchasedReleaseSlugs,
+    purchasedReleaseFormatKeys: normalized.purchasedReleaseFormatKeys,
+    purchasedTrackKeys: normalized.purchasedTrackKeys,
+    mintedReleaseNfts: normalized.mintedReleaseNfts.flatMap((entry) => {
+      if (!entry.id || !entry.mintedAt || !entry.status) {
+        return [];
+      }
+
+      return [
+        {
+          id: entry.id,
+          releaseSlug: entry.releaseSlug,
+          ownerAddress: entry.ownerAddress,
+          collectionAddress: entry.collectionAddress,
+          itemAddress: entry.itemAddress,
+          itemIndex: entry.itemIndex,
+          txHash: entry.txHash,
+          mintedAt: entry.mintedAt,
+          status: entry.status,
+        } satisfies SocialMintedReleaseNft,
+      ];
+    }),
+  };
+};
+
 const prependUniqueValues = (current: string[], values: string[]): string[] => {
   const next = [...current];
 
@@ -680,7 +735,7 @@ export const getSocialUserSnapshot = async (telegramUserId: number): Promise<Soc
     return null;
   }
 
-  return buildSnapshot(state, userKey);
+  return mergeNormalizedSnapshot(telegramUserId, buildSnapshot(state, userKey));
 };
 
 export const getSocialUserPublicPurchasesBySlug = async (
@@ -712,13 +767,86 @@ export const getSocialUserPublicPurchasesBySlug = async (
     };
   }
 
-  const snapshot = buildSnapshot(state, userKey);
+  const snapshot = await mergeNormalizedSnapshot(Math.round(Number(userKey)), buildSnapshot(state, userKey));
 
   return {
     slug: normalizedSlug,
     purchasesVisible: snapshot.purchasesVisible,
     purchasedReleaseSlugs: snapshot.purchasesVisible ? snapshot.purchasedReleaseSlugs : [],
     purchasedTrackKeys: snapshot.purchasesVisible ? snapshot.purchasedTrackKeys : [],
+  };
+};
+
+export const readLegacySocialUserBackfillEntries = async (options?: {
+  telegramUserIds?: number[];
+  limit?: number;
+}): Promise<{
+  entries: LegacySocialUserBackfillEntry[];
+  updatedAt: string;
+} | null> => {
+  const state = await readCurrentState();
+
+  if (!state) {
+    return null;
+  }
+
+  const requestedUserIds = Array.isArray(options?.telegramUserIds)
+    ? Array.from(
+        new Set(
+          options.telegramUserIds
+            .map((entry) => Math.round(Number(entry ?? 0)))
+            .filter((entry) => Number.isFinite(entry) && entry > 0),
+        ),
+      )
+    : [];
+  const requestedUserKeySet = requestedUserIds.length > 0 ? new Set(requestedUserIds.map((entry) => resolveUserKey(entry))) : null;
+  const limit =
+    typeof options?.limit === "number" && Number.isFinite(options.limit) && options.limit > 0
+      ? Math.min(Math.round(options.limit), 5000)
+      : 1000;
+  const candidateKeys = Array.from(
+    new Set([
+      ...Object.keys(state.purchasedReleaseSlugsByUserId),
+      ...Object.keys(state.purchasedReleaseFormatKeysByUserId),
+      ...Object.keys(state.purchasedTrackKeysByUserId),
+      ...Object.keys(state.mintedReleaseNftsByUserId),
+    ]),
+  )
+    .filter((userKey) => {
+      if (!requestedUserKeySet) {
+        return true;
+      }
+
+      return requestedUserKeySet.has(userKey);
+    })
+    .sort((left, right) => Number(left) - Number(right))
+    .slice(0, limit);
+
+  return {
+    entries: candidateKeys.flatMap((userKey) => {
+      const telegramUserId = Math.round(Number(userKey));
+      if (!Number.isFinite(telegramUserId) || telegramUserId <= 0) {
+        return [];
+      }
+
+      const snapshot = buildSnapshot(state, userKey);
+      if (
+        snapshot.purchasedReleaseSlugs.length === 0 &&
+        snapshot.purchasedReleaseFormatKeys.length === 0 &&
+        snapshot.purchasedTrackKeys.length === 0 &&
+        snapshot.mintedReleaseNfts.length === 0
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          telegramUserId,
+          snapshot,
+        } satisfies LegacySocialUserBackfillEntry,
+      ];
+    }),
+    updatedAt: state.updatedAt,
   };
 };
 
@@ -858,7 +986,16 @@ export const appendSocialPurchasedReleaseSlug = async (
     return null;
   }
 
-  return buildSnapshot(next, userKey).purchasedReleaseSlugs;
+  const snapshot = buildSnapshot(next, userKey);
+  await upsertUserReleaseEntitlements([
+    {
+      telegramUserId,
+      releaseSlug: normalizedSlug,
+      acquiredAt: new Date().toISOString(),
+    },
+  ]);
+
+  return snapshot.purchasedReleaseSlugs;
 };
 
 export const appendSocialPurchasedTrackKey = async (
@@ -890,7 +1027,18 @@ export const appendSocialPurchasedTrackKey = async (
     return null;
   }
 
-  return buildSnapshot(next, userKey).purchasedTrackKeys;
+  const snapshot = buildSnapshot(next, userKey);
+  const [releaseSlugPart = "", trackIdPart = ""] = key.split("::", 2);
+  await upsertUserTrackEntitlements([
+    {
+      telegramUserId,
+      releaseSlug: releaseSlugPart,
+      trackId: trackIdPart,
+      acquiredAt: new Date().toISOString(),
+    },
+  ]);
+
+  return snapshot.purchasedTrackKeys;
 };
 
 export const appendSocialPurchasedTrackKeys = async (
@@ -924,7 +1072,26 @@ export const appendSocialPurchasedTrackKeys = async (
     return null;
   }
 
-  return buildSnapshot(next, userKey).purchasedTrackKeys;
+  const snapshot = buildSnapshot(next, userKey);
+  await upsertUserTrackEntitlements(
+    normalizedKeys.flatMap((entry) => {
+      const [releaseSlugPart = "", trackIdPart = ""] = entry.split("::", 2);
+      if (!releaseSlugPart || !trackIdPart) {
+        return [];
+      }
+
+      return [
+        {
+          telegramUserId,
+          releaseSlug: releaseSlugPart,
+          trackId: trackIdPart,
+          acquiredAt: new Date().toISOString(),
+        },
+      ];
+    }),
+  );
+
+  return snapshot.purchasedTrackKeys;
 };
 
 export const appendSocialPurchasedReleaseWithTracks = async (
@@ -968,6 +1135,35 @@ export const appendSocialPurchasedReleaseWithTracks = async (
   }
 
   const snapshot = buildSnapshot(next, userKey);
+  await Promise.all([
+    normalizedReleaseSlug
+      ? upsertUserReleaseEntitlements([
+          {
+            telegramUserId,
+            releaseSlug: normalizedReleaseSlug,
+            acquiredAt: new Date().toISOString(),
+          },
+        ])
+      : Promise.resolve(false),
+    upsertUserTrackEntitlements(
+      normalizedTrackKeys.flatMap((entry) => {
+        const [releaseSlugPart = "", trackIdPart = ""] = entry.split("::", 2);
+        if (!releaseSlugPart || !trackIdPart) {
+          return [];
+        }
+
+        return [
+          {
+            telegramUserId,
+            releaseSlug: releaseSlugPart,
+            trackId: trackIdPart,
+            acquiredAt: new Date().toISOString(),
+          },
+        ];
+      }),
+    ),
+  ]);
+
   return {
     releaseSlugs: snapshot.purchasedReleaseSlugs,
     trackKeys: snapshot.purchasedTrackKeys,
@@ -1119,6 +1315,33 @@ export const purchaseSocialReleaseWithWallet = async (
     return null;
   }
 
+  const snapshotBefore = await getSocialUserSnapshot(telegramUserId);
+  if (!snapshotBefore) {
+    return null;
+  }
+
+  if (snapshotBefore.purchasedReleaseFormatKeys.includes(normalizedReleaseFormatKey)) {
+    return {
+      ok: false,
+      reason: "already_owned",
+      balanceCents: snapshotBefore.walletCents,
+      releaseSlugs: snapshotBefore.purchasedReleaseSlugs,
+      releaseFormatKeys: snapshotBefore.purchasedReleaseFormatKeys,
+      trackKeys: snapshotBefore.purchasedTrackKeys,
+    };
+  }
+
+  if (snapshotBefore.walletCents < amount) {
+    return {
+      ok: false,
+      reason: "insufficient_funds",
+      balanceCents: snapshotBefore.walletCents,
+      releaseSlugs: snapshotBefore.purchasedReleaseSlugs,
+      releaseFormatKeys: snapshotBefore.purchasedReleaseFormatKeys,
+      trackKeys: snapshotBefore.purchasedTrackKeys,
+    };
+  }
+
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const current = await readStateWithVersion();
 
@@ -1182,6 +1405,35 @@ export const purchaseSocialReleaseWithWallet = async (
     const saved = await writeState(next, current.rowVersion);
 
     if (saved.ok) {
+      const acquiredAt = new Date().toISOString();
+      await Promise.all([
+        upsertUserReleaseEntitlements([
+          {
+            telegramUserId,
+            releaseSlug: normalizedReleaseSlug,
+            formatKey: normalizedFormat,
+            acquiredAt,
+          },
+        ]),
+        upsertUserTrackEntitlements(
+          normalizedTrackKeys.flatMap((entry) => {
+            const [releaseSlugPart = "", trackIdPart = ""] = entry.split("::", 2);
+            if (!releaseSlugPart || !trackIdPart) {
+              return [];
+            }
+
+            return [
+              {
+                telegramUserId,
+                releaseSlug: releaseSlugPart,
+                trackId: trackIdPart,
+                acquiredAt,
+              },
+            ];
+          }),
+        ),
+      ]);
+
       return {
         ok: true,
         balanceCents: nextBalance,
@@ -1235,6 +1487,33 @@ export const purchaseSocialTrackWithWallet = async (
     return null;
   }
 
+  const snapshotBefore = await getSocialUserSnapshot(telegramUserId);
+  if (!snapshotBefore) {
+    return null;
+  }
+
+  if (snapshotBefore.purchasedTrackKeys.includes(normalizedTrackKey)) {
+    return {
+      ok: false,
+      reason: "already_owned",
+      balanceCents: snapshotBefore.walletCents,
+      releaseSlugs: snapshotBefore.purchasedReleaseSlugs,
+      releaseFormatKeys: snapshotBefore.purchasedReleaseFormatKeys,
+      trackKeys: snapshotBefore.purchasedTrackKeys,
+    };
+  }
+
+  if (snapshotBefore.walletCents < amount) {
+    return {
+      ok: false,
+      reason: "insufficient_funds",
+      balanceCents: snapshotBefore.walletCents,
+      releaseSlugs: snapshotBefore.purchasedReleaseSlugs,
+      releaseFormatKeys: snapshotBefore.purchasedReleaseFormatKeys,
+      trackKeys: snapshotBefore.purchasedTrackKeys,
+    };
+  }
+
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const current = await readStateWithVersion();
 
@@ -1285,6 +1564,16 @@ export const purchaseSocialTrackWithWallet = async (
     const saved = await writeState(next, current.rowVersion);
 
     if (saved.ok) {
+      const acquiredAt = new Date().toISOString();
+      await upsertUserTrackEntitlements([
+        {
+          telegramUserId,
+          releaseSlug: normalizedReleaseSlug,
+          trackId: normalizedTrackKey.split("::", 2)[1] ?? "",
+          acquiredAt,
+        },
+      ]);
+
       return {
         ok: true,
         balanceCents: nextBalance,
@@ -1337,12 +1626,12 @@ export const mintSocialPurchasedReleaseNft = async (
     return null;
   }
 
+  const snapshotBefore = await getSocialUserSnapshot(telegramUserId);
   const stateBefore = await readCurrentState();
-  if (!stateBefore) {
+  if (!snapshotBefore || !stateBefore) {
     return null;
   }
 
-  const snapshotBefore = buildSnapshot(stateBefore, userKey);
   if (!snapshotBefore.purchasedReleaseSlugs.includes(releaseSlug)) {
     return {
       ok: false,
@@ -1393,7 +1682,7 @@ export const mintSocialPurchasedReleaseNft = async (
     const snapshot = buildSnapshot(current, userKey);
     const alreadyMintedNft = snapshot.mintedReleaseNfts.find((entry) => entry.releaseSlug === releaseSlug);
 
-    if (alreadyMintedNft || !snapshot.purchasedReleaseSlugs.includes(releaseSlug)) {
+    if (alreadyMintedNft || !snapshotBefore.purchasedReleaseSlugs.includes(releaseSlug)) {
       return current;
     }
 
@@ -1415,6 +1704,13 @@ export const mintSocialPurchasedReleaseNft = async (
   if (!next) {
     return null;
   }
+
+  await upsertUserReleaseNftMints([
+    {
+      telegramUserId,
+      ...createdNft,
+    },
+  ]);
 
   const snapshot = buildSnapshot(next, userKey);
   const existingNft = snapshot.mintedReleaseNfts.find((entry) => entry.releaseSlug === releaseSlug) ?? null;

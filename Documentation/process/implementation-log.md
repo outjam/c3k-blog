@@ -435,3 +435,65 @@
   - `src/app/api/shop/artists/me/payouts/route.ts`
   - `src/app/api/admin/artist-payouts/route.ts`
   - `src/app/api/shop/artists/me/route.ts`
+
+### Sprint 08 slice: normalized social entitlements and mint state
+
+- В schema baseline добавлены таблицы:
+  - `user_release_entitlements`
+  - `user_track_entitlements`
+  - `user_release_nft_mints`
+  - [db/schema.sql](/Users/culture3k/Documents/GitHub/c3k-blog/db/schema.sql)
+- Добавлен отдельный merge-store для ownership и mint history:
+  - [src/lib/server/social-entitlement-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/social-entitlement-store.ts)
+- `getSocialUserSnapshot(...)` и public purchases теперь читают entitlements через Postgres-backed fallback layer:
+  - [src/lib/server/social-user-state-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/social-user-state-store.ts)
+- Все основные server-side mutation paths теперь dual-write'ят normalized ownership:
+  - append release grant
+  - append track grant
+  - append release with tracks
+  - release wallet purchase
+  - track wallet purchase
+  - release NFT mint
+
+### Что это даёт спринту
+
+- `Sprint 08` закрыл следующий критичный кусок после finance: ownership релизов, ownership треков и NFT mint state
+- profile, release ownership, delivery entitlement checks и mint flow могут читать данные уже не только из `social_user_state_v1`
+- переход сделан без destructive migration: legacy JSON остаётся fallback-слоем, а новый Postgres слой уже становится нормализованным источником для read paths
+
+### Ограничения текущего slice
+
+- artist profiles и release catalog всё ещё не вынесены из legacy config/state
+- backfill существующих purchase и mint records из historical JSON в таблицы ещё не реализован
+- wallet balance и visibility flags пока остаются в legacy social state
+
+### Проверка Sprint 08 entitlement slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/social-entitlement-store.ts`
+  - `src/lib/server/social-user-state-store.ts`
+
+### Browser auth modernization: Telegram Login OIDC SDK
+
+- Найден и подтверждён новый официальный browser auth flow Telegram:
+  - `Log In with Telegram`
+  - JS SDK: `https://oauth.telegram.org/js/telegram-login.js?3`
+  - OIDC discovery: `https://oauth.telegram.org/.well-known/openid-configuration`
+- Старый browser widget flow в приложении был завязан на legacy `telegram-widget.js` payload hash.
+- Browser auth обновлён на новый flow:
+  - клиент теперь использует актуальный Telegram Login SDK
+  - сервер принимает `id_token`
+  - сервер валидирует JWT по Telegram JWKS (`RS256`)
+  - legacy payload verification оставлен как fallback на переходный период
+- Обновлены:
+  - [src/components/telegram-login-widget.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/telegram-login-widget.tsx)
+  - [src/components/telegram-login-widget.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/telegram-login-widget.module.scss)
+  - [src/app/api/auth/telegram/widget/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/auth/telegram/widget/route.ts)
+  - [src/lib/server/telegram-browser-auth.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/telegram-browser-auth.ts)
+
+### Что это даёт
+
+- browser login больше не опирается на deprecated Telegram widget script
+- Mini App auth через `initData` не затронут и остаётся основным flow внутри Telegram
+- web/browser режим теперь ближе к официальному Telegram OIDC-подходу

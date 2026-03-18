@@ -103,6 +103,31 @@
 - Earnings от paid-order теперь dual-write'ятся из Telegram payment webhook в новый ledger.
 - Artist payout API и studio summary уже читают finance state через новый store, но не ломаются без полной миграции.
 
+### Entitlement and mint normalization foundation
+
+- В `db/schema.sql` добавлены таблицы:
+  - `user_release_entitlements`
+  - `user_track_entitlements`
+  - `user_release_nft_mints`
+- Добавлен отдельный server-side store для:
+  - release ownership
+  - track ownership
+  - minted NFT history
+- `getSocialUserSnapshot(...)` и public purchase reads теперь собирают merged snapshot из:
+  - legacy `social_user_state_v1`
+  - Postgres normalized tables
+- Purchase и mint mutations теперь dual-write'ят ownership/mint records в новый слой.
+- Это закрыло следующий реальный slice `Sprint 08` после finance foundation и уменьшило зависимость consumer flows от `app_state`.
+
+### Browser Telegram auth modernization
+
+- Старый browser login обновлён с legacy `telegram-widget.js` на новый официальный Telegram Login SDK.
+- Серверная валидация переведена на `id_token` и Telegram JWKS (`RS256`).
+- Legacy verification старого widget payload оставлена как переходный fallback.
+- `/api/auth/telegram/widget` теперь умеет:
+  - отдавать browser login config
+  - принимать новый Telegram Login payload
+
 ### Admin и документация
 
 - Расширена документация по бизнес-логике, backend, навигации и roadmap.

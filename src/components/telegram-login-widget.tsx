@@ -1,105 +1,194 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import styles from "./telegram-login-widget.module.scss";
 
-interface TelegramWidgetAuthPayload {
-  id: number;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
+interface TelegramLoginSdkCallbackPayload {
+  id_token?: string;
+  user?: {
+    id?: number;
+    name?: string;
+    preferred_username?: string;
+    picture?: string;
+    phone_number?: string;
+  };
+  error?: string;
+}
+
+interface TelegramLoginSdkOptions {
+  client_id: number;
+  request_access?: Array<"phone" | "write">;
+  lang?: string;
 }
 
 interface TelegramLoginWidgetProps {
   onAuthorized?: () => void;
 }
 
-declare global {
-  interface Window {
-    onTelegramLoginWidgetAuth?: (user: TelegramWidgetAuthPayload) => void;
+const TELEGRAM_LOGIN_SDK_URL = "https://oauth.telegram.org/js/telegram-login.js?3";
+
+let telegramLoginScriptPromise: Promise<void> | null = null;
+
+const ensureTelegramLoginSdk = (): Promise<void> => {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("window is not available"));
   }
-}
+
+  if (window.Telegram?.Login?.auth) {
+    return Promise.resolve();
+  }
+
+  if (telegramLoginScriptPromise) {
+    return telegramLoginScriptPromise;
+  }
+
+  telegramLoginScriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${TELEGRAM_LOGIN_SDK_URL}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Failed to load Telegram Login SDK")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = TELEGRAM_LOGIN_SDK_URL;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Telegram Login SDK"));
+    document.head.appendChild(script);
+  });
+
+  return telegramLoginScriptPromise;
+};
+
+const normalizeLanguage = (): string => {
+  const fromDocument = document.documentElement.lang?.trim().slice(0, 2).toLowerCase();
+  return fromDocument || "ru";
+};
 
 export function TelegramLoginWidget({ onAuthorized }: TelegramLoginWidgetProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME?.trim() ?? "";
+  const [clientId, setClientId] = useState("");
+  const [isConfigLoading, setIsConfigLoading] = useState(true);
 
   useEffect(() => {
-    window.onTelegramLoginWidgetAuth = async (user: TelegramWidgetAuthPayload) => {
-      setIsSubmitting(true);
-      setError("");
+    let cancelled = false;
+
+    const loadConfig = async () => {
+      setIsConfigLoading(true);
 
       try {
         const response = await fetch("/api/auth/telegram/widget", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(user),
+          method: "GET",
           cache: "no-store",
         });
 
         if (!response.ok) {
           const payload = (await response.json().catch(() => ({}))) as { error?: string };
-          setError(payload.error ?? `HTTP ${response.status}`);
-          setIsSubmitting(false);
+          if (!cancelled) {
+            setClientId("");
+            setError(payload.error ?? `HTTP ${response.status}`);
+            setIsConfigLoading(false);
+          }
           return;
         }
 
-        setIsSubmitting(false);
-        onAuthorized?.();
+        const payload = (await response.json()) as { clientId?: string };
+        if (!cancelled) {
+          setClientId(String(payload.clientId ?? "").trim());
+          setError("");
+          setIsConfigLoading(false);
+        }
       } catch {
-        setError("Ошибка сети");
-        setIsSubmitting(false);
+        if (!cancelled) {
+          setClientId("");
+          setError("Не удалось загрузить конфигурацию Telegram Login.");
+          setIsConfigLoading(false);
+        }
       }
     };
 
-    return () => {
-      delete window.onTelegramLoginWidgetAuth;
-    };
-  }, [onAuthorized]);
+    void loadConfig();
 
-  useEffect(() => {
-    if (!botUsername || !containerRef.current) {
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const startLogin = async () => {
+    if (isSubmitting || isConfigLoading) {
       return;
     }
 
-    containerRef.current.innerHTML = "";
+    if (!clientId || !/^\d+$/.test(clientId)) {
+      setError("Не настроен Telegram Login client ID.");
+      return;
+    }
 
-    const script = document.createElement("script");
-    script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.async = true;
-    script.setAttribute("data-telegram-login", botUsername);
-    script.setAttribute("data-size", "large");
-    script.setAttribute("data-userpic", "true");
-    script.setAttribute("data-request-access", "write");
-    script.setAttribute("data-onauth", "onTelegramLoginWidgetAuth(user)");
-    script.setAttribute("data-radius", "12");
-    containerRef.current.appendChild(script);
-  }, [botUsername]);
+    setIsSubmitting(true);
+    setError("");
 
-  if (!botUsername) {
-    return (
-      <section className={styles.card}>
-        <p className={styles.error}>
-          Не задан `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`. Добавьте его в `.env` и перезапустите приложение.
-        </p>
-      </section>
-    );
-  }
+    try {
+      await ensureTelegramLoginSdk();
+
+      const result = await new Promise<TelegramLoginSdkCallbackPayload>((resolve) => {
+        window.Telegram?.Login?.auth(
+          {
+            client_id: Number(clientId),
+            request_access: ["write"],
+            lang: normalizeLanguage(),
+          },
+          (payload: TelegramLoginSdkCallbackPayload) => resolve(payload),
+        );
+      });
+
+      if (result.error || !result.id_token) {
+        setError(result.error || "Telegram не вернул id_token.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const response = await fetch("/api/auth/telegram/widget", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(result),
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        setError(payload.error ?? `HTTP ${response.status}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      setIsSubmitting(false);
+      onAuthorized?.();
+    } catch {
+      setError("Не удалось открыть Telegram Login.");
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <section className={styles.card}>
       <p className={styles.title}>Вход через Telegram</p>
-      <p className={styles.subtitle}>Авторизация нужна для заказов, комментариев, избранного и кабинета артиста в браузере.</p>
-      <div ref={containerRef} className={styles.widgetSlot} />
-      {isSubmitting ? <p className={styles.note}>Подтверждаем вход...</p> : null}
+      <p className={styles.subtitle}>
+        Авторизация нужна для заказов, комментариев, избранного и кабинета артиста в браузере.
+      </p>
+      <button
+        type="button"
+        className={styles.loginButton}
+        onClick={() => void startLogin()}
+        disabled={isSubmitting || isConfigLoading}
+      >
+        {isSubmitting ? "Подтверждаем вход..." : isConfigLoading ? "Загружаем Telegram Login..." : "Авторизоваться через Telegram"}
+      </button>
+      <p className={styles.note}>Используется актуальный Telegram Login flow для браузера.</p>
       {error ? <p className={styles.error}>Ошибка входа: {error}</p> : null}
     </section>
   );
