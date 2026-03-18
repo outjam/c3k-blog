@@ -34,8 +34,8 @@
 
 .backButton,
 .secondaryLink {
-  color: rgba(255, 255, 255, 0.82);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--tg-text);
+  background: color-mix(in srgb, var(--tg-section-bg) 76%, transparent);
 }
 
 .heroChip {
@@ -44,8 +44,8 @@
   min-height: 34px;
   padding: 0 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--tg-section-bg) 78%, transparent);
+  color: var(--tg-hint);
   font-size: 0.8rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -56,8 +56,9 @@
 .infoCard,
 .stepCard,
 .statusCard {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, transparent);
   border-radius: 26px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
 }
 
 .heroBody {
@@ -81,7 +82,7 @@
 .groupHeading p,
 .stepCard p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.68);
+  color: var(--tg-hint);
   line-height: 1.5;
 }
 
@@ -104,14 +105,14 @@
 .heroStats span,
 .infoCard span,
 .statusCard span {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--tg-hint);
   font-size: 0.88rem;
 }
 
 .heroStats strong,
 .infoCard strong,
 .statusCard strong {
-  color: #fff;
+  color: var(--tg-text);
   font-size: 1rem;
 }
 
@@ -149,8 +150,8 @@
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  background: rgba(88, 152, 255, 0.22);
-  color: #8ab4ff;
+  background: color-mix(in srgb, var(--tg-accent) 18%, transparent);
+  color: var(--tg-accent);
   font-weight: 700;
 }
 
@@ -166,8 +167,8 @@
 }
 
 .primaryButton {
-  color: #fff;
-  background: #5898ff;
+  color: var(--tg-btn-text);
+  background: var(--tg-btn);
 }
 
 .noticeError,
@@ -177,13 +178,13 @@
 }
 
 .noticeError {
-  color: #ffcbc9;
-  background: rgba(255, 118, 110, 0.14);
+  color: var(--tg-destructive-text);
+  background: color-mix(in srgb, var(--tg-destructive-text) 14%, transparent);
 }
 
 .noticeSuccess {
-  color: #cfe0ff;
-  background: rgba(88, 152, 255, 0.14);
+  color: var(--tg-accent);
+  background: color-mix(in srgb, var(--tg-accent) 14%, transparent);
 }
 
 .skeletonStack {
@@ -195,7 +196,7 @@
 .skeletonGrid span,
 .skeletonList span {
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--tg-section-bg) 82%, transparent);
 }
 
 .skeletonHero {

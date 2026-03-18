@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +28,33 @@ const fetchRuntimeContract = async () => {
 
 let cachedRuntime = null;
 let gateway = null;
+let mainWindow = null;
+
+const resolveWindowBackgroundColor = (theme) => {
+  if (theme === "light") {
+    return "#f2f2f7";
+  }
+
+  if (theme === "dark") {
+    return "#000000";
+  }
+
+  return nativeTheme.shouldUseDarkColors ? "#000000" : "#f2f2f7";
+};
+
+const applyDesktopTheme = (theme) => {
+  const normalized = theme === "light" || theme === "dark" ? theme : "system";
+  nativeTheme.themeSource = normalized;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setBackgroundColor(resolveWindowBackgroundColor(normalized));
+  }
+
+  return {
+    ok: true,
+    theme: normalized,
+  };
+};
 
 const createMainWindow = async () => {
   const runtime = cachedRuntime ?? (await fetchRuntimeContract());
@@ -53,7 +80,7 @@ const createMainWindow = async () => {
     minWidth: 1080,
     minHeight: 720,
     show: false,
-    backgroundColor: "#08090b",
+    backgroundColor: resolveWindowBackgroundColor(nativeTheme.themeSource),
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       nodeIntegration: false,
@@ -75,6 +102,7 @@ const createMainWindow = async () => {
     window.show();
   });
 
+  mainWindow = window;
   await window.loadURL(runtime.startUrl || runtime.webAppOrigin || "http://127.0.0.1:3000/storage/desktop");
 };
 
@@ -83,6 +111,9 @@ app.whenReady().then(async () => {
   ipcMain.handle("desktop:get-runtime", async () => {
     cachedRuntime = cachedRuntime ?? (await fetchRuntimeContract());
     return cachedRuntime;
+  });
+  ipcMain.handle("desktop:set-theme", (_event, theme) => {
+    return applyDesktopTheme(theme);
   });
 
   await createMainWindow();

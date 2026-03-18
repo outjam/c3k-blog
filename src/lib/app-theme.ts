@@ -109,6 +109,8 @@ export const applyAppTheme = (theme: AppTheme): void => {
   root.setAttribute("data-app-theme", theme);
   root.style.colorScheme = theme;
 
+  void window.c3kDesktop?.setTheme?.(theme).catch(() => undefined);
+
   const webApp = getTelegramWebApp();
 
   if (webApp) {
