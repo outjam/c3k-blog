@@ -923,6 +923,9 @@ export default function ProfileEditPage() {
                       <Link href="/balance" className={styles.primaryButton}>
                         Пополнить
                       </Link>
+                      <Link href="/storage" className={styles.secondaryLink}>
+                        C3K Storage
+                      </Link>
                       <TonConnectButton className={styles.tonConnectButton} />
                     </div>
                   </div>

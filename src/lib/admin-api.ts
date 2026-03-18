@@ -21,6 +21,15 @@ import type {
   ShopPromoCode,
   ShopShowcaseCollectionView,
 } from "@/types/shop";
+import type {
+  StorageAsset,
+  StorageBag,
+  StorageDeliveryRequest,
+  StorageHealthEvent,
+  StorageNode,
+  StorageProgramMembership,
+  StorageProgramSnapshot,
+} from "@/types/storage";
 
 interface ApiErrorShape {
   error?: string;
@@ -76,6 +85,15 @@ export interface AdminSession {
   permissions: ShopAdminPermission[];
 }
 
+export interface AdminStorageSnapshot {
+  assets: StorageAsset[];
+  bags: StorageBag[];
+  nodes: StorageNode[];
+  memberships: StorageProgramMembership[];
+  deliveryRequests: StorageDeliveryRequest[];
+  healthEvents: StorageHealthEvent[];
+}
+
 export type AdminOrdersSort = "updated_desc" | "updated_asc" | "created_desc" | "created_asc" | "total_desc" | "total_asc";
 
 export interface AdminOrdersPageInfo {
@@ -113,6 +131,170 @@ export const fetchAdminDashboard = async (): Promise<{ data: AdminDashboardData 
     return { data: (await response.json()) as AdminDashboardData };
   } catch {
     return { data: null, error: "Network error" };
+  }
+};
+
+export const fetchStorageProgramSnapshot = async (): Promise<{
+  snapshot: StorageProgramSnapshot | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/storage/program/me", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { snapshot: null, error: await parseApiError(response) };
+    }
+
+    return { snapshot: (await response.json()) as StorageProgramSnapshot };
+  } catch {
+    return { snapshot: null, error: "Network error" };
+  }
+};
+
+export const joinMyStorageProgram = async (payload: {
+  walletAddress?: string;
+  note?: string;
+}): Promise<{ membership: StorageProgramMembership | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/storage/program/join", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { membership: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { membership?: StorageProgramMembership | null };
+    return { membership: data.membership ?? null };
+  } catch {
+    return { membership: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminStorage = async (): Promise<{ data: AdminStorageSnapshot | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { data: null, error: await parseApiError(response) };
+    }
+
+    return { data: (await response.json()) as AdminStorageSnapshot };
+  } catch {
+    return { data: null, error: "Network error" };
+  }
+};
+
+export const createAdminStorageAsset = async (payload: {
+  id?: string;
+  releaseSlug?: string;
+  trackId?: string;
+  artistTelegramUserId?: number;
+  resourceKey?: string;
+  audioFileId?: string;
+  assetType: StorageAsset["assetType"];
+  format: StorageAsset["format"];
+  sourceUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  checksumSha256?: string;
+}): Promise<{ asset: StorageAsset | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/assets", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { asset: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { asset?: StorageAsset | null };
+    return { asset: data.asset ?? null };
+  } catch {
+    return { asset: null, error: "Network error" };
+  }
+};
+
+export const createAdminStorageBag = async (payload: {
+  id?: string;
+  assetId: string;
+  bagId?: string;
+  description?: string;
+  tonstorageUri?: string;
+  metaFileUrl?: string;
+  status?: StorageBag["status"];
+  replicasTarget?: number;
+  replicasActual?: number;
+}): Promise<{ bag: StorageBag | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/bags", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { bag: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { bag?: StorageBag | null };
+    return { bag: data.bag ?? null };
+  } catch {
+    return { bag: null, error: "Network error" };
+  }
+};
+
+export const patchAdminStorageMembership = async (payload: {
+  telegramUserId: number;
+  status?: StorageProgramMembership["status"];
+  tier?: StorageProgramMembership["tier"];
+  moderationNote?: string | null;
+  walletAddress?: string | null;
+}): Promise<{ membership: StorageProgramMembership | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/memberships", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { membership: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { membership?: StorageProgramMembership | null };
+    return { membership: data.membership ?? null };
+  } catch {
+    return { membership: null, error: "Network error" };
   }
 };
 

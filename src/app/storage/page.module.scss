@@ -1,0 +1,316 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  justify-items: center;
+  padding-top: 0.85rem;
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+  padding-left: calc(1rem + var(--safe-area-left));
+  overflow-x: clip;
+}
+
+.container {
+  width: min(100%, 760px);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.hero,
+.group {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.hero {
+  padding: 0.1rem 0 0.4rem;
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.backButton,
+.secondaryLink {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  width: max-content;
+  color: var(--tg-text);
+  text-decoration: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.heroChip {
+  min-height: 1.8rem;
+  padding: 0 0.72rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-accent) 12%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 84%, var(--tg-text));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.heroMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 220px);
+  gap: 0.8rem;
+}
+
+.identityCard,
+.balanceCard,
+.group,
+.noticeError,
+.noticeSuccess,
+.emptyState,
+.loadingState,
+.metricCard,
+.membershipCard,
+.featureCard {
+  border-radius: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+  box-shadow: 0 14px 32px color-mix(in srgb, #000 8%, transparent);
+}
+
+.identityCard,
+.balanceCard,
+.group,
+.noticeError,
+.noticeSuccess,
+.emptyState,
+.loadingState {
+  padding: 0.95rem;
+}
+
+.identityMeta,
+.groupHeading,
+.membershipCard,
+.featureCard {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.identityMeta h1,
+.groupHeading h2 {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.identityMeta strong,
+.balanceCardValue,
+.groupHeading strong,
+.metricCard strong,
+.membershipCard strong,
+.featureCard strong {
+  color: var(--tg-text);
+}
+
+.identityMeta strong {
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.identityMeta span,
+.groupHeading p,
+.balanceCardHint,
+.metricCard span,
+.emptyState,
+.loadingState,
+.featureCard span {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  line-height: 1.45;
+  font-size: 0.8rem;
+}
+
+.balanceCard {
+  display: grid;
+  gap: 0.3rem;
+  align-content: center;
+}
+
+.balanceCardLabel {
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.balanceCardValue {
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.noticeError,
+.noticeSuccess,
+.emptyState,
+.loadingState {
+  font-size: 0.82rem;
+}
+
+.noticeError {
+  color: var(--tg-destructive-text);
+}
+
+.noticeSuccess {
+  color: color-mix(in srgb, var(--tg-accent) 78%, var(--tg-text));
+}
+
+.statsGrid,
+.featureList,
+.deliveryList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.metricCard,
+.deliveryCard,
+.featureCard {
+  padding: 0.85rem;
+}
+
+.metricCard {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.membershipCard {
+  padding: 0.85rem;
+}
+
+.deliveryCard {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.deliveryTopline,
+.deliveryMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.deliveryTopline strong {
+  color: var(--tg-text);
+  font-size: 0.9rem;
+}
+
+.deliveryTopline span,
+.deliveryMeta span,
+.deliveryMessage {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.deliveryMessage {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  color: var(--tg-subtitle-text);
+  font-size: 0.8rem;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.field span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.79rem;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border-radius: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 82%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font: inherit;
+  padding: 0.8rem 0.9rem;
+}
+
+.field textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.walletTools {
+  min-width: 180px;
+}
+
+.tonConnectButton {
+  width: 100%;
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.primaryButton {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  min-height: 2.8rem;
+  border-radius: 0.9rem;
+  padding: 0 1rem;
+  background: var(--tg-accent);
+  color: color-mix(in srgb, var(--tg-accent-text) 88%, #fff);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 760px) {
+  .heroMain,
+  .statsGrid,
+  .featureList,
+  .deliveryList,
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .walletTools {
+    min-width: 0;
+  }
+}

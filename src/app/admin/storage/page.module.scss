@@ -1,0 +1,183 @@
+.page {
+  min-height: 100%;
+  padding: 0.9rem;
+  padding-top: calc(0.8rem + var(--safe-area-top));
+  padding-right: calc(1rem + var(--safe-area-right));
+  padding-left: calc(1rem + var(--safe-area-left));
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+}
+
+.card {
+  max-width: 1160px;
+  margin: 0 auto;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 40%, transparent);
+  background: var(--tg-section-bg);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.header h1,
+.blockHeading h2 {
+  margin: 0;
+  color: var(--tg-text);
+}
+
+.header h1 {
+  font-size: 1.05rem;
+}
+
+.header p,
+.itemMeta span,
+.itemRow span {
+  margin: 0.25rem 0 0;
+  color: var(--tg-hint);
+  font-size: 0.8rem;
+}
+
+.actions,
+.controls {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.actions button,
+.linkButton,
+.formGrid button,
+.controls button {
+  border: 0;
+  min-height: 2.2rem;
+  border-radius: 0.62rem;
+  padding: 0 0.72rem;
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+  font: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error {
+  margin: 0;
+  color: var(--tg-destructive-text);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.metrics article,
+.block,
+.itemCard {
+  border-radius: 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+}
+
+.metrics article {
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.metrics span {
+  color: var(--tg-hint);
+  font-size: 0.75rem;
+}
+
+.metrics strong {
+  color: var(--tg-text);
+  font-size: 1rem;
+}
+
+.block {
+  padding: 0.72rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.blockHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  gap: 0.5rem;
+}
+
+.formGrid input,
+.formGrid select,
+.controls input,
+.controls select {
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  min-height: 2.2rem;
+  padding: 0 0.58rem;
+  font: inherit;
+}
+
+.wideInput {
+  grid-column: span 2;
+}
+
+.list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.itemCard {
+  padding: 0.68rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.itemRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.itemRow strong {
+  color: var(--tg-text);
+  font-size: 0.88rem;
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+}
+
+@media (max-width: 960px) {
+  .metrics,
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .wideInput {
+    grid-column: auto;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+}

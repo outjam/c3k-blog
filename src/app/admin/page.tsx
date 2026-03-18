@@ -540,6 +540,11 @@ export default function AdminPage() {
                 Подборки
               </Link>
             ) : null}
+            {hasPermission("storage:view") ? (
+              <Link href="/admin/storage" className={styles.linkButton}>
+                Storage
+              </Link>
+            ) : null}
           </div>
         </header>
 

@@ -20,7 +20,9 @@ export type ShopAdminPermission =
   | "artists:view"
   | "artists:manage"
   | "showcase:view"
-  | "showcase:manage";
+  | "showcase:manage"
+  | "storage:view"
+  | "storage:manage";
 export type ShopOrderStatus =
   | "created"
   | "pending_payment"

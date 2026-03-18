@@ -47,6 +47,10 @@ import {
   getTrackFormats,
 } from "@/lib/shop-release-format";
 import { formatStarsFromCents } from "@/lib/stars-format";
+import {
+  requestReleaseDownload,
+  requestTrackDownload,
+} from "@/lib/storage-delivery-api";
 import { hapticImpact, hapticNotification } from "@/lib/telegram";
 import { mintViaSponsoredTon } from "@/lib/ton-sponsored-api";
 import {
@@ -101,6 +105,28 @@ function CommentIcon(props: SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
       <path
         d="M4.5 4.75h11a1.75 1.75 0 0 1 1.75 1.75v6.25a1.75 1.75 0 0 1-1.75 1.75H9l-3.75 2v-2H4.5a1.75 1.75 0 0 1-1.75-1.75V6.5A1.75 1.75 0 0 1 4.5 4.75Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function DownloadIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M10 3.75a.75.75 0 0 1 .75.75v5.69l1.97-1.97a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0l-3.25-3.25a.75.75 0 0 1 1.06-1.06l1.97 1.97V4.5A.75.75 0 0 1 10 3.75ZM4.75 13.5a.75.75 0 0 1 .75.75v.5c0 .14.11.25.25.25h8.5a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 14.25 16.5h-8.5A1.75 1.75 0 0 1 4 14.75v-.5a.75.75 0 0 1 .75-.75Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function TelegramIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="m16.8 4.28-2.17 10.25c-.16.73-.58.91-1.18.57l-3.27-2.41-1.58 1.52c-.17.17-.32.32-.65.32l.24-3.38 6.16-5.56c.27-.24-.06-.37-.41-.13L6.3 10.22 3 9.19c-.72-.23-.73-.72.15-1.06l12.9-4.98c.6-.22 1.13.15.75 1.13Z"
         fill="currentColor"
       />
     </svg>
@@ -183,6 +209,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const [deletingCommentId, setDeletingCommentId] = useState("");
   const [reactionSubmitting, setReactionSubmitting] = useState(false);
   const [mintDialogOpen, setMintDialogOpen] = useState(false);
+  const [deliveryPendingKey, setDeliveryPendingKey] = useState("");
 
   const formats = useMemo(() => getTrackFormats(product), [product]);
   const releaseTracklist = useMemo<ArtistReleaseTrackItem[]>(
@@ -413,6 +440,118 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
     playQueue(releaseQueue, 0);
   };
+
+  const triggerBrowserDownload = useCallback((url: string, fileName?: string) => {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noreferrer";
+    if (fileName) {
+      anchor.download = fileName;
+    }
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+  }, []);
+
+  const requestReleaseFile = useCallback(
+    async (channel: "telegram_bot" | "web_download") => {
+      if (!user?.id) {
+        setWalletMessage("Для выдачи файла войдите через Telegram Widget.");
+        return;
+      }
+
+      if (!ownsWholeRelease) {
+        setWalletMessage("Сначала купите релиз целиком.");
+        return;
+      }
+
+      const pendingKey = `release:${channel}`;
+      setDeliveryPendingKey(pendingKey);
+      const result = await requestReleaseDownload({
+        releaseSlug: product.slug,
+        requestedFormat: selectedFormat,
+        channel,
+      });
+      setDeliveryPendingKey("");
+
+      if (!result.ok || !result.request) {
+        setWalletMessage(result.error ?? result.message ?? "Не удалось подготовить файл релиза.");
+        hapticNotification("warning");
+        return;
+      }
+
+      if (channel === "web_download" && result.request.deliveryUrl) {
+        triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
+      }
+
+      setWalletMessage(
+        result.message ??
+          (channel === "telegram_bot"
+            ? "Файл релиза отправлен в Telegram."
+            : "Файл релиза подготовлен к скачиванию."),
+      );
+      hapticNotification("success");
+    },
+    [
+      ownsWholeRelease,
+      product.slug,
+      selectedFormat,
+      triggerBrowserDownload,
+      user?.id,
+    ],
+  );
+
+  const requestTrackFile = useCallback(
+    async (track: ArtistReleaseTrackItem, channel: "telegram_bot" | "web_download") => {
+      if (!user?.id) {
+        setWalletMessage("Для выдачи файла войдите через Telegram Widget.");
+        return;
+      }
+
+      if (!isTrackOwned(track.id)) {
+        setWalletMessage("Сначала купите этот трек или весь релиз.");
+        return;
+      }
+
+      const trackFormat = ownsWholeRelease ? selectedFormat : getDefaultTrackFormat(product);
+      const pendingKey = `track:${track.id}:${channel}`;
+      setDeliveryPendingKey(pendingKey);
+      const result = await requestTrackDownload({
+        releaseSlug: product.slug,
+        trackId: track.id,
+        requestedFormat: trackFormat,
+        channel,
+      });
+      setDeliveryPendingKey("");
+
+      if (!result.ok || !result.request) {
+        setWalletMessage(result.error ?? result.message ?? `Не удалось подготовить файл трека «${track.title}».`);
+        hapticNotification("warning");
+        return;
+      }
+
+      if (channel === "web_download" && result.request.deliveryUrl) {
+        triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
+      }
+
+      setWalletMessage(
+        result.message ??
+          (channel === "telegram_bot"
+            ? `Трек «${track.title}» отправлен в Telegram.`
+            : `Трек «${track.title}» подготовлен к скачиванию.`),
+      );
+      hapticNotification("success");
+    },
+    [
+      isTrackOwned,
+      ownsWholeRelease,
+      product,
+      selectedFormat,
+      triggerBrowserDownload,
+      user?.id,
+    ],
+  );
 
   const resolveMintOwnerAddress = (): string | null => {
     if (!user?.id) {
@@ -898,18 +1037,39 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                           <StarsIcon className={styles.starsBadgeIcon} />
                           {formatStarsFromCents(trackPrice)}
                         </div>
-                        <button
-                          type="button"
-                          className={styles.trackBuyButton}
-                          onClick={() => void buyTrack(track)}
-                          disabled={trackOwned || pendingTrackId === track.id}
-                        >
-                          {trackOwned
-                            ? "В коллекции"
-                            : pendingTrackId === track.id
-                              ? "..."
-                              : "Купить"}
-                        </button>
+                        {trackOwned ? (
+                          <div className={styles.trackFileActions}>
+                            <button
+                              type="button"
+                              className={styles.inlineAction}
+                              onClick={() => void requestTrackFile(track, "web_download")}
+                              disabled={deliveryPendingKey === `track:${track.id}:web_download`}
+                            >
+                              <DownloadIcon className={styles.buttonIcon} />
+                              {deliveryPendingKey === `track:${track.id}:web_download`
+                                ? "..."
+                                : "Файл"}
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.inlineAction}
+                              onClick={() => void requestTrackFile(track, "telegram_bot")}
+                              disabled={deliveryPendingKey === `track:${track.id}:telegram_bot`}
+                              aria-label={`Отправить ${track.title} в Telegram`}
+                            >
+                              <TelegramIcon className={styles.buttonIcon} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.trackBuyButton}
+                            onClick={() => void buyTrack(track)}
+                            disabled={pendingTrackId === track.id}
+                          >
+                            {pendingTrackId === track.id ? "..." : "Купить"}
+                          </button>
+                        )}
                       </div>
                     </li>
                   );
@@ -934,18 +1094,45 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   позволяет выпускать NFT для релиза целиком.
                 </p>
 
-                <button
-                  type="button"
-                  className={styles.primaryButton}
-                  onClick={buyReleaseWithWallet}
-                  disabled={releasePurchasing || ownsReleaseInSelectedFormat}
-                >
-                  {ownsReleaseInSelectedFormat
-                    ? `Куплен в ${getFormatLabel(selectedFormat)}`
-                    : releasePurchasing
-                      ? "Покупаем..."
-                      : `Купить релиз за ${formatStarsFromCents(selectedPriceStarsCents)}`}
-                </button>
+                {ownsWholeRelease ? (
+                  <div className={styles.releaseFileActions}>
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      onClick={() => void requestReleaseFile("web_download")}
+                      disabled={deliveryPendingKey === "release:web_download"}
+                    >
+                      <DownloadIcon className={styles.buttonIcon} />
+                      {deliveryPendingKey === "release:web_download"
+                        ? "Готовим..."
+                        : "Скачать релиз"}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      onClick={() => void requestReleaseFile("telegram_bot")}
+                      disabled={deliveryPendingKey === "release:telegram_bot"}
+                    >
+                      <TelegramIcon className={styles.buttonIcon} />
+                      {deliveryPendingKey === "release:telegram_bot"
+                        ? "Отправляем..."
+                        : "В Telegram"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    onClick={buyReleaseWithWallet}
+                    disabled={releasePurchasing || ownsReleaseInSelectedFormat}
+                  >
+                    {ownsReleaseInSelectedFormat
+                      ? `Куплен в ${getFormatLabel(selectedFormat)}`
+                      : releasePurchasing
+                        ? "Покупаем..."
+                        : `Купить релиз за ${formatStarsFromCents(selectedPriceStarsCents)}`}
+                  </button>
+                )}
               </article>
 
               <article className={styles.panel}>

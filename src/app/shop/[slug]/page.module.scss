@@ -383,6 +383,18 @@
   gap: 0.45rem;
 }
 
+.trackFileActions,
+.releaseFileActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.trackFileActions {
+  justify-content: flex-end;
+}
+
 .panelGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -726,6 +738,17 @@
     grid-template-columns: 1fr auto;
     justify-items: stretch;
     align-items: center;
+  }
+
+  .trackFileActions,
+  .releaseFileActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .trackFileActions > button,
+  .releaseFileActions > button {
+    flex: 1 1 0;
   }
 
   .releasePurchaseMeta > div {
