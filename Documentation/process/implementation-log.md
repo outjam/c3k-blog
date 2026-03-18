@@ -259,6 +259,50 @@
 
 ### Проверка Sprint 06 slice
 
+### Sprint 08 slice: payout audit log
+
+- В `db/schema.sql` добавлена нормализованная таблица:
+  - `artist_payout_audit_log`
+- В [src/types/shop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/shop.ts) добавлены:
+  - `ArtistPayoutAuditEntry`
+  - `ArtistPayoutAuditActor`
+  - `ArtistPayoutAuditAction`
+- В [src/lib/server/shop-admin-config-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-admin-config-store.ts) добавлен legacy-compatible audit log:
+  - `artistPayoutAuditLog`
+  - sanitize и default config support
+- В [src/lib/server/artist-finance-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-finance-store.ts):
+  - добавлено чтение audit entries из Postgres
+  - добавлен merge с legacy audit state
+  - добавлен upsert для payout audit entries
+- В [src/app/api/shop/artists/me/payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/payouts/route.ts):
+  - payout request теперь dual-write'ит `requested` audit entry
+  - `GET` теперь отдаёт payout audit trail
+- В [src/app/api/admin/artist-payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-payouts/route.ts):
+  - review/status change теперь пишет audit entry
+  - `GET` теперь отдаёт payout audit trail
+- В UI:
+  - [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx) показывает audit timeline по payout requests
+  - [src/app/admin/artists/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/artists/page.tsx) показывает последние payout audit события в moderation flow
+
+### Что это дало
+
+- payout flow впервые стал audit-able без зависимости только от текущего snapshot статуса
+- artist и admin теперь видят последовательность изменений payout request
+- finance normalization в `Sprint 08` стал ближе к реальному ledger-first контуру
+
+### Проверка payout audit slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/artist-finance-store.ts`
+  - `src/lib/server/shop-admin-config-store.ts`
+  - `src/app/api/shop/artists/me/route.ts`
+  - `src/app/api/shop/artists/me/payouts/route.ts`
+  - `src/app/api/admin/artist-payouts/route.ts`
+  - `src/lib/admin-api.ts`
+  - `src/app/studio/page.tsx`
+  - `src/app/admin/artists/page.tsx`
+
 - `npm run typecheck`
 - targeted `eslint` по:
   - `src/lib/server/storage-delivery-store.ts`

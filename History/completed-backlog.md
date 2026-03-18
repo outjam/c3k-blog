@@ -99,9 +99,16 @@
 - В `db/schema.sql` добавлены первые нормализованные finance-таблицы:
   - `artist_earnings_ledger`
   - `artist_payout_requests`
+- Позже finance contour расширен таблицей:
+  - `artist_payout_audit_log`
 - Добавлен server-side normalized finance store с Postgres read/write и legacy fallback.
 - Earnings от paid-order теперь dual-write'ятся из Telegram payment webhook в новый ledger.
 - Artist payout API и studio summary уже читают finance state через новый store, но не ломаются без полной миграции.
+- Payout flow получил audit trail:
+  - создание payout request
+  - смена payout status
+  - обновление admin note
+- Audit trail выведен и в `Студию`, и в admin payout moderation.
 
 ### Entitlement and mint normalization foundation
 

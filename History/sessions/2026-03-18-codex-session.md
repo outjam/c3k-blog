@@ -236,3 +236,17 @@ Go рассматривается как хороший будущий язык 
 - dashboard-trigger в админке для запуска backfill
 
 Это перевело migration слой из purely server-side заготовки в реальный operational инструмент для тестовой среды.
+
+## Дополнение по payout audit
+
+Следующим slice в `Sprint 08` было сделано:
+
+- добавлена нормализованная таблица `artist_payout_audit_log`
+- payout request creation теперь пишет audit entry
+- admin review/status update теперь пишет audit entry
+- finance snapshot теперь читает payout audit trail через Postgres layer с legacy fallback
+- payout audit trail выведен в:
+  - `Студию` артиста
+  - admin payout moderation
+
+Это стало следующим шагом в сторону ledger-first finance модели: payout flow перестал быть только текущим snapshot статуса и получил историю изменений.

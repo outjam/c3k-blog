@@ -115,8 +115,8 @@
 ### Artist payouts
 
 - `/api/shop/artists/me/payouts`
-  - `GET`: payout summary и history
-  - `POST`: запрос на вывод
+  - `GET`: payout summary, history и payout audit trail
+  - `POST`: запрос на вывод и запись audit entry
 
 ## 7. Admin
 
@@ -150,8 +150,9 @@
   - список заявок
   - approve / reject / needs_info
 - `/api/admin/artist-payouts`
-  - список payout requests
+  - список payout requests и payout audit trail
   - approve / reject / paid
+  - запись audit entries при review/status changes
 - `/api/admin/social/entitlements/backfill`
   - dry-run и запуск backfill ownership/mint history из legacy `social_user_state_v1`
 - `/api/admin/storage/sync-tracks`
