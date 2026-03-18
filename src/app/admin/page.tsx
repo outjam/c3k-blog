@@ -24,7 +24,11 @@ import {
   patchAdminPromo,
   patchAdminSettings,
   removeAdminMember,
+  runAdminArtistCatalogBackfill,
+  runAdminArtistFinanceBackfill,
   runAdminSocialEntitlementBackfill,
+  type AdminArtistCatalogBackfillResult,
+  type AdminArtistFinanceBackfillResult,
   upsertAdminMember,
   type AdminSocialEntitlementBackfillResult,
   type AdminCustomer,
@@ -170,6 +174,10 @@ export default function AdminPage() {
   const [newAdminLastName, setNewAdminLastName] = useState("");
   const [backfillLoading, setBackfillLoading] = useState<"dry-run" | "run" | null>(null);
   const [backfillResult, setBackfillResult] = useState<AdminSocialEntitlementBackfillResult | null>(null);
+  const [artistBackfillLoading, setArtistBackfillLoading] = useState<"dry-run" | "run" | null>(null);
+  const [artistBackfillResult, setArtistBackfillResult] = useState<AdminArtistCatalogBackfillResult | null>(null);
+  const [financeBackfillLoading, setFinanceBackfillLoading] = useState<"dry-run" | "run" | null>(null);
+  const [financeBackfillResult, setFinanceBackfillResult] = useState<AdminArtistFinanceBackfillResult | null>(null);
 
   const hasPermission = useCallback(
     (permission: ShopAdminPermission): boolean => {
@@ -607,7 +615,9 @@ export default function AdminPage() {
               <div className={styles.promoActions}>
                 <button
                   type="button"
-                  disabled={backfillLoading !== null}
+                  disabled={
+                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                  }
                   onClick={async () => {
                     setBackfillLoading("dry-run");
                     const response = await runAdminSocialEntitlementBackfill({
@@ -628,7 +638,9 @@ export default function AdminPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={backfillLoading !== null}
+                  disabled={
+                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                  }
                   onClick={async () => {
                     setBackfillLoading("run");
                     const response = await runAdminSocialEntitlementBackfill({
@@ -647,6 +659,98 @@ export default function AdminPage() {
                 >
                   {backfillLoading === "run" ? "Переносим..." : "Запустить ownership backfill"}
                 </button>
+                <button
+                  type="button"
+                  disabled={
+                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                  }
+                  onClick={async () => {
+                    setArtistBackfillLoading("dry-run");
+                    const response = await runAdminArtistCatalogBackfill({
+                      dryRun: true,
+                      limit: 500,
+                    });
+                    setArtistBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setArtistBackfillResult(response.result);
+                  }}
+                >
+                  {artistBackfillLoading === "dry-run" ? "Считаем..." : "Dry-run artist backfill"}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                  }
+                  onClick={async () => {
+                    setArtistBackfillLoading("run");
+                    const response = await runAdminArtistCatalogBackfill({
+                      dryRun: false,
+                      limit: 500,
+                    });
+                    setArtistBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setArtistBackfillResult(response.result);
+                  }}
+                >
+                  {artistBackfillLoading === "run" ? "Переносим..." : "Запустить artist backfill"}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                  }
+                  onClick={async () => {
+                    setFinanceBackfillLoading("dry-run");
+                    const response = await runAdminArtistFinanceBackfill({
+                      dryRun: true,
+                      limit: 1000,
+                    });
+                    setFinanceBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setFinanceBackfillResult(response.result);
+                  }}
+                >
+                  {financeBackfillLoading === "dry-run" ? "Считаем..." : "Dry-run finance backfill"}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    backfillLoading !== null || artistBackfillLoading !== null || financeBackfillLoading !== null
+                  }
+                  onClick={async () => {
+                    setFinanceBackfillLoading("run");
+                    const response = await runAdminArtistFinanceBackfill({
+                      dryRun: false,
+                      limit: 1000,
+                    });
+                    setFinanceBackfillLoading(null);
+
+                    if (response.error) {
+                      setError(response.error);
+                      return;
+                    }
+
+                    setFinanceBackfillResult(response.result);
+                  }}
+                >
+                  {financeBackfillLoading === "run" ? "Переносим..." : "Запустить finance backfill"}
+                </button>
               </div>
             ) : null}
             {backfillResult ? (
@@ -654,6 +758,21 @@ export default function AdminPage() {
                 {backfillResult.dryRun ? "Dry-run" : "Backfill"}: users {backfillResult.processedUsers} · releases{" "}
                 {backfillResult.releaseEntitlements} · tracks {backfillResult.trackEntitlements} · nft{" "}
                 {backfillResult.nftMints} · source {new Date(backfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
+              </p>
+            ) : null}
+            {artistBackfillResult ? (
+              <p className={styles.hint}>
+                {artistBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists {artistBackfillResult.selectedArtists}
+                {" · "}profiles {artistBackfillResult.profiles} · tracks {artistBackfillResult.tracks} · source{" "}
+                {new Date(artistBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
+              </p>
+            ) : null}
+            {financeBackfillResult ? (
+              <p className={styles.hint}>
+                {financeBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists {financeBackfillResult.selectedArtists}
+                {" · "}earnings {financeBackfillResult.earnings} · payouts {financeBackfillResult.payoutRequests} ·
+                audit {financeBackfillResult.payoutAuditEntries} · source{" "}
+                {new Date(financeBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
               </p>
             ) : null}
           </section>

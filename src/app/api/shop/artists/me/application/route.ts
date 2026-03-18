@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { readArtistApplicationSnapshot, upsertArtistApplications } from "@/lib/server/artist-application-store";
 import { notifyAdminsAboutArtistApplication } from "@/lib/server/shop-artist-notify";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
@@ -45,9 +46,13 @@ export async function GET(request: Request) {
 
   const config = await readShopAdminConfig();
   const profile = config.artistProfiles[String(auth.telegramUserId)] ?? null;
-  const application = config.artistApplications[String(auth.telegramUserId)] ?? null;
+  const applications = await readArtistApplicationSnapshot({
+    config,
+    telegramUserId: auth.telegramUserId,
+  });
+  const application = applications.applications[0] ?? null;
 
-  return NextResponse.json({ profile, application });
+  return NextResponse.json({ profile, application, source: applications.source });
 }
 
 export async function POST(request: Request) {
@@ -129,6 +134,7 @@ export async function POST(request: Request) {
 
   const application = updated.artistApplications[String(auth.telegramUserId)] ?? null;
   if (application) {
+    await upsertArtistApplications([application]).catch(() => undefined);
     await notifyAdminsAboutArtistApplication(application, resolvePublicBaseUrl(request));
   }
 

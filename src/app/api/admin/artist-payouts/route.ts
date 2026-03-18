@@ -72,6 +72,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     payoutRequests,
     payoutAuditEntries: finance.payoutAuditEntries,
+    source: finance.source,
   });
 }
 

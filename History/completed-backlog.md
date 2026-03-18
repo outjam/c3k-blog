@@ -115,6 +115,8 @@
 - В `db/schema.sql` добавлены таблицы:
   - `artist_profiles`
   - `artist_tracks`
+- Позже artist-domain расширен таблицей:
+  - `artist_applications`
 - Добавлен отдельный normalized artist merge-store.
 - Публичный каталог, публичная страница артиста, artist self-service и admin artist routes начали читать artist snapshot через новый слой.
 - Ключевые artist mutation flows теперь dual-write'ят profile/release state в Postgres:
@@ -124,6 +126,13 @@
   - admin moderation
   - paid-order webhook
   - payout completion balance update
+- Добавлены operational backfill helpers и admin triggers для:
+  - `artist_profiles` / `artist_tracks`
+  - `artist_earnings_ledger` / `artist_payout_requests` / `artist_payout_audit_log`
+- В admin artist moderation появилась source visibility:
+  - видно, читает ли artist-domain и finance-domain уже `postgres`, либо ещё работает `legacy fallback`
+- Source visibility дополнительно выведена в `Студию` артиста.
+- `artist applications` переведены на merge-store и dual-write.
 
 ### Entitlement and mint normalization foundation
 

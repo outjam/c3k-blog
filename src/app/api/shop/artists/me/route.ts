@@ -130,6 +130,8 @@ export async function GET(request: Request) {
     payoutSummary,
     payoutRequests,
     payoutAuditEntries,
+    artistSource: artistCatalog.source,
+    financeSource: finance.source,
   });
 }
 

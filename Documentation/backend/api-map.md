@@ -109,6 +109,7 @@
 - `/api/shop/artists/me/application`
   - `GET`: текущая заявка и профиль
   - `POST`: подача заявки на артистский статус
+  - dual-write в normalized `artist_applications`
 
 ### Artist releases
 
@@ -154,12 +155,17 @@
 - `/api/admin/artist-applications`
   - список заявок
   - approve / reject / needs_info
+  - читает merged application snapshot
 - `/api/admin/artist-payouts`
   - список payout requests и payout audit trail
   - approve / reject / paid
   - запись audit entries при review/status changes
 - `/api/admin/social/entitlements/backfill`
   - dry-run и запуск backfill ownership/mint history из legacy `social_user_state_v1`
+- `/api/admin/artists/backfill`
+  - dry-run и запуск backfill `artist_profiles` / `artist_tracks` из legacy artist state
+- `/api/admin/artists/finance-backfill`
+  - dry-run и запуск backfill `artist_earnings_ledger` / `artist_payout_requests` / `artist_payout_audit_log`
 - `/api/admin/storage/sync-tracks`
   - backfill и повторная синхронизация storage assets из artist releases
 - `/api/admin/storage/ingest`

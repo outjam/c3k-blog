@@ -188,9 +188,9 @@ Status: current
 - [x] Нормализованные таблицы и merge-store для user entitlements и NFT mint history
 - [x] Первый backfill/migration path для ownership и mint history из legacy social state
 - [x] Payout audit log в Postgres и merged finance snapshot
-- [x] Нормализованные таблицы и merge-store для `artist_profiles` и `artist_tracks`
+- [x] Нормализованные таблицы и merge-store для `artist_profiles`, `artist_tracks` и `artist_applications`
 - [ ] Ledger-first finance model
-- [ ] Backfill/migration jobs для оставшихся finance/artist доменов
+- [x] Backfill/migration jobs для ownership, artist catalog и finance domains
 - [ ] Слой миграции с JSON state в таблицы для оставшихся доменов
 
 ### Sprint 09 — Production Hardening

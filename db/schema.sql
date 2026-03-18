@@ -231,6 +231,23 @@ CREATE TABLE IF NOT EXISTS artist_profiles (
   updated_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS artist_applications (
+  telegram_user_id BIGINT PRIMARY KEY,
+  id TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  bio TEXT NOT NULL DEFAULT '',
+  avatar_url TEXT,
+  cover_url TEXT,
+  ton_wallet_address TEXT,
+  reference_links JSONB NOT NULL DEFAULT '[]'::jsonb,
+  note TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'needs_info', 'approved', 'rejected')),
+  moderation_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  reviewed_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS artist_tracks (
   id TEXT PRIMARY KEY,
   slug TEXT NOT NULL,
@@ -322,6 +339,7 @@ CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_artist_updated ON artist_p
 CREATE INDEX IF NOT EXISTS idx_artist_payout_requests_status_updated ON artist_payout_requests(status, updated_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_artist_profiles_slug ON artist_profiles(slug);
 CREATE INDEX IF NOT EXISTS idx_artist_profiles_status_updated ON artist_profiles(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_applications_status_updated ON artist_applications(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_tracks_artist_updated ON artist_tracks(artist_telegram_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_tracks_status_updated ON artist_tracks(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_tracks_slug ON artist_tracks(slug);

@@ -32,6 +32,9 @@ export default function AdminArtistsPage() {
   const [tracks, setTracks] = useState<ArtistTrack[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<ArtistPayoutRequest[]>([]);
   const [payoutAuditEntries, setPayoutAuditEntries] = useState<ArtistPayoutAuditEntry[]>([]);
+  const [applicationSource, setApplicationSource] = useState<"postgres" | "legacy">("legacy");
+  const [artistSource, setArtistSource] = useState<"postgres" | "legacy">("legacy");
+  const [financeSource, setFinanceSource] = useState<"postgres" | "legacy">("legacy");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [applicationStatusDrafts, setApplicationStatusDrafts] = useState<Record<number, ArtistApplication["status"]>>({});
@@ -105,15 +108,21 @@ export default function AdminArtistsPage() {
       setTracks([]);
       setPayoutRequests([]);
       setPayoutAuditEntries([]);
+      setApplicationSource("legacy");
+      setArtistSource("legacy");
+      setFinanceSource("legacy");
       setLoading(false);
       return;
     }
 
     setApplications(applicationsResponse.applications);
+    setApplicationSource(applicationsResponse.source);
     setProfiles(artistsResponse.profiles);
     setTracks(artistsResponse.tracks);
     setPayoutRequests(payoutsResponse.payoutRequests);
     setPayoutAuditEntries(payoutsResponse.payoutAuditEntries);
+    setArtistSource(artistsResponse.source);
+    setFinanceSource(payoutsResponse.source);
     setApplicationStatusDrafts(
       Object.fromEntries(applicationsResponse.applications.map((application) => [application.telegramUserId, application.status])),
     );
@@ -234,6 +243,9 @@ export default function AdminArtistsPage() {
           <div>
             <h1>Модерация артистов</h1>
             <p>Профили, треки, публикация в витрину</p>
+            <p>
+              Applications: <b>{applicationSource}</b> · Artist: <b>{artistSource}</b> · Finance: <b>{financeSource}</b>
+            </p>
           </div>
           <div className={styles.actions}>
             <button type="button" onClick={() => void load()}>

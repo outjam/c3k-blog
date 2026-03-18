@@ -79,7 +79,7 @@ export async function GET(request: Request) {
   const profiles = artistCatalog.profiles;
   const tracks = artistCatalog.tracks;
 
-  return NextResponse.json({ profiles, tracks });
+  return NextResponse.json({ profiles, tracks, source: artistCatalog.source });
 }
 
 export async function PATCH(request: Request) {

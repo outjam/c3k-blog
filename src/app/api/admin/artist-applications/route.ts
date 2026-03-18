@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { readArtistApplicationSnapshot, upsertArtistApplications } from "@/lib/server/artist-application-store";
 import { upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { notifyUserAboutArtistApplicationStatus } from "@/lib/server/shop-artist-notify";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
@@ -52,13 +53,10 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const applications = Object.values(config.artistApplications).sort((a, b) => {
-    const left = new Date(a.updatedAt || a.createdAt).getTime();
-    const right = new Date(b.updatedAt || b.createdAt).getTime();
-    return right - left;
-  });
+  const applicationsSnapshot = await readArtistApplicationSnapshot({ config });
+  const applications = applicationsSnapshot.applications;
 
-  return NextResponse.json({ applications });
+  return NextResponse.json({ applications, source: applicationsSnapshot.source });
 }
 
 export async function PATCH(request: Request) {
@@ -172,6 +170,7 @@ export async function PATCH(request: Request) {
   }
 
   if (application) {
+    await upsertArtistApplications([application]).catch(() => undefined);
     await notifyUserAboutArtistApplicationStatus(application, profile, resolvePublicBaseUrl(request));
   }
 

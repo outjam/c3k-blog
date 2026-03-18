@@ -262,3 +262,32 @@ Go рассматривается как хороший будущий язык 
 - webhook paid-order теперь синхронизирует profile balance и track salesCount не только в legacy config, но и в normalized artist layer
 
 Это стало первым реальным выносом artist-domain из `shop_admin_config`, сохраняя при этом test-first совместимость и fallback на legacy state.
+
+## Дополнение по operational backfill
+
+Следующим slice в `Sprint 08` было сделано:
+
+- добавлен admin backfill для normalized artist catalog
+- добавлен admin backfill для normalized finance layer
+- оба backfill доступны в dashboard админки как dry-run и как реальный запуск
+
+Это стало важным operational шагом: migration теперь можно выполнять и повторять из UI, а не только через точечные server routes или кодовые вызовы.
+
+## Дополнение по migration visibility
+
+Следующим небольшим slice было сделано:
+
+- admin artist moderation начала показывать `source` для artist-domain и finance-domain
+- стало видно, читаются ли данные уже из `postgres` или ещё через `legacy fallback`
+
+Это усилило сам процесс миграции: backfill и normalized stores теперь можно не только запускать, но и наблюдать в рабочем UI.
+
+Следом эта же source visibility была доведена и до `Студии` артиста, чтобы не только админ, но и сам artist-side экран мог показывать, работает ли он уже поверх normalized Postgres state.
+
+Следующим slice в том же спринте было сделано:
+
+- добавлена таблица `artist_applications`
+- artist application flow получил merge-store и dual-write
+- admin moderation стал видеть `Applications` source рядом с artist/finance sources
+
+Это закрыло ещё один важный legacy-only домен внутри artist-side модели.

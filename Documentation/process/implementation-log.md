@@ -351,6 +351,106 @@
   - `src/app/api/admin/artist-payouts/route.ts`
   - `src/app/api/telegram/webhook/route.ts`
 
+### Sprint 08 slice: operational backfill for artist and finance domains
+
+- Добавлен artist catalog backfill helper:
+  - [src/lib/server/artist-catalog-backfill.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-backfill.ts)
+- Добавлен admin route:
+  - [src/app/api/admin/artists/backfill/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/backfill/route.ts)
+- Добавлен finance backfill helper:
+  - [src/lib/server/artist-finance-backfill.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-finance-backfill.ts)
+- Добавлен admin route:
+  - [src/app/api/admin/artists/finance-backfill/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/finance-backfill/route.ts)
+- Обновлён [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) и [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx):
+  - появились `Dry-run` и реальные trigger'ы для artist backfill
+  - появились `Dry-run` и реальные trigger'ы для finance backfill
+
+### Что это дало
+
+- migration слой внутри `Sprint 08` перестал быть только кодом и route'ами
+- оператор теперь может из админки запускать:
+  - ownership/mint backfill
+  - artist catalog backfill
+  - artist finance backfill
+- подготовлен управляемый operational contour для постепенного cutover из legacy state в Postgres
+
+### Проверка operational backfill slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/artist-finance-backfill.ts`
+  - `src/lib/server/artist-catalog-backfill.ts`
+  - `src/app/api/admin/artists/backfill/route.ts`
+  - `src/app/api/admin/artists/finance-backfill/route.ts`
+  - `src/lib/admin-api.ts`
+  - `src/app/admin/page.tsx`
+
+### Sprint 08 slice: migration source visibility
+
+- Admin artist moderation routes теперь отдают `source`:
+  - [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+  - [src/app/api/admin/artist-payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-payouts/route.ts)
+- Client admin helpers прокидывают `source` в UI:
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- На экране moderation артистов теперь видно:
+  - `Artist source`
+  - `Finance source`
+  - [src/app/admin/artists/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/artists/page.tsx)
+
+### Что это дало
+
+- оператор сразу видит, читает ли admin contour уже normalized Postgres snapshot
+- migration/backfill перестали быть слепыми действиями
+- легче понять, где ещё живёт legacy fallback
+
+### Проверка migration visibility slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/app/api/admin/artists/route.ts`
+  - `src/app/api/admin/artist-payouts/route.ts`
+  - `src/lib/admin-api.ts`
+  - `src/app/admin/artists/page.tsx`
+
+### Дополнение: source visibility in studio
+
+- [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts) теперь отдаёт:
+  - `artistSource`
+  - `financeSource`
+- [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) прокидывает эти поля в client layer
+- [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx) показывает source visibility в hero студии
+
+Это даёт ещё один operational сигнал: и админ, и сам артист видят, читает ли их screen уже normalized Postgres state, либо ещё через legacy fallback.
+
+### Sprint 08 slice: normalized artist applications
+
+- В `db/schema.sql` добавлена таблица:
+  - `artist_applications`
+- Добавлен merge-store:
+  - [src/lib/server/artist-application-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-application-store.ts)
+- Обновлены routes:
+  - [src/app/api/shop/artists/me/application/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/application/route.ts)
+  - [src/app/api/admin/artist-applications/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-applications/route.ts)
+- Client admin layer и moderation UI теперь тоже видят `source` по application-domain:
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+  - [src/app/admin/artists/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/artists/page.tsx)
+
+### Что это дало
+
+- artist application flow перестал быть legacy-only
+- подача заявки и moderation теперь dual-write'ят Postgres слой
+- admin moderation видит `Applications` source рядом с artist/finance sources
+
+### Проверка normalized application slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/artist-application-store.ts`
+  - `src/app/api/shop/artists/me/application/route.ts`
+  - `src/app/api/admin/artist-applications/route.ts`
+  - `src/lib/admin-api.ts`
+  - `src/app/admin/artists/page.tsx`
+
 - `npm run typecheck`
 - targeted `eslint` по:
   - `src/lib/server/storage-delivery-store.ts`
