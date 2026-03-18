@@ -128,3 +128,22 @@ Go рассматривается как хороший будущий язык 
 - admin backfill route и кнопка в storage dashboard
 
 Это закрыло ручную зависимость на первичный storage mapping и сдвинуло storage groundwork ближе к ingest pipeline.
+
+## Дополнение по process layer
+
+Внутри roadmap-документации появился отдельный sprint management слой:
+
+- `production roadmap` оставлен стратегическим
+- `project status checklist` оставлен продуктовым статусом по user stories
+- добавлен отдельный `sprint board` как рабочий операционный документ для текущего, следующего и завершённых спринтов
+
+## Дополнение по storage ingest
+
+После auto-sync был реализован следующий storage slice:
+
+- отдельный ingest state
+- test-mode ingest jobs
+- admin action для подготовки placeholder bags
+- видимость ingest jobs в storage dashboard
+
+Это закрыло следующий бесплатный/test-first шаг между `asset sync` и будущим real TON Storage runtime.

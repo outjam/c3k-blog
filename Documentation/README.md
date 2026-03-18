@@ -21,8 +21,9 @@
   - лишние или спорные зоны
   - архитектурные и продуктовые риски
 - `roadmap/`
-  - технический roadmap
-  - шаги к production и масштабу
+  - стратегический roadmap
+  - sprint board
+  - статус продукта по user stories
 - `process/`
   - журнал реализации
   - ADR по архитектурным решениям
@@ -43,8 +44,10 @@
 1. Начать с [`business/core-business-flows.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/business/core-business-flows.md)
 2. Затем открыть [`backend/architecture-and-storage.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/backend/architecture-and-storage.md)
 3. Потом пройти [`product/navigation-and-screens.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/product/navigation-and-screens.md)
-4. Для планирования работ использовать [`roadmap/production-roadmap.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/production-roadmap.md)
-5. Для ежедневного контроля статуса использовать [`roadmap/project-status-checklist.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/project-status-checklist.md)
+4. Для структуры roadmap открыть [`roadmap/README.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/README.md)
+5. Для оперативного управления спринтами использовать [`roadmap/sprint-board.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/sprint-board.md)
+6. Для контроля пользовательской ценности использовать [`roadmap/project-status-checklist.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/project-status-checklist.md)
+7. Для стратегического пути к production использовать [`roadmap/production-roadmap.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/production-roadmap.md)
 
 ## Правило обновления
 

@@ -153,6 +153,9 @@
   - approve / reject / paid
 - `/api/admin/storage/sync-tracks`
   - backfill и повторная синхронизация storage assets из artist releases
+- `/api/admin/storage/ingest`
+  - запуск test-mode ingest pipeline
+  - подготовка placeholder bags и ingest jobs
 
 ### Shop operations
 

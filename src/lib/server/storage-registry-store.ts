@@ -698,6 +698,16 @@ export const listStorageBags = async (): Promise<StorageBag[]> => {
   });
 };
 
+export const listStorageBagFiles = async (): Promise<StorageBagFile[]> => {
+  const snapshot = await getStorageRegistrySnapshot();
+
+  if (!snapshot) {
+    return [];
+  }
+
+  return Object.values(snapshot.bagFiles).sort((a, b) => a.priority - b.priority);
+};
+
 export const listStorageNodes = async (): Promise<StorageNode[]> => {
   const snapshot = await getStorageRegistrySnapshot();
 
@@ -838,6 +848,49 @@ export const upsertStorageBag = async (input: {
   });
 
   return next?.bags[id] ?? null;
+};
+
+export const upsertStorageBagFile = async (input: {
+  id?: string;
+  bagId: string;
+  path: string;
+  sizeBytes?: number;
+  priority?: number;
+  mimeType?: string;
+}): Promise<StorageBagFile | null> => {
+  const bagId = normalizeSafeId(input.bagId, 120);
+  const path = normalizeText(input.path, 1000);
+
+  if (!bagId || !path) {
+    return null;
+  }
+
+  const id =
+    normalizeSafeId(input.id ?? `${bagId}:${path}`, 120) ||
+    normalizeSafeId(`${bagId}:${Date.now()}`, 120) ||
+    `bagfile-${Date.now()}`;
+
+  const next = await mutateState((current) => {
+    const existing = current.bagFiles[id];
+    const bagFile: StorageBagFile = {
+      id,
+      bagId,
+      path,
+      sizeBytes: normalizeNonNegativeInt(input.sizeBytes ?? existing?.sizeBytes ?? 0),
+      priority: normalizeNonNegativeInt(input.priority ?? existing?.priority ?? 0),
+      mimeType: normalizeOptionalText(input.mimeType, 180) ?? existing?.mimeType,
+    };
+
+    return {
+      ...current,
+      bagFiles: {
+        ...current.bagFiles,
+        [id]: bagFile,
+      },
+    };
+  });
+
+  return next?.bagFiles[id] ?? null;
 };
 
 export const deleteStorageAssetsByIds = async (ids: string[]): Promise<string[]> => {

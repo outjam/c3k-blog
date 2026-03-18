@@ -14,6 +14,11 @@
 
 Стратегический план остаётся в [`production-roadmap.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/production-roadmap.md), а этот файл нужен как живой статус-трекер.
 
+Sprint-планирование теперь вынесено отдельно в [`sprint-board.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/sprint-board.md), чтобы не смешивать:
+
+- что продукт уже умеет для пользователя
+- что конкретно команда делает в текущем спринте
+
 ## Текущий этап проекта
 
 Сейчас проект находится в переходе между:
@@ -26,7 +31,7 @@
 
 - продукт уже можно тестировать как систему
 - blockchain и storage уже заложены архитектурно
-- storage asset auto-sync уже начал заменять ручной mapping
+- storage asset auto-sync и test-mode ingest уже начали заменять ручной mapping
 - production-safe infra ещё не завершена
 - work mode сейчас: `test-first`, `low-cost`, `no mainnet dependency`
 
@@ -184,6 +189,8 @@
 - [x] Как пользователь, я могу видеть историю своих delivery requests.
 - [x] Как система, мы автоматически синхронизируем базовые storage assets из artist releases.
 - [x] Как администратор, я могу запустить backfill-синхронизацию artist releases в storage registry.
+- [x] Как администратор, я могу запустить test-mode ingest pipeline и подготовить placeholder bags без реального TON Storage провайдера.
+- [x] Как администратор, я могу видеть ingest jobs и их статусы в storage dashboard.
 
 ### Что ещё нужно
 

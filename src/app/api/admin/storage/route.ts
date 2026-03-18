@@ -8,6 +8,7 @@ import {
   listStorageNodes,
 } from "@/lib/server/storage-registry-store";
 import { listStorageDeliveryRequests } from "@/lib/server/storage-delivery-store";
+import { listStorageIngestJobs } from "@/lib/server/storage-ingest-store";
 import {
   forbiddenResponse,
   getShopApiAccess,
@@ -29,12 +30,13 @@ export async function GET(request: Request) {
     return forbiddenResponse();
   }
 
-  const [assets, bags, nodes, memberships, deliveryRequests, healthEvents] = await Promise.all([
+  const [assets, bags, nodes, memberships, deliveryRequests, ingestJobs, healthEvents] = await Promise.all([
     listStorageAssets(),
     listStorageBags(),
     listStorageNodes(),
     listStorageMemberships(),
     listStorageDeliveryRequests({ limit: 100 }),
+    listStorageIngestJobs({ limit: 100 }),
     listStorageHealthEvents(),
   ]);
 
@@ -44,6 +46,7 @@ export async function GET(request: Request) {
     nodes,
     memberships,
     deliveryRequests,
+    ingestJobs,
     healthEvents: healthEvents.slice(0, 100),
   });
 }

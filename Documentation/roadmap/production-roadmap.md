@@ -16,6 +16,7 @@
 
 - [`ТЗ C3K Storage Node`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/Мечты/ТЗ%20C3K%20Storage%20Node.md)
 - [`ТЗ C3K TON Site`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/Мечты/ТЗ%20C3K%20TON%20Site.md)
+- [`Sprint Board`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/sprint-board.md)
 - [`Project Status Checklist`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/project-status-checklist.md)
 
 ## Текущий статус реализации
@@ -31,6 +32,8 @@
   - web download
   - Telegram delivery request
 - release UI уже подключён к delivery API
+
+Операционная декомпозиция по спринтам теперь ведётся отдельно в [`sprint-board.md`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/sprint-board.md), чтобы этот файл оставался именно стратегическим.
 
 Это ещё не production-ready `TON Storage`, но уже production-shaped контур, который можно последовательно доводить до:
 

@@ -65,6 +65,15 @@ export type StorageDeliveryChannel =
 
 export type StorageDeliveryTargetType = "release" | "track";
 
+export type StorageIngestMode = "test_prepare";
+
+export type StorageIngestJobStatus =
+  | "queued"
+  | "processing"
+  | "prepared"
+  | "failed"
+  | "skipped";
+
 export type StorageDeliveryRequestStatus =
   | "requested"
   | "processing"
@@ -204,6 +213,29 @@ export interface StorageDeliveryState {
   updatedAt: string;
 }
 
+export interface StorageIngestJob {
+  id: string;
+  assetId: string;
+  bagId?: string;
+  mode: StorageIngestMode;
+  status: StorageIngestJobStatus;
+  requestedByTelegramUserId?: number;
+  storagePointer?: string;
+  message?: string;
+  attemptCount: number;
+  failureCode?: string;
+  failureMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface StorageIngestState {
+  jobs: Record<string, StorageIngestJob>;
+  updatedAt: string;
+}
+
 export interface StorageRegistryState {
   assets: Record<string, StorageAsset>;
   bags: Record<string, StorageBag>;
@@ -221,6 +253,7 @@ export interface StorageProgramSnapshot {
   desktopClientEnabled: boolean;
   tonSiteDesktopGatewayEnabled: boolean;
   telegramBotDeliveryEnabled: boolean;
+  testModeIngestEnabled: boolean;
   membership: StorageProgramMembership | null;
   nodeCount: number;
 }

@@ -177,3 +177,57 @@
   - `src/app/api/admin/artists/route.ts`
   - `src/app/api/admin/storage/sync-tracks/route.ts`
   - `src/app/admin/storage/page.tsx`
+
+### Sprint slice: test-mode ingest pipeline
+
+- Добавлен отдельный ingest state `storage_ingest_v1`:
+  - [src/lib/server/storage-ingest-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ingest-store.ts)
+- Добавлен server-side ingest orchestrator:
+  - [src/lib/server/storage-ingest.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ingest.ts)
+- Storage registry расширен bag file operations:
+  - [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts)
+- Добавлен admin route для запуска ingest:
+  - [src/app/api/admin/storage/ingest/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/ingest/route.ts)
+- Admin snapshot теперь включает ingest jobs:
+  - [src/app/api/admin/storage/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/route.ts)
+- Admin storage dashboard получил:
+  - action `Подготовить test bags`
+  - список ingest jobs
+  - отдельный ingest metric
+
+### Что делает test-mode ingest pipeline
+
+- выбирает storage assets, у которых ещё нет активного bag
+- создаёт ingest jobs и хранит их отдельной историей
+- подготавливает deterministic placeholder bag metadata
+- создаёт bag file entry для asset
+- не использует реальный `TON Storage` provider и не требует платных on-chain операций
+- оставляет `tonstorage://` pointer как runtime-shaped placeholder для следующего этапа
+
+### Зачем это добавлено именно сейчас
+
+- закрыт разрыв между `asset sync` и будущим реальным ingest runtime
+- storage registry стал похож на процесс, а не только на ручной реестр
+- admin получил управляемый test-only путь подготовки bags в бесплатной среде
+
+### Дополнительное обновление process/documentation слоя
+
+- roadmap layer разделён на:
+  - strategic roadmap
+  - sprint board
+  - product capability checklist
+- добавлен [sprint-board.md](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/sprint-board.md) как основной операционный документ по deliverables
+
+### Проверка test-mode ingest slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/types/storage.ts`
+  - `src/lib/storage-config.ts`
+  - `src/lib/server/storage-registry-store.ts`
+  - `src/lib/server/storage-ingest-store.ts`
+  - `src/lib/server/storage-ingest.ts`
+  - `src/app/api/admin/storage/route.ts`
+  - `src/app/api/admin/storage/ingest/route.ts`
+  - `src/lib/admin-api.ts`
+  - `src/app/admin/storage/page.tsx`

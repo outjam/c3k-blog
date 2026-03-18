@@ -26,6 +26,7 @@ import type {
   StorageBag,
   StorageDeliveryRequest,
   StorageHealthEvent,
+  StorageIngestJob,
   StorageNode,
   StorageProgramMembership,
   StorageProgramSnapshot,
@@ -91,6 +92,7 @@ export interface AdminStorageSnapshot {
   nodes: StorageNode[];
   memberships: StorageProgramMembership[];
   deliveryRequests: StorageDeliveryRequest[];
+  ingestJobs: StorageIngestJob[];
   healthEvents: StorageHealthEvent[];
 }
 
@@ -329,6 +331,59 @@ export const syncAdminStorageArtistTracks = async (payload?: {
       summaries: [],
       error: "Network error",
     };
+  }
+};
+
+export const runAdminStorageIngest = async (payload?: {
+  assetIds?: string[];
+  onlyMissingBags?: boolean;
+  limit?: number;
+}): Promise<
+  | {
+      ok: true;
+      queuedJobs: number;
+      processedJobs: number;
+      preparedJobs: number;
+      failedJobs: number;
+      reusedBags: number;
+      createdBags: number;
+      warningJobs: number;
+      selectedAssets: number;
+      skippedAssets: number;
+    }
+  | { ok: false; error: string }
+> => {
+  try {
+    const response = await fetch("/api/admin/storage/ingest", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload ?? {}),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: await parseApiError(response) };
+    }
+
+    return {
+      ok: true,
+      ...((await response.json()) as {
+        queuedJobs: number;
+        processedJobs: number;
+        preparedJobs: number;
+        failedJobs: number;
+        reusedBags: number;
+        createdBags: number;
+        warningJobs: number;
+        selectedAssets: number;
+        skippedAssets: number;
+      }),
+    };
+  } catch {
+    return { ok: false, error: "Network error" };
   }
 };
 

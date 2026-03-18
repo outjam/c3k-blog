@@ -57,6 +57,10 @@
 - Добавлены storage memberships, assets, bags и health view.
 - Реализована автоматическая синхронизация базовых storage assets из artist releases.
 - Добавлен admin backfill для повторной синхронизации релизов в storage registry.
+- Добавлен test-mode ingest pipeline:
+  - ingest jobs
+  - admin action для подготовки bags
+  - placeholder bag metadata без real TON Storage затрат
 
 ### Delivery layer
 
@@ -81,6 +85,10 @@
   - desktop gateway для `c3k.ton`
   - resource keys и delivery mapping
 - Добавлен project status checklist.
+- Отдельно выделен roadmap layer по уровням:
+  - strategic roadmap
+  - sprint board
+  - product capability status
 
 ## Темы, которые уже начали, но ещё не считаются завершёнными
 

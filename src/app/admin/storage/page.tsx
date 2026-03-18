@@ -9,6 +9,7 @@ import {
   fetchAdminSession,
   fetchAdminStorage,
   patchAdminStorageMembership,
+  runAdminStorageIngest,
   syncAdminStorageArtistTracks,
   type AdminSession,
   type AdminStorageSnapshot,
@@ -23,6 +24,7 @@ export default function AdminStoragePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [syncMessage, setSyncMessage] = useState("");
+  const [ingestMessage, setIngestMessage] = useState("");
   const [assetDraft, setAssetDraft] = useState({
     releaseSlug: "",
     trackId: "",
@@ -53,6 +55,7 @@ export default function AdminStoragePage() {
     >
   >({});
   const [syncingTracks, setSyncingTracks] = useState(false);
+  const [ingestingAssets, setIngestingAssets] = useState(false);
 
   const canView = Boolean(session?.permissions.includes("storage:view"));
   const canManage = Boolean(session?.permissions.includes("storage:manage"));
@@ -116,6 +119,7 @@ export default function AdminStoragePage() {
       nodes: snapshot?.nodes.length ?? 0,
       memberships: snapshot?.memberships.length ?? 0,
       deliveries: snapshot?.deliveryRequests.length ?? 0,
+      ingestJobs: snapshot?.ingestJobs.length ?? 0,
     };
   }, [snapshot]);
 
@@ -226,6 +230,7 @@ export default function AdminStoragePage() {
     setSyncingTracks(true);
     setError("");
     setSyncMessage("");
+    setIngestMessage("");
 
     const response = await syncAdminStorageArtistTracks();
 
@@ -237,6 +242,35 @@ export default function AdminStoragePage() {
     }
 
     setSyncMessage(`Синхронизировано релизов: ${response.syncedTracks}.`);
+    await load();
+  };
+
+  const ingestAssets = async () => {
+    setIngestingAssets(true);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await runAdminStorageIngest({
+      onlyMissingBags: true,
+      limit: 25,
+    });
+
+    setIngestingAssets(false);
+
+    if (!response.ok) {
+      setError(response.error);
+      return;
+    }
+
+    setIngestMessage(
+      [
+        `Выбрано assets: ${response.selectedAssets}`,
+        `prepared: ${response.preparedJobs}`,
+        `failed: ${response.failedJobs}`,
+        `reused bags: ${response.reusedBags}`,
+      ].join(" · "),
+    );
     await load();
   };
 
@@ -264,7 +298,7 @@ export default function AdminStoragePage() {
         <header className={styles.header}>
           <div>
             <h1>C3K Storage</h1>
-            <p>Storage registry, memberships, bags и health events.</p>
+            <p>Storage registry, memberships, test-mode ingest и delivery layer.</p>
           </div>
           <div className={styles.actions}>
             <button type="button" onClick={() => void load()}>
@@ -275,6 +309,11 @@ export default function AdminStoragePage() {
                 {syncingTracks ? "Синхронизация..." : "Синхронизировать релизы"}
               </button>
             ) : null}
+            {canManage ? (
+              <button type="button" onClick={() => void ingestAssets()} disabled={ingestingAssets}>
+                {ingestingAssets ? "Подготовка..." : "Подготовить test bags"}
+              </button>
+            ) : null}
             <Link href="/admin" className={styles.linkButton}>
               Админка
             </Link>
@@ -283,6 +322,7 @@ export default function AdminStoragePage() {
 
         {error ? <p className={styles.error}>{error}</p> : null}
         {syncMessage ? <p className={styles.success}>{syncMessage}</p> : null}
+        {ingestMessage ? <p className={styles.success}>{ingestMessage}</p> : null}
 
         <section className={styles.metrics}>
           <article>
@@ -304,6 +344,10 @@ export default function AdminStoragePage() {
           <article>
             <span>Deliveries</span>
             <strong>{metrics.deliveries}</strong>
+          </article>
+          <article>
+            <span>Ingest jobs</span>
+            <strong>{metrics.ingestJobs}</strong>
           </article>
         </section>
 
@@ -631,6 +675,29 @@ export default function AdminStoragePage() {
                   <span>
                     {bag.replicasActual} / {bag.replicasTarget}
                   </span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.block}>
+          <div className={styles.blockHeading}>
+            <h2>Ingest jobs</h2>
+          </div>
+          <div className={styles.list}>
+            {(snapshot?.ingestJobs ?? []).slice(0, 20).map((job) => (
+              <article key={job.id} className={styles.itemCard}>
+                <div className={styles.itemRow}>
+                  <strong>{job.id}</strong>
+                  <span>{job.status}</span>
+                </div>
+                <div className={styles.itemMeta}>
+                  <span>{job.assetId}</span>
+                  <span>{job.bagId || "bag pending"}</span>
+                  <span>{job.storagePointer || "pointer pending"}</span>
+                  <span>attempt {job.attemptCount}</span>
+                  <span>{job.message || job.failureMessage || "no details"}</span>
                 </div>
               </article>
             ))}

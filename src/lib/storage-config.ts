@@ -39,11 +39,17 @@ export const C3K_STORAGE_TELEGRAM_BOT_DELIVERY_ENABLED = parseBooleanFlag(
   false,
 );
 
+export const C3K_STORAGE_TEST_MODE_INGEST_ENABLED = parseBooleanFlag(
+  process.env.C3K_STORAGE_TEST_MODE_INGEST_ENABLED,
+  process.env.NODE_ENV !== "production",
+);
+
 export const getC3kStorageConfig = () => {
   return {
     enabled: C3K_STORAGE_ENABLED,
     desktopClientEnabled: C3K_STORAGE_DESKTOP_CLIENT_ENABLED,
     tonSiteDesktopGatewayEnabled: C3K_TON_SITE_DESKTOP_GATEWAY_ENABLED,
     telegramBotDeliveryEnabled: C3K_STORAGE_TELEGRAM_BOT_DELIVERY_ENABLED,
+    testModeIngestEnabled: C3K_STORAGE_TEST_MODE_INGEST_ENABLED,
   };
 };
