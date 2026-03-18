@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistTrack } from "@/types/shop";
 
@@ -312,7 +313,30 @@ export async function POST(request: Request) {
     .filter((track) => track.artistTelegramUserId === auth.telegramUserId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
-  return NextResponse.json({ track: created ?? null });
+  let storageSync:
+    | {
+        ok: true;
+        summary: Awaited<ReturnType<typeof syncStorageAssetsForArtistTrack>>;
+      }
+    | {
+        ok: false;
+        error: string;
+      }
+    | null = null;
+
+  if (created) {
+    try {
+      const summary = await syncStorageAssetsForArtistTrack(created);
+      storageSync = { ok: true, summary };
+    } catch (error) {
+      storageSync = {
+        ok: false,
+        error: error instanceof Error ? error.message : "storage_sync_failed",
+      };
+    }
+  }
+
+  return NextResponse.json({ track: created ?? null, storageSync });
 }
 
 export async function PATCH(request: Request) {
@@ -409,5 +433,30 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Failed to update track" }, { status: 500 });
   }
 
-  return NextResponse.json({ track: updated.artistTracks[trackId] ?? null });
+  const nextTrack = updated.artistTracks[trackId] ?? null;
+
+  let storageSync:
+    | {
+        ok: true;
+        summary: Awaited<ReturnType<typeof syncStorageAssetsForArtistTrack>>;
+      }
+    | {
+        ok: false;
+        error: string;
+      }
+    | null = null;
+
+  if (nextTrack) {
+    try {
+      const summary = await syncStorageAssetsForArtistTrack(nextTrack);
+      storageSync = { ok: true, summary };
+    } catch (error) {
+      storageSync = {
+        ok: false,
+        error: error instanceof Error ? error.message : "storage_sync_failed",
+      };
+    }
+  }
+
+  return NextResponse.json({ track: nextTrack, storageSync });
 }

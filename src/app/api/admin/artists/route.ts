@@ -7,6 +7,7 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
+import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistProfile, ArtistTrack } from "@/types/shop";
 
@@ -260,7 +261,33 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Failed to update track" }, { status: 500 });
   }
 
+  const nextTrack = updated.artistTracks[trackId] ?? null;
+
+  let storageSync:
+    | {
+        ok: true;
+        summary: Awaited<ReturnType<typeof syncStorageAssetsForArtistTrack>>;
+      }
+    | {
+        ok: false;
+        error: string;
+      }
+    | null = null;
+
+  if (nextTrack) {
+    try {
+      const summary = await syncStorageAssetsForArtistTrack(nextTrack);
+      storageSync = { ok: true, summary };
+    } catch (error) {
+      storageSync = {
+        ok: false,
+        error: error instanceof Error ? error.message : "storage_sync_failed",
+      };
+    }
+  }
+
   return NextResponse.json({
-    track: updated.artistTracks[trackId] ?? null,
+    track: nextTrack,
+    storageSync,
   });
 }

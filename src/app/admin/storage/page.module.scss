@@ -72,6 +72,11 @@
   color: var(--tg-destructive-text);
 }
 
+.success {
+  margin: 0;
+  color: color-mix(in srgb, var(--tg-accent) 80%, var(--tg-text));
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

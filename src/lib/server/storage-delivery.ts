@@ -1,5 +1,10 @@
 import { getDefaultTrackFormat, getTrackFormats, isArtistAudioFormat } from "@/lib/shop-release-format";
 import { getC3kStorageConfig } from "@/lib/storage-config";
+import {
+  buildReleaseDeliveryResourceKey,
+  buildTrackDeliveryResourceKey,
+  inferAudioMimeType,
+} from "@/lib/storage-resource-key";
 import { getSocialUserSnapshot } from "@/lib/server/social-user-state-store";
 import {
   listStorageAssets,
@@ -41,19 +46,6 @@ export type StorageDeliveryServiceResult =
       message: string;
       request?: StorageDeliveryRequest;
     };
-
-const DELIVERY_MIME_BY_FORMAT: Record<string, string> = {
-  aac: "audio/aac",
-  alac: "audio/mp4",
-  flac: "audio/flac",
-  html_bundle: "application/zip",
-  json: "application/json",
-  mp3: "audio/mpeg",
-  ogg: "audio/ogg",
-  png: "image/png",
-  wav: "audio/wav",
-  zip: "application/zip",
-};
 
 const BAG_STATUS_PRIORITY: Record<StorageBag["status"], number> = {
   healthy: 6,
@@ -99,21 +91,6 @@ const normalizeTelegramUserId = (value: unknown): number => {
 
 const buildTrackKey = (releaseSlug: string, trackId: string): string => {
   return `${releaseSlug}::${trackId}`;
-};
-
-export const buildReleaseDeliveryResourceKey = (
-  releaseSlug: string,
-  format: ArtistAudioFormat,
-): string => {
-  return `release:${releaseSlug}:${format}`;
-};
-
-export const buildTrackDeliveryResourceKey = (
-  releaseSlug: string,
-  trackId: string,
-  format: ArtistAudioFormat,
-): string => {
-  return `track:${releaseSlug}:${trackId}:${format}`;
 };
 
 const getOwnedReleaseFormats = (
@@ -268,7 +245,22 @@ const inferMimeType = (
   resolvedFormat: ArtistAudioFormat,
   asset?: StorageAsset | null,
 ): string => {
-  return asset?.mimeType ?? DELIVERY_MIME_BY_FORMAT[asset?.format ?? resolvedFormat] ?? "application/octet-stream";
+  if (asset?.mimeType) {
+    return asset.mimeType;
+  }
+
+  switch (asset?.format) {
+    case "zip":
+      return "application/zip";
+    case "json":
+      return "application/json";
+    case "png":
+      return "image/png";
+    case "html_bundle":
+      return "application/zip";
+    default:
+      return inferAudioMimeType(resolvedFormat);
+  }
 };
 
 const resolveTrackAudioFileId = (

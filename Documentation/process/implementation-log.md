@@ -139,3 +139,41 @@
   - `src/app/storage/page.tsx`
   - `src/lib/storage-delivery-api.ts`
   - `src/app/api/storage/downloads/route.ts`
+
+### Sprint slice: auto-sync storage assets from artist releases
+
+- Добавлен общий helper для storage resource keys и source-url resolution:
+  - [src/lib/storage-resource-key.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/storage-resource-key.ts)
+- Добавлен server-side sync service:
+  - [src/lib/server/storage-asset-sync.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-asset-sync.ts)
+- Artist release create/update теперь автоматически синхронизируют базовые storage assets:
+  - [src/app/api/shop/artists/me/tracks/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/tracks/route.ts)
+- Artist moderation route тоже запускает sync после изменения релиза:
+  - [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+- Добавлен admin backfill route:
+  - [src/app/api/admin/storage/sync-tracks/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/sync-tracks/route.ts)
+- Добавлен admin action для ручной синхронизации релизов:
+  - [src/app/admin/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx)
+
+### Что именно делает auto-sync
+
+- создаёт deterministic storage assets для release-level master files по форматам релиза
+- создаёт preview asset, если у релиза есть доступный preview URL
+- обновляет `resourceKey`, `audioFileId`, `sourceUrl`, `fileName`, `mimeType`
+- удаляет stale auto-managed assets, если они больше не нужны и не привязаны к bag
+
+### Ограничение текущего sprint slice
+
+- auto-sync пока не создаёт полноценные track-level purchased assets для multi-track релизов
+- текущий слой закрывает базовый release-level mapping и подготавливает почву для ingest pipeline
+
+### Проверка sprint slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/storage-resource-key.ts`
+  - `src/lib/server/storage-asset-sync.ts`
+  - `src/app/api/shop/artists/me/tracks/route.ts`
+  - `src/app/api/admin/artists/route.ts`
+  - `src/app/api/admin/storage/sync-tracks/route.ts`
+  - `src/app/admin/storage/page.tsx`

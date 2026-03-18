@@ -269,6 +269,69 @@ export const createAdminStorageBag = async (payload: {
   }
 };
 
+export const syncAdminStorageArtistTracks = async (payload?: {
+  trackId?: string;
+}): Promise<{
+  ok: boolean;
+  syncedTracks: number;
+  summaries: Array<{
+    trackId: string;
+    releaseSlug: string;
+    upsertedAssetIds: string[];
+    deletedAssetIds: string[];
+    skippedDeleteAssetIds: string[];
+    desiredAssetCount: number;
+  }>;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/storage/sync-tracks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload ?? {}),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        syncedTracks: 0,
+        summaries: [],
+        error: await parseApiError(response),
+      };
+    }
+
+    const data = (await response.json()) as {
+      ok?: boolean;
+      syncedTracks?: number;
+      summaries?: Array<{
+        trackId: string;
+        releaseSlug: string;
+        upsertedAssetIds: string[];
+        deletedAssetIds: string[];
+        skippedDeleteAssetIds: string[];
+        desiredAssetCount: number;
+      }>;
+    };
+
+    return {
+      ok: Boolean(data.ok),
+      syncedTracks: Math.max(0, Math.round(Number(data.syncedTracks ?? 0))),
+      summaries: Array.isArray(data.summaries) ? data.summaries : [],
+    };
+  } catch {
+    return {
+      ok: false,
+      syncedTracks: 0,
+      summaries: [],
+      error: "Network error",
+    };
+  }
+};
+
 export const patchAdminStorageMembership = async (payload: {
   telegramUserId: number;
   status?: StorageProgramMembership["status"];

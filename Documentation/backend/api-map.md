@@ -151,6 +151,8 @@
 - `/api/admin/artist-payouts`
   - список payout requests
   - approve / reject / paid
+- `/api/admin/storage/sync-tracks`
+  - backfill и повторная синхронизация storage assets из artist releases
 
 ### Shop operations
 
@@ -186,7 +188,22 @@
 - `/api/wallet/topup/invoice`
   - top-up related invoice flow
 
-## 11. Tools
+## 11. Storage program and delivery
+
+- `/api/storage/program/me`
+  - snapshot участия в `C3K Storage`
+- `/api/storage/program/join`
+  - подача заявки в storage program
+- `/api/storage/downloads`
+  - список собственных delivery requests пользователя
+- `/api/storage/downloads/release`
+  - запрос выдачи файла полного релиза
+- `/api/storage/downloads/track`
+  - запрос выдачи файла отдельного трека
+- `/api/storage/downloads/[id]`
+  - статус конкретного delivery request
+
+## 12. Tools
 
 - `/api/tools/track-cover/search`
 - `/api/tools/track-cover/profile-audios`
@@ -194,7 +211,7 @@
 
 Это служебный контур для контентных инструментов.
 
-## 12. Что важно про API-дизайн
+## 13. Что важно про API-дизайн
 
 ### Хорошо
 

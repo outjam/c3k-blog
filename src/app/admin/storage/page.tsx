@@ -9,6 +9,7 @@ import {
   fetchAdminSession,
   fetchAdminStorage,
   patchAdminStorageMembership,
+  syncAdminStorageArtistTracks,
   type AdminSession,
   type AdminStorageSnapshot,
 } from "@/lib/admin-api";
@@ -21,6 +22,7 @@ export default function AdminStoragePage() {
   const [snapshot, setSnapshot] = useState<AdminStorageSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
   const [assetDraft, setAssetDraft] = useState({
     releaseSlug: "",
     trackId: "",
@@ -50,6 +52,7 @@ export default function AdminStoragePage() {
       }
     >
   >({});
+  const [syncingTracks, setSyncingTracks] = useState(false);
 
   const canView = Boolean(session?.permissions.includes("storage:view"));
   const canManage = Boolean(session?.permissions.includes("storage:manage"));
@@ -219,6 +222,24 @@ export default function AdminStoragePage() {
     await load();
   };
 
+  const syncTracks = async () => {
+    setSyncingTracks(true);
+    setError("");
+    setSyncMessage("");
+
+    const response = await syncAdminStorageArtistTracks();
+
+    setSyncingTracks(false);
+
+    if (!response.ok) {
+      setError(response.error ?? "Не удалось синхронизировать релизы артистов.");
+      return;
+    }
+
+    setSyncMessage(`Синхронизировано релизов: ${response.syncedTracks}.`);
+    await load();
+  };
+
   if (loading) {
     return <div className={styles.page}>Загрузка storage dashboard...</div>;
   }
@@ -249,6 +270,11 @@ export default function AdminStoragePage() {
             <button type="button" onClick={() => void load()}>
               Обновить
             </button>
+            {canManage ? (
+              <button type="button" onClick={() => void syncTracks()} disabled={syncingTracks}>
+                {syncingTracks ? "Синхронизация..." : "Синхронизировать релизы"}
+              </button>
+            ) : null}
             <Link href="/admin" className={styles.linkButton}>
               Админка
             </Link>
@@ -256,6 +282,7 @@ export default function AdminStoragePage() {
         </header>
 
         {error ? <p className={styles.error}>{error}</p> : null}
+        {syncMessage ? <p className={styles.success}>{syncMessage}</p> : null}
 
         <section className={styles.metrics}>
           <article>

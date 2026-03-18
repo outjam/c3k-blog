@@ -16,6 +16,7 @@
 
 - [`ТЗ C3K Storage Node`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/Мечты/ТЗ%20C3K%20Storage%20Node.md)
 - [`ТЗ C3K TON Site`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/Мечты/ТЗ%20C3K%20TON%20Site.md)
+- [`Project Status Checklist`](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/roadmap/project-status-checklist.md)
 
 ## Текущий статус реализации
 

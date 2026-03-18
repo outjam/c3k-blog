@@ -840,6 +840,39 @@ export const upsertStorageBag = async (input: {
   return next?.bags[id] ?? null;
 };
 
+export const deleteStorageAssetsByIds = async (ids: string[]): Promise<string[]> => {
+  const normalizedIds = Array.from(
+    new Set(
+      ids
+        .map((entry) => normalizeSafeId(entry, 120))
+        .filter(Boolean),
+    ),
+  );
+
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
+  const next = await mutateState((current) => {
+    const assets = { ...current.assets };
+
+    normalizedIds.forEach((id) => {
+      delete assets[id];
+    });
+
+    return {
+      ...current,
+      assets,
+    };
+  });
+
+  if (!next) {
+    return [];
+  }
+
+  return normalizedIds.filter((id) => !next.assets[id]);
+};
+
 export const updateStorageMembership = async (input: {
   telegramUserId: number;
   status?: StorageProgramMembership["status"];
