@@ -4,6 +4,12 @@
 
 ## 2026-03-19
 
+### Batched sync для admin storage
+
+- `/api/admin/storage/sync-tracks` больше не синхронизирует весь каталог одним длинным прогоном.
+- Sync разбит на батчи с cursor-based проходом и per-track error summary.
+- Кнопка в storage dashboard теперь последовательно прогоняет весь sync батчами и не падает целиком из-за одного проблемного релиза.
+
 ### Migration-safe payment и storage sync
 
 - Telegram payment webhook перестал зависеть только от legacy `artistTracks`:

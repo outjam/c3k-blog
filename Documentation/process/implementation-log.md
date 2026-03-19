@@ -2,6 +2,26 @@
 
 ## 2026-03-19
 
+### Sprint 09 bugfix: batched admin storage sync
+
+- [admin storage sync route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/sync-tracks/route.ts) переведён на batched sync с `cursorTrackId` и `limit`
+- route больше не валит весь sync из-за одного проблемного релиза:
+  - каждый track sync оборачивается в per-track error summary
+  - ответ возвращает `processedTracks`, `failedTracks`, `remainingTracks`, `nextCursorTrackId`
+- [admin client helper](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) расширен под batched response
+- [admin storage page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь автоматически прогоняет sync батчами по `40` релизов
+
+### Зачем это сделано
+
+- `POST /api/admin/storage/sync-tracks` мог отвечать `500` на большом каталоге из-за слишком длинного прогона в одном request
+- один битый релиз или конфликт записи не должен валить весь operator action
+- batched sync лучше соответствует реальному размеру каталога и serverless-ограничениям
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по admin storage route/page/api
+
 ### Дополнительный sprint slice: migration-safe payout and storage sync
 
 - [telegram webhook](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/webhook/route.ts) теперь перед начислением artist earnings подгружает fallback artist catalog через merge-store

@@ -545,9 +545,16 @@ export const createAdminStorageBag = async (payload: {
 
 export const syncAdminStorageArtistTracks = async (payload?: {
   trackId?: string;
+  cursorTrackId?: string;
+  limit?: number;
 }): Promise<{
   ok: boolean;
+  processedTracks: number;
   syncedTracks: number;
+  failedTracks: number;
+  totalCandidateTracks: number;
+  remainingTracks: number;
+  nextCursorTrackId: string | null;
   summaries: Array<{
     trackId: string;
     releaseSlug: string;
@@ -555,6 +562,7 @@ export const syncAdminStorageArtistTracks = async (payload?: {
     deletedAssetIds: string[];
     skippedDeleteAssetIds: string[];
     desiredAssetCount: number;
+    error?: string;
   }>;
   error?: string;
 }> => {
@@ -572,7 +580,12 @@ export const syncAdminStorageArtistTracks = async (payload?: {
     if (!response.ok) {
       return {
         ok: false,
+        processedTracks: 0,
         syncedTracks: 0,
+        failedTracks: 0,
+        totalCandidateTracks: 0,
+        remainingTracks: 0,
+        nextCursorTrackId: null,
         summaries: [],
         error: await parseApiError(response),
       };
@@ -580,7 +593,12 @@ export const syncAdminStorageArtistTracks = async (payload?: {
 
     const data = (await response.json()) as {
       ok?: boolean;
+      processedTracks?: number;
       syncedTracks?: number;
+      failedTracks?: number;
+      totalCandidateTracks?: number;
+      remainingTracks?: number;
+      nextCursorTrackId?: string | null;
       summaries?: Array<{
         trackId: string;
         releaseSlug: string;
@@ -588,18 +606,32 @@ export const syncAdminStorageArtistTracks = async (payload?: {
         deletedAssetIds: string[];
         skippedDeleteAssetIds: string[];
         desiredAssetCount: number;
+        error?: string;
       }>;
     };
 
     return {
       ok: Boolean(data.ok),
+      processedTracks: Math.max(0, Math.round(Number(data.processedTracks ?? 0))),
       syncedTracks: Math.max(0, Math.round(Number(data.syncedTracks ?? 0))),
+      failedTracks: Math.max(0, Math.round(Number(data.failedTracks ?? 0))),
+      totalCandidateTracks: Math.max(0, Math.round(Number(data.totalCandidateTracks ?? 0))),
+      remainingTracks: Math.max(0, Math.round(Number(data.remainingTracks ?? 0))),
+      nextCursorTrackId:
+        typeof data.nextCursorTrackId === "string" && data.nextCursorTrackId.trim()
+          ? data.nextCursorTrackId.trim()
+          : null,
       summaries: Array.isArray(data.summaries) ? data.summaries : [],
     };
   } catch {
     return {
       ok: false,
+      processedTracks: 0,
       syncedTracks: 0,
+      failedTracks: 0,
+      totalCandidateTracks: 0,
+      remainingTracks: 0,
+      nextCursorTrackId: null,
       summaries: [],
       error: "Network error",
     };

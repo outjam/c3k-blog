@@ -232,16 +232,52 @@ export default function AdminStoragePage() {
     setSyncMessage("");
     setIngestMessage("");
 
-    const response = await syncAdminStorageArtistTracks();
+    let cursorTrackId: string | undefined;
+    let processedTracks = 0;
+    let syncedTracks = 0;
+    let failedTracks = 0;
+    let totalCandidateTracks = 0;
+    let fatalError = "";
+    let attempts = 0;
+
+    while (attempts < 200) {
+      attempts += 1;
+      const response = await syncAdminStorageArtistTracks({
+        cursorTrackId,
+        limit: 40,
+      });
+
+      if (response.error) {
+        fatalError = response.error;
+        break;
+      }
+
+      processedTracks += response.processedTracks;
+      syncedTracks += response.syncedTracks;
+      failedTracks += response.failedTracks;
+      totalCandidateTracks = Math.max(totalCandidateTracks, response.totalCandidateTracks);
+
+      if (!response.nextCursorTrackId || response.remainingTracks <= 0 || response.processedTracks === 0) {
+        break;
+      }
+
+      cursorTrackId = response.nextCursorTrackId;
+    }
 
     setSyncingTracks(false);
 
-    if (!response.ok) {
-      setError(response.error ?? "Не удалось синхронизировать релизы артистов.");
+    if (fatalError) {
+      setError(fatalError);
       return;
     }
 
-    setSyncMessage(`Синхронизировано релизов: ${response.syncedTracks}.`);
+    if (failedTracks > 0) {
+      setSyncMessage(
+        `Sync завершён частично: обновлено ${syncedTracks} из ${processedTracks || totalCandidateTracks}, ошибок ${failedTracks}.`,
+      );
+    } else {
+      setSyncMessage(`Синхронизировано релизов: ${syncedTracks}${totalCandidateTracks ? ` из ${totalCandidateTracks}` : ""}.`);
+    }
     await load();
   };
 
@@ -326,7 +362,7 @@ export default function AdminStoragePage() {
             <strong>Сначала синхронизация релизов</strong>
             <p>
               Кнопка `Синхронизировать релизы` собирает storage-assets из артист-релизов. Это первый шаг после добавления
-              новых релизов или изменения их файлов.
+              новых релизов или изменения их файлов. Sync идёт батчами, чтобы большой каталог не падал по timeout.
             </p>
           </article>
           <article className={styles.guideCard}>

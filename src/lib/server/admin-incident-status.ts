@@ -9,7 +9,7 @@ import {
   isTonOnchainNftMintEnabled,
   resolveTonNftCollectionAddress,
 } from "@/lib/server/ton-nft-reference";
-import type { ShopOrder, StorageDeliveryRequest, StorageIngestJob } from "@/types/shop";
+import type { ShopOrder, ArtistPayoutRequest } from "@/types/shop";
 import type {
   AdminIncidentEntry,
   AdminIncidentSection,
@@ -17,7 +17,7 @@ import type {
   AdminIncidentSeverity,
   AdminIncidentStatusSnapshot,
 } from "@/types/admin";
-import type { ArtistPayoutRequest } from "@/types/shop";
+import type { StorageDeliveryRequest, StorageIngestJob } from "@/types/storage";
 
 const RECENT_PAYMENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const PAYMENT_PENDING_STALE_MS = 2 * 60 * 60 * 1000;

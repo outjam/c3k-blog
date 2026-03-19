@@ -100,3 +100,10 @@
 - админка получила визуально выделенный primary-action для полного cutover
 - студия стала яснее показывать financial state и источники данных
 - библиотека файлов получила более понятный delivery UI, чтобы storage/download states соответствовали текущей backend-логике
+
+## Bugfix по admin storage sync
+
+- зафиксирован `500` на `/api/admin/storage/sync-tracks`
+- sync route был слишком хрупким для большого каталога: один длинный прогон и один проблемный релиз могли валить весь action
+- route переведён на batched sync с `cursorTrackId`
+- admin storage UI теперь сам проходит несколько батчей подряд и показывает частичный итог вместо общего падения
