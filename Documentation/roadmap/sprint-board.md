@@ -192,6 +192,8 @@ Status: current
 - [x] Нормализованные таблицы и merge-store для `artist_donations` и `artist_subscriptions`
 - [x] Ledger-first finance read model для artist self-service routes и studio/profile summary
 - [x] Write-side finance overlay для order webhook и payout moderation без инкрементальной правды в profile counters
+- [x] Payment webhook и storage sync routes теперь умеют гидрировать artist catalog из merge-store, если legacy `artistTracks` ещё не догнался
+- [x] Artist self-service и admin moderation routes теперь гидрируют `artist_profiles`, `artist_tracks` и `artist_applications` в config перед mutation path
 - [x] Admin migration status по доменам: source, legacy/postgres counts, coverage и cutover readiness
 - [x] Отдельный admin UX/design slice: человеческие пояснения по вкладкам, backfill-кнопкам, artist moderation и storage dashboard
 - [ ] Полный ledger-first finance model

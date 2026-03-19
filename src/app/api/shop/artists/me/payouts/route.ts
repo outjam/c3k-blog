@@ -7,6 +7,7 @@ import {
   ARTIST_PAYOUT_MIN_STARS_CENTS,
   applyArtistFinanceOverlay,
   buildArtistPayoutSummary,
+  hydrateArtistFinanceStateInConfig,
 } from "@/lib/server/shop-artist-studio";
 import {
   readArtistFinanceSnapshot,
@@ -146,8 +147,13 @@ export async function POST(request: Request) {
   const requestId = `artist-payout-${auth.telegramUserId}-${Date.now()}`;
   const auditEntryId = `artist-payout-audit-${requestId}-requested`;
   const updated = await mutateShopAdminConfig((current) => {
+    const hydratedCurrent = hydrateArtistFinanceStateInConfig(current, {
+      earnings: finance.earnings,
+      requests: finance.payoutRequests,
+      auditEntries: finance.payoutAuditEntries,
+    });
     const currentProfile =
-      current.artistProfiles[String(auth.telegramUserId)] ??
+      hydratedCurrent.artistProfiles[String(auth.telegramUserId)] ??
       (profile
         ? {
             ...profile,
@@ -163,13 +169,13 @@ export async function POST(request: Request) {
     const overlayProfile =
       applyArtistFinanceOverlay({
         profile: currentProfile,
-        earnings: current.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
-        requests: current.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+        earnings: hydratedCurrent.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+        requests: hydratedCurrent.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
       }) ?? currentProfile;
     const currentPayoutSummary = buildArtistPayoutSummary({
       profile: overlayProfile,
-      earnings: current.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
-      requests: current.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+      earnings: hydratedCurrent.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+      requests: hydratedCurrent.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
     });
 
     if (!overlayProfile.tonWalletAddress) {
@@ -212,9 +218,9 @@ export async function POST(request: Request) {
     };
 
     return {
-      ...current,
-      artistPayoutRequests: [requestRecord, ...current.artistPayoutRequests].slice(0, 5000),
-      artistPayoutAuditLog: [auditEntry, ...current.artistPayoutAuditLog].slice(0, 20000),
+      ...hydratedCurrent,
+      artistPayoutRequests: [requestRecord, ...hydratedCurrent.artistPayoutRequests].slice(0, 5000),
+      artistPayoutAuditLog: [auditEntry, ...hydratedCurrent.artistPayoutAuditLog].slice(0, 20000),
       updatedAt: now,
     };
   }).catch((error: unknown) => {

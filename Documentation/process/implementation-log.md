@@ -2,6 +2,47 @@
 
 ## 2026-03-19
 
+### Дополнительный sprint slice: migration-safe payout and storage sync
+
+- [telegram webhook](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/webhook/route.ts) теперь перед начислением artist earnings подгружает fallback artist catalog через merge-store
+- это закрывает реальный migration-risk: релиз уже есть в Postgres, но legacy `artistTracks` ещё не догнался, а значит payout мог не начислиться
+- [admin storage sync](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/sync-tracks/route.ts) теперь тоже читает merged artist tracks, а не только `config.artistTracks`
+- [shop-artist-market.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-market.ts) расширен fallback-hydration для `artistProfiles` и `artistTracks` в payment flow
+
+### Зачем это сделано
+
+- уменьшен риск потери artist earnings в переходный период между `app_state` и `Postgres`
+- storage sync стал устойчивее к migration drift
+- cutover стал ближе не только на read side, но и на боевых mutation routes
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по webhook/storage-sync/artist-market
+
+### Дополнительный sprint slice: artist-domain hydration before mutation
+
+- [artist-catalog-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-store.ts) получил `hydrateArtistCatalogStateInConfig(...)`
+- [artist-application-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-application-store.ts) получил `hydrateArtistApplicationsInConfig(...)`
+- это подключено в self-service artist routes:
+  - [me profile](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+  - [me application](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/application/route.ts)
+  - [me tracks](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/tracks/route.ts)
+- и в admin moderation routes:
+  - [admin artist applications](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-applications/route.ts)
+  - [admin artists](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+
+### Зачем это сделано
+
+- mutation routes перестали полагаться только на наличие записи в legacy JSON
+- если профиль, релиз или заявка уже живут в Postgres, route сначала гидрирует это состояние в config, а потом применяет изменение
+- это сокращает ещё один класс migration-bugs при частичном cutover artist-domain
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по artist store и artist routes
+
 ### Дополнительный sprint slice: admin UX and operator clarity
 
 - Основная admin-панель получила:

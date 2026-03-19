@@ -315,3 +315,37 @@ export const upsertArtistSubscriptions = async (entries: ArtistSubscription[]): 
 
   return result !== null;
 };
+
+export const hydrateArtistSupportStateInConfig = (
+  config: ShopAdminConfig,
+  input: {
+    donations?: ArtistDonation[];
+    subscriptions?: ArtistSubscription[];
+  },
+): ShopAdminConfig => {
+  const nextDonations = new Map(config.artistDonations.map((entry) => [entry.id, entry]));
+  const nextSubscriptions = new Map(config.artistSubscriptions.map((entry) => [entry.id, entry]));
+  let changed = false;
+
+  (input.donations ?? []).forEach((entry) => {
+    if (!nextDonations.has(entry.id)) {
+      nextDonations.set(entry.id, entry);
+      changed = true;
+    }
+  });
+
+  (input.subscriptions ?? []).forEach((entry) => {
+    if (!nextSubscriptions.has(entry.id)) {
+      nextSubscriptions.set(entry.id, entry);
+      changed = true;
+    }
+  });
+
+  return changed
+    ? {
+        ...config,
+        artistDonations: sortDonations(Array.from(nextDonations.values())),
+        artistSubscriptions: sortSubscriptions(Array.from(nextSubscriptions.values())),
+      }
+    : config;
+};

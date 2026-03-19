@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { readArtistApplicationSnapshot } from "@/lib/server/artist-application-store";
-import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
+import { readArtistCatalogSnapshot, hydrateArtistCatalogStateInConfig, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { readArtistSupportSnapshot } from "@/lib/server/artist-support-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
@@ -191,7 +191,10 @@ export async function POST(request: Request) {
   const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const existing = current.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
+    const hydratedCurrent = hydrateArtistCatalogStateInConfig(current, {
+      profiles: fallbackProfile ? [fallbackProfile] : [],
+    });
+    const existing = hydratedCurrent.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
     if (!existing) {
       throw new Error("artist_application_required");
     }
@@ -227,9 +230,9 @@ export async function POST(request: Request) {
     };
 
     return {
-      ...current,
+      ...hydratedCurrent,
       artistProfiles: {
-        ...current.artistProfiles,
+        ...hydratedCurrent.artistProfiles,
         [String(auth.telegramUserId)]: profile,
       },
       updatedAt: now,

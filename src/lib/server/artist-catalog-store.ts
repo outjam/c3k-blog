@@ -642,3 +642,38 @@ export const upsertArtistTracks = async (tracks: ArtistTrack[]): Promise<boolean
 
   return result !== null;
 };
+
+export const hydrateArtistCatalogStateInConfig = (
+  config: ShopAdminConfig,
+  input: {
+    profiles?: ArtistProfile[];
+    tracks?: ArtistTrack[];
+  },
+): ShopAdminConfig => {
+  const nextProfiles = { ...config.artistProfiles };
+  const nextTracks = { ...config.artistTracks };
+  let changed = false;
+
+  (input.profiles ?? []).forEach((profile) => {
+    const key = String(profile.telegramUserId);
+    if (!nextProfiles[key]) {
+      nextProfiles[key] = profile;
+      changed = true;
+    }
+  });
+
+  (input.tracks ?? []).forEach((track) => {
+    if (!nextTracks[track.id]) {
+      nextTracks[track.id] = track;
+      changed = true;
+    }
+  });
+
+  return changed
+    ? {
+        ...config,
+        artistProfiles: nextProfiles,
+        artistTracks: nextTracks,
+      }
+    : config;
+};

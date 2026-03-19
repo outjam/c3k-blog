@@ -1,5 +1,6 @@
 import type {
   ArtistEarningLedgerEntry,
+  ArtistPayoutAuditEntry,
   ArtistPayoutRequest,
   ArtistPayoutSummary,
   ArtistProfile,
@@ -168,4 +169,44 @@ export const syncArtistFinanceCountersInConfig = (
         artistProfiles: nextProfiles,
       }
     : config;
+};
+
+const mergeById = <T extends { id: string }>(primary: T[], fallback: T[]): T[] => {
+  const entries = new Map<string, T>();
+
+  [...primary, ...fallback].forEach((entry) => {
+    if (!entries.has(entry.id)) {
+      entries.set(entry.id, entry);
+    }
+  });
+
+  return Array.from(entries.values());
+};
+
+export const hydrateArtistFinanceStateInConfig = (
+  config: ShopAdminConfig,
+  input: {
+    earnings?: ArtistEarningLedgerEntry[];
+    requests?: ArtistPayoutRequest[];
+    auditEntries?: ArtistPayoutAuditEntry[];
+  },
+): ShopAdminConfig => {
+  const nextEarnings = input.earnings ? mergeById(config.artistEarningsLedger, input.earnings) : config.artistEarningsLedger;
+  const nextRequests = input.requests ? mergeById(config.artistPayoutRequests, input.requests) : config.artistPayoutRequests;
+  const nextAuditEntries = input.auditEntries ? mergeById(config.artistPayoutAuditLog, input.auditEntries) : config.artistPayoutAuditLog;
+
+  if (
+    nextEarnings.length === config.artistEarningsLedger.length &&
+    nextRequests.length === config.artistPayoutRequests.length &&
+    nextAuditEntries.length === config.artistPayoutAuditLog.length
+  ) {
+    return config;
+  }
+
+  return {
+    ...config,
+    artistEarningsLedger: nextEarnings,
+    artistPayoutRequests: nextRequests,
+    artistPayoutAuditLog: nextAuditEntries,
+  };
 };

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
-import { readArtistApplicationSnapshot, upsertArtistApplications } from "@/lib/server/artist-application-store";
+import { readArtistCatalogSnapshot, hydrateArtistCatalogStateInConfig } from "@/lib/server/artist-catalog-store";
+import { readArtistApplicationSnapshot, hydrateArtistApplicationsInConfig, upsertArtistApplications } from "@/lib/server/artist-application-store";
 import { notifyAdminsAboutArtistApplication } from "@/lib/server/shop-artist-notify";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
@@ -118,12 +118,18 @@ export async function POST(request: Request) {
   const fallbackApplication = applicationsSnapshot.applications[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const existingProfile = current.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
+    const hydratedCurrent = hydrateArtistApplicationsInConfig(
+      hydrateArtistCatalogStateInConfig(current, {
+        profiles: fallbackProfile ? [fallbackProfile] : [],
+      }),
+      fallbackApplication ? [fallbackApplication] : [],
+    );
+    const existingProfile = hydratedCurrent.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
     if (existingProfile?.status === "approved") {
       throw new Error("already_approved");
     }
 
-    const existing = current.artistApplications[String(auth.telegramUserId)] ?? fallbackApplication;
+    const existing = hydratedCurrent.artistApplications[String(auth.telegramUserId)] ?? fallbackApplication;
     const application: ArtistApplication = {
       id: existing?.id || `artist-application-${auth.telegramUserId}`,
       telegramUserId: auth.telegramUserId,
@@ -142,9 +148,9 @@ export async function POST(request: Request) {
     };
 
     return {
-      ...current,
+      ...hydratedCurrent,
       artistApplications: {
-        ...current.artistApplications,
+        ...hydratedCurrent.artistApplications,
         [String(auth.telegramUserId)]: application,
       },
       updatedAt: now,

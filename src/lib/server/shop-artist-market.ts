@@ -152,6 +152,10 @@ export const listPublishedArtistProducts = (config: ShopAdminConfig): ShopProduc
 export const applyArtistPayoutsForPaidOrder = (
   config: ShopAdminConfig,
   order: ShopOrder,
+  options?: {
+    fallbackProfiles?: ArtistProfile[];
+    fallbackTracks?: ArtistTrack[];
+  },
 ): {
   config: ShopAdminConfig;
   touchedArtistIds: number[];
@@ -162,6 +166,22 @@ export const applyArtistPayoutsForPaidOrder = (
   const now = new Date().toISOString();
   const profiles = { ...config.artistProfiles };
   const tracks = { ...config.artistTracks };
+  const fallbackProfiles = options?.fallbackProfiles ?? [];
+  const fallbackTracks = options?.fallbackTracks ?? [];
+
+  for (const profile of fallbackProfiles) {
+    const key = String(profile.telegramUserId);
+    if (!profiles[key]) {
+      profiles[key] = profile;
+    }
+  }
+
+  for (const track of fallbackTracks) {
+    if (!tracks[track.id]) {
+      tracks[track.id] = track;
+    }
+  }
+
   const donations = [...config.artistDonations];
   const subscriptions = [...config.artistSubscriptions];
   const earningsLedger = [...config.artistEarningsLedger];

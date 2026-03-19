@@ -3,14 +3,19 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
-import { upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
-import { upsertArtistEarningLedgerEntries } from "@/lib/server/artist-finance-store";
-import { upsertArtistDonations, upsertArtistSubscriptions } from "@/lib/server/artist-support-store";
+import { readArtistCatalogSnapshot, upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
+import { readArtistFinanceSnapshot, upsertArtistEarningLedgerEntries } from "@/lib/server/artist-finance-store";
+import {
+  hydrateArtistSupportStateInConfig,
+  readArtistSupportSnapshot,
+  upsertArtistDonations,
+  upsertArtistSubscriptions,
+} from "@/lib/server/artist-support-store";
 import { applyArtistPayoutsForPaidOrder } from "@/lib/server/shop-artist-market";
 import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
-import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
+import { applyArtistFinanceOverlay, hydrateArtistFinanceStateInConfig } from "@/lib/server/shop-artist-studio";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
-import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 import {
@@ -298,9 +303,66 @@ export async function POST(request: Request) {
       >["upsertedSubscriptions"] = [];
       let updatedArtistProfiles: ArtistProfile[] = [];
       let updatedArtistTracks: ArtistTrack[] = [];
+      const fallbackTrackIds = Array.from(new Set(updatedOrder.items.map((item) => item.productId).filter(Boolean)));
+      const fallbackCatalogConfig = fallbackTrackIds.length > 0 ? await readShopAdminConfig() : null;
+      const [fallbackCatalogSnapshots, fallbackFinanceSnapshot, fallbackSupportSnapshot] =
+        fallbackCatalogConfig && fallbackTrackIds.length > 0
+          ? await Promise.all([
+              Promise.all(
+                fallbackTrackIds.map((trackId) =>
+                  readArtistCatalogSnapshot({
+                    config: fallbackCatalogConfig,
+                    trackId,
+                    profileLimit: 1,
+                    trackLimit: 1,
+                  }),
+                ),
+              ),
+              readArtistFinanceSnapshot({
+                config: fallbackCatalogConfig,
+                earningsLimit: 20000,
+                payoutRequestsLimit: 5000,
+                payoutAuditEntriesLimit: 20000,
+              }),
+              readArtistSupportSnapshot({
+                config: fallbackCatalogConfig,
+                donationsLimit: 20000,
+                subscriptionsLimit: 20000,
+              }),
+            ])
+          : [[], null, null];
+      const fallbackProfileMap = new Map<number, ArtistProfile>();
+      const fallbackTrackMap = new Map<string, ArtistTrack>();
+
+      fallbackCatalogSnapshots.forEach((snapshot) => {
+        snapshot.profiles.forEach((profile) => {
+          if (!fallbackProfileMap.has(profile.telegramUserId)) {
+            fallbackProfileMap.set(profile.telegramUserId, profile);
+          }
+        });
+        snapshot.tracks.forEach((track) => {
+          if (!fallbackTrackMap.has(track.id)) {
+            fallbackTrackMap.set(track.id, track);
+          }
+        });
+      });
 
       await mutateShopAdminConfig((current) => {
-        const applied = applyArtistPayoutsForPaidOrder(current, updatedOrder);
+        const hydratedCurrent = hydrateArtistSupportStateInConfig(
+          hydrateArtistFinanceStateInConfig(current, {
+            earnings: fallbackFinanceSnapshot?.earnings,
+            requests: fallbackFinanceSnapshot?.payoutRequests,
+            auditEntries: fallbackFinanceSnapshot?.payoutAuditEntries,
+          }),
+          {
+            donations: fallbackSupportSnapshot?.donations,
+            subscriptions: fallbackSupportSnapshot?.subscriptions,
+          },
+        );
+        const applied = applyArtistPayoutsForPaidOrder(hydratedCurrent, updatedOrder, {
+          fallbackProfiles: Array.from(fallbackProfileMap.values()),
+          fallbackTracks: Array.from(fallbackTrackMap.values()),
+        });
         createdArtistEarnings = applied.createdEarnings;
         createdArtistDonations = applied.createdDonations;
         upsertedArtistSubscriptions = applied.upsertedSubscriptions;

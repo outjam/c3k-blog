@@ -7,7 +7,12 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
-import { readArtistCatalogSnapshot, upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
+import {
+  readArtistCatalogSnapshot,
+  hydrateArtistCatalogStateInConfig,
+  upsertArtistProfiles,
+  upsertArtistTracks,
+} from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
 import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
@@ -140,7 +145,10 @@ export async function PATCH(request: Request) {
   const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const currentProfile = current.artistProfiles[String(telegramUserId)] ?? fallbackProfile;
+    const hydratedCurrent = hydrateArtistCatalogStateInConfig(current, {
+      profiles: fallbackProfile ? [fallbackProfile] : [],
+    });
+    const currentProfile = hydratedCurrent.artistProfiles[String(telegramUserId)] ?? fallbackProfile;
 
     if (!currentProfile) {
       throw new Error("profile_not_found");
@@ -154,9 +162,9 @@ export async function PATCH(request: Request) {
     };
 
     return {
-      ...current,
+      ...hydratedCurrent,
       artistProfiles: {
-        ...current.artistProfiles,
+        ...hydratedCurrent.artistProfiles,
         [String(telegramUserId)]: profile,
       },
       updatedAt: now,
@@ -238,13 +246,17 @@ export async function PUT(request: Request) {
   const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const track = current.artistTracks[trackId] ?? fallbackTrack;
+    const hydratedCurrent = hydrateArtistCatalogStateInConfig(current, {
+      profiles: fallbackProfile ? [fallbackProfile] : [],
+      tracks: fallbackTrack ? [fallbackTrack] : [],
+    });
+    const track = hydratedCurrent.artistTracks[trackId] ?? fallbackTrack;
 
     if (!track) {
       throw new Error("track_not_found");
     }
 
-    const profile = current.artistProfiles[String(track.artistTelegramUserId)] ?? fallbackProfile;
+    const profile = hydratedCurrent.artistProfiles[String(track.artistTelegramUserId)] ?? fallbackProfile;
 
     if (!profile) {
       throw new Error("profile_not_found");
@@ -263,9 +275,9 @@ export async function PUT(request: Request) {
     };
 
     return {
-      ...current,
+      ...hydratedCurrent,
       artistTracks: {
-        ...current.artistTracks,
+        ...hydratedCurrent.artistTracks,
         [trackId]: nextTrack,
       },
       updatedAt: now,

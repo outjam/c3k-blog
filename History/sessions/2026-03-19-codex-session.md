@@ -58,3 +58,15 @@
 - оператору было сложно безопасно работать с migration и storage actions
 
 После этого sprint slice админка стала ближе к реальному рабочему пульту.
+
+## Дополнение по следующему sprint slice
+
+- Telegram payment webhook получил fallback artist hydration из merge-store перед начислением earnings
+- это уменьшило риск потери artist payout logic в период, когда релиз уже есть в `artist_tracks` Postgres, но ещё не догнался в legacy JSON
+- admin storage sync тоже переведён на merged artist catalog snapshot, а не только на `config.artistTracks`
+
+## Дополнение по следующему sprint slice
+
+- artist self-service и admin moderation routes получили общий hydration-layer перед mutation
+- теперь profile/application/track, которые уже есть в Postgres, сначала поднимаются в config и только потом меняются route-ом
+- это уменьшило риск ошибок в переходный период между legacy JSON и normalized artist-domain

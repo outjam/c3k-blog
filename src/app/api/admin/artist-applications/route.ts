@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { readArtistApplicationSnapshot, upsertArtistApplications } from "@/lib/server/artist-application-store";
-import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
+import {
+  readArtistApplicationSnapshot,
+  hydrateArtistApplicationsInConfig,
+  upsertArtistApplications,
+} from "@/lib/server/artist-application-store";
+import {
+  readArtistCatalogSnapshot,
+  hydrateArtistCatalogStateInConfig,
+  upsertArtistProfiles,
+} from "@/lib/server/artist-catalog-store";
 import { notifyUserAboutArtistApplicationStatus } from "@/lib/server/shop-artist-notify";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 import {
@@ -109,7 +117,13 @@ export async function PATCH(request: Request) {
   const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const application = current.artistApplications[String(telegramUserId)] ?? fallbackApplication;
+    const hydratedCurrent = hydrateArtistApplicationsInConfig(
+      hydrateArtistCatalogStateInConfig(current, {
+        profiles: fallbackProfile ? [fallbackProfile] : [],
+      }),
+      fallbackApplication ? [fallbackApplication] : [],
+    );
+    const application = hydratedCurrent.artistApplications[String(telegramUserId)] ?? fallbackApplication;
 
     if (!application) {
       throw new Error("application_not_found");
@@ -123,7 +137,7 @@ export async function PATCH(request: Request) {
       reviewedAt: now,
     };
 
-    const nextProfiles = { ...current.artistProfiles };
+    const nextProfiles = { ...hydratedCurrent.artistProfiles };
     const currentProfile = nextProfiles[String(telegramUserId)] ?? fallbackProfile;
 
     if (status === "approved") {
@@ -158,9 +172,9 @@ export async function PATCH(request: Request) {
     }
 
     return {
-      ...current,
+      ...hydratedCurrent,
       artistApplications: {
-        ...current.artistApplications,
+        ...hydratedCurrent.artistApplications,
         [String(telegramUserId)]: nextApplication,
       },
       artistProfiles: nextProfiles,

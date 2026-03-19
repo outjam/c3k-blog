@@ -4,6 +4,22 @@
 
 ## 2026-03-19
 
+### Migration-safe payment и storage sync
+
+- Telegram payment webhook перестал зависеть только от legacy `artistTracks`:
+  - перед начислением artist earnings он умеет подгружать релизы и профили из normalized merge-store
+  - это уменьшает риск, что при paid order артист не получит earnings из-за рассинхрона legacy JSON и Postgres
+- Admin storage sync релизов тоже переведён на merge-store, а не только на legacy artist catalog
+
+### Artist-domain hydration перед mutation
+
+- Добавлены общие hydration helpers для:
+  - `artist_profiles`
+  - `artist_tracks`
+  - `artist_applications`
+- Self-service и admin artist routes теперь перед записью подтягивают normalized snapshot в config, если legacy JSON ещё не догнался.
+- Это уменьшило риск того, что модерация, редактирование профиля или редактирование релиза упрутся в частичный migration drift.
+
 ### UX и дизайн админки
 
 - Основная admin-панель переведена в более понятный операторский режим:

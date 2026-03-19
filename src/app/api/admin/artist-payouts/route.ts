@@ -15,7 +15,11 @@ import {
   upsertArtistPayoutAuditEntries,
   upsertArtistPayoutRequestRecord,
 } from "@/lib/server/artist-finance-store";
-import { applyArtistFinanceOverlay, syncArtistFinanceCountersInConfig } from "@/lib/server/shop-artist-studio";
+import {
+  applyArtistFinanceOverlay,
+  hydrateArtistFinanceStateInConfig,
+  syncArtistFinanceCountersInConfig,
+} from "@/lib/server/shop-artist-studio";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistPayoutAuditEntry, ArtistPayoutRequest } from "@/types/shop";
 
@@ -117,18 +121,23 @@ export async function PATCH(request: Request) {
   const normalizedProfileByArtistId = new Map(artistCatalog.profiles.map((entry) => [entry.telegramUserId, entry]));
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const index = current.artistPayoutRequests.findIndex((entry) => entry.id === id);
+    const hydratedCurrent = hydrateArtistFinanceStateInConfig(current, {
+      earnings: financeSnapshot.earnings,
+      requests: financeSnapshot.payoutRequests,
+      auditEntries: financeSnapshot.payoutAuditEntries,
+    });
+    const index = hydratedCurrent.artistPayoutRequests.findIndex((entry) => entry.id === id);
     const fallbackRequest = normalizedRequestById.get(id) ?? null;
 
     if (index < 0 && !fallbackRequest) {
       throw new Error("request_not_found");
     }
 
-    const requestRecord = index >= 0 ? current.artistPayoutRequests[index] : fallbackRequest;
+    const requestRecord = index >= 0 ? hydratedCurrent.artistPayoutRequests[index] : fallbackRequest;
     if (!requestRecord) {
       throw new Error("request_not_found");
     }
-    const nextAuditEntries = [...current.artistPayoutAuditLog];
+    const nextAuditEntries = [...hydratedCurrent.artistPayoutAuditLog];
     const statusChanged = requestRecord.status !== status;
     const noteChanged = (requestRecord.adminNote ?? "") !== (adminNote ?? "");
 
@@ -142,7 +151,7 @@ export async function PATCH(request: Request) {
       paidAt: status === "paid" ? now : requestRecord.paidAt,
     };
 
-    const nextRequests = [...current.artistPayoutRequests];
+    const nextRequests = [...hydratedCurrent.artistPayoutRequests];
     if (index >= 0) {
       nextRequests[index] = nextRequest;
     } else {
@@ -167,7 +176,7 @@ export async function PATCH(request: Request) {
 
     return syncArtistFinanceCountersInConfig(
       {
-        ...current,
+        ...hydratedCurrent,
         artistPayoutRequests: nextRequests,
         artistPayoutAuditLog: nextAuditEntries.slice(0, 20000),
         updatedAt: now,

@@ -200,3 +200,30 @@ export const upsertArtistApplications = async (applications: ArtistApplication[]
 
   return result !== null;
 };
+
+export const hydrateArtistApplicationsInConfig = (
+  config: ShopAdminConfig,
+  applications: ArtistApplication[],
+): ShopAdminConfig => {
+  if (applications.length === 0) {
+    return config;
+  }
+
+  const nextApplications = { ...config.artistApplications };
+  let changed = false;
+
+  applications.forEach((application) => {
+    const key = String(application.telegramUserId);
+    if (!nextApplications[key]) {
+      nextApplications[key] = application;
+      changed = true;
+    }
+  });
+
+  return changed
+    ? {
+        ...config,
+        artistApplications: nextApplications,
+      }
+    : config;
+};

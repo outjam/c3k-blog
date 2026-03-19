@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
 import { syncStorageAssetsForArtistTracks } from "@/lib/server/storage-asset-sync";
 import {
   forbiddenResponse,
@@ -53,8 +54,13 @@ export async function POST(request: Request) {
 
   const trackId = normalizeTrackId(payload.trackId);
   const config = await readShopAdminConfig();
-  const tracks = Object.values(config.artistTracks)
-    .filter((track) => (trackId ? track.id === trackId : true))
+  const snapshot = await readArtistCatalogSnapshot({
+    config,
+    trackId: trackId || undefined,
+    trackLimit: trackId ? 1 : 10000,
+    profileLimit: trackId ? 1 : 5000,
+  });
+  const tracks = snapshot.tracks
     .sort((left, right) => left.title.localeCompare(right.title, "ru-RU"));
 
   if (trackId && tracks.length === 0) {
