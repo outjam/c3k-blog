@@ -269,6 +269,7 @@ Go рассматривается как хороший будущий язык 
 - webhook начал upsert'ить artist profiles в нормализованный слой уже с derived finance counters
 - те же derived counters начали применяться и в profile mutation paths и artist catalog backfill
 - для затронутых артистов fallback config тоже начал синхронизировать profile counters из ledger/request history
+- finance backfill начал выполнять и reconciliation profile counters, а не только перенос ledger/audit state
 
 Это стало первым реальным write-side шагом к `ledger-first finance model`, а не только read-side улучшением.
 

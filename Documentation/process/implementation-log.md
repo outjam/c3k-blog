@@ -573,6 +573,9 @@
 - Этот sync теперь применяется в ключевых finance write-paths:
   - [src/lib/server/shop-artist-market.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-market.ts)
   - [src/app/api/admin/artist-payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-payouts/route.ts)
+- `artist finance backfill` теперь тоже выравнивает derived finance counters и в Postgres artist profiles, и в legacy config:
+  - [src/lib/server/artist-finance-backfill.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-finance-backfill.ts)
+  - [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx)
 
 ### Что это дало
 
@@ -581,6 +584,7 @@
 - profile counters теперь становятся производным представлением, а не самостоятельной truth-моделью
 - backfill и profile mutation paths тоже перестали затирать normalized `artist_profiles` устаревшими finance полями
 - fallback config тоже начал синхронизироваться от ledger derivation для затронутых артистов, что делает legacy read-path безопаснее на переходном этапе
+- finance backfill превратился в полноценный reconciliation step, а не только в перенос ledger tables
 
 ### Проверка write-side finance overlay slice
 

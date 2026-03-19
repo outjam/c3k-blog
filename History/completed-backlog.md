@@ -124,6 +124,7 @@
   - application approval
   - artist catalog backfill
 - Для затронутых артистов legacy profile counters теперь тоже синхронизируются от ledger/request history, а не только живут как stale fallback.
+- Кнопка `finance backfill` в админке теперь не только переносит earnings/payout/audit, но и синхронизирует artist profile counters под derived finance values.
 
 ### Artist catalog normalization foundation
 

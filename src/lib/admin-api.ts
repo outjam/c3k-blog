@@ -107,6 +107,7 @@ export interface AdminArtistFinanceBackfillResult {
   earnings: number;
   payoutRequests: number;
   payoutAuditEntries: number;
+  syncedProfiles: number;
   sourceUpdatedAt: string;
 }
 

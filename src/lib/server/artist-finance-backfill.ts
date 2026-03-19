@@ -1,9 +1,11 @@
-import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import {
   upsertArtistEarningLedgerEntries,
   upsertArtistPayoutAuditEntries,
   upsertArtistPayoutRequestRecord,
 } from "@/lib/server/artist-finance-store";
+import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { syncArtistFinanceCountersInConfig } from "@/lib/server/shop-artist-studio";
 import type { ArtistEarningLedgerEntry, ArtistPayoutAuditEntry, ArtistPayoutRequest } from "@/types/shop";
 
 const normalizePositiveInt = (value: unknown, fallback: number, max: number): number => {
@@ -72,6 +74,7 @@ export const runArtistFinanceBackfill = async (input?: {
       earnings: number;
       payoutRequests: number;
       payoutAuditEntries: number;
+      syncedProfiles: number;
       sourceUpdatedAt: string;
     }
   | {
@@ -111,8 +114,28 @@ export const runArtistFinanceBackfill = async (input?: {
     ...payoutAuditEntries.map((entry) => entry.artistTelegramUserId),
   ]);
 
+  const syncedConfig = syncArtistFinanceCountersInConfig(config, selectedArtists);
+  const syncedProfiles = Array.from(selectedArtists)
+    .map((telegramUserId) => ({
+      before: config.artistProfiles[String(telegramUserId)] ?? null,
+      after: syncedConfig.artistProfiles[String(telegramUserId)] ?? null,
+    }))
+    .filter(({ before, after }) => {
+      if (!after) {
+        return false;
+      }
+
+      return (
+        !before ||
+        before.balanceStarsCents !== after.balanceStarsCents ||
+        before.lifetimeEarningsStarsCents !== after.lifetimeEarningsStarsCents
+      );
+    })
+    .map(({ after }) => after)
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
   if (!dryRun) {
-    const [earningsOk, payoutsOk, payoutAuditOk] = await Promise.all([
+    const [earningsOk, payoutsOk, payoutAuditOk, profilesOk] = await Promise.all([
       runChunkedUpsert<ArtistEarningLedgerEntry>(earnings, upsertArtistEarningLedgerEntries),
       runChunkedUpsert<ArtistPayoutRequest>(payoutRequests, async (items) => {
         for (const item of items) {
@@ -124,14 +147,17 @@ export const runArtistFinanceBackfill = async (input?: {
         return true;
       }),
       runChunkedUpsert<ArtistPayoutAuditEntry>(payoutAuditEntries, upsertArtistPayoutAuditEntries),
+      runChunkedUpsert(syncedProfiles, upsertArtistProfiles),
     ]);
 
-    if (!earningsOk || !payoutsOk || !payoutAuditOk) {
+    if (!earningsOk || !payoutsOk || !payoutAuditOk || !profilesOk) {
       return {
         ok: false,
         message: "Failed to write normalized finance state",
       };
     }
+
+    await mutateShopAdminConfig((current) => syncArtistFinanceCountersInConfig(current, selectedArtists));
   }
 
   return {
@@ -141,6 +167,7 @@ export const runArtistFinanceBackfill = async (input?: {
     earnings: earnings.length,
     payoutRequests: payoutRequests.length,
     payoutAuditEntries: payoutAuditEntries.length,
+    syncedProfiles: syncedProfiles.length,
     sourceUpdatedAt: config.updatedAt,
   };
 };

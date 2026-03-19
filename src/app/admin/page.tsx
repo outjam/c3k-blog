@@ -922,7 +922,7 @@ export default function AdminPage() {
               <p className={styles.hint}>
                 {financeBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists {financeBackfillResult.selectedArtists}
                 {" · "}earnings {financeBackfillResult.earnings} · payouts {financeBackfillResult.payoutRequests} ·
-                audit {financeBackfillResult.payoutAuditEntries} · source{" "}
+                audit {financeBackfillResult.payoutAuditEntries} · profiles {financeBackfillResult.syncedProfiles} · source{" "}
                 {new Date(financeBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
               </p>
             ) : null}
