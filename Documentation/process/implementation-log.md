@@ -512,6 +512,88 @@
   - `src/lib/admin-api.ts`
   - `src/app/admin/page.tsx`
 
+### Sprint 08 slice: ledger-first finance read model
+
+- `ArtistPayoutSummary` расширен нормализованными finance totals:
+  - `totalEarnedStarsCents`
+  - `maturedStarsCents`
+  - `currentBalanceStarsCents`
+  - [src/types/shop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/shop.ts)
+- `buildArtistPayoutSummary(...)` теперь считает totals из ledger/request history, а не только `available / hold / requested / paid`:
+  - [src/lib/server/shop-artist-studio.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-studio.ts)
+- Artist self-service routes начали возвращать finance-aware profile:
+  - `balanceStarsCents`
+  - `lifetimeEarningsStarsCents`
+  - теперь пересчитываются из normalized finance snapshot
+  - [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+  - [src/app/api/shop/artists/me/payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/payouts/route.ts)
+- Admin artist moderation route тоже начал возвращать finance-aware counters для artist profiles:
+  - [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+- Профиль пользователя больше не полагается только на legacy field для метрики `Заработано`:
+  - [src/app/profile/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.tsx)
+
+### Что это дало
+
+- artist self-service finance read-side перестал зависеть только от stale counters внутри `artistProfiles`
+- admin moderation тоже перестала показывать только stale profile counters по finance
+- студия и профиль теперь получают более честные earnings/balance numbers из ledger-среза
+- это не завершает полный finance cutover, но закрывает важный read-side этап внутри `Sprint 08`
+
+### Проверка ledger-first finance read slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/types/shop.ts`
+  - `src/lib/server/shop-artist-studio.ts`
+  - `src/app/api/shop/artists/me/route.ts`
+  - `src/app/api/shop/artists/me/payouts/route.ts`
+  - `src/app/profile/page.tsx`
+
+### Sprint 08 slice: write-side finance overlay and less profile arithmetic
+
+- Добавлен общий helper finance overlay:
+  - [src/lib/server/shop-artist-studio.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-studio.ts)
+- Artist/admin read paths переведены на него, чтобы не дублировать ручной overlay:
+  - [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+  - [src/app/api/shop/artists/me/payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/payouts/route.ts)
+  - [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+- `applyArtistPayoutsForPaidOrder(...)` больше не ведёт `balanceStarsCents / lifetimeEarningsStarsCents` как инкрементальную правду:
+  - [src/lib/server/shop-artist-market.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-market.ts)
+- Admin payout review больше не вычитает баланс вручную из profile counters:
+  - [src/app/api/admin/artist-payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-payouts/route.ts)
+- Telegram payment webhook теперь upsert'ит artist profiles в нормализованный слой уже с finance overlay из ledger/request state:
+  - [src/app/api/telegram/webhook/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/webhook/route.ts)
+- Artist profile mutation paths и catalog backfill тоже больше не проталкивают stale finance counters в нормализованный profile слой:
+  - [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+  - [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+  - [src/app/api/admin/artist-applications/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-applications/route.ts)
+  - [src/lib/server/artist-catalog-backfill.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-backfill.ts)
+- Добавлен sync helper, который приводит legacy artist profile counters к derived значениям из ledger/request history:
+  - [src/lib/server/shop-artist-studio.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-studio.ts)
+- Этот sync теперь применяется в ключевых finance write-paths:
+  - [src/lib/server/shop-artist-market.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-market.ts)
+  - [src/app/api/admin/artist-payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-payouts/route.ts)
+
+### Что это дало
+
+- write-side artist finance стал меньше зависеть от ручной арифметики внутри `artistProfiles`
+- ledger/request history ещё сильнее приблизились к роли единственного источника правды по finance
+- profile counters теперь становятся производным представлением, а не самостоятельной truth-моделью
+- backfill и profile mutation paths тоже перестали затирать normalized `artist_profiles` устаревшими finance полями
+- fallback config тоже начал синхронизироваться от ledger derivation для затронутых артистов, что делает legacy read-path безопаснее на переходном этапе
+
+### Проверка write-side finance overlay slice
+
+- `npm run typecheck`
+- targeted `eslint` по:
+  - `src/lib/server/shop-artist-studio.ts`
+  - `src/lib/server/shop-artist-market.ts`
+  - `src/app/api/shop/artists/me/route.ts`
+  - `src/app/api/shop/artists/me/payouts/route.ts`
+  - `src/app/api/admin/artists/route.ts`
+  - `src/app/api/admin/artist-payouts/route.ts`
+  - `src/app/api/telegram/webhook/route.ts`
+
 - `npm run typecheck`
 - targeted `eslint` по:
   - `src/lib/server/storage-delivery-store.ts`

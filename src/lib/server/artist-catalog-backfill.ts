@@ -1,4 +1,5 @@
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
 import { upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
 import type { ArtistProfile, ArtistTrack } from "@/types/shop";
 
@@ -82,6 +83,14 @@ export const runArtistCatalogBackfill = async (input?: {
   const config = await readShopAdminConfig();
   const selectedProfiles = Object.values(config.artistProfiles)
     .filter((profile) => telegramUserIds.size === 0 || telegramUserIds.has(profile.telegramUserId))
+    .map(
+      (profile) =>
+        applyArtistFinanceOverlay({
+          profile,
+          earnings: config.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === profile.telegramUserId),
+          requests: config.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === profile.telegramUserId),
+        }) ?? profile,
+    )
     .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
     .slice(0, limit);
 

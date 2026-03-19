@@ -8,6 +8,8 @@ import {
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
 import { readArtistCatalogSnapshot, upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
+import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
+import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
 import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistProfile, ArtistTrack } from "@/types/shop";
@@ -75,8 +77,22 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const artistCatalog = await readArtistCatalogSnapshot({ config });
-  const profiles = artistCatalog.profiles;
+  const [artistCatalog, finance] = await Promise.all([
+    readArtistCatalogSnapshot({ config }),
+    readArtistFinanceSnapshot({
+      config,
+      earningsLimit: 20000,
+      payoutRequestsLimit: 5000,
+      payoutAuditEntriesLimit: 20000,
+    }),
+  ]);
+  const profiles = artistCatalog.profiles.map((profile) =>
+    applyArtistFinanceOverlay({
+      profile,
+      earnings: finance.earnings.filter((entry) => entry.artistTelegramUserId === profile.telegramUserId),
+      requests: finance.payoutRequests.filter((entry) => entry.artistTelegramUserId === profile.telegramUserId),
+    }) ?? profile,
+  );
   const tracks = artistCatalog.tracks;
 
   return NextResponse.json({ profiles, tracks, source: artistCatalog.source });
@@ -155,12 +171,19 @@ export async function PATCH(request: Request) {
   }
 
   const nextProfile = updated.artistProfiles[String(telegramUserId)] ?? null;
-  if (nextProfile) {
-    await upsertArtistProfiles([nextProfile]).catch(() => undefined);
+  const normalizedProfile = nextProfile
+    ? applyArtistFinanceOverlay({
+        profile: nextProfile,
+        earnings: updated.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+        requests: updated.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+      }) ?? nextProfile
+    : null;
+  if (normalizedProfile) {
+    await upsertArtistProfiles([normalizedProfile]).catch(() => undefined);
   }
 
   return NextResponse.json({
-    profile: nextProfile,
+    profile: normalizedProfile,
   });
 }
 

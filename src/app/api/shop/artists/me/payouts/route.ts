@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { notifyAdminsAboutArtistPayoutRequest } from "@/lib/server/shop-artist-notify";
 import {
   ARTIST_PAYOUT_MIN_STARS_CENTS,
+  applyArtistFinanceOverlay,
   buildArtistPayoutSummary,
 } from "@/lib/server/shop-artist-studio";
 import {
@@ -47,9 +48,14 @@ export async function GET(request: Request) {
     earnings: finance.earnings,
     requests: payoutRequests,
   });
+  const financeAwareProfile = applyArtistFinanceOverlay({
+    profile,
+    earnings: finance.earnings,
+    requests: payoutRequests,
+  });
 
   return NextResponse.json({
-    profile,
+    profile: financeAwareProfile,
     payoutRequests,
     payoutAuditEntries,
     payoutSummary,

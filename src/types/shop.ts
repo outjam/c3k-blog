@@ -240,6 +240,9 @@ export interface ArtistPayoutAuditEntry {
 }
 
 export interface ArtistPayoutSummary {
+  totalEarnedStarsCents: number;
+  maturedStarsCents: number;
+  currentBalanceStarsCents: number;
   availableStarsCents: number;
   pendingHoldStarsCents: number;
   requestedStarsCents: number;

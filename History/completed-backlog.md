@@ -109,6 +109,21 @@
   - смена payout status
   - обновление admin note
 - Audit trail выведен и в `Студию`, и в admin payout moderation.
+- Artist self-service routes переведены на ledger-first read model:
+  - payout summary считает `total earned / matured / current balance`
+  - профиль артиста в self-service API получает finance-aware counters из ledger snapshot
+  - профиль пользователя для artist-summary больше не зависит только от старого `lifetimeEarningsStarsCents`
+- Admin artist moderation тоже начала получать finance-aware counters для `Баланс / Заработано` из ledger snapshot, а не только из legacy profile fields.
+- Order webhook и admin payout moderation перестали держать profile finance counters как инкрементальную правду:
+  - earnings/payout history остаются truth-слоем
+  - artist profile counters вычисляются через finance overlay helper
+  - webhook upsert'ит нормализованный artist profile уже с derived finance numbers
+- Те же derived finance counters теперь применяются и в:
+  - artist profile save
+  - admin artist moderation
+  - application approval
+  - artist catalog backfill
+- Для затронутых артистов legacy profile counters теперь тоже синхронизируются от ledger/request history, а не только живут как stale fallback.
 
 ### Artist catalog normalization foundation
 

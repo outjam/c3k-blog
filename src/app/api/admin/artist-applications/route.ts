@@ -12,6 +12,7 @@ import {
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
 import type { ArtistApplication, ArtistProfile } from "@/types/shop";
 
 export const runtime = "nodejs";
@@ -164,15 +165,22 @@ export async function PATCH(request: Request) {
 
   const application = updated.artistApplications[String(telegramUserId)] ?? null;
   const profile = updated.artistProfiles[String(telegramUserId)] ?? null;
+  const normalizedProfile = profile
+    ? applyArtistFinanceOverlay({
+        profile,
+        earnings: updated.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+        requests: updated.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+      }) ?? profile
+    : null;
 
-  if (profile) {
-    await upsertArtistProfiles([profile]).catch(() => undefined);
+  if (normalizedProfile) {
+    await upsertArtistProfiles([normalizedProfile]).catch(() => undefined);
   }
 
   if (application) {
     await upsertArtistApplications([application]).catch(() => undefined);
-    await notifyUserAboutArtistApplicationStatus(application, profile, resolvePublicBaseUrl(request));
+    await notifyUserAboutArtistApplicationStatus(application, normalizedProfile, resolvePublicBaseUrl(request));
   }
 
-  return NextResponse.json({ application, profile });
+  return NextResponse.json({ application, profile: normalizedProfile });
 }

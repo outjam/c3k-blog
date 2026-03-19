@@ -7,6 +7,7 @@ import { upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-ca
 import { upsertArtistEarningLedgerEntries } from "@/lib/server/artist-finance-store";
 import { applyArtistPayoutsForPaidOrder } from "@/lib/server/shop-artist-market";
 import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
+import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
 import { notifyAdminsAboutNewOrder } from "@/lib/server/shop-order-notify";
 import { mutateShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { mutateShopOrder } from "@/lib/server/shop-orders-store";
@@ -295,7 +296,14 @@ export async function POST(request: Request) {
         const applied = applyArtistPayoutsForPaidOrder(current, updatedOrder);
         createdArtistEarnings = applied.createdEarnings;
         updatedArtistProfiles = applied.touchedArtistIds
-          .map((telegramUserId) => applied.config.artistProfiles[String(telegramUserId)])
+          .map((telegramUserId) => {
+            const profile = applied.config.artistProfiles[String(telegramUserId)] ?? null;
+            return applyArtistFinanceOverlay({
+              profile,
+              earnings: applied.config.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+              requests: applied.config.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+            });
+          })
           .filter((entry): entry is ArtistProfile => Boolean(entry));
         updatedArtistTracks = updatedOrder.items
           .map((item) => applied.config.artistTracks[item.productId])

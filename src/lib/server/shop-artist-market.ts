@@ -6,7 +6,7 @@ import type {
   ShopOrder,
   ShopProduct,
 } from "@/types/shop";
-import { addArtistPayoutHold } from "@/lib/server/shop-artist-studio";
+import { addArtistPayoutHold, syncArtistFinanceCountersInConfig } from "@/lib/server/shop-artist-studio";
 
 const DEFAULT_TRACK_IMAGE = "/posts/cover-pattern.svg";
 const DIGITAL_TRACK_STOCK = 9999;
@@ -185,12 +185,6 @@ export const applyArtistPayoutsForPaidOrder = (
 
       if (profile) {
         touchedArtistIds.add(profile.telegramUserId);
-        profiles[String(profile.telegramUserId)] = {
-          ...profile,
-          balanceStarsCents: clampMoney(profile.balanceStarsCents + payout),
-          lifetimeEarningsStarsCents: clampMoney(profile.lifetimeEarningsStarsCents + payout),
-          updatedAt: now,
-        };
         const earningId = `earn-track-${order.id}-${track.id}`.toLowerCase();
         if (!existingEarningIds.has(earningId)) {
           const earningEntry: ArtistEarningLedgerEntry = {
@@ -247,12 +241,6 @@ export const applyArtistPayoutsForPaidOrder = (
       }
 
       const payout = toPayout(lineTotal, DONATION_REVENUE_SHARE);
-      profiles[String(profile.telegramUserId)] = {
-        ...profile,
-        balanceStarsCents: clampMoney(profile.balanceStarsCents + payout),
-        lifetimeEarningsStarsCents: clampMoney(profile.lifetimeEarningsStarsCents + payout),
-        updatedAt: now,
-      };
       const earningId = `earn-donation-${order.id}-${synthetic.artistTelegramUserId}`.toLowerCase();
       if (!existingEarningIds.has(earningId)) {
         const earningEntry: ArtistEarningLedgerEntry = {
@@ -275,12 +263,6 @@ export const applyArtistPayoutsForPaidOrder = (
     }
 
     const payout = toPayout(lineTotal, SUBSCRIPTION_REVENUE_SHARE);
-    profiles[String(profile.telegramUserId)] = {
-      ...profile,
-      balanceStarsCents: clampMoney(profile.balanceStarsCents + payout),
-      lifetimeEarningsStarsCents: clampMoney(profile.lifetimeEarningsStarsCents + payout),
-      updatedAt: now,
-    };
     const earningId = `earn-subscription-${order.id}-${synthetic.artistTelegramUserId}`.toLowerCase();
     if (!existingEarningIds.has(earningId)) {
       const earningEntry: ArtistEarningLedgerEntry = {
@@ -335,15 +317,18 @@ export const applyArtistPayoutsForPaidOrder = (
   }
 
   return {
-    config: {
-      ...config,
-      artistProfiles: profiles,
-      artistTracks: tracks,
-      artistDonations: donations.slice(0, 5000),
-      artistSubscriptions: subscriptions.slice(0, 5000),
-      artistEarningsLedger: earningsLedger.slice(0, 10000),
-      updatedAt: now,
-    },
+    config: syncArtistFinanceCountersInConfig(
+      {
+        ...config,
+        artistProfiles: profiles,
+        artistTracks: tracks,
+        artistDonations: donations.slice(0, 5000),
+        artistSubscriptions: subscriptions.slice(0, 5000),
+        artistEarningsLedger: earningsLedger.slice(0, 10000),
+        updatedAt: now,
+      },
+      touchedArtistIds,
+    ),
     touchedArtistIds: Array.from(touchedArtistIds),
     createdEarnings,
   };

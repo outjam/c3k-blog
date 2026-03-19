@@ -1233,7 +1233,9 @@ export default function ProfilePage() {
                       <strong className={styles.inlineValueWithIcon}>
                         <StarsIcon className={styles.inlineValueIcon} />
                         {formatStarsFromCents(
-                          artistProfile?.lifetimeEarningsStarsCents ?? 0,
+                          artistPayoutSummary?.totalEarnedStarsCents ??
+                            artistProfile?.lifetimeEarningsStarsCents ??
+                            0,
                         )}
                       </strong>
                     </article>

@@ -4,7 +4,7 @@ import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/
 import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
-import { buildArtistPayoutSummary, buildArtistStudioStats } from "@/lib/server/shop-artist-studio";
+import { applyArtistFinanceOverlay, buildArtistPayoutSummary, buildArtistStudioStats } from "@/lib/server/shop-artist-studio";
 import { listReleaseSocialFeedSummaries } from "@/lib/server/release-social-store";
 import type { ArtistApplication, ArtistProfile } from "@/types/shop";
 
@@ -119,10 +119,15 @@ export async function GET(request: Request) {
     earnings: finance.earnings,
     requests: payoutRequests,
   });
+  const financeAwareProfile = applyArtistFinanceOverlay({
+    profile,
+    earnings: finance.earnings,
+    requests: payoutRequests,
+  });
 
   return NextResponse.json({
     application,
-    profile,
+    profile: financeAwareProfile,
     tracks,
     donations,
     subscriptions,
@@ -219,11 +224,18 @@ export async function POST(request: Request) {
   }
 
   const nextProfile = updated.artistProfiles[String(auth.telegramUserId)] ?? null;
-  if (nextProfile) {
-    await upsertArtistProfiles([nextProfile]).catch(() => undefined);
+  const normalizedProfile = nextProfile
+    ? applyArtistFinanceOverlay({
+        profile: nextProfile,
+        earnings: updated.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+        requests: updated.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId),
+      }) ?? nextProfile
+    : null;
+  if (normalizedProfile) {
+    await upsertArtistProfiles([normalizedProfile]).catch(() => undefined);
   }
 
   return NextResponse.json({
-    profile: nextProfile,
+    profile: normalizedProfile,
   });
 }

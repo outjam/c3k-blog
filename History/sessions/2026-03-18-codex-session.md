@@ -251,6 +251,27 @@ Go рассматривается как хороший будущий язык 
 
 Это закрыло важную управленческую дыру: migration/backfill в проекте перестали быть набором несвязанных действий и стали наблюдаемым operational процессом.
 
+Следующим slice внутри того же спринта было реализовано:
+
+- ledger-first finance read model для artist self-service
+- `ArtistPayoutSummary` получил totals из нормализованного finance layer
+- `/api/shop/artists/me` и `/api/shop/artists/me/payouts` начали возвращать finance-aware profile counters
+- `/api/admin/artists` тоже начал возвращать finance-aware counters для модерации артистов
+- профиль пользователя начал брать `Заработано` из finance summary, а не только из legacy profile field
+
+Это сдвинуло `Sprint 08` дальше от формального dual-write к реальному read-side cutover в artist economy.
+
+Следующим slice внутри того же спринта было реализовано:
+
+- общий finance overlay helper
+- order webhook перестал инкрементально поддерживать balance/lifetime внутри artist profile как truth-слой
+- admin payout moderation перестала вручную уменьшать balance в profile counters
+- webhook начал upsert'ить artist profiles в нормализованный слой уже с derived finance counters
+- те же derived counters начали применяться и в profile mutation paths и artist catalog backfill
+- для затронутых артистов fallback config тоже начал синхронизировать profile counters из ledger/request history
+
+Это стало первым реальным write-side шагом к `ledger-first finance model`, а не только read-side улучшением.
+
 Следующим slice в `Sprint 08` было сделано:
 
 - добавлена нормализованная таблица `artist_payout_audit_log`

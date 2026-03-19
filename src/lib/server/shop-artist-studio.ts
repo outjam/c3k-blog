@@ -5,6 +5,7 @@ import type {
   ArtistProfile,
   ArtistStudioStats,
   ArtistTrack,
+  ShopAdminConfig,
 } from "@/types/shop";
 
 export const ARTIST_PAYOUT_HOLD_DAYS = 21;
@@ -74,6 +75,7 @@ export const buildArtistPayoutSummary = (input: {
 
   const maturedStarsCents = maturedEntries.reduce((acc, entry) => acc + clampMoney(entry.amountStarsCents), 0);
   const pendingHoldStarsCents = pendingEntries.reduce((acc, entry) => acc + clampMoney(entry.amountStarsCents), 0);
+  const totalEarnedStarsCents = maturedStarsCents + pendingHoldStarsCents;
   const requestedStarsCents = input.requests
     .filter((entry) => entry.status === "pending_review" || entry.status === "approved")
     .reduce((acc, entry) => acc + clampMoney(entry.amountStarsCents), 0);
@@ -82,11 +84,15 @@ export const buildArtistPayoutSummary = (input: {
     .reduce((acc, entry) => acc + clampMoney(entry.amountStarsCents), 0);
 
   const availableStarsCents = Math.max(0, maturedStarsCents - requestedStarsCents - paidOutStarsCents);
+  const currentBalanceStarsCents = Math.max(0, totalEarnedStarsCents - paidOutStarsCents);
   const nextHoldReleaseAt = pendingEntries
     .map((entry) => entry.holdUntil)
     .sort((left, right) => parseTimestamp(left) - parseTimestamp(right))[0];
 
   return {
+    totalEarnedStarsCents,
+    maturedStarsCents,
+    currentBalanceStarsCents,
     availableStarsCents,
     pendingHoldStarsCents,
     requestedStarsCents,
@@ -95,4 +101,71 @@ export const buildArtistPayoutSummary = (input: {
     canRequest: Boolean(input.profile?.tonWalletAddress) && availableStarsCents >= ARTIST_PAYOUT_MIN_STARS_CENTS,
     nextHoldReleaseAt: nextHoldReleaseAt || undefined,
   };
+};
+
+export const applyArtistFinanceOverlay = (input: {
+  profile: ArtistProfile | null;
+  earnings: ArtistEarningLedgerEntry[];
+  requests: ArtistPayoutRequest[];
+  now?: Date;
+}): ArtistProfile | null => {
+  if (!input.profile) {
+    return null;
+  }
+
+  const payoutSummary = buildArtistPayoutSummary(input);
+
+  return {
+    ...input.profile,
+    balanceStarsCents: payoutSummary.currentBalanceStarsCents,
+    lifetimeEarningsStarsCents: payoutSummary.totalEarnedStarsCents,
+  };
+};
+
+export const syncArtistFinanceCountersInConfig = (
+  config: ShopAdminConfig,
+  artistTelegramUserIds?: Iterable<number>,
+): ShopAdminConfig => {
+  const targetIds =
+    artistTelegramUserIds
+      ? new Set(
+          Array.from(artistTelegramUserIds)
+            .map((entry) => Math.round(Number(entry ?? 0)))
+            .filter((entry) => Number.isFinite(entry) && entry > 0),
+        )
+      : null;
+
+  const nextProfiles = { ...config.artistProfiles };
+  let changed = false;
+
+  Object.entries(config.artistProfiles).forEach(([key, profile]) => {
+    if (targetIds && !targetIds.has(profile.telegramUserId)) {
+      return;
+    }
+
+    const nextProfile = applyArtistFinanceOverlay({
+      profile,
+      earnings: config.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === profile.telegramUserId),
+      requests: config.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === profile.telegramUserId),
+    });
+
+    if (!nextProfile) {
+      return;
+    }
+
+    if (
+      nextProfile.balanceStarsCents !== profile.balanceStarsCents ||
+      nextProfile.lifetimeEarningsStarsCents !== profile.lifetimeEarningsStarsCents
+    ) {
+      nextProfiles[key] = nextProfile;
+      changed = true;
+    }
+  });
+
+  return changed
+    ? {
+        ...config,
+        artistProfiles: nextProfiles,
+      }
+    : config;
 };

@@ -15,6 +15,7 @@ import {
   upsertArtistPayoutAuditEntries,
   upsertArtistPayoutRequestRecord,
 } from "@/lib/server/artist-finance-store";
+import { applyArtistFinanceOverlay, syncArtistFinanceCountersInConfig } from "@/lib/server/shop-artist-studio";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistPayoutAuditEntry, ArtistPayoutRequest } from "@/types/shop";
 
@@ -133,17 +134,6 @@ export async function PATCH(request: Request) {
     const nextRequests = [...current.artistPayoutRequests];
     nextRequests[index] = nextRequest;
 
-    const nextProfiles = { ...current.artistProfiles };
-    const artistProfile = nextProfiles[String(requestRecord.artistTelegramUserId)];
-
-    if (artistProfile && requestRecord.status !== "paid" && status === "paid") {
-      nextProfiles[String(requestRecord.artistTelegramUserId)] = {
-        ...artistProfile,
-        balanceStarsCents: Math.max(0, artistProfile.balanceStarsCents - requestRecord.amountStarsCents),
-        updatedAt: now,
-      };
-    }
-
     if (statusChanged || noteChanged) {
       const auditEntry: ArtistPayoutAuditEntry = {
         id: `artist-payout-audit-${requestRecord.id}-${Date.now()}-${statusChanged ? "status" : "note"}`,
@@ -160,13 +150,15 @@ export async function PATCH(request: Request) {
       nextAuditEntries.unshift(auditEntry);
     }
 
-    return {
-      ...current,
-      artistPayoutRequests: nextRequests,
-      artistPayoutAuditLog: nextAuditEntries.slice(0, 20000),
-      artistProfiles: nextProfiles,
-      updatedAt: now,
-    };
+    return syncArtistFinanceCountersInConfig(
+      {
+        ...current,
+        artistPayoutRequests: nextRequests,
+        artistPayoutAuditLog: nextAuditEntries.slice(0, 20000),
+        updatedAt: now,
+      },
+      [requestRecord.artistTelegramUserId],
+    );
   }).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "";
     if (message === "request_not_found") {
@@ -182,7 +174,11 @@ export async function PATCH(request: Request) {
 
   const payoutRequest = updated.artistPayoutRequests.find((entry) => entry.id === id) ?? null;
   const nextProfile = payoutRequest
-    ? updated.artistProfiles[String(payoutRequest.artistTelegramUserId)] ?? null
+    ? applyArtistFinanceOverlay({
+        profile: updated.artistProfiles[String(payoutRequest.artistTelegramUserId)] ?? null,
+        earnings: updated.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === payoutRequest.artistTelegramUserId),
+        requests: updated.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === payoutRequest.artistTelegramUserId),
+      })
     : null;
   const payoutAuditEntry =
     updated.artistPayoutAuditLog.find(
