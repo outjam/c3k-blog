@@ -35,6 +35,23 @@
   - более понятные названия блоков
   - описание, что делают sync, test bags, assets, bags, ingest jobs и deliveries
 
+### Migration-safe finance/support hydration в payment webhook
+
+- Telegram payment webhook теперь перед начислением artist earnings и support side-effects поднимает в config не только merged artist catalog, но и normalized finance/support snapshot.
+- Это уменьшает риск, что `paid order` сработает поверх stale legacy JSON, если Postgres уже содержит более свежие earnings, donations, subscriptions или payout requests.
+- Для этого в support-domain добавлен отдельный hydration helper, а сам webhook теперь делает payment mutation поверх уже объединённого состояния.
+
+### Fresher normalized state wins during hydration
+
+- Обновлены hydration helpers для mutable доменов:
+  - `artist_profiles`
+  - `artist_tracks`
+  - `artist_applications`
+  - `artist_payout_requests`
+  - `artist_subscriptions`
+- Теперь при гидрации выигрывает более свежая normalized запись по `updatedAt`, а не первое попавшееся legacy значение.
+- Это делает cutover к Postgres более честным: route действительно начинает жить от нормализованного state, а не только “видит его рядом”.
+
 ## 2026-03-18
 
 ### Профиль и публичный профиль

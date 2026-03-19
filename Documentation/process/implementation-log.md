@@ -70,6 +70,44 @@
 - `npm run typecheck`
 - targeted `eslint` по admin-экранам
 
+### Дополнительный sprint slice: webhook hydration для finance и support
+
+- [telegram webhook](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/webhook/route.ts) теперь перед `applyArtistPayoutsForPaidOrder(...)` гидрирует:
+  - fallback artist catalog snapshot
+  - normalized finance snapshot
+  - normalized support snapshot
+- [artist-support-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-support-store.ts) получил `hydrateArtistSupportStateInConfig(...)`
+- webhook теперь не опирается только на legacy `artistDonations`, `artistSubscriptions`, `artistEarningsLedger` и `artistPayoutRequests`, если Postgres уже содержит более свежие записи
+
+### Зачем это сделано
+
+- закрыт следующий migration-risk: `paid order` мог начислить earnings/support side-effects поверх stale JSON-состояния
+- переходный период между `app_state` и `Postgres` стал безопаснее не только для catalog lookup, но и для finance/support mutation path
+- cutover к normalized слоям стал ближе на боевом payment route
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по webhook/support-store
+
+### Дополнительный sprint slice: mutable hydration prefers fresher normalized state
+
+- [artist-catalog-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-store.ts) теперь при гидрации `artist_profiles` и `artist_tracks` заменяет legacy entry, если normalized snapshot новее по `updatedAt`
+- [artist-application-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-application-store.ts) делает то же для `artist_applications`
+- [shop-artist-studio.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-studio.ts) теперь умеет заменять `artist_payout_requests` более свежими normalized версиями
+- [artist-support-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-support-store.ts) делает то же для mutable `artist_subscriptions`
+
+### Зачем это сделано
+
+- раньше hydration helper мог сохранить устаревший legacy JSON просто потому, что запись с тем же `id` уже существовала
+- это мешало cutover-логике: route вроде бы гидрировался из Postgres, но stale mutable запись всё равно оставалась победителем
+- теперь normalized слой действительно может перезаписать legacy snapshot там, где сущность обновляема во времени
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по artist/webhook hydration helpers
+
 ## 2026-03-18
 
 ### Контекст

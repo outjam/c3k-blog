@@ -1,6 +1,11 @@
 import { getPostgresHttpConfig, postgresTableRequest } from "@/lib/server/postgres-http";
 import type { ArtistApplication, ShopAdminConfig } from "@/types/shop";
 
+const getUpdatedTimestamp = (value: { updatedAt?: string; createdAt?: string }): number => {
+  const timestamp = new Date(value.updatedAt || value.createdAt || "").getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 interface ArtistApplicationRow {
   id?: unknown;
   telegram_user_id?: unknown;
@@ -214,7 +219,8 @@ export const hydrateArtistApplicationsInConfig = (
 
   applications.forEach((application) => {
     const key = String(application.telegramUserId);
-    if (!nextApplications[key]) {
+    const existing = nextApplications[key];
+    if (!existing || getUpdatedTimestamp(application) > getUpdatedTimestamp(existing)) {
       nextApplications[key] = application;
       changed = true;
     }

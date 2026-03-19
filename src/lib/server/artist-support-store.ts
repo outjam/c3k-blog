@@ -107,6 +107,11 @@ const sortSubscriptions = (entries: ArtistSubscription[]): ArtistSubscription[] 
   });
 };
 
+const getSubscriptionTimestamp = (value: Pick<ArtistSubscription, "updatedAt" | "startedAt">): number => {
+  const timestamp = new Date(value.updatedAt || value.startedAt || "").getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 const filterLegacyDonations = (config: ShopAdminConfig, artistTelegramUserId?: number): ArtistDonation[] => {
   return sortDonations(
     typeof artistTelegramUserId === "number"
@@ -335,7 +340,8 @@ export const hydrateArtistSupportStateInConfig = (
   });
 
   (input.subscriptions ?? []).forEach((entry) => {
-    if (!nextSubscriptions.has(entry.id)) {
+    const existing = nextSubscriptions.get(entry.id);
+    if (!existing || getSubscriptionTimestamp(entry) > getSubscriptionTimestamp(existing)) {
       nextSubscriptions.set(entry.id, entry);
       changed = true;
     }

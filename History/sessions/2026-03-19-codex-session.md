@@ -70,3 +70,15 @@
 - artist self-service и admin moderation routes получили общий hydration-layer перед mutation
 - теперь profile/application/track, которые уже есть в Postgres, сначала поднимаются в config и только потом меняются route-ом
 - это уменьшило риск ошибок в переходный период между legacy JSON и normalized artist-domain
+
+## Дополнение по следующему sprint slice
+
+- Telegram payment webhook теперь гидрирует перед mutation не только artist catalog, но и finance/support snapshot из нормализованных слоёв
+- это закрывает ещё один drift-сценарий: Postgres уже знает про earnings, payouts, donations или subscriptions, а legacy JSON ещё отстаёт
+- в support-domain для этого добавлен отдельный helper `hydrateArtistSupportStateInConfig(...)`
+
+## Дополнение по следующему sprint slice
+
+- mutable hydration helpers теперь не только добавляют недостающие normalized записи, но и заменяют stale legacy state, если normalized версия новее по `updatedAt`
+- это касается artist profiles, релизов, artist applications, payout requests и subscriptions
+- после этого cutover-логика стала ближе к реальному source-of-truth поведению, а не к простому merge без победы свежей записи

@@ -314,6 +314,11 @@ const sortTracks = (entries: ArtistTrack[]): ArtistTrack[] => {
   });
 };
 
+const getUpdatedTimestamp = (value: { updatedAt?: string; createdAt?: string }): number => {
+  const timestamp = new Date(value.updatedAt || value.createdAt || "").getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 const filterLegacyProfiles = (
   config: ShopAdminConfig,
   options: {
@@ -656,14 +661,16 @@ export const hydrateArtistCatalogStateInConfig = (
 
   (input.profiles ?? []).forEach((profile) => {
     const key = String(profile.telegramUserId);
-    if (!nextProfiles[key]) {
+    const existing = nextProfiles[key];
+    if (!existing || getUpdatedTimestamp(profile) > getUpdatedTimestamp(existing)) {
       nextProfiles[key] = profile;
       changed = true;
     }
   });
 
   (input.tracks ?? []).forEach((track) => {
-    if (!nextTracks[track.id]) {
+    const existing = nextTracks[track.id];
+    if (!existing || getUpdatedTimestamp(track) > getUpdatedTimestamp(existing)) {
       nextTracks[track.id] = track;
       changed = true;
     }

@@ -171,16 +171,26 @@ export const syncArtistFinanceCountersInConfig = (
     : config;
 };
 
-const mergeById = <T extends { id: string }>(primary: T[], fallback: T[]): T[] => {
+const mergeById = <T extends { id: string }>(
+  primary: T[],
+  fallback: T[],
+  shouldReplace?: (current: T, incoming: T) => boolean,
+): T[] => {
   const entries = new Map<string, T>();
 
   [...primary, ...fallback].forEach((entry) => {
-    if (!entries.has(entry.id)) {
+    const existing = entries.get(entry.id);
+    if (!existing || shouldReplace?.(existing, entry)) {
       entries.set(entry.id, entry);
     }
   });
 
   return Array.from(entries.values());
+};
+
+const getMutableTimestamp = (value: { updatedAt?: string; createdAt?: string }): number => {
+  const timestamp = new Date(value.updatedAt || value.createdAt || "").getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
 export const hydrateArtistFinanceStateInConfig = (
@@ -192,7 +202,13 @@ export const hydrateArtistFinanceStateInConfig = (
   },
 ): ShopAdminConfig => {
   const nextEarnings = input.earnings ? mergeById(config.artistEarningsLedger, input.earnings) : config.artistEarningsLedger;
-  const nextRequests = input.requests ? mergeById(config.artistPayoutRequests, input.requests) : config.artistPayoutRequests;
+  const nextRequests = input.requests
+    ? mergeById(
+        config.artistPayoutRequests,
+        input.requests,
+        (current, incoming) => getMutableTimestamp(incoming) > getMutableTimestamp(current),
+      )
+    : config.artistPayoutRequests;
   const nextAuditEntries = input.auditEntries ? mergeById(config.artistPayoutAuditLog, input.auditEntries) : config.artistPayoutAuditLog;
 
   if (
