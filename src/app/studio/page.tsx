@@ -128,6 +128,7 @@ export default function StudioPage() {
   const [payoutAuditEntries, setPayoutAuditEntries] = useState<ArtistPayoutAuditEntry[]>([]);
   const [artistSource, setArtistSource] = useState<"postgres" | "legacy">("legacy");
   const [financeSource, setFinanceSource] = useState<"postgres" | "legacy">("legacy");
+  const [supportSource, setSupportSource] = useState<"postgres" | "legacy">("legacy");
   const [profileSaving, setProfileSaving] = useState(false);
   const [releaseSaving, setReleaseSaving] = useState(false);
   const [payoutSaving, setPayoutSaving] = useState(false);
@@ -185,6 +186,7 @@ export default function StudioPage() {
     setPayoutAuditEntries(response.payoutAuditEntries);
     setArtistSource(response.artistSource);
     setFinanceSource(response.financeSource);
+    setSupportSource(response.supportSource);
 
     if (response.profile) {
       setProfileDraft({
@@ -498,7 +500,9 @@ export default function StudioPage() {
               <span>Студия артиста</span>
               <h1>{profile.displayName}</h1>
               <p>{profile.bio || "Управление релизами, витриной и выплатами."}</p>
-              <small>Artist source: {artistSource} · Finance source: {financeSource}</small>
+              <small>
+                Artist source: {artistSource} · Finance source: {financeSource} · Support source: {supportSource}
+              </small>
               <small>{formatShortTonAddress(profile.tonWalletAddress) || "TON-кошелёк не задан"}</small>
             </div>
 

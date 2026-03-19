@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
 import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
+import { readArtistSupportSnapshot } from "@/lib/server/artist-support-store";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { applyArtistFinanceOverlay, buildArtistPayoutSummary, buildArtistStudioStats } from "@/lib/server/shop-artist-studio";
 import { listReleaseSocialFeedSummaries } from "@/lib/server/release-social-store";
@@ -97,15 +98,21 @@ export async function GET(request: Request) {
   const application =
     config.artistApplications[String(auth.telegramUserId)] ?? buildLegacyApplication(profile);
   const tracks = sortTracks(artistCatalog.tracks);
-  const donations = config.artistDonations.filter((entry) => entry.artistTelegramUserId === auth.telegramUserId).length;
-  const subscriptions = config.artistSubscriptions.filter(
-    (entry) => entry.artistTelegramUserId === auth.telegramUserId && entry.status === "active",
-  ).length;
   const socialBySlug = await listReleaseSocialFeedSummaries(tracks.map((track) => track.slug));
-  const finance = await readArtistFinanceSnapshot({
-    config,
-    artistTelegramUserId: auth.telegramUserId,
-  });
+  const [finance, support] = await Promise.all([
+    readArtistFinanceSnapshot({
+      config,
+      artistTelegramUserId: auth.telegramUserId,
+    }),
+    readArtistSupportSnapshot({
+      config,
+      artistTelegramUserId: auth.telegramUserId,
+      donationsLimit: 10000,
+      subscriptionsLimit: 10000,
+    }),
+  ]);
+  const donations = support.donations.length;
+  const subscriptions = support.subscriptions.filter((entry) => entry.status === "active").length;
   const studioStats = buildArtistStudioStats({
     tracks,
     donationsCount: donations,
@@ -137,6 +144,7 @@ export async function GET(request: Request) {
     payoutAuditEntries,
     artistSource: artistCatalog.source,
     financeSource: finance.source,
+    supportSource: support.source,
   });
 }
 

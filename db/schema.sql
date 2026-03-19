@@ -275,6 +275,25 @@ CREATE TABLE IF NOT EXISTS artist_tracks (
   published_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS artist_donations (
+  id TEXT PRIMARY KEY,
+  artist_telegram_user_id BIGINT NOT NULL,
+  from_telegram_user_id BIGINT NOT NULL,
+  amount_stars_cents INTEGER NOT NULL CHECK (amount_stars_cents >= 0),
+  message TEXT,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS artist_subscriptions (
+  id TEXT PRIMARY KEY,
+  artist_telegram_user_id BIGINT NOT NULL,
+  subscriber_telegram_user_id BIGINT NOT NULL,
+  amount_stars_cents INTEGER NOT NULL CHECK (amount_stars_cents >= 0),
+  status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'cancelled')),
+  started_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS artist_payout_audit_log (
   id TEXT PRIMARY KEY,
   payout_request_id TEXT NOT NULL,
@@ -343,6 +362,11 @@ CREATE INDEX IF NOT EXISTS idx_artist_applications_status_updated ON artist_appl
 CREATE INDEX IF NOT EXISTS idx_artist_tracks_artist_updated ON artist_tracks(artist_telegram_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_tracks_status_updated ON artist_tracks(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_tracks_slug ON artist_tracks(slug);
+CREATE INDEX IF NOT EXISTS idx_artist_donations_artist_created ON artist_donations(artist_telegram_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_donations_from_created ON artist_donations(from_telegram_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_subscriptions_artist_updated ON artist_subscriptions(artist_telegram_user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_subscriptions_subscriber_updated ON artist_subscriptions(subscriber_telegram_user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artist_subscriptions_status_updated ON artist_subscriptions(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_audit_request_created ON artist_payout_audit_log(payout_request_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artist_payout_audit_artist_created ON artist_payout_audit_log(artist_telegram_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_release_entitlements_user_acquired ON user_release_entitlements(telegram_user_id, acquired_at DESC);

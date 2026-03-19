@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { getShopOrderById, upsertShopOrder } from "@/lib/server/shop-orders-store";
 import type { ShopOrder } from "@/types/shop";
@@ -78,7 +79,14 @@ export async function POST(
   const amountStarsCents = clampMoney(payload.amountStarsCents);
 
   const config = await readShopAdminConfig();
-  const artist = Object.values(config.artistProfiles).find((entry) => entry.slug === slug && entry.status === "approved");
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    profileSlug: slug,
+    onlyApprovedProfiles: true,
+    profileLimit: 1,
+    trackLimit: 1,
+  });
+  const artist = artistCatalog.profiles[0] ?? null;
 
   if (!artist) {
     return NextResponse.json({ error: "Artist not found" }, { status: 404 });

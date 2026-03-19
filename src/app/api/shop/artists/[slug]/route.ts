@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
+import { readArtistSupportSnapshot } from "@/lib/server/artist-support-store";
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { toArtistTrackProduct } from "@/lib/server/shop-artist-market";
 import { listFollowStatsBySlugs } from "@/lib/server/social-follow-store";
@@ -31,13 +32,17 @@ export async function GET(
     .sort((a, b) => new Date(b.publishedAt ?? b.updatedAt).getTime() - new Date(a.publishedAt ?? a.updatedAt).getTime())
     .map((track) => toArtistTrackProduct(track, profile));
 
-  const donationsTotal = config.artistDonations
-    .filter((entry) => entry.artistTelegramUserId === profile.telegramUserId)
-    .reduce((acc, entry) => acc + entry.amountStarsCents, 0);
-  const activeSubscribers = config.artistSubscriptions.filter(
-    (entry) => entry.artistTelegramUserId === profile.telegramUserId && entry.status === "active",
-  ).length;
-  const followStats = await listFollowStatsBySlugs([profile.slug]);
+  const [support, followStats] = await Promise.all([
+    readArtistSupportSnapshot({
+      config,
+      artistTelegramUserId: profile.telegramUserId,
+      donationsLimit: 10000,
+      subscriptionsLimit: 10000,
+    }),
+    listFollowStatsBySlugs([profile.slug]),
+  ]);
+  const donationsTotal = support.donations.reduce((acc, entry) => acc + entry.amountStarsCents, 0);
+  const activeSubscribers = support.subscriptions.filter((entry) => entry.status === "active").length;
   const dynamicFollowersCount = followStats[profile.slug]?.followersCount ?? profile.followersCount;
 
   return NextResponse.json({
@@ -50,5 +55,6 @@ export async function GET(
       donationsTotal,
       activeSubscribers,
     },
+    supportSource: support.source,
   });
 }

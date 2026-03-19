@@ -2,6 +2,7 @@ import { getPostgresHttpConfig, postgresTableCount } from "@/lib/server/postgres
 import { readArtistApplicationSnapshot } from "@/lib/server/artist-application-store";
 import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
+import { readArtistSupportSnapshot } from "@/lib/server/artist-support-store";
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { readLegacySocialUserBackfillEntries } from "@/lib/server/social-user-state-store";
 
@@ -16,7 +17,7 @@ interface MigrationMetric {
 }
 
 export interface AdminMigrationDomainStatus {
-  id: "entitlements" | "artist_applications" | "artist_catalog" | "artist_finance";
+  id: "entitlements" | "artist_applications" | "artist_catalog" | "artist_finance" | "artist_support";
   label: string;
   source: MigrationSource;
   cutoverState: MigrationCutoverState;
@@ -132,7 +133,7 @@ export const readAdminMigrationStatus = async (): Promise<AdminMigrationStatusSn
   const config = await readShopAdminConfig();
   const updatedAt = config.updatedAt || new Date().toISOString();
 
-  const [applicationsSnapshot, artistCatalogSnapshot, financeSnapshot, legacyEntitlements, releaseEntitlementsCount, trackEntitlementsCount, nftMintsCount, artistApplicationsCount, artistProfilesCount, artistTracksCount, artistEarningsCount, artistPayoutRequestsCount, artistPayoutAuditCount] =
+  const [applicationsSnapshot, artistCatalogSnapshot, financeSnapshot, supportSnapshot, legacyEntitlements, releaseEntitlementsCount, trackEntitlementsCount, nftMintsCount, artistApplicationsCount, artistProfilesCount, artistTracksCount, artistEarningsCount, artistPayoutRequestsCount, artistPayoutAuditCount, artistDonationsCount, artistSubscriptionsCount] =
     await Promise.all([
       readArtistApplicationSnapshot({ config, limit: 5000 }),
       readArtistCatalogSnapshot({ config, profileLimit: 5000, trackLimit: 10000 }),
@@ -141,6 +142,11 @@ export const readAdminMigrationStatus = async (): Promise<AdminMigrationStatusSn
         earningsLimit: 20000,
         payoutRequestsLimit: 5000,
         payoutAuditEntriesLimit: 20000,
+      }),
+      readArtistSupportSnapshot({
+        config,
+        donationsLimit: 20000,
+        subscriptionsLimit: 20000,
       }),
       readLegacySocialUserBackfillEntries({ limit: 5000 }),
       postgresEnabled ? countTable("/user_release_entitlements") : Promise.resolve(0),
@@ -152,6 +158,8 @@ export const readAdminMigrationStatus = async (): Promise<AdminMigrationStatusSn
       postgresEnabled ? countTable("/artist_earnings_ledger") : Promise.resolve(0),
       postgresEnabled ? countTable("/artist_payout_requests") : Promise.resolve(0),
       postgresEnabled ? countTable("/artist_payout_audit_log") : Promise.resolve(0),
+      postgresEnabled ? countTable("/artist_donations") : Promise.resolve(0),
+      postgresEnabled ? countTable("/artist_subscriptions") : Promise.resolve(0),
     ]);
 
   const legacyEntries = legacyEntitlements?.entries ?? [];
@@ -307,6 +315,44 @@ export const readAdminMigrationStatus = async (): Promise<AdminMigrationStatusSn
           },
         ],
         financeSnapshot.source,
+      ),
+      updatedAt,
+    }),
+    buildDomainStatus({
+      id: "artist_support",
+      label: "Artist donations and subscriptions",
+      source: supportSnapshot.source,
+      postgresEnabled,
+      metrics: [
+        {
+          id: "artist_donations",
+          label: "Donations",
+          legacyCount: config.artistDonations.length,
+          normalizedCount: artistDonationsCount ?? 0,
+        },
+        {
+          id: "artist_subscriptions",
+          label: "Subscriptions",
+          legacyCount: config.artistSubscriptions.length,
+          normalizedCount: artistSubscriptionsCount ?? 0,
+        },
+      ],
+      notes: buildNotes(
+        [
+          {
+            id: "artist_donations",
+            label: "Donations",
+            legacyCount: config.artistDonations.length,
+            normalizedCount: artistDonationsCount ?? 0,
+          },
+          {
+            id: "artist_subscriptions",
+            label: "Subscriptions",
+            legacyCount: config.artistSubscriptions.length,
+            normalizedCount: artistSubscriptionsCount ?? 0,
+          },
+        ],
+        supportSnapshot.source,
       ),
       updatedAt,
     }),

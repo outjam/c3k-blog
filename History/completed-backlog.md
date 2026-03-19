@@ -155,6 +155,12 @@
   - legacy/postgres counts
   - coverage %
   - cutover readiness по ownership, applications, artist catalog и finance
+- Следующим slice `Sprint 08` получил отдельный normalized support-domain:
+  - добавлены таблицы `artist_donations` и `artist_subscriptions`
+  - public artist route и artist self-service читают merged support snapshot
+  - paid-order webhook dual-write'ит donations/subscriptions
+  - добавлен admin support backfill
+  - migration status теперь учитывает и `artist_support`
 
 ### Entitlement and mint normalization foundation
 

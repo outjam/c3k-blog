@@ -259,6 +259,17 @@ Go рассматривается как хороший будущий язык 
 - `/api/admin/artists` тоже начал возвращать finance-aware counters для модерации артистов
 - профиль пользователя начал брать `Заработано` из finance summary, а не только из legacy profile field
 
+Следующим slice внутри `Sprint 08` было реализовано:
+
+- отдельный normalized support-domain для donations/subscriptions
+- новые таблицы `artist_donations` и `artist_subscriptions`
+- merge-store для artist support snapshot
+- public artist route и artist self-service переведены на merged support reads
+- paid-order webhook начал dual-write'ить donations/subscriptions
+- добавлен admin support backfill и migration visibility по домену `artist_support`
+
+Это ещё не завершает весь cutover `Sprint 08`, но убирает ещё один заметный кусок artist/payment логики из чисто JSON-only состояния.
+
 Это сдвинуло `Sprint 08` дальше от формального dual-write к реальному read-side cutover в artist economy.
 
 Следующим slice внутри того же спринта было реализовано:

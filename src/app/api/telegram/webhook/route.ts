@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { canTransitionShopOrderStatus } from "@/lib/shop-order-status";
 import { upsertArtistProfiles, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
 import { upsertArtistEarningLedgerEntries } from "@/lib/server/artist-finance-store";
+import { upsertArtistDonations, upsertArtistSubscriptions } from "@/lib/server/artist-support-store";
 import { applyArtistPayoutsForPaidOrder } from "@/lib/server/shop-artist-market";
 import { buildOrderCardSvg } from "@/lib/server/shop-order-card-image";
 import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
@@ -289,12 +290,20 @@ export async function POST(request: Request) {
       let createdArtistEarnings: ReturnType<
         typeof applyArtistPayoutsForPaidOrder
       >["createdEarnings"] = [];
+      let createdArtistDonations: ReturnType<
+        typeof applyArtistPayoutsForPaidOrder
+      >["createdDonations"] = [];
+      let upsertedArtistSubscriptions: ReturnType<
+        typeof applyArtistPayoutsForPaidOrder
+      >["upsertedSubscriptions"] = [];
       let updatedArtistProfiles: ArtistProfile[] = [];
       let updatedArtistTracks: ArtistTrack[] = [];
 
       await mutateShopAdminConfig((current) => {
         const applied = applyArtistPayoutsForPaidOrder(current, updatedOrder);
         createdArtistEarnings = applied.createdEarnings;
+        createdArtistDonations = applied.createdDonations;
+        upsertedArtistSubscriptions = applied.upsertedSubscriptions;
         updatedArtistProfiles = applied.touchedArtistIds
           .map((telegramUserId) => {
             const profile = applied.config.artistProfiles[String(telegramUserId)] ?? null;
@@ -313,6 +322,12 @@ export async function POST(request: Request) {
 
       if (createdArtistEarnings.length) {
         await upsertArtistEarningLedgerEntries(createdArtistEarnings).catch(() => undefined);
+      }
+      if (createdArtistDonations.length) {
+        await upsertArtistDonations(createdArtistDonations).catch(() => undefined);
+      }
+      if (upsertedArtistSubscriptions.length) {
+        await upsertArtistSubscriptions(upsertedArtistSubscriptions).catch(() => undefined);
       }
       if (updatedArtistProfiles.length) {
         await upsertArtistProfiles(updatedArtistProfiles).catch(() => undefined);

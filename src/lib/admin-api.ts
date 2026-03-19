@@ -57,7 +57,7 @@ export interface AdminMigrationMetric {
 }
 
 export interface AdminMigrationDomainStatus {
-  id: "entitlements" | "artist_applications" | "artist_catalog" | "artist_finance";
+  id: "entitlements" | "artist_applications" | "artist_catalog" | "artist_finance" | "artist_support";
   label: string;
   source: "postgres" | "legacy";
   cutoverState: "legacy_only" | "dual_write" | "ready";
@@ -108,6 +108,15 @@ export interface AdminArtistFinanceBackfillResult {
   payoutRequests: number;
   payoutAuditEntries: number;
   syncedProfiles: number;
+  sourceUpdatedAt: string;
+}
+
+export interface AdminArtistSupportBackfillResult {
+  ok: true;
+  dryRun: boolean;
+  selectedArtists: number;
+  donations: number;
+  subscriptions: number;
   sourceUpdatedAt: string;
 }
 
@@ -327,6 +336,32 @@ export const runAdminArtistApplicationBackfill = async (payload: {
     }
 
     return { result: (await response.json()) as AdminArtistApplicationBackfillResult };
+  } catch {
+    return { result: null, error: "Network error" };
+  }
+};
+
+export const runAdminArtistSupportBackfill = async (payload: {
+  dryRun?: boolean;
+  limit?: number;
+  telegramUserIds?: number[];
+}): Promise<{ result: AdminArtistSupportBackfillResult | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/artists/support-backfill", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { result: null, error: await parseApiError(response) };
+    }
+
+    return { result: (await response.json()) as AdminArtistSupportBackfillResult };
   } catch {
     return { result: null, error: "Network error" };
   }
@@ -1137,6 +1172,7 @@ export const fetchMyArtistProfile = async (): Promise<{
   payoutAuditEntries: ArtistPayoutAuditEntry[];
   artistSource: "postgres" | "legacy";
   financeSource: "postgres" | "legacy";
+  supportSource: "postgres" | "legacy";
   error?: string;
 }> => {
   try {
@@ -1159,6 +1195,7 @@ export const fetchMyArtistProfile = async (): Promise<{
         payoutAuditEntries: [],
         artistSource: "legacy",
         financeSource: "legacy",
+        supportSource: "legacy",
         error: await parseApiError(response),
       };
     }
@@ -1175,6 +1212,7 @@ export const fetchMyArtistProfile = async (): Promise<{
       payoutAuditEntries?: ArtistPayoutAuditEntry[];
       artistSource?: "postgres" | "legacy";
       financeSource?: "postgres" | "legacy";
+      supportSource?: "postgres" | "legacy";
     };
 
     return {
@@ -1189,6 +1227,7 @@ export const fetchMyArtistProfile = async (): Promise<{
       payoutAuditEntries: payload.payoutAuditEntries ?? [],
       artistSource: payload.artistSource ?? "legacy",
       financeSource: payload.financeSource ?? "legacy",
+      supportSource: payload.supportSource ?? "legacy",
     };
   } catch {
     return {
@@ -1203,6 +1242,7 @@ export const fetchMyArtistProfile = async (): Promise<{
       payoutAuditEntries: [],
       artistSource: "legacy",
       financeSource: "legacy",
+      supportSource: "legacy",
       error: "Network error",
     };
   }

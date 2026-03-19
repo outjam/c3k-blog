@@ -1,6 +1,8 @@
 import type {
+  ArtistDonation,
   ArtistEarningLedgerEntry,
   ArtistProfile,
+  ArtistSubscription,
   ArtistTrack,
   ShopAdminConfig,
   ShopOrder,
@@ -154,6 +156,8 @@ export const applyArtistPayoutsForPaidOrder = (
   config: ShopAdminConfig;
   touchedArtistIds: number[];
   createdEarnings: ShopAdminConfig["artistEarningsLedger"];
+  createdDonations: ArtistDonation[];
+  upsertedSubscriptions: ArtistSubscription[];
 } => {
   const now = new Date().toISOString();
   const profiles = { ...config.artistProfiles };
@@ -162,6 +166,8 @@ export const applyArtistPayoutsForPaidOrder = (
   const subscriptions = [...config.artistSubscriptions];
   const earningsLedger = [...config.artistEarningsLedger];
   const createdEarnings: ShopAdminConfig["artistEarningsLedger"] = [];
+  const createdDonations: ArtistDonation[] = [];
+  const upsertedSubscriptions = new Map<string, ArtistSubscription>();
   const existingEarningIds = new Set(earningsLedger.map((entry) => entry.id));
   const touchedArtistIds = new Set<number>();
   const existingDonationIds = new Set(donations.map((item) => item.id));
@@ -229,14 +235,16 @@ export const applyArtistPayoutsForPaidOrder = (
     if (synthetic.kind === "donation") {
       const donationId = `don-${order.id}-${synthetic.artistTelegramUserId}`.toLowerCase();
       if (!existingDonationIds.has(donationId)) {
-        donations.unshift({
+        const donationEntry: ArtistDonation = {
           id: donationId,
           artistTelegramUserId: synthetic.artistTelegramUserId,
           fromTelegramUserId: order.telegramUserId,
           amountStarsCents: lineTotal,
           message: order.comment || undefined,
           createdAt: now,
-        });
+        };
+        donations.unshift(donationEntry);
+        createdDonations.push(donationEntry);
         existingDonationIds.add(donationId);
       }
 
@@ -282,6 +290,7 @@ export const applyArtistPayoutsForPaidOrder = (
     }
 
     const compositeKey = `${synthetic.artistTelegramUserId}:${order.telegramUserId}`;
+    const subscriptionId = `sub-${synthetic.artistTelegramUserId}-${order.telegramUserId}`;
     const existingIndex = subscriptionByComposite.get(compositeKey);
 
     if (typeof existingIndex === "number") {
@@ -296,11 +305,11 @@ export const applyArtistPayoutsForPaidOrder = (
         status: "active",
         updatedAt: now,
       };
+      upsertedSubscriptions.set(subscriptionId, subscriptions[existingIndex]);
       continue;
     }
 
-    const subscriptionId = `sub-${synthetic.artistTelegramUserId}-${order.telegramUserId}`;
-    subscriptions.unshift({
+    const subscriptionEntry: ArtistSubscription = {
       id: subscriptionId,
       artistTelegramUserId: synthetic.artistTelegramUserId,
       subscriberTelegramUserId: order.telegramUserId,
@@ -308,12 +317,20 @@ export const applyArtistPayoutsForPaidOrder = (
       status: "active",
       startedAt: now,
       updatedAt: now,
-    });
+    };
+    subscriptions.unshift(subscriptionEntry);
     subscriptionByComposite.set(compositeKey, 0);
+    upsertedSubscriptions.set(subscriptionId, subscriptionEntry);
   }
 
   if (touchedArtistIds.size === 0) {
-    return { config, touchedArtistIds: [], createdEarnings: [] };
+    return {
+      config,
+      touchedArtistIds: [],
+      createdEarnings: [],
+      createdDonations: [],
+      upsertedSubscriptions: [],
+    };
   }
 
   return {
@@ -331,5 +348,7 @@ export const applyArtistPayoutsForPaidOrder = (
     ),
     touchedArtistIds: Array.from(touchedArtistIds),
     createdEarnings,
+    createdDonations,
+    upsertedSubscriptions: Array.from(upsertedSubscriptions.values()),
   };
 };

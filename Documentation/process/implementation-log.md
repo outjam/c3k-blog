@@ -259,6 +259,38 @@
 
 ### Проверка Sprint 06 slice
 
+### Sprint 08 slice: normalized artist support layer
+
+- В `db/schema.sql` добавлены таблицы:
+  - `artist_donations`
+  - `artist_subscriptions`
+- Добавлен отдельный merge-store:
+  - [src/lib/server/artist-support-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-support-store.ts)
+- Artist self-service и public artist routes теперь читают donations/subscriptions через merged support snapshot:
+  - [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+  - [src/app/api/shop/artists/[slug]/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/[slug]/route.ts)
+- Support checkout route больше не зависит только от raw legacy artist lookup:
+  - [src/app/api/shop/artists/[slug]/support/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/[slug]/support/route.ts)
+- Paid-order webhook теперь dual-write'ит donations/subscriptions в новый слой:
+  - [src/lib/server/shop-artist-market.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-artist-market.ts)
+  - [src/app/api/telegram/webhook/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/webhook/route.ts)
+- Добавлен support backfill:
+  - [src/lib/server/artist-support-backfill.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-support-backfill.ts)
+  - [src/app/api/admin/artists/support-backfill/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/support-backfill/route.ts)
+- Admin dashboard и migration status теперь видят отдельный домен `artist_support`.
+- `Студия` получила source visibility и для support layer.
+
+### Результат support slice
+
+- donations/subscriptions больше не сидят только в `shop_admin_config_v1`
+- публичный artist screen и artist self-service уже читают merged support state
+- support-домен получил такой же migration/backfill operational слой, как catalog и finance
+
+### Проверка support slice
+
+- `npm run typecheck`
+- targeted `eslint` по support store/backfill/routes/admin/webhook файлам
+
 ### Sprint 08 slice: payout audit log
 
 - В `db/schema.sql` добавлена нормализованная таблица:

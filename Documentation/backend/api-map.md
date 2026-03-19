@@ -171,6 +171,8 @@
   - dry-run и запуск backfill `artist_profiles` / `artist_tracks` из legacy artist state
 - `/api/admin/artists/finance-backfill`
   - dry-run и запуск backfill `artist_earnings_ledger` / `artist_payout_requests` / `artist_payout_audit_log`
+- `/api/admin/artists/support-backfill`
+  - dry-run и запуск backfill `artist_donations` / `artist_subscriptions`
 - `/api/admin/storage/sync-tracks`
   - backfill и повторная синхронизация storage assets из artist releases
 - `/api/admin/storage/ingest`
