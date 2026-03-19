@@ -105,6 +105,80 @@ const formatInputStars = (value: number): string => {
   return Number.isInteger(major) ? String(major) : major.toFixed(2).replace(/\.?0+$/, "");
 };
 
+const formatSourceLabel = (value: "postgres" | "legacy"): string => {
+  return value === "postgres" ? "Postgres" : "Legacy";
+};
+
+const formatReleaseStatusLabel = (value: ArtistTrack["status"]): string => {
+  switch (value) {
+    case "published":
+      return "Опубликован";
+    case "pending_moderation":
+      return "На модерации";
+    case "rejected":
+      return "Нужны правки";
+    default:
+      return "Черновик";
+  }
+};
+
+const formatPayoutStatusLabel = (value: ArtistPayoutRequest["status"]): string => {
+  switch (value) {
+    case "approved":
+      return "Одобрен";
+    case "rejected":
+      return "Отклонён";
+    case "paid":
+      return "Выплачен";
+    default:
+      return "На проверке";
+  }
+};
+
+const toToneClassName = (
+  stylesMap: Record<string, string>,
+  value: "success" | "warning" | "danger" | "default",
+): string => {
+  switch (value) {
+    case "success":
+      return stylesMap.toneSuccess;
+    case "warning":
+      return stylesMap.toneWarning;
+    case "danger":
+      return stylesMap.toneDanger;
+    default:
+      return stylesMap.toneDefault;
+  }
+};
+
+const getReleaseStatusTone = (value: ArtistTrack["status"]): "success" | "warning" | "danger" | "default" => {
+  switch (value) {
+    case "published":
+      return "success";
+    case "pending_moderation":
+      return "warning";
+    case "rejected":
+      return "danger";
+    default:
+      return "default";
+  }
+};
+
+const getPayoutStatusTone = (
+  value: ArtistPayoutRequest["status"],
+): "success" | "warning" | "danger" | "default" => {
+  switch (value) {
+    case "paid":
+      return "success";
+    case "approved":
+      return "warning";
+    case "rejected":
+      return "danger";
+    default:
+      return "default";
+  }
+};
+
 const tabItems = [
   { id: "overview", label: "Обзор" },
   { id: "profile", label: "Профиль" },
@@ -500,21 +574,31 @@ export default function StudioPage() {
               <span>Студия артиста</span>
               <h1>{profile.displayName}</h1>
               <p>{profile.bio || "Управление релизами, витриной и выплатами."}</p>
-              <small>
-                Artist source: {artistSource} · Finance source: {financeSource} · Support source: {supportSource}
-              </small>
+              <div className={styles.sourceRow}>
+                <span className={`${styles.sourcePill} ${artistSource === "postgres" ? styles.toneSuccess : styles.toneDefault}`}>
+                  Профиль: {formatSourceLabel(artistSource)}
+                </span>
+                <span className={`${styles.sourcePill} ${financeSource === "postgres" ? styles.toneSuccess : styles.toneDefault}`}>
+                  Финансы: {formatSourceLabel(financeSource)}
+                </span>
+                <span className={`${styles.sourcePill} ${supportSource === "postgres" ? styles.toneSuccess : styles.toneDefault}`}>
+                  Support: {formatSourceLabel(supportSource)}
+                </span>
+              </div>
               <small>{formatShortTonAddress(profile.tonWalletAddress) || "TON-кошелёк не задан"}</small>
             </div>
 
             <div className={styles.heroBalance}>
-              <span>Доступно к выводу</span>
+              <span>Финансовый контур</span>
               <strong className={styles.inlineAmount}>
                 <StarsIcon className={styles.inlineAmountIcon} />
                 {formatStarsFromCents(payoutSummary?.availableStarsCents ?? 0)}
               </strong>
-              <small>
-                Hold 21 дней: {formatStarsFromCents(payoutSummary?.pendingHoldStarsCents ?? 0)}
-              </small>
+              <small>Доступно к выводу сейчас</small>
+              <div className={styles.balanceMetaRow}>
+                <span>Hold 21 дней: {formatStarsFromCents(payoutSummary?.pendingHoldStarsCents ?? 0)}</span>
+                <span>Всего заработано: {formatStarsFromCents(payoutSummary?.totalEarnedStarsCents ?? 0)}</span>
+              </div>
             </div>
           </div>
         </section>
@@ -533,6 +617,28 @@ export default function StudioPage() {
 
         {currentTab === "overview" ? (
           <section className={styles.card}>
+            <div className={styles.financeHeroGrid}>
+              <article className={styles.metricCard}>
+                <span>Доступно</span>
+                <strong className={styles.inlineAmount}>
+                  <StarsIcon className={styles.inlineAmountIcon} />
+                  {formatStarsFromCents(payoutSummary?.availableStarsCents ?? 0)}
+                </strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>На hold</span>
+                <strong>{formatStarsFromCents(payoutSummary?.pendingHoldStarsCents ?? 0)}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>Запрошено</span>
+                <strong>{formatStarsFromCents(payoutSummary?.requestedStarsCents ?? 0)}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>Выплачено</span>
+                <strong>{formatStarsFromCents(payoutSummary?.paidOutStarsCents ?? 0)}</strong>
+              </article>
+            </div>
+
             <div className={styles.metricGrid}>
               <article className={styles.metricCard}>
                 <span>Релизы</span>
@@ -576,7 +682,11 @@ export default function StudioPage() {
                           {track.releaseType.toUpperCase()} · {track.releaseTracklist?.length ?? 1} треков
                         </span>
                       </div>
-                      <small>{track.status}</small>
+                      <span
+                        className={`${styles.statusBadge} ${toToneClassName(styles, getReleaseStatusTone(track.status))}`}
+                      >
+                        {formatReleaseStatusLabel(track.status)}
+                      </span>
                     </article>
                   ))}
                 </div>
@@ -853,9 +963,14 @@ export default function StudioPage() {
                     <div>
                       <strong>{track.title}</strong>
                       <span>
-                        {track.status} · {track.releaseTracklist?.length ?? 1} треков
+                        {track.releaseTracklist?.length ?? 1} треков · {track.releaseType.toUpperCase()}
                       </span>
                     </div>
+                    <span
+                      className={`${styles.statusBadge} ${toToneClassName(styles, getReleaseStatusTone(track.status))}`}
+                    >
+                      {formatReleaseStatusLabel(track.status)}
+                    </span>
                     <Link href={`/shop/${track.slug}`}>Открыть</Link>
                   </article>
                 ))}
@@ -939,9 +1054,16 @@ export default function StudioPage() {
                     <article key={request.id} className={styles.payoutRow}>
                       <div className={styles.payoutRowMain}>
                         <strong>{formatStarsFromCents(request.amountStarsCents)}</strong>
-                        <span>{request.status}</span>
+                        <span>{request.note || "Запрос на вывод по TON-кошельку"}</span>
                       </div>
-                      <small>{new Date(request.createdAt).toLocaleDateString("ru-RU")}</small>
+                      <div className={styles.payoutRowMeta}>
+                        <span
+                          className={`${styles.statusBadge} ${toToneClassName(styles, getPayoutStatusTone(request.status))}`}
+                        >
+                          {formatPayoutStatusLabel(request.status)}
+                        </span>
+                        <small>{new Date(request.createdAt).toLocaleDateString("ru-RU")}</small>
+                      </div>
                       {payoutAuditByRequestId.get(request.id)?.length ? (
                         <div className={styles.auditTrail}>
                           {payoutAuditByRequestId.get(request.id)?.slice(0, 4).map((entry) => (

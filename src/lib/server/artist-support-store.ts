@@ -163,7 +163,8 @@ const mergeSubscriptions = (primary: ArtistSubscription[], fallback: ArtistSubsc
   const entries = new Map<string, ArtistSubscription>();
 
   [...primary, ...fallback].forEach((entry) => {
-    if (!entries.has(entry.id)) {
+    const existing = entries.get(entry.id);
+    if (!existing || getSubscriptionTimestamp(entry) > getSubscriptionTimestamp(existing)) {
       entries.set(entry.id, entry);
     }
   });

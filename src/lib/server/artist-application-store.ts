@@ -112,7 +112,8 @@ const mergeApplications = (
 ): ArtistApplication[] => {
   const map = new Map<number, ArtistApplication>();
   [...primary, ...fallback].forEach((entry) => {
-    if (!map.has(entry.telegramUserId)) {
+    const existing = map.get(entry.telegramUserId);
+    if (!existing || getUpdatedTimestamp(entry) > getUpdatedTimestamp(existing)) {
       map.set(entry.telegramUserId, entry);
     }
   });

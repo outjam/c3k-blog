@@ -52,6 +52,44 @@
 - Теперь при гидрации выигрывает более свежая normalized запись по `updatedAt`, а не первое попавшееся legacy значение.
 - Это делает cutover к Postgres более честным: route действительно начинает жить от нормализованного state, а не только “видит его рядом”.
 
+### Fresher state wins и на read-side merge-store
+
+- Тот же принцип перенесён и в merge-store readers:
+  - `artist_profiles`
+  - `artist_tracks`
+  - `artist_applications`
+  - `artist_payout_requests`
+  - `artist_subscriptions`
+- Теперь даже при чтении snapshot система не просто берёт “Postgres first”, а сравнивает свежесть mutable записи по времени обновления.
+- Это уменьшает случаи, когда UI или route видит stale состояние, хотя более новая запись уже существует во втором слое.
+
+### Sprint 08 закрыт полностью
+
+- Добавлен unified migration backfill suite для всех уже нормализованных критичных доменов:
+  - ownership и NFT
+  - artist applications
+  - artist catalog
+  - artist finance
+  - artist support
+- В админке появилась одна операторская кнопка, которая запускает весь cutover process и сразу показывает новый migration status.
+- Artist profile mutation routes доведены до ledger-first поведения:
+  - self-service profile save
+  - application approval
+  - admin profile moderation
+- После этого `Sprint 08` переведён в `done`, а активным стал `Sprint 09 — Production hardening`.
+
+### Дополнительный дизайн-спринт перед Sprint 09 hardening
+
+- В админке выделен главный операторский action для полного cutover/backfill.
+- В студии finance-layer стал читаться визуально:
+  - source pills
+  - отдельные finance cards
+  - человеческие статусы релизов и выплат
+- В библиотеке файлов delivery flow стал понятнее:
+  - статусные тона
+  - channel/format/file pills
+  - признаки готовности к desktop/direct delivery
+
 ## 2026-03-18
 
 ### Профиль и публичный профиль

@@ -108,6 +108,83 @@
 - `npm run typecheck`
 - targeted `eslint` по artist/webhook hydration helpers
 
+### Дополнительный sprint slice: freshness-aware merge-store readers
+
+- [artist-catalog-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-store.ts) теперь на read-side сравнивает `updatedAt` для `artist_profiles` и `artist_tracks`
+- [artist-application-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-application-store.ts) делает то же для `artist_applications`
+- [artist-finance-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-finance-store.ts) теперь freshness-aware мержит `artist_payout_requests`
+- [artist-support-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-support-store.ts) теперь freshness-aware мержит `artist_subscriptions`
+
+### Зачем это сделано
+
+- раньше read-side merge-store всё ещё мог показывать stale snapshot только потому, что одна из сторон пришла первой
+- после исправления и read-side, и mutation-side используют одинаковый принцип: mutable запись побеждает по свежести, а не по источнику
+- это делает transition между `app_state` и `Postgres` заметно честнее и снижает drift не только на записи, но и на чтении
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по artist/finance/support merge-store файлам
+
+### Финальный sprint slice: unified cutover suite и ledger-first profile mutations
+
+- Добавлен единый backfill runner:
+  - [migration-backfill-suite.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/migration-backfill-suite.ts)
+  - [admin migration backfill route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/migrations/backfill/route.ts)
+  - [admin client helper](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+  - [admin dashboard action](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx)
+- Оператор теперь может одним действием прогнать:
+  - entitlements
+  - artist applications
+  - artist catalog
+  - artist finance
+  - artist support
+  и сразу получить новый `migrationStatus`
+- Доведены profile mutation routes до ledger-first поведения:
+  - [artist self-service profile save](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts)
+  - [admin application approval](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-applications/route.ts)
+  - [admin artist moderation](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+- Эти route'ы теперь гидрируют finance snapshot и строят profile counters из ledger/request state, а не переносят stale `balance/lifetime` из сохранённого profile
+
+### Зачем это сделано
+
+- это закрыло два последних незакрытых пункта Sprint 08:
+  - полный ledger-first finance model
+  - единый migration layer / cutover process по критичным доменам
+- после этого `Sprint 08` можно перевести в `done`, а следующий активный этап — production hardening
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по новым migration route/helper и artist/admin profile routes
+
+### Sprint 09 slice: UI alignment for admin, studio and downloads
+
+- [admin dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx) получил выделенный primary-card для полного `cutover/backfill` действия
+- [studio](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx) теперь:
+  - показывает source-pills вместо сырой строки `Artist source / Finance source / Support source`
+  - выносит finance contour в hero и overview
+  - использует человекочитаемые статусы релизов и payout requests
+- [downloads](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.tsx) получил более явные delivery states:
+  - status tone
+  - channel/format/file pills
+  - понятный timestamp и признаки `storagePointer` / direct delivery
+- Обновлены стили:
+  - [admin page styles](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.module.scss)
+  - [studio styles](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.module.scss)
+  - [downloads styles](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.module.scss)
+
+### Зачем это сделано
+
+- backend-логика уже стала сложнее, чем UI-подача
+- оператору, артисту и покупателю нужно быстрее считывать состояние без чтения сырого технического текста
+- это подготавливает интерфейс к дальнейшему `Sprint 09`, где появятся production/hardening flows и их тоже нужно будет ясно показывать
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по admin/studio/downloads и связанным helper/routes
+
 ## 2026-03-18
 
 ### Контекст

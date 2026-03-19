@@ -37,8 +37,8 @@
 ## Текущий фокус
 
 - Текущая большая фаза: `Phase 5 groundwork`
-- Текущий спринт: `Sprint 08 — Backend normalization and ledger hardening`
-- Следующий спринт: `Sprint 09 — Production hardening`
+- Текущий спринт: `Sprint 09 — Production hardening`
+- Следующий спринт: `Sprint 10 — Real TON Storage test runtime`
 
 ## Спринты
 
@@ -178,7 +178,7 @@ Status: done
 
 ### Sprint 08 — Backend Normalization and Ledger Hardening
 
-Status: current
+Status: done
 
 Цель:
 - вынести критичную доменную модель из `app_state`
@@ -196,18 +196,27 @@ Status: current
 - [x] Payment webhook теперь гидрирует ещё и normalized finance/support snapshot перед payout/support mutation path
 - [x] Artist self-service и admin moderation routes теперь гидрируют `artist_profiles`, `artist_tracks` и `artist_applications` в config перед mutation path
 - [x] Mutable hydration helpers теперь предпочитают более свежий normalized snapshot для artist/application/payout/subscription state
+- [x] Merge-store readers теперь тоже предпочитают более свежий snapshot для mutable artist/application/payout/subscription state
 - [x] Admin migration status по доменам: source, legacy/postgres counts, coverage и cutover readiness
 - [x] Отдельный admin UX/design slice: человеческие пояснения по вкладкам, backfill-кнопкам, artist moderation и storage dashboard
-- [ ] Полный ledger-first finance model
+- [x] Полный ledger-first finance model
 - [x] Backfill/migration jobs для ownership, artist applications, artist catalog, finance и artist support domains
-- [ ] Слой миграции с JSON state в таблицы для оставшихся доменов
+- [x] Слой миграции с JSON state в таблицы для оставшихся доменов
+
+Критерий выхода:
+- критичные artist/payment/support/ownership домены уже имеют normalized tables, merge-store, backfill и admin visibility
+- mutable read/write paths больше не побеждают только по legacy JSON, а работают по свежести snapshot
+- оператор может одним действием прогнать unified backfill suite и увидеть общий cutover state по доменам
 
 ### Sprint 09 — Production Hardening
 
-Status: queued
+Status: current
 
 Цель:
 - подготовить систему к реальному production rollout
+
+Что уже доставлено в этом спринте:
+- [x] Дополнительный UX/design pass для admin cutover, studio finance и downloads library
 
 Что должно быть доставлено:
 - [ ] Incident/admin обзор по mint, delivery и payout проблемам
@@ -215,6 +224,19 @@ Status: queued
 - [ ] Чистое разделение `testnet / mainnet`
 - [ ] Подготовка mainnet-ready TON contour
 - [ ] Production deployment checklist
+
+### Sprint 10 — Real TON Storage Test Runtime
+
+Status: queued
+
+Цель:
+- перейти от test placeholders к реальному `TON Storage` на тестовом контуре
+
+Что должно быть доставлено:
+- [ ] Реальный upload выбранных assets в `TON Storage` test environment
+- [ ] Реальные bag/storage pointer для delivery layer
+- [ ] Telegram/file delivery из реального storage runtime
+- [ ] Desktop retrieval по `storagePointer`
 
 ## Как обновлять sprint board
 

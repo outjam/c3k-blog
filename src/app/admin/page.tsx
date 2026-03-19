@@ -28,11 +28,13 @@ import {
   runAdminArtistApplicationBackfill,
   runAdminArtistCatalogBackfill,
   runAdminArtistFinanceBackfill,
+  runAdminMigrationBackfillSuite,
   runAdminArtistSupportBackfill,
   runAdminSocialEntitlementBackfill,
   type AdminArtistApplicationBackfillResult,
   type AdminArtistCatalogBackfillResult,
   type AdminArtistFinanceBackfillResult,
+  type AdminMigrationBackfillSuiteResult,
   type AdminMigrationDomainStatus,
   type AdminArtistSupportBackfillResult,
   type AdminMigrationStatusSnapshot,
@@ -267,6 +269,8 @@ export default function AdminPage() {
   const [financeBackfillResult, setFinanceBackfillResult] = useState<AdminArtistFinanceBackfillResult | null>(null);
   const [supportBackfillLoading, setSupportBackfillLoading] = useState<"dry-run" | "run" | null>(null);
   const [supportBackfillResult, setSupportBackfillResult] = useState<AdminArtistSupportBackfillResult | null>(null);
+  const [migrationSuiteLoading, setMigrationSuiteLoading] = useState<"dry-run" | "run" | null>(null);
+  const [migrationSuiteResult, setMigrationSuiteResult] = useState<AdminMigrationBackfillSuiteResult | null>(null);
 
   const hasPermission = useCallback(
     (permission: ShopAdminPermission): boolean => {
@@ -551,7 +555,8 @@ export default function AdminPage() {
     applicationBackfillLoading !== null ||
     artistBackfillLoading !== null ||
     financeBackfillLoading !== null ||
-    supportBackfillLoading !== null;
+    supportBackfillLoading !== null ||
+    migrationSuiteLoading !== null;
 
   const syncCategoryState = (categories: ShopProductCategory[]) => {
     setProductCategories(categories);
@@ -813,6 +818,73 @@ export default function AdminPage() {
             ) : null}
             {hasPermission("settings:manage") ? (
               <div className={styles.actionGuideGrid}>
+                <article className={`${styles.actionGuideCard} ${styles.actionGuideCardPrimary}`}>
+                  <div className={styles.actionGuideHead}>
+                    <h3>Полный Sprint 08 cutover</h3>
+                    <span>Все критичные нормализованные домены разом</span>
+                  </div>
+                  <p className={styles.actionGuideText}>
+                    Запускает единый backfill по ownership, artist applications, catalog, finance и support. Это
+                    операторская кнопка для финального прогона после backend-изменений, когда нужно понять, готов ли
+                    переходный слой к cutover.
+                  </p>
+                  <p className={styles.actionGuideExample}>
+                    Пример: вы закончили migration slice, хотите не кликать пять карточек подряд и вам нужен один итоговый
+                    отчёт, сколько доменов уже `ready`, а сколько ещё в `dual-write`.
+                  </p>
+                  <div className={styles.promoActions}>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setMigrationSuiteLoading("dry-run");
+                        const response = await runAdminMigrationBackfillSuite({
+                          dryRun: true,
+                          limit: 1000,
+                        });
+                        setMigrationSuiteLoading(null);
+
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
+
+                        setMigrationSuiteResult(response.result);
+                        setMigrationStatus(response.result?.migrationStatus ?? null);
+                      }}
+                    >
+                      {migrationSuiteLoading === "dry-run" ? "Собираем..." : "Dry-run всего cutover"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setMigrationSuiteLoading("run");
+                        const response = await runAdminMigrationBackfillSuite({
+                          dryRun: false,
+                          limit: 1000,
+                        });
+                        setMigrationSuiteLoading(null);
+
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
+
+                        setMigrationSuiteResult(response.result);
+                        setMigrationStatus(response.result?.migrationStatus ?? null);
+                      }}
+                    >
+                      {migrationSuiteLoading === "run" ? "Переносим..." : "Запустить весь backfill"}
+                    </button>
+                  </div>
+                  <p className={styles.hint}>
+                    {migrationSuiteResult
+                      ? `${migrationSuiteResult.dryRun ? "Dry-run" : "Backfill"}: domains ${migrationSuiteResult.domainsReady}/${migrationSuiteResult.domainsCompleted} ready · state ${migrationSuiteResult.overallState} · entitlements ${migrationSuiteResult.entitlements.processedUsers} users · catalog ${migrationSuiteResult.artistCatalog.profiles}/${migrationSuiteResult.artistCatalog.tracks} · finance ${migrationSuiteResult.artistFinance.earnings}/${migrationSuiteResult.artistFinance.payoutRequests} · support ${migrationSuiteResult.artistSupport.donations}/${migrationSuiteResult.artistSupport.subscriptions}`
+                      : "Главная операторская кнопка этого спринта. Используйте её после серии migration-изменений, чтобы одним действием прогнать все критичные домены и сразу увидеть общий cutover status."}
+                  </p>
+                </article>
+
                 <article className={styles.actionGuideCard}>
                   <div className={styles.actionGuideHead}>
                     <h3>Ownership и NFT</h3>

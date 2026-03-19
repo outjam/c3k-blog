@@ -82,3 +82,21 @@
 - mutable hydration helpers теперь не только добавляют недостающие normalized записи, но и заменяют stale legacy state, если normalized версия новее по `updatedAt`
 - это касается artist profiles, релизов, artist applications, payout requests и subscriptions
 - после этого cutover-логика стала ближе к реальному source-of-truth поведению, а не к простому merge без победы свежей записи
+
+## Дополнение по следующему sprint slice
+
+- тот же freshness-aware принцип перенесён и в read-side merge-store
+- теперь snapshots для artist/application/finance/support доменов не слепо предпочитают один источник, а сравнивают `updatedAt` у mutable сущностей
+- это убрало ещё один класс drift-багов, когда Postgres и legacy JSON уже расходились по данным, а read-layer всё равно возвращал устаревшую версию
+
+## Финал Sprint 08
+
+- появился единый admin cutover action, который запускает полный backfill suite по всем уже нормализованным критичным доменам
+- profile mutation routes артиста и модерации перестали переносить stale finance counters из profile cache и теперь опираются на ledger snapshot
+- Sprint 08 закрыт и roadmap переключён на `Sprint 09 — Production hardening`
+
+## Дополнительный дизайн-спринт перед Sprint 09
+
+- админка получила визуально выделенный primary-action для полного cutover
+- студия стала яснее показывать financial state и источники данных
+- библиотека файлов получила более понятный delivery UI, чтобы storage/download states соответствовали текущей backend-логике

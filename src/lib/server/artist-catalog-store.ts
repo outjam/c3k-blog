@@ -370,7 +370,8 @@ const filterLegacyTracks = (
 const mergeProfiles = (primary: ArtistProfile[], fallback: ArtistProfile[]): ArtistProfile[] => {
   const map = new Map<number, ArtistProfile>();
   [...primary, ...fallback].forEach((entry) => {
-    if (!map.has(entry.telegramUserId)) {
+    const existing = map.get(entry.telegramUserId);
+    if (!existing || getUpdatedTimestamp(entry) > getUpdatedTimestamp(existing)) {
       map.set(entry.telegramUserId, entry);
     }
   });
@@ -380,7 +381,8 @@ const mergeProfiles = (primary: ArtistProfile[], fallback: ArtistProfile[]): Art
 const mergeTracks = (primary: ArtistTrack[], fallback: ArtistTrack[]): ArtistTrack[] => {
   const map = new Map<string, ArtistTrack>();
   [...primary, ...fallback].forEach((entry) => {
-    if (!map.has(entry.id)) {
+    const existing = map.get(entry.id);
+    if (!existing || getUpdatedTimestamp(entry) > getUpdatedTimestamp(existing)) {
       map.set(entry.id, entry);
     }
   });

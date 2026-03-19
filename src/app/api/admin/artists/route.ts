@@ -14,7 +14,7 @@ import {
   upsertArtistTracks,
 } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
-import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
+import { applyArtistFinanceOverlay, hydrateArtistFinanceStateInConfig } from "@/lib/server/shop-artist-studio";
 import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistProfile, ArtistTrack } from "@/types/shop";
@@ -136,19 +136,41 @@ export async function PATCH(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const artistCatalog = await readArtistCatalogSnapshot({
-    config,
-    artistTelegramUserId: telegramUserId,
-    profileLimit: 1,
-    trackLimit: 1,
-  });
+  const [artistCatalog, financeSnapshot] = await Promise.all([
+    readArtistCatalogSnapshot({
+      config,
+      artistTelegramUserId: telegramUserId,
+      profileLimit: 1,
+      trackLimit: 1,
+    }),
+    readArtistFinanceSnapshot({
+      config,
+      artistTelegramUserId: telegramUserId,
+      earningsLimit: 20000,
+      payoutRequestsLimit: 5000,
+      payoutAuditEntriesLimit: 20000,
+    }),
+  ]);
   const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const hydratedCurrent = hydrateArtistCatalogStateInConfig(current, {
-      profiles: fallbackProfile ? [fallbackProfile] : [],
-    });
-    const currentProfile = hydratedCurrent.artistProfiles[String(telegramUserId)] ?? fallbackProfile;
+    const hydratedCurrent = hydrateArtistFinanceStateInConfig(
+      hydrateArtistCatalogStateInConfig(current, {
+        profiles: fallbackProfile ? [fallbackProfile] : [],
+      }),
+      {
+        earnings: financeSnapshot.earnings,
+        requests: financeSnapshot.payoutRequests,
+        auditEntries: financeSnapshot.payoutAuditEntries,
+      },
+    );
+    const currentProfileBase = hydratedCurrent.artistProfiles[String(telegramUserId)] ?? fallbackProfile;
+    const currentProfile =
+      applyArtistFinanceOverlay({
+        profile: currentProfileBase,
+        earnings: hydratedCurrent.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+        requests: hydratedCurrent.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+      }) ?? currentProfileBase;
 
     if (!currentProfile) {
       throw new Error("profile_not_found");

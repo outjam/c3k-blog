@@ -10,6 +10,7 @@ import {
   hydrateArtistCatalogStateInConfig,
   upsertArtistProfiles,
 } from "@/lib/server/artist-catalog-store";
+import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { notifyUserAboutArtistApplicationStatus } from "@/lib/server/shop-artist-notify";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 import {
@@ -20,7 +21,7 @@ import {
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
-import { applyArtistFinanceOverlay } from "@/lib/server/shop-artist-studio";
+import { applyArtistFinanceOverlay, hydrateArtistFinanceStateInConfig } from "@/lib/server/shop-artist-studio";
 import type { ArtistApplication, ArtistProfile } from "@/types/shop";
 
 export const runtime = "nodejs";
@@ -100,7 +101,7 @@ export async function PATCH(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const [applicationsSnapshot, artistCatalog] = await Promise.all([
+  const [applicationsSnapshot, artistCatalog, financeSnapshot] = await Promise.all([
     readArtistApplicationSnapshot({
       config,
       telegramUserId,
@@ -112,16 +113,30 @@ export async function PATCH(request: Request) {
       profileLimit: 1,
       trackLimit: 1,
     }),
+    readArtistFinanceSnapshot({
+      config,
+      artistTelegramUserId: telegramUserId,
+      earningsLimit: 20000,
+      payoutRequestsLimit: 5000,
+      payoutAuditEntriesLimit: 20000,
+    }),
   ]);
   const fallbackApplication = applicationsSnapshot.applications[0] ?? null;
   const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const hydratedCurrent = hydrateArtistApplicationsInConfig(
-      hydrateArtistCatalogStateInConfig(current, {
-        profiles: fallbackProfile ? [fallbackProfile] : [],
-      }),
-      fallbackApplication ? [fallbackApplication] : [],
+    const hydratedCurrent = hydrateArtistFinanceStateInConfig(
+      hydrateArtistApplicationsInConfig(
+        hydrateArtistCatalogStateInConfig(current, {
+          profiles: fallbackProfile ? [fallbackProfile] : [],
+        }),
+        fallbackApplication ? [fallbackApplication] : [],
+      ),
+      {
+        earnings: financeSnapshot.earnings,
+        requests: financeSnapshot.payoutRequests,
+        auditEntries: financeSnapshot.payoutAuditEntries,
+      },
     );
     const application = hydratedCurrent.artistApplications[String(telegramUserId)] ?? fallbackApplication;
 
@@ -138,7 +153,13 @@ export async function PATCH(request: Request) {
     };
 
     const nextProfiles = { ...hydratedCurrent.artistProfiles };
-    const currentProfile = nextProfiles[String(telegramUserId)] ?? fallbackProfile;
+    const currentProfileBase = nextProfiles[String(telegramUserId)] ?? fallbackProfile;
+    const currentProfile =
+      applyArtistFinanceOverlay({
+        profile: currentProfileBase,
+        earnings: hydratedCurrent.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+        requests: hydratedCurrent.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === telegramUserId),
+      }) ?? currentProfileBase;
 
     if (status === "approved") {
       const nextProfile: ArtistProfile = {

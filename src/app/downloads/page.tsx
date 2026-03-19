@@ -49,6 +49,40 @@ const formatDeliveryChannel = (value: StorageDeliveryRequest["channel"]): string
   }
 };
 
+const getDeliveryTone = (
+  value: StorageDeliveryRequest["status"],
+): "success" | "warning" | "danger" | "default" => {
+  switch (value) {
+    case "ready":
+    case "delivered":
+      return "success";
+    case "processing":
+    case "pending_asset_mapping":
+    case "requested":
+      return "warning";
+    case "failed":
+      return "danger";
+    default:
+      return "default";
+  }
+};
+
+const toneClassName = (
+  stylesMap: Record<string, string>,
+  value: "success" | "warning" | "danger" | "default",
+): string => {
+  switch (value) {
+    case "success":
+      return stylesMap.toneSuccess;
+    case "warning":
+      return stylesMap.toneWarning;
+    case "danger":
+      return stylesMap.toneDanger;
+    default:
+      return stylesMap.toneDefault;
+  }
+};
+
 const isReadyRequest = (request: StorageDeliveryRequest): boolean => {
   return request.status === "ready" || request.status === "delivered";
 };
@@ -321,15 +355,25 @@ export default function DownloadsPage() {
                           <strong>{release?.title || request.releaseSlug}</strong>
                           <span>{formatRequestTarget(request, release)}</span>
                         </div>
-                        <span className={styles.statusPill}>
+                        <span
+                          className={`${styles.statusPill} ${toneClassName(styles, getDeliveryTone(request.status))}`}
+                        >
                           {formatDeliveryStatus(request.status)}
                         </span>
                       </div>
 
+                      <div className={styles.cardPills}>
+                        <span className={styles.metaPill}>{formatDeliveryChannel(request.channel)}</span>
+                        <span className={styles.metaPill}>
+                          {request.resolvedFormat || request.requestedFormat || "Формат уточняется"}
+                        </span>
+                        <span className={styles.metaPill}>{request.fileName || "Файл готовится"}</span>
+                      </div>
+
                       <div className={styles.cardMeta}>
-                        <span>{formatDeliveryChannel(request.channel)}</span>
-                        <span>{request.resolvedFormat || request.requestedFormat || "no format"}</span>
-                        <span>{request.fileName || "file pending"}</span>
+                        <span>{new Date(request.updatedAt || request.createdAt).toLocaleString("ru-RU")}</span>
+                        {request.storagePointer ? <span>Storage pointer готов</span> : null}
+                        {request.deliveryUrl ? <span>Есть прямая выдача</span> : null}
                       </div>
 
                       {request.failureMessage ? (

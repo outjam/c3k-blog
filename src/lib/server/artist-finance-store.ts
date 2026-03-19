@@ -183,6 +183,11 @@ const sortPayoutRequests = (entries: ArtistPayoutRequest[]): ArtistPayoutRequest
   });
 };
 
+const getRequestTimestamp = (value: Pick<ArtistPayoutRequest, "updatedAt" | "createdAt">): number => {
+  const timestamp = new Date(value.updatedAt || value.createdAt || "").getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 const sortPayoutAuditEntries = (entries: ArtistPayoutAuditEntry[]): ArtistPayoutAuditEntry[] => {
   return [...entries].sort((a, b) => {
     const left = new Date(a.createdAt).getTime();
@@ -249,7 +254,8 @@ const mergePayoutRequests = (
   const entries = new Map<string, ArtistPayoutRequest>();
 
   [...primary, ...fallback].forEach((entry) => {
-    if (!entries.has(entry.id)) {
+    const existing = entries.get(entry.id);
+    if (!existing || getRequestTimestamp(entry) > getRequestTimestamp(existing)) {
       entries.set(entry.id, entry);
     }
   });

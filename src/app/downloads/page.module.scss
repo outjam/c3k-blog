@@ -59,6 +59,26 @@
   font-weight: 700;
 }
 
+.toneSuccess {
+  background: color-mix(in srgb, #34c759 16%, transparent);
+  color: color-mix(in srgb, #34c759 80%, var(--tg-text));
+}
+
+.toneWarning {
+  background: color-mix(in srgb, #ffb200 16%, transparent);
+  color: color-mix(in srgb, #ffb200 88%, var(--tg-text));
+}
+
+.toneDanger {
+  background: color-mix(in srgb, #ff5f57 16%, transparent);
+  color: color-mix(in srgb, #ff5f57 84%, var(--tg-text));
+}
+
+.toneDefault {
+  background: color-mix(in srgb, var(--tg-accent) 12%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 84%, var(--tg-text));
+}
+
 .heroBody,
 .heroMeta,
 .groupHeading,
@@ -151,7 +171,8 @@
 
 .cardTopline,
 .cardMeta,
-.cardActions {
+.cardActions,
+.cardPills {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -160,6 +181,29 @@
 
 .cardTopline {
   justify-content: space-between;
+}
+
+.cardMeta {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.cardPills {
+  gap: 0.45rem;
+}
+
+.metaPill {
+  min-height: 1.7rem;
+  padding: 0 0.62rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 78%, var(--tg-section-bg));
+  color: var(--tg-subtitle-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.74rem;
+  font-weight: 600;
 }
 
 .primaryButton,

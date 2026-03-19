@@ -128,6 +128,21 @@ export interface AdminArtistApplicationBackfillResult {
   sourceUpdatedAt: string;
 }
 
+export interface AdminMigrationBackfillSuiteResult {
+  ok: true;
+  dryRun: boolean;
+  limit: number;
+  domainsCompleted: number;
+  domainsReady: number;
+  overallState: AdminMigrationStatusSnapshot["overallState"];
+  entitlements: AdminSocialEntitlementBackfillResult;
+  artistApplications: AdminArtistApplicationBackfillResult;
+  artistCatalog: AdminArtistCatalogBackfillResult;
+  artistFinance: AdminArtistFinanceBackfillResult;
+  artistSupport: AdminArtistSupportBackfillResult;
+  migrationStatus: AdminMigrationStatusSnapshot;
+}
+
 export interface AdminCustomer {
   telegramUserId: number;
   username?: string;
@@ -362,6 +377,32 @@ export const runAdminArtistSupportBackfill = async (payload: {
     }
 
     return { result: (await response.json()) as AdminArtistSupportBackfillResult };
+  } catch {
+    return { result: null, error: "Network error" };
+  }
+};
+
+export const runAdminMigrationBackfillSuite = async (payload: {
+  dryRun?: boolean;
+  limit?: number;
+  telegramUserIds?: number[];
+}): Promise<{ result: AdminMigrationBackfillSuiteResult | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/migrations/backfill", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { result: null, error: await parseApiError(response) };
+    }
+
+    return { result: (await response.json()) as AdminMigrationBackfillSuiteResult };
   } catch {
     return { result: null, error: "Network error" };
   }
