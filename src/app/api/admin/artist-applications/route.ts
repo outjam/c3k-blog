@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readArtistApplicationSnapshot, upsertArtistApplications } from "@/lib/server/artist-application-store";
-import { upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
+import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { notifyUserAboutArtistApplicationStatus } from "@/lib/server/shop-artist-notify";
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
 import {
@@ -91,9 +91,25 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "telegramUserId and valid status are required" }, { status: 400 });
   }
 
+  const config = await readShopAdminConfig();
+  const [applicationsSnapshot, artistCatalog] = await Promise.all([
+    readArtistApplicationSnapshot({
+      config,
+      telegramUserId,
+      limit: 1,
+    }),
+    readArtistCatalogSnapshot({
+      config,
+      artistTelegramUserId: telegramUserId,
+      profileLimit: 1,
+      trackLimit: 1,
+    }),
+  ]);
+  const fallbackApplication = applicationsSnapshot.applications[0] ?? null;
+  const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const application = current.artistApplications[String(telegramUserId)];
+    const application = current.artistApplications[String(telegramUserId)] ?? fallbackApplication;
 
     if (!application) {
       throw new Error("application_not_found");
@@ -108,7 +124,7 @@ export async function PATCH(request: Request) {
     };
 
     const nextProfiles = { ...current.artistProfiles };
-    const currentProfile = nextProfiles[String(telegramUserId)];
+    const currentProfile = nextProfiles[String(telegramUserId)] ?? fallbackProfile;
 
     if (status === "approved") {
       const nextProfile: ArtistProfile = {
@@ -164,7 +180,7 @@ export async function PATCH(request: Request) {
   }
 
   const application = updated.artistApplications[String(telegramUserId)] ?? null;
-  const profile = updated.artistProfiles[String(telegramUserId)] ?? null;
+  const profile = updated.artistProfiles[String(telegramUserId)] ?? fallbackProfile;
   const normalizedProfile = profile
     ? applyArtistFinanceOverlay({
         profile,

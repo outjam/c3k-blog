@@ -291,6 +291,72 @@
 - `npm run typecheck`
 - targeted `eslint` по support store/backfill/routes/admin/webhook файлам
 
+### Sprint 08 slice: ledger-first payout self-service path
+
+- Route [src/app/api/shop/artists/me/payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/payouts/route.ts) переведён на merged reads:
+  - artist profile берётся через normalized artist catalog snapshot
+  - application snapshot тоже поднимается рядом с payout flow
+  - finance продолжает читаться через normalized finance snapshot
+- Payout request теперь валидируется повторно внутри `mutateShopAdminConfig(...)`, а не только до mutation:
+  - проверяется approved artist profile
+  - проверяется TON wallet
+  - проверяется minimum payout threshold
+  - проверяется available balance по актуальному request/ledger state на момент записи
+- Это уменьшает race между предварительным read и actual payout request creation.
+
+### Результат payout self-service slice
+
+- artist payout self-service сильнее приближен к `ledger-first` модели
+- payout request больше не полагается только на legacy profile snapshot до mutation
+- read-side и write-side payout flow теперь лучше согласованы между собой
+
+### Проверка payout self-service slice
+
+- `npm run typecheck`
+- targeted `eslint` по payout/support/admin/backend файлам
+
+### Sprint 08 slice: admin payout moderation hydration from normalized finance
+
+- Route [src/app/api/admin/artist-payouts/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-payouts/route.ts) теперь предварительно читает:
+  - merged finance snapshot
+  - merged artist catalog snapshot
+- Если payout request уже есть в normalized finance layer, но ещё не попал в legacy `artistPayoutRequests`, admin PATCH может:
+  - гидрировать request в legacy config
+  - применить moderation status/note
+  - пересчитать finance counters
+- При profile overlay для уведомлений и upsert'а route теперь использует и normalized artist profile как fallback.
+
+### Результат admin payout moderation slice
+
+- admin payout moderation стала устойчивее во время переходного периода
+- еще один write-path перестал требовать полного совпадения legacy JSON и Postgres, чтобы работать корректно
+
+### Проверка admin payout moderation slice
+
+- `npm run typecheck`
+- targeted `eslint` по admin payout route и связанным finance/catalog store файлам
+
+### Sprint 08 slice: admin artist moderation hydration from normalized layers
+
+- Route [src/app/api/admin/artist-applications/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artist-applications/route.ts) теперь перед mutation читает:
+  - normalized application snapshot
+  - normalized artist profile snapshot
+- Если legacy `artistApplications` или `artistProfiles` ещё не догнали Postgres, moderation PATCH всё равно может:
+  - взять fallback application/profile из merge-store
+  - применить moderation status
+  - создать или обновить artist profile
+- Route [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts) теперь умеет модерировать профиль артиста с fallback на normalized artist profile.
+
+### Результат admin artist moderation slice
+
+- artist moderation меньше зависит от совпадения legacy JSON и Postgres
+- ещё два admin write-path стали устойчивее в переходный период `Sprint 08`
+
+### Проверка admin artist moderation slice
+
+- `npm run typecheck`
+- targeted `eslint` по admin artist routes и application/catalog stores
+
 ### Sprint 08 slice: payout audit log
 
 - В `db/schema.sql` добавлена нормализованная таблица:

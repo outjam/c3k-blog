@@ -161,6 +161,16 @@
   - paid-order webhook dual-write'ит donations/subscriptions
   - добавлен admin support backfill
   - migration status теперь учитывает и `artist_support`
+- Следующим slice payout self-service был доведён ближе к `ledger-first` модели:
+  - `/api/shop/artists/me/payouts` теперь читает artist profile через merge-store
+  - payout request перепроверяет eligibility внутри mutation path
+  - request creation меньше зависит от stale pre-read finance snapshot
+- Следующим slice admin payout moderation тоже стала устойчивее к migration drift:
+  - `/api/admin/artist-payouts` умеет гидрировать request из normalized finance snapshot
+  - moderation больше не требует, чтобы request уже существовал в legacy JSON слое
+- Следующим slice admin artist moderation тоже получила hydration из normalized layers:
+  - `/api/admin/artist-applications` умеет брать fallback application/profile из merge-store
+  - `/api/admin/artists` умеет модерировать профиль с fallback на normalized artist profile
 
 ### Entitlement and mint normalization foundation
 

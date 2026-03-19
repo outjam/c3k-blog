@@ -270,6 +270,29 @@ Go рассматривается как хороший будущий язык 
 
 Это ещё не завершает весь cutover `Sprint 08`, но убирает ещё один заметный кусок artist/payment логики из чисто JSON-only состояния.
 
+Следующим slice внутри того же спринта было реализовано:
+
+- self-service payout route переведён на merged artist catalog/application reads
+- payout request перепроверяет approved profile, wallet и available balance внутри mutation path
+- payout creation меньше зависит от stale read перед записью
+
+Это не завершает весь `finance cutover`, но делает artist payout self-service заметно более корректным и ближе к `ledger-first` поведению.
+
+Следующим slice внутри того же направления было реализовано:
+
+- admin payout moderation route гидрирует payout request из normalized finance snapshot
+- admin review path больше не ломается, если request уже есть в Postgres, но еще не синхронизирован в legacy JSON
+- profile overlay для уведомлений и upsert'а получил normalized artist fallback
+
+Это ещё один шаг к более безопасному cutover artist/payment доменов без резкого отказа от legacy fallback.
+
+Следующим slice внутри того же migration-hardening направления было реализовано:
+
+- admin artist applications route теперь гидрирует application/profile из normalized snapshots
+- admin artist profile moderation route теперь использует normalized profile fallback
+
+Это ещё один шаг к тому, чтобы moderation write-paths не зависели от того, успел ли legacy JSON слой синхронизироваться с Postgres.
+
 Это сдвинуло `Sprint 08` дальше от формального dual-write к реальному read-side cutover в artist economy.
 
 Следующим slice внутри того же спринта было реализовано:

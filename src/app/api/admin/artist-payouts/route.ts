@@ -9,7 +9,7 @@ import {
   requireJsonRequest,
   unauthorizedResponse,
 } from "@/lib/server/shop-api-auth";
-import { upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
+import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import {
   readArtistFinanceSnapshot,
   upsertArtistPayoutAuditEntries,
@@ -108,15 +108,26 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "id and valid status are required" }, { status: 400 });
   }
 
+  const config = await readShopAdminConfig();
+  const [financeSnapshot, artistCatalog] = await Promise.all([
+    readArtistFinanceSnapshot({ config }),
+    readArtistCatalogSnapshot({ config, profileLimit: 5000, trackLimit: 1 }),
+  ]);
+  const normalizedRequestById = new Map(financeSnapshot.payoutRequests.map((entry) => [entry.id, entry]));
+  const normalizedProfileByArtistId = new Map(artistCatalog.profiles.map((entry) => [entry.telegramUserId, entry]));
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
     const index = current.artistPayoutRequests.findIndex((entry) => entry.id === id);
+    const fallbackRequest = normalizedRequestById.get(id) ?? null;
 
-    if (index < 0) {
+    if (index < 0 && !fallbackRequest) {
       throw new Error("request_not_found");
     }
 
-    const requestRecord = current.artistPayoutRequests[index];
+    const requestRecord = index >= 0 ? current.artistPayoutRequests[index] : fallbackRequest;
+    if (!requestRecord) {
+      throw new Error("request_not_found");
+    }
     const nextAuditEntries = [...current.artistPayoutAuditLog];
     const statusChanged = requestRecord.status !== status;
     const noteChanged = (requestRecord.adminNote ?? "") !== (adminNote ?? "");
@@ -132,7 +143,11 @@ export async function PATCH(request: Request) {
     };
 
     const nextRequests = [...current.artistPayoutRequests];
-    nextRequests[index] = nextRequest;
+    if (index >= 0) {
+      nextRequests[index] = nextRequest;
+    } else {
+      nextRequests.unshift(nextRequest);
+    }
 
     if (statusChanged || noteChanged) {
       const auditEntry: ArtistPayoutAuditEntry = {
@@ -173,9 +188,10 @@ export async function PATCH(request: Request) {
   }
 
   const payoutRequest = updated.artistPayoutRequests.find((entry) => entry.id === id) ?? null;
+  const fallbackProfile = payoutRequest ? normalizedProfileByArtistId.get(payoutRequest.artistTelegramUserId) ?? null : null;
   const nextProfile = payoutRequest
     ? applyArtistFinanceOverlay({
-        profile: updated.artistProfiles[String(payoutRequest.artistTelegramUserId)] ?? null,
+        profile: updated.artistProfiles[String(payoutRequest.artistTelegramUserId)] ?? fallbackProfile,
         earnings: updated.artistEarningsLedger.filter((entry) => entry.artistTelegramUserId === payoutRequest.artistTelegramUserId),
         requests: updated.artistPayoutRequests.filter((entry) => entry.artistTelegramUserId === payoutRequest.artistTelegramUserId),
       })

@@ -130,9 +130,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "telegramUserId and valid status are required" }, { status: 400 });
   }
 
+  const config = await readShopAdminConfig();
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    artistTelegramUserId: telegramUserId,
+    profileLimit: 1,
+    trackLimit: 1,
+  });
+  const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const currentProfile = current.artistProfiles[String(telegramUserId)];
+    const currentProfile = current.artistProfiles[String(telegramUserId)] ?? fallbackProfile;
 
     if (!currentProfile) {
       throw new Error("profile_not_found");
@@ -170,7 +178,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
   }
 
-  const nextProfile = updated.artistProfiles[String(telegramUserId)] ?? null;
+  const nextProfile = updated.artistProfiles[String(telegramUserId)] ?? fallbackProfile;
   const normalizedProfile = nextProfile
     ? applyArtistFinanceOverlay({
         profile: nextProfile,
