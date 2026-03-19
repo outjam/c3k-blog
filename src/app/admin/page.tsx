@@ -33,6 +33,7 @@ import {
   type AdminArtistApplicationBackfillResult,
   type AdminArtistCatalogBackfillResult,
   type AdminArtistFinanceBackfillResult,
+  type AdminMigrationDomainStatus,
   type AdminArtistSupportBackfillResult,
   type AdminMigrationStatusSnapshot,
   upsertAdminMember,
@@ -100,7 +101,7 @@ const TAB_REQUIREMENTS: Record<AdminTab, ShopAdminPermission> = {
 };
 
 const TABS: Array<{ id: AdminTab; label: string }> = [
-  { id: "dashboard", label: "Dashboard" },
+  { id: "dashboard", label: "Обзор" },
   { id: "orders", label: "Заказы" },
   { id: "customers", label: "Клиенты" },
   { id: "products", label: "Товары" },
@@ -112,9 +113,81 @@ const TABS: Array<{ id: AdminTab; label: string }> = [
 
 const ROLE_OPTIONS: ShopAdminRole[] = ["owner", "admin", "orders", "catalog", "support"];
 const CUTOVER_LABELS: Record<AdminMigrationStatusSnapshot["overallState"], string> = {
-  legacy_only: "Legacy only",
-  dual_write: "Dual-write",
-  ready: "Ready for cutover",
+  legacy_only: "Только legacy",
+  dual_write: "Переходный dual-write",
+  ready: "Готово к cutover",
+};
+
+const TAB_COPY: Record<AdminTab, { title: string; description: string; example: string }> = {
+  dashboard: {
+    title: "Обзор состояния системы",
+    description:
+      "Главная вкладка для оператора. Здесь вы смотрите здоровье магазина, миграции, backfill и общую готовность данных перед следующим техническим шагом.",
+    example:
+      "Пример: после нового backend slice сначала проверяете coverage по доменам, потом делаете dry-run backfill и только потом запускаете реальный перенос.",
+  },
+  orders: {
+    title: "Заказы и деньги",
+    description:
+      "Рабочее место для проверки реальных покупок, статусов оплаты и спорных кейсов по заказам.",
+    example:
+      "Пример: покупатель пишет, что оплатил релиз, но не получил доступ. Здесь вы видите, дошёл ли заказ и в каком он статусе.",
+  },
+  customers: {
+    title: "Клиентская база",
+    description:
+      "Справочник по покупателям: кто покупает, сколько тратит и когда последний раз взаимодействовал с магазином.",
+    example:
+      "Пример: если нужно вручную помочь VIP-покупателю или проверить историю клиента, искать его нужно здесь.",
+  },
+  products: {
+    title: "Карточки товаров",
+    description:
+      "Здесь вы управляете тем, как релизы и товары выглядят в витрине: цена, публикация, остаток, бейдж и категория.",
+    example:
+      "Пример: перед промо-кампанией можно быстро поменять бейдж, скрыть товар из витрины или скорректировать цену.",
+  },
+  categories: {
+    title: "Структура каталога",
+    description:
+      "Вкладка для наведения порядка в витрине: как товары группируются, в каком порядке показываются и в какие разделы попадают.",
+    example:
+      "Пример: если появляется новая сцена или формат дропа, сначала заводите категорию здесь, а потом раскладываете туда товары.",
+  },
+  promos: {
+    title: "Промо и скидки",
+    description:
+      "Здесь создаются акции, которые видит пользователь на витрине или получает в маркетинговой кампании.",
+    example:
+      "Пример: артист запускает недельную акцию на EP. Вы задаёте код, порог и контролируете, чтобы он не конфликтовал с другими офферами.",
+  },
+  settings: {
+    title: "Глобальные правила магазина",
+    description:
+      "Операционные настройки приложения: всё, что влияет сразу на весь магазин, checkout и режимы работы.",
+    example:
+      "Пример: перед стресс-тестом вы временно меняете глобальный флаг или лимит в одном месте, а не правите отдельные релизы вручную.",
+  },
+  admins: {
+    title: "Команда и права доступа",
+    description:
+      "Вкладка для распределения ролей: кто видит выплаты, кто правит каталог, кто может запускать миграции и backfill.",
+    example:
+      "Пример: если подключаете нового модератора, даёте ему только support/catalog права, не открывая финансы и системные кнопки.",
+  },
+};
+
+const MIGRATION_DOMAIN_COPY: Record<AdminMigrationDomainStatus["id"], string> = {
+  entitlements:
+    "Права пользователя на релизы, треки и NFT. Этот домен влияет на библиотеку, коллекцию и file delivery после покупки.",
+  artist_applications:
+    "Заявки обычных пользователей на переход в статус артиста. Здесь важно не потерять moderation history и финальное решение.",
+  artist_catalog:
+    "Профили артистов и их релизы. Это основа для каталога, студии и публичных страниц, поэтому покрытие должно быть почти полным перед cutover.",
+  artist_finance:
+    "Earnings, запросы на вывод и audit trail. Это финансовый контур, поэтому сначала проверяем цифры в dry-run, а уже потом переносим.",
+  artist_support:
+    "Донаты и подписки в поддержку артиста. Этот слой нужен, чтобы support-метрики не терялись между legacy и Postgres.",
 };
 
 const toProductDraft = (product: AdminProductWithMeta): ProductDraft => {
@@ -472,6 +545,14 @@ export default function AdminPage() {
     return new Map(productCategories.map((category) => [category.id, category]));
   }, [productCategories]);
 
+  const currentTabCopy = TAB_COPY[resolvedActiveTab];
+  const migrationActionsBusy =
+    backfillLoading !== null ||
+    applicationBackfillLoading !== null ||
+    artistBackfillLoading !== null ||
+    financeBackfillLoading !== null ||
+    supportBackfillLoading !== null;
+
   const syncCategoryState = (categories: ShopProductCategory[]) => {
     setProductCategories(categories);
     setCategoryDrafts((prev) => {
@@ -557,10 +638,11 @@ export default function AdminPage() {
       <main className={styles.card}>
         <header className={styles.header}>
           <div>
-            <h1>Admin Panel</h1>
+            <h1>Пульт C3K</h1>
             <p>
               Роль: <b>{session.role ? SHOP_ADMIN_ROLE_LABELS[session.role] : "—"}</b>
             </p>
+            <p>Операционный центр магазина, артистов, storage и миграций данных.</p>
           </div>
           <div className={styles.headerActions}>
             <button type="button" onClick={() => void loadAll()} disabled={loading}>
@@ -583,6 +665,33 @@ export default function AdminPage() {
             ) : null}
           </div>
         </header>
+
+        <section className={styles.introGrid}>
+          <article className={styles.introCard}>
+            <span className={styles.introEyebrow}>Как читать админку</span>
+            <strong>Сначала обзор, потом действие</strong>
+            <p>
+              Эта панель лучше работает как операторский пульт: сначала вы смотрите картину целиком, потом уже нажимаете
+              кнопки. Особенно это важно для backfill, payouts и storage-подготовки.
+            </p>
+          </article>
+          <article className={styles.introCard}>
+            <span className={styles.introEyebrow}>Безопасный сценарий</span>
+            <strong>Dry-run → проверка → реальный запуск</strong>
+            <p>
+              Почти все технические операции имеют dry-run. Это безопасный предпросмотр. Пользуйтесь им перед каждым
+              переносом, если не уверены в состоянии данных.
+            </p>
+          </article>
+          <article className={styles.introCard}>
+            <span className={styles.introEyebrow}>Реальный кейс</span>
+            <strong>После нового backend slice</strong>
+            <p>
+              Вы выкатили новые таблицы в Supabase, открыли эту панель, посмотрели coverage, запустили dry-run и только потом
+              сделали реальный backfill. Так и должен выглядеть рабочий цикл.
+            </p>
+          </article>
+        </section>
 
         <div className={styles.permissionRow}>
           {session.permissions.map((permission) => (
@@ -607,9 +716,21 @@ export default function AdminPage() {
           ))}
         </nav>
 
+        <section className={styles.tabLead}>
+          <div>
+            <span className={styles.introEyebrow}>{currentTabCopy.title}</span>
+            <p>{currentTabCopy.description}</p>
+          </div>
+          <p className={styles.tabLeadExample}>{currentTabCopy.example}</p>
+        </section>
+
         {resolvedActiveTab === "dashboard" && hasPermission("dashboard:view") ? (
           <section className={styles.section}>
             <h2>Показатели</h2>
+            <p className={styles.sectionHint}>
+              Это сводка по витрине и данным. Если что-то пошло не так, начинайте разбор отсюда: видно заказы, выручку,
+              промо-активность и состояние перехода с legacy на Postgres.
+            </p>
             <div className={styles.metrics}>
               <article>
                 <span>Заказы</span>
@@ -639,7 +760,7 @@ export default function AdminPage() {
               <div className={styles.migrationBlock}>
                 <div className={styles.migrationSummary}>
                   <div>
-                    <span>Migration state</span>
+                    <span>Общее состояние миграций</span>
                     <b>{CUTOVER_LABELS[migrationStatus.overallState]}</b>
                   </div>
                   <div>
@@ -661,11 +782,12 @@ export default function AdminPage() {
                         <div>
                           <h3>{domain.label}</h3>
                           <p>
-                            Source: {domain.source} · {CUTOVER_LABELS[domain.cutoverState]}
+                            Источник: {domain.source} · {CUTOVER_LABELS[domain.cutoverState]}
                           </p>
                         </div>
                         <strong>{domain.coveragePercent}%</strong>
                       </div>
+                      <p className={styles.migrationDescription}>{MIGRATION_DOMAIN_COPY[domain.id]}</p>
                       <div className={styles.migrationMetrics}>
                         {domain.metrics.map((metric) => (
                           <p key={metric.id}>
@@ -690,314 +812,325 @@ export default function AdminPage() {
               </div>
             ) : null}
             {hasPermission("settings:manage") ? (
-              <div className={styles.promoActions}>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setBackfillLoading("dry-run");
-                    const response = await runAdminSocialEntitlementBackfill({
-                      dryRun: true,
-                      limit: 500,
-                    });
-                    setBackfillLoading(null);
+              <div className={styles.actionGuideGrid}>
+                <article className={styles.actionGuideCard}>
+                  <div className={styles.actionGuideHead}>
+                    <h3>Ownership и NFT</h3>
+                    <span>Покупки и коллекция</span>
+                  </div>
+                  <p className={styles.actionGuideText}>
+                    Переносит права на релизы, треки и minted NFT из legacy social state в нормализованные таблицы.
+                  </p>
+                  <p className={styles.actionGuideExample}>
+                    Пример: пользователь уже покупал треки раньше, но после нового backend slice они должны появиться в
+                    Postgres для библиотеки и file delivery.
+                  </p>
+                  <div className={styles.promoActions}>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setBackfillLoading("dry-run");
+                        const response = await runAdminSocialEntitlementBackfill({
+                          dryRun: true,
+                          limit: 500,
+                        });
+                        setBackfillLoading(null);
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    setBackfillResult(response.result);
-                  }}
-                >
-                  {backfillLoading === "dry-run" ? "Считаем..." : "Dry-run ownership backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setBackfillLoading("run");
-                    const response = await runAdminSocialEntitlementBackfill({
-                      dryRun: false,
-                      limit: 500,
-                    });
-                    setBackfillLoading(null);
+                        setBackfillResult(response.result);
+                      }}
+                    >
+                      {backfillLoading === "dry-run" ? "Считаем..." : "Проверить объём"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setBackfillLoading("run");
+                        const response = await runAdminSocialEntitlementBackfill({
+                          dryRun: false,
+                          limit: 500,
+                        });
+                        setBackfillLoading(null);
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    setBackfillResult(response.result);
-                  }}
-                >
-                  {backfillLoading === "run" ? "Переносим..." : "Запустить ownership backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setApplicationBackfillLoading("dry-run");
-                    const response = await runAdminArtistApplicationBackfill({
-                      dryRun: true,
-                      limit: 500,
-                    });
-                    setApplicationBackfillLoading(null);
+                        setBackfillResult(response.result);
+                      }}
+                    >
+                      {backfillLoading === "run" ? "Переносим..." : "Запустить перенос"}
+                    </button>
+                  </div>
+                  <p className={styles.hint}>
+                    {backfillResult
+                      ? `${backfillResult.dryRun ? "Dry-run" : "Backfill"}: users ${backfillResult.processedUsers} · releases ${backfillResult.releaseEntitlements} · tracks ${backfillResult.trackEntitlements} · nft ${backfillResult.nftMints} · source ${new Date(backfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}`
+                      : "Сначала используйте проверку объёма, если после релизного обновления нужно понять, сколько прав ещё живёт только в legacy state."}
+                  </p>
+                </article>
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                <article className={styles.actionGuideCard}>
+                  <div className={styles.actionGuideHead}>
+                    <h3>Artist applications</h3>
+                    <span>Заявки на статус артиста</span>
+                  </div>
+                  <p className={styles.actionGuideText}>
+                    Переносит анкеты обычных пользователей, которые хотят стать артистами, и их moderation state.
+                  </p>
+                  <p className={styles.actionGuideExample}>
+                    Пример: вы добавили новую таблицу для заявок, и теперь хотите, чтобы старые pending/approved заявки
+                    появились в новой модели без ручной пересборки.
+                  </p>
+                  <div className={styles.promoActions}>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setApplicationBackfillLoading("dry-run");
+                        const response = await runAdminArtistApplicationBackfill({
+                          dryRun: true,
+                          limit: 500,
+                        });
+                        setApplicationBackfillLoading(null);
 
-                    setApplicationBackfillResult(response.result);
-                  }}
-                >
-                  {applicationBackfillLoading === "dry-run" ? "Считаем..." : "Dry-run application backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setApplicationBackfillLoading("run");
-                    const response = await runAdminArtistApplicationBackfill({
-                      dryRun: false,
-                      limit: 500,
-                    });
-                    setApplicationBackfillLoading(null);
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        setApplicationBackfillResult(response.result);
+                      }}
+                    >
+                      {applicationBackfillLoading === "dry-run" ? "Считаем..." : "Проверить объём"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setApplicationBackfillLoading("run");
+                        const response = await runAdminArtistApplicationBackfill({
+                          dryRun: false,
+                          limit: 500,
+                        });
+                        setApplicationBackfillLoading(null);
 
-                    setApplicationBackfillResult(response.result);
-                  }}
-                >
-                  {applicationBackfillLoading === "run" ? "Переносим..." : "Запустить application backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setArtistBackfillLoading("dry-run");
-                    const response = await runAdminArtistCatalogBackfill({
-                      dryRun: true,
-                      limit: 500,
-                    });
-                    setArtistBackfillLoading(null);
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        setApplicationBackfillResult(response.result);
+                      }}
+                    >
+                      {applicationBackfillLoading === "run" ? "Переносим..." : "Запустить перенос"}
+                    </button>
+                  </div>
+                  <p className={styles.hint}>
+                    {applicationBackfillResult
+                      ? `${applicationBackfillResult.dryRun ? "Dry-run" : "Backfill"}: users ${applicationBackfillResult.selectedUsers} · applications ${applicationBackfillResult.applications} · source ${new Date(applicationBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}`
+                      : "Используйте этот блок, когда нужно догнать новый application layer после изменения artist-flow или смены moderation logic."}
+                  </p>
+                </article>
 
-                    setArtistBackfillResult(response.result);
-                  }}
-                >
-                  {artistBackfillLoading === "dry-run" ? "Считаем..." : "Dry-run artist backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setArtistBackfillLoading("run");
-                    const response = await runAdminArtistCatalogBackfill({
-                      dryRun: false,
-                      limit: 500,
-                    });
-                    setArtistBackfillLoading(null);
+                <article className={styles.actionGuideCard}>
+                  <div className={styles.actionGuideHead}>
+                    <h3>Artist catalog</h3>
+                    <span>Профили и релизы артистов</span>
+                  </div>
+                  <p className={styles.actionGuideText}>
+                    Переносит профили артистов и их релизы в нормализованные таблицы, которые потом читает каталог, студия и
+                    модерация.
+                  </p>
+                  <p className={styles.actionGuideExample}>
+                    Пример: после изменения структуры artist profile или release editor нужно догнать старые профили и треки,
+                    чтобы студия и публичные страницы читались из Postgres.
+                  </p>
+                  <div className={styles.promoActions}>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setArtistBackfillLoading("dry-run");
+                        const response = await runAdminArtistCatalogBackfill({
+                          dryRun: true,
+                          limit: 500,
+                        });
+                        setArtistBackfillLoading(null);
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    setArtistBackfillResult(response.result);
-                  }}
-                >
-                  {artistBackfillLoading === "run" ? "Переносим..." : "Запустить artist backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setFinanceBackfillLoading("dry-run");
-                    const response = await runAdminArtistFinanceBackfill({
-                      dryRun: true,
-                      limit: 1000,
-                    });
-                    setFinanceBackfillLoading(null);
+                        setArtistBackfillResult(response.result);
+                      }}
+                    >
+                      {artistBackfillLoading === "dry-run" ? "Считаем..." : "Проверить объём"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setArtistBackfillLoading("run");
+                        const response = await runAdminArtistCatalogBackfill({
+                          dryRun: false,
+                          limit: 500,
+                        });
+                        setArtistBackfillLoading(null);
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    setFinanceBackfillResult(response.result);
-                  }}
-                >
-                  {financeBackfillLoading === "dry-run" ? "Считаем..." : "Dry-run finance backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setFinanceBackfillLoading("run");
-                    const response = await runAdminArtistFinanceBackfill({
-                      dryRun: false,
-                      limit: 1000,
-                    });
-                    setFinanceBackfillLoading(null);
+                        setArtistBackfillResult(response.result);
+                      }}
+                    >
+                      {artistBackfillLoading === "run" ? "Переносим..." : "Запустить перенос"}
+                    </button>
+                  </div>
+                  <p className={styles.hint}>
+                    {artistBackfillResult
+                      ? `${artistBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists ${artistBackfillResult.selectedArtists} · profiles ${artistBackfillResult.profiles} · tracks ${artistBackfillResult.tracks} · source ${new Date(artistBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}`
+                      : "Нужен после крупных изменений в artist profile, artist releases или когда source в модерации ещё показывает legacy."}
+                  </p>
+                </article>
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                <article className={styles.actionGuideCard}>
+                  <div className={styles.actionGuideHead}>
+                    <h3>Artist finance</h3>
+                    <span>Заработок, выплаты и аудит</span>
+                  </div>
+                  <p className={styles.actionGuideText}>
+                    Переносит earnings ledger, payout requests и payout audit. Это самый чувствительный блок, потому что
+                    влияет на деньги артиста.
+                  </p>
+                  <p className={styles.actionGuideExample}>
+                    Пример: после корректировки payout logic сначала делаете dry-run, сверяете цифры в студии, и только потом
+                    запускаете реальный перенос.
+                  </p>
+                  <div className={styles.promoActions}>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setFinanceBackfillLoading("dry-run");
+                        const response = await runAdminArtistFinanceBackfill({
+                          dryRun: true,
+                          limit: 1000,
+                        });
+                        setFinanceBackfillLoading(null);
 
-                    setFinanceBackfillResult(response.result);
-                  }}
-                >
-                  {financeBackfillLoading === "run" ? "Переносим..." : "Запустить finance backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setSupportBackfillLoading("dry-run");
-                    const response = await runAdminArtistSupportBackfill({
-                      dryRun: true,
-                      limit: 1000,
-                    });
-                    setSupportBackfillLoading(null);
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        setFinanceBackfillResult(response.result);
+                      }}
+                    >
+                      {financeBackfillLoading === "dry-run" ? "Считаем..." : "Проверить объём"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setFinanceBackfillLoading("run");
+                        const response = await runAdminArtistFinanceBackfill({
+                          dryRun: false,
+                          limit: 1000,
+                        });
+                        setFinanceBackfillLoading(null);
 
-                    setSupportBackfillResult(response.result);
-                  }}
-                >
-                  {supportBackfillLoading === "dry-run" ? "Считаем..." : "Dry-run support backfill"}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    backfillLoading !== null ||
-                    applicationBackfillLoading !== null ||
-                    artistBackfillLoading !== null ||
-                    financeBackfillLoading !== null ||
-                    supportBackfillLoading !== null
-                  }
-                  onClick={async () => {
-                    setSupportBackfillLoading("run");
-                    const response = await runAdminArtistSupportBackfill({
-                      dryRun: false,
-                      limit: 1000,
-                    });
-                    setSupportBackfillLoading(null);
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
 
-                    if (response.error) {
-                      setError(response.error);
-                      return;
-                    }
+                        setFinanceBackfillResult(response.result);
+                      }}
+                    >
+                      {financeBackfillLoading === "run" ? "Переносим..." : "Запустить перенос"}
+                    </button>
+                  </div>
+                  <p className={styles.hint}>
+                    {financeBackfillResult
+                      ? `${financeBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists ${financeBackfillResult.selectedArtists} · earnings ${financeBackfillResult.earnings} · payouts ${financeBackfillResult.payoutRequests} · audit ${financeBackfillResult.payoutAuditEntries} · profiles ${financeBackfillResult.syncedProfiles} · source ${new Date(financeBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}`
+                      : "Используйте этот перенос после backend-изменений в finance, payouts или audit trail. Это не кнопка «на всякий случай»."}
+                  </p>
+                </article>
 
-                    setSupportBackfillResult(response.result);
-                  }}
-                >
-                  {supportBackfillLoading === "run" ? "Переносим..." : "Запустить support backfill"}
-                </button>
+                <article className={styles.actionGuideCard}>
+                  <div className={styles.actionGuideHead}>
+                    <h3>Artist support</h3>
+                    <span>Донаты и подписки</span>
+                  </div>
+                  <p className={styles.actionGuideText}>
+                    Переносит слой поддержки артиста: разовые донаты и регулярные подписки, которые влияют на social и
+                    finance-метрики.
+                  </p>
+                  <p className={styles.actionGuideExample}>
+                    Пример: если после нового релиза артист видит донаты не там, где ожидает, сначала проверяете этот домен и
+                    догоняете support state.
+                  </p>
+                  <div className={styles.promoActions}>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setSupportBackfillLoading("dry-run");
+                        const response = await runAdminArtistSupportBackfill({
+                          dryRun: true,
+                          limit: 1000,
+                        });
+                        setSupportBackfillLoading(null);
+
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
+
+                        setSupportBackfillResult(response.result);
+                      }}
+                    >
+                      {supportBackfillLoading === "dry-run" ? "Считаем..." : "Проверить объём"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={migrationActionsBusy}
+                      onClick={async () => {
+                        setSupportBackfillLoading("run");
+                        const response = await runAdminArtistSupportBackfill({
+                          dryRun: false,
+                          limit: 1000,
+                        });
+                        setSupportBackfillLoading(null);
+
+                        if (response.error) {
+                          setError(response.error);
+                          return;
+                        }
+
+                        setSupportBackfillResult(response.result);
+                      }}
+                    >
+                      {supportBackfillLoading === "run" ? "Переносим..." : "Запустить перенос"}
+                    </button>
+                  </div>
+                  <p className={styles.hint}>
+                    {supportBackfillResult
+                      ? `${supportBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists ${supportBackfillResult.selectedArtists} · donations ${supportBackfillResult.donations} · subscriptions ${supportBackfillResult.subscriptions} · source ${new Date(supportBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}`
+                      : "Нужен после изменения support-метрик, artist profile summary или при переходе support-domain на Postgres."}
+                  </p>
+                </article>
               </div>
-            ) : null}
-            {backfillResult ? (
-              <p className={styles.hint}>
-                {backfillResult.dryRun ? "Dry-run" : "Backfill"}: users {backfillResult.processedUsers} · releases{" "}
-                {backfillResult.releaseEntitlements} · tracks {backfillResult.trackEntitlements} · nft{" "}
-                {backfillResult.nftMints} · source {new Date(backfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
-              </p>
-            ) : null}
-            {artistBackfillResult ? (
-              <p className={styles.hint}>
-                {artistBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists {artistBackfillResult.selectedArtists}
-                {" · "}profiles {artistBackfillResult.profiles} · tracks {artistBackfillResult.tracks} · source{" "}
-                {new Date(artistBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
-              </p>
-            ) : null}
-            {applicationBackfillResult ? (
-              <p className={styles.hint}>
-                {applicationBackfillResult.dryRun ? "Dry-run" : "Backfill"}: users{" "}
-                {applicationBackfillResult.selectedUsers} · applications {applicationBackfillResult.applications} ·
-                source {new Date(applicationBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
-              </p>
-            ) : null}
-            {financeBackfillResult ? (
-              <p className={styles.hint}>
-                {financeBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists {financeBackfillResult.selectedArtists}
-                {" · "}earnings {financeBackfillResult.earnings} · payouts {financeBackfillResult.payoutRequests} ·
-                audit {financeBackfillResult.payoutAuditEntries} · profiles {financeBackfillResult.syncedProfiles} · source{" "}
-                {new Date(financeBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
-              </p>
-            ) : null}
-            {supportBackfillResult ? (
-              <p className={styles.hint}>
-                {supportBackfillResult.dryRun ? "Dry-run" : "Backfill"}: artists {supportBackfillResult.selectedArtists}
-                {" · "}donations {supportBackfillResult.donations} · subscriptions {supportBackfillResult.subscriptions} · source{" "}
-                {new Date(supportBackfillResult.sourceUpdatedAt).toLocaleString("ru-RU")}
-              </p>
             ) : null}
           </section>
         ) : null}
@@ -1016,6 +1149,10 @@ export default function AdminPage() {
                 placeholder="Поиск по имени, @username, телефону"
               />
             </div>
+            <p className={styles.sectionHint}>
+              Этот список нужен для ручного разбора клиентских кейсов: кто покупал, когда был последний заказ и сколько всего
+              потратил пользователь.
+            </p>
 
             {filteredCustomers.length === 0 ? (
               <p className={styles.hint}>Клиенты не найдены.</p>
@@ -1072,6 +1209,10 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+            <p className={styles.sectionHint}>
+              Здесь вы управляете тем, как релиз или товар выглядит в витрине: цена, публикация, остаток, бейдж и место в
+              каталоге.
+            </p>
 
             <div className={styles.productsList}>
               {filteredProducts.map((product) => {
@@ -1275,6 +1416,10 @@ export default function AdminPage() {
             <div className={styles.sectionHead}>
               <h2>Категории и подкатегории</h2>
             </div>
+            <p className={styles.sectionHint}>
+              Категории помогают не только навести порядок в витрине, но и подготовить место под новые сцены, форматы и
+              редакционные подборки.
+            </p>
 
             <div className={styles.categoryCreate}>
               <input
@@ -1637,6 +1782,10 @@ export default function AdminPage() {
         {resolvedActiveTab === "promos" && hasPermission("promos:view") ? (
           <section className={styles.section}>
             <h2>Промокоды</h2>
+            <p className={styles.sectionHint}>
+              Промокоды лучше использовать как понятный маркетинговый инструмент: короткая акция, ясный лимит и понятная
+              причина, зачем пользователь должен ввести код.
+            </p>
             <div className={styles.promoCreate}>
               <input value={newPromoCode} onChange={(event) => setNewPromoCode(event.target.value)} placeholder="CODE" />
               <input value={newPromoLabel} onChange={(event) => setNewPromoLabel(event.target.value)} placeholder="Название" />
@@ -1739,6 +1888,10 @@ export default function AdminPage() {
         {resolvedActiveTab === "settings" && hasPermission("settings:view") ? (
           <section className={styles.section}>
             <h2>Настройки магазина</h2>
+            <p className={styles.sectionHint}>
+              Это глобальные правила магазина. Меняйте их аккуратно: эффект может затронуть сразу весь consumer flow, а не
+              только один релиз.
+            </p>
             {settings ? (
               <div className={styles.settingsForm}>
                 <label>
@@ -1820,6 +1973,10 @@ export default function AdminPage() {
         {resolvedActiveTab === "admins" && hasPermission("admins:view") ? (
           <section className={styles.section}>
             <h2>Администраторы и роли</h2>
+            <p className={styles.sectionHint}>
+              Раздавайте доступы по принципу минимально необходимых прав. Каталог, support, финансы и системные миграции
+              лучше держать разнесёнными по ролям.
+            </p>
             <input
               value={adminSearch}
               onChange={(event) => setAdminSearch(event.target.value)}

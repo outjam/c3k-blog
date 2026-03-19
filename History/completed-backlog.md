@@ -2,6 +2,23 @@
 
 Этот файл хранит уже завершённые задачи проекта в более подробном виде, чем roadmap checklist.
 
+## 2026-03-19
+
+### UX и дизайн админки
+
+- Основная admin-панель переведена в более понятный операторский режим:
+  - вкладки получили человеческие описания
+  - появились пояснения по migration domains
+  - backfill-кнопки сгруппированы по смыслу и снабжены реальными кейсами использования
+- Экран модерации артистов получил:
+  - объяснение логики заявок
+  - объяснение логики модерации профилей и релизов
+  - пояснения по payout moderation
+- Storage dashboard получил:
+  - внятную последовательность действий
+  - более понятные названия блоков
+  - описание, что делают sync, test bags, assets, bags, ingest jobs и deliveries
+
 ## 2026-03-18
 
 ### Профиль и публичный профиль
@@ -171,6 +188,13 @@
 - Следующим slice admin artist moderation тоже получила hydration из normalized layers:
   - `/api/admin/artist-applications` умеет брать fallback application/profile из merge-store
   - `/api/admin/artists` умеет модерировать профиль с fallback на normalized artist profile
+- Следующим slice self-service artist routes тоже получили hydration из normalized layers:
+  - `/api/shop/artists/me/application` умеет брать fallback application/profile
+  - `/api/shop/artists/me` умеет сохранять artist profile с fallback на normalized profile
+  - `/api/shop/artists/me/tracks` умеет создавать и редактировать релизы с fallback на normalized artist data
+- Следующим slice добавлен targeted normalized `trackId` lookup:
+  - `artist catalog store` теперь умеет адресно находить релиз по `trackId`
+  - admin moderation и self-service edit релиза используют этот lookup вместо широких fallback-выборок
 
 ### Entitlement and mint normalization foundation
 

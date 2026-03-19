@@ -250,8 +250,16 @@ export async function POST(request: Request) {
   const defaultFormat = formats.find((item) => item.isDefault) ?? formats[0];
   const releaseTracklist = normalizeReleaseTracklist(payload.releaseTracklist, title);
 
+  const config = await readShopAdminConfig();
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    artistTelegramUserId: auth.telegramUserId,
+    profileLimit: 1,
+    trackLimit: 1,
+  });
+  const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const updated = await mutateShopAdminConfig((current) => {
-    const artistProfile = current.artistProfiles[String(auth.telegramUserId)];
+    const artistProfile = current.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
 
     if (!artistProfile) {
       throw new Error("artist_profile_required");
@@ -371,9 +379,18 @@ export async function PATCH(request: Request) {
   }
 
   const now = new Date().toISOString();
+  const config = await readShopAdminConfig();
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    trackId,
+    profileLimit: 1,
+    trackLimit: 1,
+  });
+  const fallbackTrack =
+    artistCatalog.tracks.find((entry) => entry.id === trackId && entry.artistTelegramUserId === auth.telegramUserId) ?? null;
 
   const updated = await mutateShopAdminConfig((current) => {
-    const existing = current.artistTracks[trackId];
+    const existing = current.artistTracks[trackId] ?? fallbackTrack;
 
     if (!existing || existing.artistTelegramUserId !== auth.telegramUserId) {
       throw new Error("track_not_found");

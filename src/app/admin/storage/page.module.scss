@@ -50,6 +50,38 @@
   flex-wrap: wrap;
 }
 
+.guideGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.guideCard {
+  border-radius: 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  padding: 0.68rem;
+  display: grid;
+  gap: 0.32rem;
+}
+
+.guideEyebrow {
+  color: var(--tg-hint);
+  font-size: 0.72rem;
+}
+
+.guideCard strong {
+  color: var(--tg-text);
+  font-size: 0.9rem;
+}
+
+.guideCard p,
+.blockHint {
+  margin: 0;
+  color: var(--tg-hint);
+  font-size: 0.78rem;
+}
+
 .actions button,
 .linkButton,
 .formGrid button,
@@ -113,6 +145,10 @@
   gap: 0.6rem;
 }
 
+.blockHint {
+  font-size: 0.8rem;
+}
+
 .blockHeading {
   display: flex;
   align-items: center;
@@ -174,6 +210,7 @@
 }
 
 @media (max-width: 960px) {
+  .guideGrid,
   .metrics,
   .formGrid {
     grid-template-columns: 1fr;

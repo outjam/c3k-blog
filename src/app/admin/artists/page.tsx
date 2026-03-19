@@ -242,7 +242,7 @@ export default function AdminArtistsPage() {
         <header className={styles.header}>
           <div>
             <h1>Модерация артистов</h1>
-            <p>Профили, треки, публикация в витрину</p>
+            <p>Профили, релизы, заявки и выплаты в одном месте.</p>
             <p>
               Applications: <b>{applicationSource}</b> · Artist: <b>{artistSource}</b> · Finance: <b>{financeSource}</b>
             </p>
@@ -257,6 +257,33 @@ export default function AdminArtistsPage() {
           </div>
         </header>
 
+        <section className={styles.guideGrid}>
+          <article className={styles.guideCard}>
+            <span className={styles.guideEyebrow}>Заявки</span>
+            <strong>Кто может стать артистом</strong>
+            <p>
+              Здесь вы решаете, может ли обычный пользователь перейти в artist-mode. Обычно сначала смотрят описание,
+              активность, TON-кошелёк и адекватность заявки.
+            </p>
+          </article>
+          <article className={styles.guideCard}>
+            <span className={styles.guideEyebrow}>Профили и релизы</span>
+            <strong>Что увидит аудитория</strong>
+            <p>
+              Этот блок отвечает за то, что попадёт в каталог и на страницы артиста. Если релиз сырой или нарушает правила,
+              его лучше вернуть с понятным комментарием.
+            </p>
+          </article>
+          <article className={styles.guideCard}>
+            <span className={styles.guideEyebrow}>Выплаты</span>
+            <strong>Финансовое подтверждение</strong>
+            <p>
+              Запрос на вывод нужно подтверждать только после проверки hold-периода, готовой суммы и факта ручной выплаты в
+              TON. До этого статус лучше не переводить в paid.
+            </p>
+          </article>
+        </section>
+
         {error ? <p className={styles.error}>{error}</p> : null}
 
         {applications.length === 0 && profiles.length === 0 ? (
@@ -264,7 +291,15 @@ export default function AdminArtistsPage() {
         ) : null}
 
         {applications.length > 0 ? (
-          <div className={styles.profileList}>
+          <section className={styles.sectionBlock}>
+            <div className={styles.sectionIntro}>
+              <h2>Заявки на статус артиста</h2>
+              <p>
+                Сюда попадают пользователи, которые хотят перейти из обычного профиля в artist-profile. Если чего-то не
+                хватает, используйте `needs_info` и пишите конкретно, что нужно дослать или поправить.
+              </p>
+            </div>
+            <div className={styles.profileList}>
             {applications.map((application) => (
               <article key={application.id} className={styles.profileCard}>
                 <div className={styles.profileHead}>
@@ -308,6 +343,10 @@ export default function AdminArtistsPage() {
                     />
                   </label>
                 </div>
+                <p className={styles.inlineHint}>
+                  Реальный кейс: если артист не указал TON-кошелёк, а вы планируете выводить ему выплаты, ставьте
+                  `needs_info` и просите дослать wallet до approval.
+                </p>
 
                 {canManage ? (
                   <button type="button" className={styles.primary} onClick={() => void saveApplication(application)}>
@@ -316,10 +355,19 @@ export default function AdminArtistsPage() {
                 ) : null}
               </article>
             ))}
-          </div>
+            </div>
+          </section>
         ) : null}
 
-        <div className={styles.profileList}>
+        <section className={styles.sectionBlock}>
+          <div className={styles.sectionIntro}>
+            <h2>Профили и релизы артистов</h2>
+            <p>
+              Здесь вы управляете уже одобренными артистами и их контентом. Это не только модерация, но и точка контроля
+              того, что реально попадёт в публичный каталог.
+            </p>
+          </div>
+          <div className={styles.profileList}>
           {profiles.map((profile) => {
             const artistTracks = tracksByArtist.get(profile.telegramUserId) ?? [];
 
@@ -364,6 +412,10 @@ export default function AdminArtistsPage() {
                     />
                   </label>
                 </div>
+                <p className={styles.inlineHint}>
+                  `approved` означает, что артисту можно публиковаться и работать в студии. `suspended` удобно использовать,
+                  когда нужно временно скрыть артиста и разобраться в ситуации без удаления данных.
+                </p>
 
                 {canManage ? (
                   <button type="button" className={styles.primary} onClick={() => void saveProfile(profile)}>
@@ -406,6 +458,10 @@ export default function AdminArtistsPage() {
                           />
                         </label>
                       </div>
+                      <p className={styles.inlineHint}>
+                        Пример: `pending_moderation` держим до финальной проверки. `published` ставим только тогда, когда
+                        релиз можно показывать в каталоге и отдавать пользователям без риска отката.
+                      </p>
                       {canManage ? (
                         <button type="button" onClick={() => void saveTrack(track)}>
                           Сохранить трек
@@ -417,10 +473,19 @@ export default function AdminArtistsPage() {
               </article>
             );
           })}
-        </div>
+          </div>
+        </section>
 
         {payoutRequests.length > 0 ? (
-          <div className={styles.profileList}>
+          <section className={styles.sectionBlock}>
+            <div className={styles.sectionIntro}>
+              <h2>Запросы на вывод</h2>
+              <p>
+                Финальный этап модерации денег артиста. Здесь вы не только меняете статус, но и оставляете след, почему
+                именно payout был одобрен, отклонён или отправлен на доработку.
+              </p>
+            </div>
+            <div className={styles.profileList}>
             {payoutRequests.map((request) => (
               <article key={request.id} className={styles.profileCard}>
                 <div className={styles.profileHead}>
@@ -474,6 +539,10 @@ export default function AdminArtistsPage() {
                     />
                   </label>
                 </div>
+                <p className={styles.inlineHint}>
+                  Рабочий сценарий: сначала проверяете, что сумма реально созрела после hold-периода, потом вручную
+                  отправляете TON и только после этого ставите `paid`.
+                </p>
 
                 {canManage ? (
                   <button type="button" className={styles.primary} onClick={() => void savePayout(request)}>
@@ -482,7 +551,8 @@ export default function AdminArtistsPage() {
                 ) : null}
               </article>
             ))}
-          </div>
+            </div>
+          </section>
         ) : null}
       </section>
     </div>

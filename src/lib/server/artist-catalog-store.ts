@@ -48,6 +48,10 @@ interface ArtistTrackRow {
   published_at?: unknown;
 }
 
+interface ArtistTrackLookupRow {
+  artist_telegram_user_id?: unknown;
+}
+
 const isConfigured = (): boolean => Boolean(getPostgresHttpConfig());
 
 const normalizeTelegramUserId = (value: unknown): number => {
@@ -337,12 +341,16 @@ const filterLegacyProfiles = (
 const filterLegacyTracks = (
   config: ShopAdminConfig,
   options: {
+    trackId?: string;
     artistTelegramUserId?: number;
     onlyPublishedTracks?: boolean;
   },
 ): ArtistTrack[] => {
   return sortTracks(
     Object.values(config.artistTracks).filter((entry) => {
+      if (options.trackId && entry.id !== options.trackId) {
+        return false;
+      }
       if (typeof options.artistTelegramUserId === "number" && entry.artistTelegramUserId !== options.artistTelegramUserId) {
         return false;
       }
@@ -376,6 +384,7 @@ const mergeTracks = (primary: ArtistTrack[], fallback: ArtistTrack[]): ArtistTra
 
 export const readArtistCatalogSnapshot = async (options: {
   config: ShopAdminConfig;
+  trackId?: string;
   artistTelegramUserId?: number;
   profileSlug?: string;
   onlyApprovedProfiles?: boolean;
@@ -392,7 +401,9 @@ export const readArtistCatalogSnapshot = async (options: {
     const artistTelegramUserId =
       typeof options.artistTelegramUserId === "number"
         ? options.artistTelegramUserId
-        : (options.profileSlug ? profiles[0]?.telegramUserId : undefined);
+        : (options.trackId
+            ? filterLegacyTracks(options.config, { trackId: options.trackId })[0]?.artistTelegramUserId
+            : (options.profileSlug ? profiles[0]?.telegramUserId : undefined));
 
     return {
       profiles,
@@ -400,11 +411,29 @@ export const readArtistCatalogSnapshot = async (options: {
         options.profileSlug && typeof artistTelegramUserId !== "number"
           ? []
           : filterLegacyTracks(options.config, {
+              trackId: options.trackId,
               artistTelegramUserId,
               onlyPublishedTracks: options.onlyPublishedTracks,
             }),
       source: "legacy",
     };
+  }
+
+  let trackArtistLookupTelegramUserId: number | undefined;
+  if (options.trackId && typeof options.artistTelegramUserId !== "number" && !options.profileSlug) {
+    const trackLookupQuery = new URLSearchParams();
+    trackLookupQuery.set("select", "artist_telegram_user_id");
+    trackLookupQuery.set("id", `eq.${options.trackId}`);
+    trackLookupQuery.set("limit", "1");
+
+    const trackLookupRows = await postgresTableRequest<ArtistTrackLookupRow[]>({
+      method: "GET",
+      path: "/artist_tracks",
+      query: trackLookupQuery,
+    });
+
+    const lookedUpArtistTelegramUserId = normalizeTelegramUserId(trackLookupRows?.[0]?.artist_telegram_user_id);
+    trackArtistLookupTelegramUserId = lookedUpArtistTelegramUserId || undefined;
   }
 
   const profileQuery = new URLSearchParams();
@@ -416,6 +445,8 @@ export const readArtistCatalogSnapshot = async (options: {
   profileQuery.set("limit", String(Math.max(1, Math.min(options.profileLimit ?? 1000, 5000))));
   if (typeof options.artistTelegramUserId === "number") {
     profileQuery.set("telegram_user_id", `eq.${options.artistTelegramUserId}`);
+  } else if (typeof trackArtistLookupTelegramUserId === "number") {
+    profileQuery.set("telegram_user_id", `eq.${trackArtistLookupTelegramUserId}`);
   }
   if (options.profileSlug) {
     profileQuery.set("slug", `eq.${options.profileSlug}`);
@@ -435,7 +466,9 @@ export const readArtistCatalogSnapshot = async (options: {
     const artistTelegramUserId =
       typeof options.artistTelegramUserId === "number"
         ? options.artistTelegramUserId
-        : (options.profileSlug ? profiles[0]?.telegramUserId : undefined);
+        : (options.trackId
+            ? filterLegacyTracks(options.config, { trackId: options.trackId })[0]?.artistTelegramUserId
+            : (options.profileSlug ? profiles[0]?.telegramUserId : undefined));
 
     return {
       profiles,
@@ -443,6 +476,7 @@ export const readArtistCatalogSnapshot = async (options: {
         options.profileSlug && typeof artistTelegramUserId !== "number"
           ? []
           : filterLegacyTracks(options.config, {
+              trackId: options.trackId,
               artistTelegramUserId,
               onlyPublishedTracks: options.onlyPublishedTracks,
             }),
@@ -468,7 +502,9 @@ export const readArtistCatalogSnapshot = async (options: {
   const trackArtistTelegramUserId =
     typeof options.artistTelegramUserId === "number"
       ? options.artistTelegramUserId
-      : (options.profileSlug ? profiles[0]?.telegramUserId : undefined);
+      : (options.trackId
+          ? trackArtistLookupTelegramUserId ?? filterLegacyTracks(options.config, { trackId: options.trackId })[0]?.artistTelegramUserId
+          : (options.profileSlug ? profiles[0]?.telegramUserId : undefined));
 
   if (options.profileSlug && typeof trackArtistTelegramUserId !== "number") {
     return {
@@ -478,6 +514,9 @@ export const readArtistCatalogSnapshot = async (options: {
     };
   }
 
+  if (options.trackId) {
+    trackQuery.set("id", `eq.${options.trackId}`);
+  }
   if (typeof trackArtistTelegramUserId === "number") {
     trackQuery.set("artist_telegram_user_id", `eq.${trackArtistTelegramUserId}`);
   }
@@ -495,6 +534,7 @@ export const readArtistCatalogSnapshot = async (options: {
     return {
       profiles,
       tracks: filterLegacyTracks(options.config, {
+        trackId: options.trackId,
         artistTelegramUserId: trackArtistTelegramUserId,
         onlyPublishedTracks: options.onlyPublishedTracks,
       }),
@@ -509,6 +549,7 @@ export const readArtistCatalogSnapshot = async (options: {
         .map((row) => toArtistTrack(row))
         .filter((entry): entry is ArtistTrack => Boolean(entry)),
       filterLegacyTracks(options.config, {
+        trackId: options.trackId,
         artistTelegramUserId: trackArtistTelegramUserId,
         onlyPublishedTracks: options.onlyPublishedTracks,
       }),

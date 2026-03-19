@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
 import { readArtistApplicationSnapshot, upsertArtistApplications } from "@/lib/server/artist-application-store";
 import { notifyAdminsAboutArtistApplication } from "@/lib/server/shop-artist-notify";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
@@ -45,14 +46,27 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const profile = config.artistProfiles[String(auth.telegramUserId)] ?? null;
-  const applications = await readArtistApplicationSnapshot({
-    config,
-    telegramUserId: auth.telegramUserId,
-  });
+  const [artistCatalog, applications] = await Promise.all([
+    readArtistCatalogSnapshot({
+      config,
+      artistTelegramUserId: auth.telegramUserId,
+      profileLimit: 1,
+      trackLimit: 1,
+    }),
+    readArtistApplicationSnapshot({
+      config,
+      telegramUserId: auth.telegramUserId,
+    }),
+  ]);
+  const profile = artistCatalog.profiles[0] ?? null;
   const application = applications.applications[0] ?? null;
 
-  return NextResponse.json({ profile, application, source: applications.source });
+  return NextResponse.json({
+    profile,
+    application,
+    source: applications.source,
+    artistSource: artistCatalog.source,
+  });
 }
 
 export async function POST(request: Request) {
@@ -86,14 +100,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "tonWalletAddress is required" }, { status: 400 });
   }
 
+  const config = await readShopAdminConfig();
+  const [artistCatalog, applicationsSnapshot] = await Promise.all([
+    readArtistCatalogSnapshot({
+      config,
+      artistTelegramUserId: auth.telegramUserId,
+      profileLimit: 1,
+      trackLimit: 1,
+    }),
+    readArtistApplicationSnapshot({
+      config,
+      telegramUserId: auth.telegramUserId,
+      limit: 1,
+    }),
+  ]);
+  const fallbackProfile = artistCatalog.profiles[0] ?? null;
+  const fallbackApplication = applicationsSnapshot.applications[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const existingProfile = current.artistProfiles[String(auth.telegramUserId)];
+    const existingProfile = current.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
     if (existingProfile?.status === "approved") {
       throw new Error("already_approved");
     }
 
-    const existing = current.artistApplications[String(auth.telegramUserId)];
+    const existing = current.artistApplications[String(auth.telegramUserId)] ?? fallbackApplication;
     const application: ArtistApplication = {
       id: existing?.id || `artist-application-${auth.telegramUserId}`,
       telegramUserId: auth.telegramUserId,

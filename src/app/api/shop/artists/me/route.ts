@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { readArtistApplicationSnapshot } from "@/lib/server/artist-application-store";
 import { readArtistCatalogSnapshot, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { readArtistSupportSnapshot } from "@/lib/server/artist-support-store";
@@ -90,13 +91,19 @@ export async function GET(request: Request) {
   }
 
   const config = await readShopAdminConfig();
-  const artistCatalog = await readArtistCatalogSnapshot({
-    config,
-    artistTelegramUserId: auth.telegramUserId,
-  });
+  const [artistCatalog, applicationSnapshot] = await Promise.all([
+    readArtistCatalogSnapshot({
+      config,
+      artistTelegramUserId: auth.telegramUserId,
+    }),
+    readArtistApplicationSnapshot({
+      config,
+      telegramUserId: auth.telegramUserId,
+      limit: 1,
+    }),
+  ]);
   const profile = artistCatalog.profiles[0] ?? null;
-  const application =
-    config.artistApplications[String(auth.telegramUserId)] ?? buildLegacyApplication(profile);
+  const application = applicationSnapshot.applications[0] ?? buildLegacyApplication(profile);
   const tracks = sortTracks(artistCatalog.tracks);
   const socialBySlug = await listReleaseSocialFeedSummaries(tracks.map((track) => track.slug));
   const [finance, support] = await Promise.all([
@@ -143,6 +150,7 @@ export async function GET(request: Request) {
     payoutRequests,
     payoutAuditEntries,
     artistSource: artistCatalog.source,
+    applicationSource: applicationSnapshot.source,
     financeSource: finance.source,
     supportSource: support.source,
   });
@@ -173,9 +181,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "displayName is required" }, { status: 400 });
   }
 
+  const config = await readShopAdminConfig();
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    artistTelegramUserId: auth.telegramUserId,
+    profileLimit: 1,
+    trackLimit: 1,
+  });
+  const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const existing = current.artistProfiles[String(auth.telegramUserId)];
+    const existing = current.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
     if (!existing) {
       throw new Error("artist_application_required");
     }
@@ -231,7 +247,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Сначала подайте и подтвердите заявку артиста." }, { status: 409 });
   }
 
-  const nextProfile = updated.artistProfiles[String(auth.telegramUserId)] ?? null;
+  const nextProfile = updated.artistProfiles[String(auth.telegramUserId)] ?? fallbackProfile;
   const normalizedProfile = nextProfile
     ? applyArtistFinanceOverlay({
         profile: nextProfile,
@@ -245,5 +261,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     profile: normalizedProfile,
+    artistSource: artistCatalog.source,
   });
 }

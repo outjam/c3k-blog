@@ -68,6 +68,52 @@
   justify-content: flex-end;
 }
 
+.introGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.introCard,
+.tabLead {
+  padding: 0.72rem;
+  border-radius: 0.78rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
+  display: grid;
+  gap: 0.34rem;
+}
+
+.introEyebrow {
+  color: var(--tg-hint);
+  font-size: 0.72rem;
+}
+
+.introCard strong {
+  color: var(--tg-text);
+  font-size: 0.9rem;
+}
+
+.introCard p,
+.tabLead p,
+.tabLeadExample,
+.sectionHint,
+.migrationDescription,
+.actionGuideText,
+.actionGuideExample {
+  margin: 0;
+  color: var(--tg-hint);
+}
+
+.tabLead {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.tabLeadExample {
+  font-size: 0.8rem;
+}
+
 .error {
   margin: 0;
   color: #ff5f57;
@@ -131,6 +177,49 @@
 .section h2 {
   margin: 0;
   font-size: 0.98rem;
+}
+
+.sectionHint {
+  font-size: 0.82rem;
+}
+
+.actionGuideGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.actionGuideCard {
+  padding: 0.72rem;
+  border-radius: 0.76rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.actionGuideHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.actionGuideHead h3 {
+  margin: 0;
+  color: var(--tg-text);
+  font-size: 0.92rem;
+}
+
+.actionGuideHead span {
+  color: var(--tg-hint);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.actionGuideText,
+.actionGuideExample {
+  font-size: 0.78rem;
 }
 
 .metrics {
@@ -263,6 +352,10 @@
 
 .migrationMetrics span {
   flex: 1;
+}
+
+.migrationDescription {
+  font-size: 0.78rem;
 }
 
 .migrationNotes p,
@@ -627,9 +720,12 @@
     width: 100%;
   }
 
+  .introGrid,
+  .tabLead,
   .metrics,
   .migrationSummary,
   .migrationGrid,
+  .actionGuideGrid,
   .productsList,
   .promoList,
   .customersList,

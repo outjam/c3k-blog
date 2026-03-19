@@ -293,6 +293,20 @@ Go рассматривается как хороший будущий язык 
 
 Это ещё один шаг к тому, чтобы moderation write-paths не зависели от того, успел ли legacy JSON слой синхронизироваться с Postgres.
 
+Следующим slice внутри того же направления было реализовано:
+
+- self-service `artist application`, `artist profile` и `artist releases` routes получили fallback на normalized artist/application layers
+- artist-side mutation paths больше не требуют полного совпадения legacy JSON и Postgres, чтобы пользователь мог продолжать работать
+
+Это важный шаг именно для пользовательского опыта: переходный backend-этап меньше мешает артисту внутри студии и self-service flow.
+
+Следующим slice внутри того же направления было реализовано:
+
+- `artist catalog store` получил targeted `trackId` lookup
+- admin moderation и self-service edit релиза переведены на этот адресный normalized lookup
+
+Это небольшой, но важный hardening step: он уменьшает и migration drift, и лишние широкие чтения каталога ради одного релиза.
+
 Это сдвинуло `Sprint 08` дальше от формального dual-write к реальному read-side cutover в artist economy.
 
 Следующим slice внутри того же спринта было реализовано:

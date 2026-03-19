@@ -1,5 +1,34 @@
 # Implementation Log
 
+## 2026-03-19
+
+### Дополнительный sprint slice: admin UX and operator clarity
+
+- Основная admin-панель получила:
+  - человеческие описания вкладок
+  - operator intro block
+  - пояснения по migration domains
+  - разложенные по смыслу backfill cards вместо безличного набора кнопок
+- Экран [admin artists](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/artists/page.tsx) получил:
+  - пояснение логики заявок
+  - пояснение логики модерации профилей и релизов
+  - пояснение payout moderation с реальными кейсами
+- Экран [admin storage](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) получил:
+  - понятный порядок действий `sync -> test bags -> deliveries`
+  - пояснения, что такое assets, bags, ingest jobs и deliveries
+  - более человечный язык для storage-операций
+
+### Зачем это сделано
+
+- admin UI начал выглядеть как рабочий операторский пульт, а не как внутренний dev-screen
+- снизился риск неправильного запуска backfill и storage actions
+- project owner и команда теперь могут быстрее понимать назначение кнопок без чтения кода или отдельной документации
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по admin-экранам
+
 ## 2026-03-18
 
 ### Контекст
@@ -356,6 +385,49 @@
 
 - `npm run typecheck`
 - targeted `eslint` по admin artist routes и application/catalog stores
+
+### Sprint 08 slice: self-service artist hydration from normalized layers
+
+- Self-service application route [src/app/api/shop/artists/me/application/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/application/route.ts):
+  - `GET` теперь читает profile через normalized artist snapshot
+  - `POST` использует fallback application/profile из normalized layers, если legacy JSON не синхронизирован
+- Self-service artist profile route [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts):
+  - `GET` теперь использует normalized application snapshot вместо прямого чтения только из `artistApplications`
+  - `POST` умеет сохранять профиль с fallback на normalized artist profile
+- Self-service release route [src/app/api/shop/artists/me/tracks/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/tracks/route.ts):
+  - `POST` умеет создавать релиз с fallback на normalized artist profile
+  - `PATCH` умеет редактировать релиз с fallback на normalized artist track
+
+### Результат self-service hydration slice
+
+- artist-side mutation paths стали устойчивее в transition-период
+- ещё один заметный блок пользовательских действий больше не зависит от полного совпадения `app_state` и Postgres
+
+### Проверка self-service hydration slice
+
+- `npm run typecheck`
+- targeted `eslint` по self-service artist routes и application/catalog stores
+
+### Sprint 08 slice: targeted normalized track lookup
+
+- В [src/lib/server/artist-catalog-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-store.ts) `readArtistCatalogSnapshot(...)` получил поддержку `trackId`.
+- Store теперь умеет:
+  - таргетированно находить track через normalized layer
+  - определять `artist_telegram_user_id` для track-first сценариев
+  - подтягивать связанный artist profile без широкой выборки каталога
+- Это использовано в:
+  - [src/app/api/shop/artists/me/tracks/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/tracks/route.ts)
+  - [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+
+### Результат targeted track lookup slice
+
+- self-service edit и admin moderation релиза стали устойчивее к migration drift
+- заодно убрана необходимость широкого чтения artist tracks для одного track update path
+
+### Проверка targeted track lookup slice
+
+- `npm run typecheck`
+- targeted `eslint` по artist catalog store и track routes
 
 ### Sprint 08 slice: payout audit log
 

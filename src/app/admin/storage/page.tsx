@@ -298,7 +298,7 @@ export default function AdminStoragePage() {
         <header className={styles.header}>
           <div>
             <h1>C3K Storage</h1>
-            <p>Storage registry, memberships, test-mode ingest и delivery layer.</p>
+            <p>Storage registry, memberships, test-mode ingest и выдача купленных файлов.</p>
           </div>
           <div className={styles.actions}>
             <button type="button" onClick={() => void load()}>
@@ -319,6 +319,33 @@ export default function AdminStoragePage() {
             </Link>
           </div>
         </header>
+
+        <section className={styles.guideGrid}>
+          <article className={styles.guideCard}>
+            <span className={styles.guideEyebrow}>Шаг 1</span>
+            <strong>Сначала синхронизация релизов</strong>
+            <p>
+              Кнопка `Синхронизировать релизы` собирает storage-assets из артист-релизов. Это первый шаг после добавления
+              новых релизов или изменения их файлов.
+            </p>
+          </article>
+          <article className={styles.guideCard}>
+            <span className={styles.guideEyebrow}>Шаг 2</span>
+            <strong>Потом подготовка test bags</strong>
+            <p>
+              Кнопка `Подготовить test bags` не делает боевой TON Storage upload. Она создаёт test-only заготовки, чтобы
+              проверить pipeline бесплатно и без mainnet-затрат.
+            </p>
+          </article>
+          <article className={styles.guideCard}>
+            <span className={styles.guideEyebrow}>Реальный кейс</span>
+            <strong>После выхода нового релиза</strong>
+            <p>
+              Артист опубликовал релиз, вы синхронизировали assets, подготовили test bags и проверили, что delivery requests
+              начинают находить правильные файлы.
+            </p>
+          </article>
+        </section>
 
         {error ? <p className={styles.error}>{error}</p> : null}
         {syncMessage ? <p className={styles.success}>{syncMessage}</p> : null}
@@ -357,6 +384,10 @@ export default function AdminStoragePage() {
               <div className={styles.blockHeading}>
                 <h2>Новый asset</h2>
               </div>
+              <p className={styles.blockHint}>
+                Asset описывает конкретный файл: аудио, обложку, booklet или NFT-медиа. Обычно руками его создают только для
+                нестандартных кейсов, когда автосинхронизации недостаточно.
+              </p>
               <div className={styles.formGrid}>
                 <input
                   value={assetDraft.releaseSlug}
@@ -485,6 +516,10 @@ export default function AdminStoragePage() {
               <div className={styles.blockHeading}>
                 <h2>Новый bag</h2>
               </div>
+              <p className={styles.blockHint}>
+                Bag связывает asset с storage-контейнером. На test-этапе это в первую очередь операционная сущность, которая
+                помогает проверить будущий TON Storage flow без боевого upload.
+              </p>
               <div className={styles.formGrid}>
                 <input
                   value={bagDraft.assetId}
@@ -554,8 +589,12 @@ export default function AdminStoragePage() {
 
         <section className={styles.block}>
           <div className={styles.blockHeading}>
-            <h2>Memberships</h2>
+            <h2>Участники программы</h2>
           </div>
+          <p className={styles.blockHint}>
+            Здесь вы решаете, кто может участвовать в `C3K Storage Program`, на каком tier он находится и есть ли у него
+            ограничения или комментарии модерации.
+          </p>
 
           <div className={styles.list}>
             {(snapshot?.memberships ?? []).map((membership) => {
@@ -637,8 +676,11 @@ export default function AdminStoragePage() {
 
         <section className={styles.block}>
           <div className={styles.blockHeading}>
-            <h2>Assets</h2>
+            <h2>Assets и файлы</h2>
           </div>
+          <p className={styles.blockHint}>
+            Это реестр файлов, которые система знает и может потом выдать пользователю или положить в storage pipeline.
+          </p>
           <div className={styles.list}>
             {(snapshot?.assets ?? []).slice(0, 20).map((asset) => (
               <article key={asset.id} className={styles.itemCard}>
@@ -660,8 +702,11 @@ export default function AdminStoragePage() {
 
         <section className={styles.block}>
           <div className={styles.blockHeading}>
-            <h2>Bags</h2>
+            <h2>Bags и контейнеры хранения</h2>
           </div>
+          <p className={styles.blockHint}>
+            Здесь видно, какие assets уже упакованы в storage bags, в каком они статусе и сколько реплик планируется.
+          </p>
           <div className={styles.list}>
             {(snapshot?.bags ?? []).slice(0, 20).map((bag) => (
               <article key={bag.id} className={styles.itemCard}>
@@ -685,6 +730,10 @@ export default function AdminStoragePage() {
           <div className={styles.blockHeading}>
             <h2>Ingest jobs</h2>
           </div>
+          <p className={styles.blockHint}>
+            Очередь подготовки assets к storage. Если job падает или зависает, именно здесь видно, на каком шаге pipeline
+            остановился.
+          </p>
           <div className={styles.list}>
             {(snapshot?.ingestJobs ?? []).slice(0, 20).map((job) => (
               <article key={job.id} className={styles.itemCard}>
@@ -706,8 +755,12 @@ export default function AdminStoragePage() {
 
         <section className={styles.block}>
           <div className={styles.blockHeading}>
-            <h2>Deliveries</h2>
+            <h2>Выдача файлов</h2>
           </div>
+          <p className={styles.blockHint}>
+            Последние запросы на скачивание и отправку файлов пользователям. Этот блок помогает понять, почему конкретный
+            релиз или трек не был доставлен в web, desktop или Telegram.
+          </p>
           <div className={styles.list}>
             {(snapshot?.deliveryRequests ?? []).slice(0, 20).map((request) => (
               <article key={request.id} className={styles.itemCard}>

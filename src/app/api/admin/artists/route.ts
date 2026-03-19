@@ -227,15 +227,24 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "trackId and valid status are required" }, { status: 400 });
   }
 
+  const config = await readShopAdminConfig();
+  const artistCatalog = await readArtistCatalogSnapshot({
+    config,
+    trackId,
+    profileLimit: 1,
+    trackLimit: 1,
+  });
+  const fallbackTrack = artistCatalog.tracks[0] ?? null;
+  const fallbackProfile = artistCatalog.profiles[0] ?? null;
   const now = new Date().toISOString();
   const updated = await mutateShopAdminConfig((current) => {
-    const track = current.artistTracks[trackId];
+    const track = current.artistTracks[trackId] ?? fallbackTrack;
 
     if (!track) {
       throw new Error("track_not_found");
     }
 
-    const profile = current.artistProfiles[String(track.artistTelegramUserId)];
+    const profile = current.artistProfiles[String(track.artistTelegramUserId)] ?? fallbackProfile;
 
     if (!profile) {
       throw new Error("profile_not_found");

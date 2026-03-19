@@ -193,6 +193,7 @@ Status: current
 - [x] Ledger-first finance read model для artist self-service routes и studio/profile summary
 - [x] Write-side finance overlay для order webhook и payout moderation без инкрементальной правды в profile counters
 - [x] Admin migration status по доменам: source, legacy/postgres counts, coverage и cutover readiness
+- [x] Отдельный admin UX/design slice: человеческие пояснения по вкладкам, backfill-кнопкам, artist moderation и storage dashboard
 - [ ] Полный ledger-first finance model
 - [x] Backfill/migration jobs для ownership, artist applications, artist catalog, finance и artist support domains
 - [ ] Слой миграции с JSON state в таблицы для оставшихся доменов
