@@ -41,7 +41,23 @@ export async function GET(request: Request) {
 
   if (mode === "claim") {
     const claimed = await claimTonStorageUploadJob();
-    return NextResponse.json({ ok: true, claimed });
+    const baseUrl = new URL(request.url);
+
+    return NextResponse.json({
+      ok: true,
+      claimed,
+      endpoints:
+        claimed && claimed.job.workerLockId
+          ? {
+              source: new URL(
+                `/api/storage/ingest/worker/${encodeURIComponent(claimed.job.id)}/source?lock=${encodeURIComponent(claimed.job.workerLockId)}`,
+                baseUrl,
+              ).toString(),
+              complete: new URL("/api/storage/ingest/worker", baseUrl).toString(),
+              status: new URL("/api/storage/ingest/worker", baseUrl).toString(),
+            }
+          : null,
+    });
   }
 
   const status = await getStorageUploadWorkerQueueStatus();
@@ -65,7 +81,23 @@ export async function POST(request: Request) {
 
   if (action === "claim") {
     const claimed = await claimTonStorageUploadJob();
-    return NextResponse.json({ ok: true, claimed });
+    const baseUrl = new URL(request.url);
+
+    return NextResponse.json({
+      ok: true,
+      claimed,
+      endpoints:
+        claimed && claimed.job.workerLockId
+          ? {
+              source: new URL(
+                `/api/storage/ingest/worker/${encodeURIComponent(claimed.job.id)}/source?lock=${encodeURIComponent(claimed.job.workerLockId)}`,
+                baseUrl,
+              ).toString(),
+              complete: new URL("/api/storage/ingest/worker", baseUrl).toString(),
+              status: new URL("/api/storage/ingest/worker", baseUrl).toString(),
+            }
+          : null,
+    });
   }
 
   if (action !== "complete") {

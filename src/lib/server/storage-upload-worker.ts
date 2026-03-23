@@ -5,6 +5,7 @@ import {
   listStorageIngestJobs,
   updateStorageIngestJob,
 } from "@/lib/server/storage-ingest-store";
+import { telegramBotRequest } from "@/lib/server/telegram-bot";
 import {
   listStorageAssets,
   listStorageBags,
@@ -27,6 +28,32 @@ const pickPreferredBag = (bags: StorageBag[], assetId: string): StorageBag | nul
     const rightTime = Date.parse(right.updatedAt || right.createdAt);
     return rightTime - leftTime;
   })[0] ?? null;
+};
+
+const fetchTelegramFileBytes = async (fileId: string): Promise<Uint8Array | null> => {
+  const botToken = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+
+  if (!botToken || !fileId) {
+    return null;
+  }
+
+  const fileInfo = await telegramBotRequest<TelegramFileInfo>("getFile", { file_id: fileId });
+
+  if (!fileInfo.ok || !fileInfo.result?.file_path) {
+    return null;
+  }
+
+  const response = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileInfo.result.file_path}`, {
+    method: "GET",
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!response?.ok) {
+    return null;
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return bytes.byteLength > 0 ? bytes : null;
 };
 
 export interface StorageUploadWorkerQueueStatus {
@@ -54,11 +81,24 @@ export interface ClaimedStorageUploadJob {
   };
 }
 
+export interface StorageUploadSourceBinary {
+  ok: boolean;
+  bytes?: Uint8Array;
+  mimeType?: string;
+  fileName?: string;
+  sourceKind?: "source_url" | "telegram_file";
+  error?: string;
+}
+
 export interface SimulatedTonStorageUploadSummary {
   processed: number;
   uploaded: number;
   failed: number;
   remainingPrepared: number;
+}
+
+interface TelegramFileInfo {
+  file_path?: string;
 }
 
 export const getStorageUploadWorkerQueueStatus = async (): Promise<StorageUploadWorkerQueueStatus> => {
@@ -241,6 +281,74 @@ export const completeTonStorageUploadJob = async (input: {
   });
 
   return { ok: true, job: completedJob, bag };
+};
+
+export const fetchTonStorageUploadSource = async (input: {
+  jobId: string;
+  workerLockId: string;
+}): Promise<StorageUploadSourceBinary> => {
+  const job = await getStorageIngestJob(input.jobId);
+
+  if (!job) {
+    return { ok: false, error: "job_not_found" };
+  }
+
+  if (job.mode !== "tonstorage_testnet") {
+    return { ok: false, error: "wrong_mode" };
+  }
+
+  if (!job.workerLockId || job.workerLockId !== input.workerLockId) {
+    return { ok: false, error: "lock_mismatch" };
+  }
+
+  const assets = await listStorageAssets();
+  const asset = assets.find((entry) => entry.id === job.assetId);
+
+  if (!asset) {
+    return { ok: false, error: "asset_not_found" };
+  }
+
+  if (asset.sourceUrl) {
+    const response = await fetch(asset.sourceUrl, {
+      method: "GET",
+      cache: "no-store",
+    }).catch(() => null);
+
+    if (!response?.ok) {
+      return { ok: false, error: "source_url_fetch_failed" };
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength === 0) {
+      return { ok: false, error: "empty_source_payload" };
+    }
+
+    return {
+      ok: true,
+      bytes,
+      mimeType: asset.mimeType || response.headers.get("content-type") || "application/octet-stream",
+      fileName: asset.fileName || `${asset.id}.${asset.format}`,
+      sourceKind: "source_url",
+    };
+  }
+
+  if (asset.audioFileId) {
+    const bytes = await fetchTelegramFileBytes(asset.audioFileId);
+
+    if (!bytes) {
+      return { ok: false, error: "telegram_file_fetch_failed" };
+    }
+
+    return {
+      ok: true,
+      bytes,
+      mimeType: asset.mimeType || "application/octet-stream",
+      fileName: asset.fileName || `${asset.id}.${asset.format}`,
+      sourceKind: "telegram_file",
+    };
+  }
+
+  return { ok: false, error: "missing_source_pointer" };
 };
 
 export const runSimulatedTonStorageUploadPass = async (

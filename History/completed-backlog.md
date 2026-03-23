@@ -449,3 +449,18 @@
 - добавлен admin route `/api/admin/storage/upload-simulate`
 - storage dashboard получил кнопку `Симулировать upload`
 - теперь prepared jobs можно доводить до `uploaded` в test-only режиме без реального daemon bridge
+
+### Sprint 10: source endpoint для внешнего upload worker
+
+- worker route теперь отдаёт `source/complete/status` endpoints в claim response
+- добавлен route `/api/storage/ingest/worker/[id]/source`
+- upload worker теперь может забирать bytes либо из `sourceUrl`, либо из `audioFileId` через Telegram file API
+
+### Sprint 10: локальный worker scaffold
+
+- добавлен script `scripts/storage-testnet-worker.mjs`
+- он умеет проходить внешний цикл:
+  - claim job
+  - download source
+  - complete upload result
+- добавлены npm scripts для single-run и loop режима

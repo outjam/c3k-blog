@@ -1571,3 +1571,36 @@
 - Важный эффект:
   - storage contour теперь можно прогонять end-to-end в test-only режиме без реального daemon bridge
   - prepared jobs переходят в `uploaded` через тот же handoff слой, который потом будет использовать настоящий внешний worker
+
+### Sprint 10 slice: protected source endpoint for external upload worker
+
+- Claim response worker route теперь отдаёт готовые endpoints:
+  - `source`
+  - `complete`
+  - `status`
+  - это подключено в [src/app/api/storage/ingest/worker/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/ingest/worker/route.ts)
+- Добавлен защищённый source route:
+  - [src/app/api/storage/ingest/worker/[id]/source/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/ingest/worker/[id]/source/route.ts)
+- Upload worker helper теперь умеет выдавать bytes из:
+  - `asset.sourceUrl`
+  - `asset.audioFileId` через Telegram file API
+  - это в [src/lib/server/storage-upload-worker.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts)
+- Важный эффект:
+  - внешний worker получил полный цикл `claim -> source -> complete`
+  - следующий настоящий testnet worker уже может работать не только по metadata, но и забирать сам payload файла
+
+### Sprint 10 slice: local external worker scaffold
+
+- Добавлен локальный worker script:
+  - [scripts/storage-testnet-worker.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/storage-testnet-worker.mjs)
+- Добавлены npm scripts:
+  - `npm run storage:worker:once`
+  - `npm run storage:worker:loop`
+  - это в [package.json](/Users/culture3k/Documents/GitHub/c3k-blog/package.json)
+- В `.env.example` добавлены:
+  - `C3K_STORAGE_WORKER_SECRET`
+  - `C3K_STORAGE_WORKER_BASE_URL`
+  - это в [\.env.example](/Users/culture3k/Documents/GitHub/c3k-blog/.env.example)
+- Важный эффект:
+  - storage contour теперь можно гонять не только через admin simulation, но и отдельным внешним процессом
+  - это максимально близкий к реальному worker опыт без отдельной инфраструктуры и без боевого `TON Storage daemon`

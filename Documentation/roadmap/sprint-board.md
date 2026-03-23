@@ -251,6 +251,8 @@ Status: current
 - [x] Operator runtime diagnostics: resolvable assets/bags, pointer readiness и unresolved runtime issues
 - [x] External upload worker handoff: claim/complete queue для `tonstorage_testnet`
 - [x] Simulated upload pass для бесплатного end-to-end теста storage contour
+- [x] Protected source endpoint для внешнего upload worker
+- [x] Local external worker scaffold для `claim -> source -> complete`
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 

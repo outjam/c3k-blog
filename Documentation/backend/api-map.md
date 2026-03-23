@@ -260,6 +260,9 @@
   - `GET`: status или claim следующего prepared upload job
   - `POST action=claim`: забрать следующий prepared job
   - `POST action=complete`: подтвердить upload, bag pointer и replicas
+- `/api/storage/ingest/worker/[id]/source`
+  - защищённый source endpoint для внешнего upload worker
+  - отдаёт байты исходного файла по claimed job и `worker lock`
 - `/api/desktop/runtime`
   - runtime contract для `C3K Desktop Client`
   - единая конфигурация для Electron shell, local gateway и web onboarding

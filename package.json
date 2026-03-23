@@ -7,6 +7,8 @@
     "desktop:install": "npm install --prefix desktop",
     "desktop:dev": "npm run dev --prefix desktop",
     "desktop:gateway": "npm run gateway --prefix desktop",
+    "storage:worker:once": "node scripts/storage-testnet-worker.mjs --once",
+    "storage:worker:loop": "node scripts/storage-testnet-worker.mjs --loop",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
