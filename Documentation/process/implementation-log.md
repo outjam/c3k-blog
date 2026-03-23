@@ -1474,3 +1474,20 @@
 - operator получает не только incident view, но и preflight-картину по env/infra readiness
 - перед rollout больше не нужно вручную сверять базовые секреты и флаги по нескольким местам
 - `Sprint 09` продвинулся от точечных hardening-fix'ов к реальному deployment-oriented operator flow
+
+### Sprint 10 slice: runtime-aware storage contour
+
+- storage ingest больше не жёстко привязан только к placeholder `test_prepare`
+- добавлен runtime abstraction для:
+  - `test_prepare`
+  - `tonstorage_testnet`
+- bags и ingest jobs теперь сохраняют runtime metadata:
+  - `runtimeMode`
+  - `runtimeLabel`
+- user-facing `/storage` и admin storage dashboard теперь видят активный `runtimeStatus`
+- admin storage dashboard умеет запускать ingest в выбранном режиме
+- `tonstorage_testnet` сейчас честно делает только:
+  - testnet-style pointer
+  - bag metadata
+  - runtime visibility
+- фактический upload/replication всё ещё остаётся задачей следующего storage worker slice

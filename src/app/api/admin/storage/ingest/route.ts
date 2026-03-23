@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { runTestStorageIngest } from "@/lib/server/storage-ingest";
+import { runStorageIngest } from "@/lib/server/storage-ingest";
 import {
   forbiddenResponse,
   getShopApiAccess,
@@ -16,6 +16,7 @@ interface IngestBody {
   assetIds?: unknown;
   onlyMissingBags?: unknown;
   limit?: unknown;
+  mode?: unknown;
 }
 
 const normalizeSafeId = (value: unknown, maxLength: number): string => {
@@ -65,6 +66,10 @@ const normalizeBoolean = (value: unknown, fallback: boolean): boolean => {
   return fallback;
 };
 
+const normalizeMode = (value: unknown): "test_prepare" | "tonstorage_testnet" => {
+  return value === "tonstorage_testnet" ? "tonstorage_testnet" : "test_prepare";
+};
+
 export async function POST(request: Request) {
   const auth = await getShopApiAccess(request);
 
@@ -89,10 +94,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const result = await runTestStorageIngest({
+  const result = await runStorageIngest({
     assetIds: normalizeAssetIds(payload.assetIds),
     onlyMissingBags: normalizeBoolean(payload.onlyMissingBags, true),
     limit: normalizePositiveInt(payload.limit, 25),
+    mode: normalizeMode(payload.mode),
     requestedByTelegramUserId: auth.telegramUserId,
   });
 

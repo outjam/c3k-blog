@@ -14,7 +14,7 @@ import {
   type AdminSession,
   type AdminStorageSnapshot,
 } from "@/lib/admin-api";
-import type { StorageProgramMembership } from "@/types/storage";
+import type { StorageIngestMode, StorageProgramMembership } from "@/types/storage";
 
 import styles from "./page.module.scss";
 
@@ -56,6 +56,7 @@ export default function AdminStoragePage() {
   >({});
   const [syncingTracks, setSyncingTracks] = useState(false);
   const [ingestingAssets, setIngestingAssets] = useState(false);
+  const [ingestMode, setIngestMode] = useState<StorageIngestMode>("test_prepare");
 
   const canView = Boolean(session?.permissions.includes("storage:view"));
   const canManage = Boolean(session?.permissions.includes("storage:manage"));
@@ -87,6 +88,7 @@ export default function AdminStoragePage() {
     }
 
     setSnapshot(storageResponse.data);
+    setIngestMode(storageResponse.data.runtimeStatus.mode);
     setMembershipDrafts(
       Object.fromEntries(
         storageResponse.data.memberships.map((membership) => [
@@ -290,6 +292,7 @@ export default function AdminStoragePage() {
     const response = await runAdminStorageIngest({
       onlyMissingBags: true,
       limit: 25,
+      mode: ingestMode,
     });
 
     setIngestingAssets(false);
@@ -301,10 +304,13 @@ export default function AdminStoragePage() {
 
     setIngestMessage(
       [
+        response.runtimeLabel,
         `Выбрано assets: ${response.selectedAssets}`,
         `prepared: ${response.preparedJobs}`,
         `failed: ${response.failedJobs}`,
         `reused bags: ${response.reusedBags}`,
+        response.supportsRealPointers ? "real pointers: yes" : "real pointers: no",
+        response.requiresExternalUploadWorker ? "нужен upload worker" : "upload worker не нужен",
       ].join(" · "),
     );
     await load();
@@ -334,7 +340,7 @@ export default function AdminStoragePage() {
         <header className={styles.header}>
           <div>
             <h1>C3K Storage</h1>
-            <p>Storage registry, memberships, test-mode ingest и выдача купленных файлов.</p>
+            <p>Storage registry, memberships, runtime ingest и выдача купленных файлов.</p>
           </div>
           <div className={styles.actions}>
             <button type="button" onClick={() => void load()}>
@@ -346,15 +352,64 @@ export default function AdminStoragePage() {
               </button>
             ) : null}
             {canManage ? (
-              <button type="button" onClick={() => void ingestAssets()} disabled={ingestingAssets}>
-                {ingestingAssets ? "Подготовка..." : "Подготовить test bags"}
-              </button>
+              <>
+                <select
+                  value={ingestMode}
+                  onChange={(event) => setIngestMode(event.target.value as StorageIngestMode)}
+                >
+                  <option value="test_prepare">test_prepare</option>
+                  <option value="tonstorage_testnet">tonstorage_testnet</option>
+                </select>
+                <button type="button" onClick={() => void ingestAssets()} disabled={ingestingAssets}>
+                  {ingestingAssets ? "Подготовка..." : "Подготовить runtime bags"}
+                </button>
+              </>
             ) : null}
             <Link href="/admin" className={styles.linkButton}>
               Админка
             </Link>
           </div>
         </header>
+
+        <section className={styles.runtimeGrid}>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Текущий runtime</h2>
+            </div>
+            <p className={styles.blockHint}>
+              Именно этот режим сейчас определяет, как будет выглядеть ingest: placeholder bags или testnet-style pointers
+              под будущий TON Storage worker.
+            </p>
+            <div className={styles.itemMeta}>
+              <span>{snapshot?.runtimeStatus.label || "Runtime unknown"}</span>
+              <span>{snapshot?.runtimeStatus.mode || "mode unknown"}</span>
+              <span>
+                {snapshot?.runtimeStatus.supportsRealPointers ? "real pointers supported" : "placeholder pointers only"}
+              </span>
+              <span>
+                {snapshot?.runtimeStatus.requiresExternalUploadWorker
+                  ? "требуется внешний upload worker"
+                  : "внешний upload worker не нужен"}
+              </span>
+              {snapshot?.runtimeStatus.providerLabel ? <span>{snapshot.runtimeStatus.providerLabel}</span> : null}
+              {snapshot?.runtimeStatus.pointerBase ? <span>{snapshot.runtimeStatus.pointerBase}</span> : null}
+            </div>
+          </article>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Пояснение</h2>
+            </div>
+            <p className={styles.blockHint}>
+              `test_prepare` нужен, чтобы бесплатно проверить storage UX и delivery. `tonstorage_testnet` уже готовит честные
+              testnet-style pointers и bag metadata, но не притворяется полным upload runtime.
+            </p>
+            <div className={styles.noteList}>
+              {(snapshot?.runtimeStatus.notes ?? []).map((note) => (
+                <span key={note}>{note}</span>
+              ))}
+            </div>
+          </article>
+        </section>
 
         <section className={styles.guideGrid}>
           <article className={styles.guideCard}>
@@ -367,18 +422,18 @@ export default function AdminStoragePage() {
           </article>
           <article className={styles.guideCard}>
             <span className={styles.guideEyebrow}>Шаг 2</span>
-            <strong>Потом подготовка test bags</strong>
+            <strong>Потом подготовка runtime bags</strong>
             <p>
-              Кнопка `Подготовить test bags` не делает боевой TON Storage upload. Она создаёт test-only заготовки, чтобы
-              проверить pipeline бесплатно и без mainnet-затрат.
+              Кнопка `Подготовить runtime bags` работает в выбранном режиме: либо делает test-only заготовки, либо готовит
+              testnet-style pointers под будущий TON Storage upload worker.
             </p>
           </article>
           <article className={styles.guideCard}>
             <span className={styles.guideEyebrow}>Реальный кейс</span>
             <strong>После выхода нового релиза</strong>
             <p>
-              Артист опубликовал релиз, вы синхронизировали assets, подготовили test bags и проверили, что delivery requests
-              начинают находить правильные файлы.
+              Артист опубликовал релиз, вы синхронизировали assets, подготовили bags в нужном runtime и проверили, что
+              delivery requests начинают находить правильные файлы и storage pointers.
             </p>
           </article>
         </section>
@@ -753,6 +808,7 @@ export default function AdminStoragePage() {
                 <div className={styles.itemMeta}>
                   <span>{bag.assetId}</span>
                   <span>{bag.bagId || "bag id pending"}</span>
+                  <span>{bag.runtimeLabel || bag.runtimeMode || "runtime pending"}</span>
                   <span>
                     {bag.replicasActual} / {bag.replicasTarget}
                   </span>
@@ -780,6 +836,7 @@ export default function AdminStoragePage() {
                 <div className={styles.itemMeta}>
                   <span>{job.assetId}</span>
                   <span>{job.bagId || "bag pending"}</span>
+                  <span>{job.mode}</span>
                   <span>{job.storagePointer || "pointer pending"}</span>
                   <span>attempt {job.attemptCount}</span>
                   <span>{job.message || job.failureMessage || "no details"}</span>

@@ -263,7 +263,9 @@ export default function StorageProgramPage() {
   const bagsInFocus = membership?.status === "approved" ? Math.max(seedPreview.length, tierMeta.targetBags) : tierMeta.targetBags;
   const nodeCountLabel = snapshot?.nodeCount && snapshot.nodeCount > 0 ? `${snapshot.nodeCount}` : "Подключите desktop";
   const desktopModeLabel = snapshot?.desktopClientEnabled ? "Готов к запуску" : "Beta waiting";
-  const releaseModeLabel = snapshot?.testModeIngestEnabled ? "Test-only" : "Preview only";
+  const runtimeModeLabel =
+    snapshot?.runtimeStatus.mode === "tonstorage_testnet" ? "TON Storage testnet" : "Local test prepare";
+  const runtimePointerLabel = snapshot?.runtimeStatus.supportsRealPointers ? "Real pointers" : "Placeholder only";
 
   useEffect(() => {
     if (!connectedWalletAddress || connectedWalletAddress === walletAddress) {
@@ -426,7 +428,8 @@ export default function StorageProgramPage() {
                   {nodeState.label}
                 </span>
                 <span className={styles.statusPill}>{formatTier(membership?.tier)}</span>
-                <span className={styles.statusPill}>{releaseModeLabel}</span>
+                <span className={styles.statusPill}>{runtimeModeLabel}</span>
+                <span className={styles.statusPill}>{runtimePointerLabel}</span>
               </div>
 
               <div className={styles.heroStats}>
@@ -524,8 +527,8 @@ export default function StorageProgramPage() {
                       <b>{tierMeta.healthGoal}</b>
                     </div>
                     <div>
-                      <span>Telegram delivery</span>
-                      <b>{snapshot?.telegramBotDeliveryEnabled ? "Включено" : "Ещё не подключено"}</b>
+                      <span>Storage runtime</span>
+                      <b>{snapshot?.runtimeStatus.label || runtimeModeLabel}</b>
                     </div>
                   </div>
                 </article>
@@ -551,6 +554,10 @@ export default function StorageProgramPage() {
                       <b>{snapshot?.tonSiteDesktopGatewayEnabled ? "Запланирован" : "Дальше по roadmap"}</b>
                     </div>
                     <div>
+                      <span>Upload worker</span>
+                      <b>{snapshot?.runtimeStatus.requiresExternalUploadWorker ? "Нужен" : "Не нужен"}</b>
+                    </div>
+                    <div>
                       <span>Кошелёк</span>
                       <b>{membership?.walletAddress ? "Привязан" : "Пока не указан"}</b>
                     </div>
@@ -564,9 +571,18 @@ export default function StorageProgramPage() {
                 <h2>Что раздаётся через ноду</h2>
                 <p>
                   Это целевой вид swarm-экрана: релизные bags, архивы, NFT media и desktop cache будут видны как живые
-                  сущности с peers и доходностью.
+                  сущности с peers и доходностью. Ниже уже отражён активный runtime-контур, в который целимся сейчас.
                 </p>
               </div>
+              {snapshot?.runtimeStatus.notes?.length ? (
+                <div className={styles.heroPills}>
+                  {snapshot.runtimeStatus.notes.slice(0, 2).map((note) => (
+                    <span key={note} className={styles.controlPill}>
+                      {note}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
 
               <div className={styles.seedGrid}>
                 {seedPreview.map((item) => (

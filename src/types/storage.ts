@@ -65,7 +65,9 @@ export type StorageDeliveryChannel =
 
 export type StorageDeliveryTargetType = "release" | "track";
 
-export type StorageIngestMode = "test_prepare";
+export type StorageRuntimeMode = "test_prepare" | "tonstorage_testnet";
+
+export type StorageIngestMode = StorageRuntimeMode;
 
 export type StorageIngestJobStatus =
   | "queued"
@@ -107,6 +109,8 @@ export interface StorageBag {
   description?: string;
   tonstorageUri?: string;
   metaFileUrl?: string;
+  runtimeMode?: StorageRuntimeMode;
+  runtimeLabel?: string;
   status: StorageBagStatus;
   replicasTarget: number;
   replicasActual: number;
@@ -183,6 +187,17 @@ export interface StorageProgramMembership {
   updatedAt: string;
 }
 
+export interface StorageRuntimeStatusSnapshot {
+  mode: StorageRuntimeMode;
+  label: string;
+  pointerBase?: string;
+  providerLabel?: string;
+  enabled: boolean;
+  supportsRealPointers: boolean;
+  requiresExternalUploadWorker: boolean;
+  notes: string[];
+}
+
 export interface StorageDeliveryRequest {
   id: string;
   telegramUserId: number;
@@ -257,6 +272,7 @@ export interface StorageProgramSnapshot {
   tonSiteDesktopGatewayEnabled: boolean;
   telegramBotDeliveryEnabled: boolean;
   testModeIngestEnabled: boolean;
+  runtimeStatus: StorageRuntimeStatusSnapshot;
   membership: StorageProgramMembership | null;
   nodeCount: number;
 }

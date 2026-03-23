@@ -241,6 +241,11 @@ Status: current
 
 Что должно быть доставлено:
 - [x] Target UI для user-facing `C3K Storage Node`: статус ноды, swarm/bags, будущие rewards и desktop readiness
+- [x] Runtime abstraction для `test_prepare` и `tonstorage_testnet`
+- [x] `runtimeStatus` в user storage snapshot и admin storage dashboard
+- [x] Admin ingest mode selector для `test_prepare / tonstorage_testnet`
+- [x] Runtime-aware ingest jobs и bags с `runtimeMode/runtimeLabel`
+- [x] Honest messaging про `real pointers` и `external upload worker`
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 

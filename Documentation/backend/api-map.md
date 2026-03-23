@@ -176,8 +176,9 @@
 - `/api/admin/storage/sync-tracks`
   - backfill и повторная синхронизация storage assets из artist releases
 - `/api/admin/storage/ingest`
-  - запуск test-mode ingest pipeline
-  - подготовка placeholder bags и ingest jobs
+  - запуск runtime-aware ingest pipeline
+  - поддерживает `test_prepare` и `tonstorage_testnet`
+  - создаёт ingest jobs, runtime-aware bags и testnet-style pointers
 - `/api/admin/ton/status`
   - snapshot active TON environment
   - active network, collection source, relay readiness и runtime/env drift warnings
@@ -233,6 +234,7 @@
 
 - `/api/storage/program/me`
   - snapshot участия в `C3K Storage`
+  - включает активный `runtimeStatus` для user-facing storage dashboard
 - `/api/storage/program/join`
   - подача заявки в storage program
 - `/api/storage/downloads`

@@ -1,4 +1,8 @@
-import { C3K_STORAGE_TEST_MODE_INGEST_ENABLED } from "@/lib/storage-config";
+import {
+  C3K_STORAGE_ENABLED,
+  C3K_STORAGE_TEST_MODE_INGEST_ENABLED,
+  C3K_STORAGE_TON_TESTNET_POINTER_BASE,
+} from "@/lib/storage-config";
 import {
   createStorageIngestJob,
   listStorageIngestJobs,
@@ -10,10 +14,12 @@ import {
   upsertStorageBag,
   upsertStorageBagFile,
 } from "@/lib/server/storage-registry-store";
+import { getStorageRuntimeStatus, prepareStorageBagViaRuntime } from "@/lib/server/storage-runtime";
 import type {
   StorageAsset,
   StorageBag,
   StorageIngestJob,
+  StorageIngestMode,
 } from "@/types/storage";
 
 const BAG_STATUS_PRIORITY: Record<StorageBag["status"], number> = {
@@ -61,20 +67,6 @@ const hasActiveBag = (bags: StorageBag[], assetId: string): boolean => {
   return bags.some((bag) => bag.assetId === assetId && bag.status !== "disabled");
 };
 
-const buildTestBagExternalId = (asset: StorageAsset): string => {
-  const base = normalizeSafeId(
-    `c3k-test-${asset.releaseSlug || asset.trackId || asset.id}-${asset.format}`,
-    160,
-  );
-
-  return base || `c3k-test-${Date.now()}`;
-};
-
-const buildTestTonstorageUri = (bagId: string, fileName: string): string => {
-  const normalizedFileName = normalizeSafeId(fileName.replace(/\./g, "-"), 120) || "asset";
-  return `tonstorage://c3k-test/${bagId}/${normalizedFileName}`;
-};
-
 const inferBagFilePath = (asset: StorageAsset): string => {
   if (asset.fileName) {
     return asset.fileName;
@@ -116,6 +108,8 @@ export interface StorageTestIngestJobSummary {
   jobId: string;
   assetId: string;
   bagId?: string;
+  mode: StorageIngestMode;
+  runtimeLabel: string;
   status: StorageIngestJob["status"];
   reusedBag: boolean;
   hasFetchableSource: boolean;
@@ -125,6 +119,10 @@ export interface StorageTestIngestJobSummary {
 }
 
 export interface StorageTestIngestRunSummary {
+  mode: StorageIngestMode;
+  runtimeLabel: string;
+  supportsRealPointers: boolean;
+  requiresExternalUploadWorker: boolean;
   queuedJobs: number;
   processedJobs: number;
   preparedJobs: number;
@@ -137,20 +135,44 @@ export interface StorageTestIngestRunSummary {
   summaries: StorageTestIngestJobSummary[];
 }
 
-export const runTestStorageIngest = async (input?: {
+export const runStorageIngest = async (input?: {
   assetIds?: string[];
   onlyMissingBags?: boolean;
   limit?: number;
+  mode?: StorageIngestMode;
   requestedByTelegramUserId?: number;
 }): Promise<
   | { ok: false; reason: "disabled"; message: string }
   | { ok: true; summary: StorageTestIngestRunSummary }
 > => {
-  if (!C3K_STORAGE_TEST_MODE_INGEST_ENABLED) {
+  const runtimeStatus = getStorageRuntimeStatus();
+  const mode = input?.mode ?? runtimeStatus.mode;
+  const selectedRuntimeLabel = mode === "tonstorage_testnet" ? "TON Storage testnet" : "Local test prepare";
+  const selectedSupportsRealPointers =
+    mode === "tonstorage_testnet" ? Boolean(C3K_STORAGE_TON_TESTNET_POINTER_BASE) : false;
+  const selectedRequiresExternalUploadWorker = mode === "tonstorage_testnet";
+
+  if (!C3K_STORAGE_ENABLED) {
+    return {
+      ok: false,
+      reason: "disabled",
+      message: "C3K Storage runtime выключен в конфиге приложения.",
+    };
+  }
+
+  if (mode === "test_prepare" && !C3K_STORAGE_TEST_MODE_INGEST_ENABLED) {
     return {
       ok: false,
       reason: "disabled",
       message: "Test ingest pipeline disabled by C3K_STORAGE_TEST_MODE_INGEST_ENABLED.",
+    };
+  }
+
+  if (mode === "tonstorage_testnet" && !selectedSupportsRealPointers) {
+    return {
+      ok: false,
+      reason: "disabled",
+      message: "TON Storage testnet runtime не готов: отсутствует pointer base или runtime config.",
     };
   }
 
@@ -174,10 +196,13 @@ export const runTestStorageIngest = async (input?: {
     const job = await createStorageIngestJob({
       id: buildQueuedJobId(asset.id, index),
       assetId: asset.id,
-      mode: "test_prepare",
+      mode,
       status: "queued",
       requestedByTelegramUserId: input?.requestedByTelegramUserId,
-      message: "Queued for test bag preparation.",
+      message:
+        mode === "tonstorage_testnet"
+          ? "Queued for TON Storage testnet pointer preparation."
+          : "Queued for test bag preparation.",
       attemptCount: 0,
     });
 
@@ -219,7 +244,10 @@ export const runTestStorageIngest = async (input?: {
       attemptCount: job.attemptCount + 1,
       failureCode: null,
       failureMessage: null,
-      message: "Preparing test bag metadata.",
+      message:
+        mode === "tonstorage_testnet"
+          ? "Preparing TON Storage testnet bag metadata."
+          : "Preparing test bag metadata.",
     });
 
     if (!currentAsset) {
@@ -234,6 +262,8 @@ export const runTestStorageIngest = async (input?: {
       summaries.push({
         jobId: job.id,
         assetId: job.assetId,
+        mode,
+        runtimeLabel: selectedRuntimeLabel,
         status: "failed",
         reusedBag: false,
         hasFetchableSource: false,
@@ -243,45 +273,25 @@ export const runTestStorageIngest = async (input?: {
       continue;
     }
 
-    if (!currentAsset.sourceUrl && !currentAsset.audioFileId) {
-      const failureMessage = "Asset has no sourceUrl or audioFileId for test ingest preparation.";
-      await updateStorageIngestJob(job.id, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
-        failureCode: "missing_source_pointer",
-        failureMessage,
-        message: failureMessage,
-      });
-      summaries.push({
-        jobId: job.id,
-        assetId: currentAsset.id,
-        status: "failed",
-        reusedBag: false,
-        hasFetchableSource: false,
-        message: failureMessage,
-        failureCode: "missing_source_pointer",
-      });
-      continue;
-    }
-
-    const bagExternalId = existingBag?.bagId ?? buildTestBagExternalId(currentAsset);
-    const bagRecordId = existingBag?.id ?? `autobag:${currentAsset.id}`;
     const bagFilePath = inferBagFilePath(currentAsset);
-    const tonstorageUri =
-      existingBag?.tonstorageUri ?? buildTestTonstorageUri(bagExternalId, bagFilePath);
-    const metaFileUrl = currentAsset.sourceUrl ?? existingBag?.metaFileUrl;
-    const hasFetchableSource = Boolean(currentAsset.sourceUrl);
-    const bagStatus: StorageBag["status"] = hasFetchableSource ? "healthy" : "created";
+    const runtimePrepared = prepareStorageBagViaRuntime({
+      asset: currentAsset,
+      existingBag,
+      mode,
+    });
+    const bagRecordId = existingBag?.id ?? `autobag:${currentAsset.id}`;
     const bag = await upsertStorageBag({
       id: bagRecordId,
       assetId: currentAsset.id,
-      bagId: bagExternalId,
+      bagId: runtimePrepared.bagExternalId,
       description: buildBagDescription(currentAsset),
-      tonstorageUri,
-      metaFileUrl,
-      status: bagStatus,
-      replicasTarget: existingBag?.replicasTarget || 1,
-      replicasActual: hasFetchableSource ? Math.max(1, existingBag?.replicasActual ?? 0) : 0,
+      tonstorageUri: runtimePrepared.tonstorageUri || undefined,
+      metaFileUrl: runtimePrepared.metaFileUrl,
+      runtimeMode: runtimePrepared.runtimeMode,
+      runtimeLabel: runtimePrepared.runtimeLabel,
+      status: runtimePrepared.bagStatus,
+      replicasTarget: runtimePrepared.replicasTarget,
+      replicasActual: runtimePrepared.replicasActual,
     });
 
     if (!bag) {
@@ -296,9 +306,11 @@ export const runTestStorageIngest = async (input?: {
       summaries.push({
         jobId: job.id,
         assetId: currentAsset.id,
+        mode,
+        runtimeLabel: runtimePrepared.runtimeLabel,
         status: "failed",
         reusedBag: Boolean(existingBag),
-        hasFetchableSource,
+        hasFetchableSource: runtimePrepared.hasFetchableSource,
         message: failureMessage,
         failureCode: "bag_upsert_failed",
       });
@@ -315,19 +327,16 @@ export const runTestStorageIngest = async (input?: {
     });
 
     const storagePointer = bag.tonstorageUri ?? bag.bagId ?? currentAsset.resourceKey;
-    const message = hasFetchableSource
-      ? existingBag
-        ? "Test bag metadata refreshed from storage asset."
-        : "Test bag prepared from storage asset."
-      : "Test bag prepared without fetchable source URL; delivery stays limited until sourceUrl is added.";
+    const nextStatus: StorageIngestJob["status"] = runtimePrepared.failureCode ? "failed" : "prepared";
+    const message = runtimePrepared.message;
 
     await updateStorageIngestJob(job.id, {
       bagId: bag.id,
-      status: "prepared",
-      storagePointer,
+      status: nextStatus,
+      storagePointer: storagePointer ?? null,
       completedAt: new Date().toISOString(),
-      failureCode: null,
-      failureMessage: null,
+      failureCode: runtimePrepared.failureCode ?? null,
+      failureMessage: runtimePrepared.failureCode ? runtimePrepared.message : null,
       message,
     });
 
@@ -335,17 +344,24 @@ export const runTestStorageIngest = async (input?: {
       jobId: job.id,
       assetId: currentAsset.id,
       bagId: bag.id,
-      status: "prepared",
+      mode: runtimePrepared.runtimeMode,
+      runtimeLabel: runtimePrepared.runtimeLabel,
+      status: nextStatus,
       reusedBag: Boolean(existingBag),
-      hasFetchableSource,
+      hasFetchableSource: runtimePrepared.hasFetchableSource,
       storagePointer,
       message,
+      failureCode: runtimePrepared.failureCode,
     });
   }
 
   return {
     ok: true,
     summary: {
+      mode,
+      runtimeLabel: selectedRuntimeLabel,
+      supportsRealPointers: selectedSupportsRealPointers,
+      requiresExternalUploadWorker: selectedRequiresExternalUploadWorker,
       queuedJobs: createdJobs.length,
       processedJobs: summaries.length,
       preparedJobs: summaries.filter((entry) => entry.status === "prepared").length,
@@ -361,3 +377,5 @@ export const runTestStorageIngest = async (input?: {
     },
   };
 };
+
+export const runTestStorageIngest = runStorageIngest;

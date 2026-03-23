@@ -1,5 +1,6 @@
 import { getC3kStorageConfig } from "@/lib/storage-config";
 import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
+import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
 import type {
   StorageBag,
   StorageBagFile,
@@ -164,6 +165,11 @@ const normalizeBag = (id: string, value: unknown, now: string): StorageBag | nul
     description: normalizeOptionalText(source.description, 500),
     tonstorageUri: normalizeOptionalText(source.tonstorageUri, 500),
     metaFileUrl: normalizeOptionalText(source.metaFileUrl, 3000),
+    runtimeMode:
+      source.runtimeMode === "tonstorage_testnet" || source.runtimeMode === "test_prepare"
+        ? source.runtimeMode
+        : undefined,
+    runtimeLabel: normalizeOptionalText(source.runtimeLabel, 160),
     status:
       source.status === "draft" ||
       source.status === "created" ||
@@ -657,6 +663,7 @@ export const buildStorageProgramSnapshot = async (
   telegramUserId: number,
 ): Promise<StorageProgramSnapshot> => {
   const config = getC3kStorageConfig();
+  const runtimeStatus = getStorageRuntimeStatus();
   const snapshot = await getStorageRegistrySnapshot();
   const membership = snapshot?.memberships[String(telegramUserId)] ?? null;
   const nodeCount = snapshot
@@ -664,7 +671,12 @@ export const buildStorageProgramSnapshot = async (
     : 0;
 
   return {
-    ...config,
+    enabled: config.enabled,
+    desktopClientEnabled: config.desktopClientEnabled,
+    tonSiteDesktopGatewayEnabled: config.tonSiteDesktopGatewayEnabled,
+    telegramBotDeliveryEnabled: config.telegramBotDeliveryEnabled,
+    testModeIngestEnabled: config.testModeIngestEnabled,
+    runtimeStatus,
     membership,
     nodeCount,
   };
@@ -809,6 +821,8 @@ export const upsertStorageBag = async (input: {
   description?: string;
   tonstorageUri?: string;
   metaFileUrl?: string;
+  runtimeMode?: StorageBag["runtimeMode"];
+  runtimeLabel?: string;
   status?: StorageBag["status"];
   replicasTarget?: number;
   replicasActual?: number;
@@ -831,6 +845,8 @@ export const upsertStorageBag = async (input: {
       description: normalizeOptionalText(input.description, 500) ?? existing?.description,
       tonstorageUri: normalizeOptionalText(input.tonstorageUri, 500) ?? existing?.tonstorageUri,
       metaFileUrl: normalizeOptionalText(input.metaFileUrl, 3000) ?? existing?.metaFileUrl,
+      runtimeMode: input.runtimeMode ?? existing?.runtimeMode,
+      runtimeLabel: normalizeOptionalText(input.runtimeLabel, 160) ?? existing?.runtimeLabel,
       status: input.status ?? existing?.status ?? "draft",
       replicasTarget: normalizeNonNegativeInt(input.replicasTarget ?? existing?.replicasTarget ?? 0),
       replicasActual: normalizeNonNegativeInt(input.replicasActual ?? existing?.replicasActual ?? 0),

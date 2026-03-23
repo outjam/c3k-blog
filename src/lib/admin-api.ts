@@ -37,9 +37,11 @@ import type {
   StorageDeliveryRequest,
   StorageHealthEvent,
   StorageIngestJob,
+  StorageIngestMode,
   StorageNode,
   StorageProgramMembership,
   StorageProgramSnapshot,
+  StorageRuntimeStatusSnapshot,
 } from "@/types/storage";
 
 interface ApiErrorShape {
@@ -198,6 +200,7 @@ export interface AdminSession {
 }
 
 export interface AdminStorageSnapshot {
+  runtimeStatus: StorageRuntimeStatusSnapshot;
   assets: StorageAsset[];
   bags: StorageBag[];
   nodes: StorageNode[];
@@ -794,9 +797,14 @@ export const runAdminStorageIngest = async (payload?: {
   assetIds?: string[];
   onlyMissingBags?: boolean;
   limit?: number;
+  mode?: StorageIngestMode;
 }): Promise<
   | {
       ok: true;
+      mode: StorageIngestMode;
+      runtimeLabel: string;
+      supportsRealPointers: boolean;
+      requiresExternalUploadWorker: boolean;
       queuedJobs: number;
       processedJobs: number;
       preparedJobs: number;
@@ -827,6 +835,10 @@ export const runAdminStorageIngest = async (payload?: {
     return {
       ok: true,
       ...((await response.json()) as {
+        mode: StorageIngestMode;
+        runtimeLabel: string;
+        supportsRealPointers: boolean;
+        requiresExternalUploadWorker: boolean;
         queuedJobs: number;
         processedJobs: number;
         preparedJobs: number;

@@ -50,6 +50,41 @@
   flex-wrap: wrap;
 }
 
+.actions select {
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  min-height: 2.2rem;
+  padding: 0 0.58rem;
+  font: inherit;
+}
+
+.runtimeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.runtimeCard {
+  border-radius: 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  padding: 0.72rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.noteList {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.noteList span {
+  color: var(--tg-hint);
+  font-size: 0.78rem;
+}
+
 .guideGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -211,6 +246,7 @@
 
 @media (max-width: 960px) {
   .guideGrid,
+  .runtimeGrid,
   .metrics,
   .formGrid {
     grid-template-columns: 1fr;

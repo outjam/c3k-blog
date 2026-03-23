@@ -56,7 +56,7 @@ const normalizeIsoDateTime = (value: unknown, fallbackIso: string): string => {
 };
 
 const normalizeMode = (value: unknown): StorageIngestMode => {
-  return value === "test_prepare" ? value : "test_prepare";
+  return value === "tonstorage_testnet" || value === "test_prepare" ? value : "test_prepare";
 };
 
 const normalizeStatus = (value: unknown): StorageIngestJobStatus => {

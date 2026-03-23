@@ -400,3 +400,11 @@
 - Ingest pipeline для storage content
 - Production-grade desktop client `Electron`
 - Полная нормализация backend-модели без зависимости от `app_state`
+
+### Sprint 10: runtime-aware storage ingest
+
+- добавлен runtime abstraction для `test_prepare` и `tonstorage_testnet`
+- admin storage dashboard показывает активный runtime, pointer readiness и upload-worker requirement
+- admin может запускать ingest в двух режимах
+- bags и ingest jobs теперь получают runtime metadata
+- user-facing `/storage` начал отражать реальный storage runtime contour, а не только future-state copy
