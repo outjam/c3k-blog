@@ -120,6 +120,20 @@
   - и кем именно он был инициирован
 - Это делает background job audit заметно полезнее для production hardening и операторских разборов.
 
+### Operator guide и go-live слой
+
+- В админке появился отдельный operator guide, который собирает в одном месте:
+  - incidents
+  - deployment readiness
+  - migration status
+  - TON environment
+- Теперь оператор видит не только отдельные статусы, но и:
+  - release mode (`test_only`, `mainnet_blocked`, `mainnet_ready`)
+  - список конкретных next actions
+  - короткие runbooks по recovery и go-live
+- Для TON collection deploy добавлен `confirmNetwork` guard, чтобы deploy не уходил в неверную сеть по ошибке.
+- После этого `Sprint 09` можно считать закрытым: есть visibility, recovery, audit, go-live guidance и жёстче выраженный network split.
+
 ## 2026-03-18
 
 ### Профиль и публичный профиль

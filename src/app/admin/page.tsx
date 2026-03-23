@@ -17,6 +17,7 @@ import {
   fetchAdminIncidentStatus,
   fetchAdminMigrationStatus,
   fetchAdminMembers,
+  fetchAdminOperatorGuide,
   fetchAdminProductCategories,
   fetchAdminProducts,
   fetchAdminPromos,
@@ -41,6 +42,7 @@ import {
   type AdminArtistFinanceBackfillResult,
   type AdminMigrationBackfillSuiteResult,
   type AdminMigrationDomainStatus,
+  type AdminOperatorGuideSnapshot,
   type AdminArtistSupportBackfillResult,
   type AdminDeploymentReadinessSnapshot,
   type AdminIncidentStatusSnapshot,
@@ -162,6 +164,16 @@ const DEPLOYMENT_STATE_LABELS: Record<AdminDeploymentReadinessSnapshot["overallS
   warning: "Есть предупреждения",
   missing: "Не готово",
 };
+const OPERATOR_GUIDE_STATE_LABELS: Record<AdminOperatorGuideSnapshot["overallState"], string> = {
+  blocked: "Блокирующие риски",
+  caution: "Нужна подготовка",
+  ready: "Контур стабилен",
+};
+const OPERATOR_RELEASE_MODE_LABELS: Record<AdminOperatorGuideSnapshot["releaseMode"], string> = {
+  test_only: "Test-only",
+  mainnet_blocked: "Mainnet заблокирован",
+  mainnet_ready: "Mainnet ready",
+};
 
 const TAB_COPY: Record<AdminTab, { title: string; description: string; example: string }> = {
   dashboard: {
@@ -263,6 +275,7 @@ export default function AdminPage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
   const [deploymentReadiness, setDeploymentReadiness] = useState<AdminDeploymentReadinessSnapshot | null>(null);
+  const [operatorGuide, setOperatorGuide] = useState<AdminOperatorGuideSnapshot | null>(null);
   const [incidentStatus, setIncidentStatus] = useState<AdminIncidentStatusSnapshot | null>(null);
   const [migrationStatus, setMigrationStatus] = useState<AdminMigrationStatusSnapshot | null>(null);
   const [tonEnvironmentStatus, setTonEnvironmentStatus] = useState<AdminTonEnvironmentStatus | null>(null);
@@ -378,6 +391,14 @@ export default function AdminPage() {
       jobs.push(
         fetchAdminDeploymentReadiness().then((response) => {
           setDeploymentReadiness(response.status);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
+      jobs.push(
+        fetchAdminOperatorGuide().then((response) => {
+          setOperatorGuide(response.status);
           if (response.error) {
             errors.push(response.error);
           }
@@ -1026,6 +1047,77 @@ export default function AdminPage() {
                       </p>
                     </article>
                   ))}
+                </div>
+              </div>
+            ) : null}
+            {operatorGuide ? (
+              <div className={styles.operatorGuideBlock}>
+                <div className={styles.operatorGuideHead}>
+                  <div>
+                    <h3>Operator guide</h3>
+                    <p>
+                      Единый go-live и recovery слой. Здесь в одном месте собраны следующий шаг, release mode и базовые
+                      runbooks перед mainnet или после проблемного деплоя.
+                    </p>
+                  </div>
+                  <span className={styles.workerRunUpdatedAt}>
+                    Updated {new Date(operatorGuide.updatedAt).toLocaleString("ru-RU")}
+                  </span>
+                </div>
+                <div className={styles.operatorGuideSummary}>
+                  <div>
+                    <span>Состояние</span>
+                    <b>{OPERATOR_GUIDE_STATE_LABELS[operatorGuide.overallState]}</b>
+                  </div>
+                  <div>
+                    <span>Release mode</span>
+                    <b>{OPERATOR_RELEASE_MODE_LABELS[operatorGuide.releaseMode]}</b>
+                  </div>
+                  <div>
+                    <span>Next actions</span>
+                    <b>{operatorGuide.nextActions.length}</b>
+                  </div>
+                </div>
+                <p className={styles.operatorGuideSummaryText}>{operatorGuide.summary}</p>
+                <div className={styles.operatorGuideGrid}>
+                  <div className={styles.operatorGuideActions}>
+                    <h4>Что делать сейчас</h4>
+                    {operatorGuide.nextActions.map((action) => (
+                      <article key={action.id} className={styles.operatorGuideActionCard}>
+                        <div className={styles.operatorGuideActionHead}>
+                          <strong>{action.title}</strong>
+                          <span
+                            className={
+                              action.priority === "critical"
+                                ? styles.incidentStateCritical
+                                : action.priority === "high"
+                                  ? styles.incidentStateWarning
+                                  : styles.incidentStateInfo
+                            }
+                          >
+                            {action.priority}
+                          </span>
+                        </div>
+                        <p>{action.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className={styles.operatorGuideRunbooks}>
+                    <h4>Runbooks</h4>
+                    <div className={styles.operatorGuideRunbookList}>
+                      {operatorGuide.runbooks.map((runbook) => (
+                        <article key={runbook.id} className={styles.operatorGuideRunbookCard}>
+                          <strong>{runbook.label}</strong>
+                          <p>{runbook.when}</p>
+                          <ol>
+                            {runbook.steps.map((step) => (
+                              <li key={step}>{step}</li>
+                            ))}
+                          </ol>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}

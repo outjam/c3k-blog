@@ -3,6 +3,7 @@
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
 import type {
   AdminIncidentStatusSnapshot,
+  AdminOperatorGuideSnapshot,
   AdminTonEnvironmentStatus,
   AdminWorkerRunRecord,
   AdminWorkerRunSnapshot,
@@ -92,6 +93,7 @@ export type { AdminDeploymentReadinessSnapshot } from "@/types/admin";
 export type { AdminTonEnvironmentStatus } from "@/types/admin";
 export type { AdminWorkerRunSnapshot } from "@/types/admin";
 export type { AdminWorkerRunWorkerId } from "@/types/admin";
+export type { AdminOperatorGuideSnapshot } from "@/types/admin";
 
 export interface AdminSocialEntitlementBackfillResult {
   ok: true;
@@ -376,6 +378,27 @@ export const fetchAdminDeploymentReadiness = async (): Promise<{
     }
 
     return { status: (await response.json()) as AdminDeploymentReadinessSnapshot };
+  } catch {
+    return { status: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminOperatorGuide = async (): Promise<{
+  status: AdminOperatorGuideSnapshot | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/operator-guide", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { status: null, error: await parseApiError(response) };
+    }
+
+    return { status: (await response.json()) as AdminOperatorGuideSnapshot };
   } catch {
     return { status: null, error: "Network error" };
   }

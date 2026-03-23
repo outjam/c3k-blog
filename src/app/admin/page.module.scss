@@ -276,6 +276,97 @@
   gap: 0.6rem;
 }
 
+.operatorGuideBlock {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.operatorGuideHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.operatorGuideHead h3,
+.operatorGuideHead p,
+.operatorGuideSummaryText,
+.operatorGuideActionCard p,
+.operatorGuideRunbookCard p,
+.operatorGuideRunbookCard ol,
+.operatorGuideSummary span {
+  margin: 0;
+  color: var(--tg-hint);
+}
+
+.operatorGuideHead h3,
+.operatorGuideSummary b,
+.operatorGuideActionCard strong,
+.operatorGuideRunbookCard strong,
+.operatorGuideActions h4,
+.operatorGuideRunbooks h4 {
+  color: var(--tg-text);
+}
+
+.operatorGuideHead p,
+.operatorGuideSummaryText,
+.operatorGuideActionCard p,
+.operatorGuideRunbookCard p,
+.operatorGuideRunbookCard ol,
+.operatorGuideSummary span,
+.operatorGuideSummary b {
+  font-size: 0.78rem;
+}
+
+.operatorGuideSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.operatorGuideSummary div,
+.operatorGuideActionCard,
+.operatorGuideRunbookCard {
+  padding: 0.68rem;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.28rem;
+}
+
+.operatorGuideGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 0.55rem;
+}
+
+.operatorGuideActions,
+.operatorGuideRunbooks,
+.operatorGuideRunbookList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.operatorGuideActions h4,
+.operatorGuideRunbooks h4 {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.operatorGuideActionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.operatorGuideRunbookCard ol {
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.28rem;
+}
+
 .workerRunBlock {
   display: grid;
   gap: 0.6rem;
@@ -1146,6 +1237,7 @@
   }
 
   .workerRunHead,
+  .operatorGuideHead,
   .tonStatusHead,
   .deploymentHead {
     flex-direction: column;
@@ -1171,10 +1263,12 @@
   .introGrid,
   .tabLead,
   .metrics,
+  .operatorGuideSummary,
   .migrationSummary,
   .incidentSummary,
   .tonStatusSummary,
   .deploymentSummary,
+  .operatorGuideGrid,
   .migrationGrid,
   .incidentGrid,
   .tonStatusGrid,

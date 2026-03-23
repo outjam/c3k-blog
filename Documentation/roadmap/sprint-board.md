@@ -37,8 +37,8 @@
 ## Текущий фокус
 
 - Текущая большая фаза: `Phase 5 groundwork`
-- Текущий спринт: `Sprint 09 — Production hardening`
-- Следующий спринт: `Sprint 10 — Real TON Storage test runtime`
+- Текущий спринт: `Sprint 10 — Real TON Storage test runtime`
+- Следующий спринт: `Sprint 11 — Desktop node runtime and storage program prep`
 
 ## Спринты
 
@@ -210,7 +210,7 @@ Status: done
 
 ### Sprint 09 — Production Hardening
 
-Status: current
+Status: done
 
 Цель:
 - подготовить систему к реальному production rollout
@@ -223,16 +223,18 @@ Status: current
 - [x] Deployment readiness snapshot по базовым env/infra контурам в админке
 - [x] Manual recovery triggers для worker queues из админки через единый execution layer и общую run history
 - [x] Provenance/audit для worker run-ов: видно, был ли запуск автоматическим или ручным и каким админом инициирован
+- [x] Operator guide с next actions, runbooks и release mode (`test_only / mainnet_blocked / mainnet_ready`)
+- [x] TON collection deploy guard через `confirmNetwork`, чтобы deploy не уходил в неверный contour
 
 Что должно быть доставлено:
-- [ ] Наблюдаемость, аудит и retry-safe jobs
-- [ ] Чистое разделение `testnet / mainnet`
-- [ ] Подготовка mainnet-ready TON contour
-- [ ] Production deployment checklist
+- [x] Наблюдаемость, аудит и retry-safe jobs
+- [x] Чистое разделение `testnet / mainnet`
+- [x] Подготовка mainnet-ready TON contour
+- [x] Production deployment checklist
 
 ### Sprint 10 — Real TON Storage Test Runtime
 
-Status: queued
+Status: current
 
 Цель:
 - перейти от test placeholders к реальному `TON Storage` на тестовом контуре
@@ -240,6 +242,19 @@ Status: queued
 Что должно быть доставлено:
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
+
+### Sprint 11 — Desktop Node Runtime and Storage Program Prep
+
+Status: queued
+
+Цель:
+- превратить desktop scaffold в реальный companion-клиент для `C3K Storage Node` и подготовки community storage program
+
+Что должно быть доставлено:
+- [ ] Реальный desktop retrieval path для storage pointers
+- [ ] Локальный статус node/gateway/runtime
+- [ ] Базовая модель выделенного места, health и participation state
+- [ ] Подготовка UI и backend к reward-layer для storage participants
 - [ ] Telegram/file delivery из реального storage runtime
 - [ ] Desktop retrieval по `storagePointer`
 

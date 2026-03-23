@@ -104,3 +104,29 @@ export interface AdminDeploymentReadinessSnapshot {
   missingChecks: number;
   checks: AdminDeploymentCheck[];
 }
+
+export type AdminOperatorGuideState = "blocked" | "caution" | "ready";
+export type AdminOperatorReleaseMode = "test_only" | "mainnet_blocked" | "mainnet_ready";
+
+export interface AdminOperatorGuideAction {
+  id: string;
+  priority: "critical" | "high" | "normal";
+  title: string;
+  description: string;
+}
+
+export interface AdminOperatorRunbook {
+  id: string;
+  label: string;
+  when: string;
+  steps: string[];
+}
+
+export interface AdminOperatorGuideSnapshot {
+  updatedAt: string;
+  overallState: AdminOperatorGuideState;
+  releaseMode: AdminOperatorReleaseMode;
+  summary: string;
+  nextActions: AdminOperatorGuideAction[];
+  runbooks: AdminOperatorRunbook[];
+}

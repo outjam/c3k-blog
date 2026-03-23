@@ -184,6 +184,9 @@
 - `/api/admin/deployment/readiness`
   - preflight по базовым env и infra-контурам
   - readiness snapshot для public URLs, auth, Postgres, workers, TON и storage/desktop flags
+- `/api/admin/operator-guide`
+  - единый operator/go-live snapshot
+  - next actions, runbooks и release mode для test-only vs mainnet rollout
 - `/api/admin/workers/runs`
   - `GET`: история последних worker run-ов
   - `POST`: ручной запуск supported worker queues из админки
@@ -215,6 +218,7 @@
   - sponsored mint NFT для релиза
 - `/api/ton/collection`
   - deploy/status collection runtime operations
+  - `POST` deploy теперь требует `confirmNetwork=<activeNetwork>`
 - `/api/ton/nft/metadata/collection`
   - metadata коллекции
 - `/api/ton/nft/metadata/releases/[slug]`

@@ -256,6 +256,29 @@
 - `npm run typecheck`
 - targeted `eslint` по admin worker run типам, store, helper, routes и admin page
 
+### Финальный Sprint 09 slice: operator guide, go-live status и TON deploy guard
+
+- Добавлен единый operator cockpit helper:
+  - [admin-operator-guide.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-operator-guide.ts)
+  - [admin operator guide route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/operator-guide/route.ts)
+- В админке появился новый блок:
+  - release mode `test_only / mainnet_blocked / mainnet_ready`
+  - next actions по incidents / deployment / migration / TON
+  - runbooks для post-deploy, delivery recovery, TON drift и mainnet go-live
+- [admin page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx) и [styles](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.module.scss) теперь подают deployment hardening как операторский процесс, а не набор разрозненных статусов
+- [ton collection route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/ton/collection/route.ts) теперь требует `confirmNetwork=<activeNetwork>` при deploy action
+
+### Зачем это сделано
+
+- до этого `Sprint 09` уже дал visibility, recovery и audit, но не давал цельного go/no-go слоя перед mainnet
+- operator guide собирает incidents, migration status, TON environment и deployment readiness в понятный следующий шаг
+- confirmNetwork guard делает deploy NFT collection менее опасным и жёстче разводит `testnet / mainnet`
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по operator guide, admin page и TON collection route
+
 ## 2026-03-18
 
 ### Контекст

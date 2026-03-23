@@ -74,6 +74,31 @@ export async function POST(request: Request) {
     return unauthorized;
   }
 
+  const activeNetwork = getCurrentTonRuntimeNetwork();
+  const url = new URL(request.url);
+  const fromQuery = (url.searchParams.get("confirmNetwork") ?? "").trim().toLowerCase();
+  const fromBody = request.headers
+    .get("content-type")
+    ?.toLowerCase()
+    .includes("application/json")
+    ? String(
+        ((await request.clone().json().catch(() => null)) as { confirmNetwork?: unknown } | null)?.confirmNetwork ?? "",
+      )
+        .trim()
+        .toLowerCase()
+    : "";
+  const confirmNetwork = fromBody || fromQuery;
+
+  if (confirmNetwork !== activeNetwork) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `TON collection deploy requires confirmNetwork=${activeNetwork}.`,
+      },
+      { status: 409 },
+    );
+  }
+
   const publicBaseUrl = resolvePublicBaseUrl(request);
 
   if (!publicBaseUrl) {
@@ -101,6 +126,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
+      activeNetwork,
       deploy: deployResult,
       runtimeConfig: savedConfig,
     });
