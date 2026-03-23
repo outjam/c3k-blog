@@ -58,3 +58,46 @@ export interface AdminWorkerRunSnapshot {
   updatedAt: string;
   runs: AdminWorkerRunRecord[];
 }
+
+export interface AdminTonEnvironmentStatus {
+  updatedAt: string;
+  network: "mainnet" | "testnet";
+  onchainMintEnabled: boolean;
+  publicBaseUrl: string | null;
+  envCollectionAddress: string | null;
+  runtimeCollectionAddress: string | null;
+  runtimeConfigNetwork: "mainnet" | "testnet" | null;
+  runtimeNetworkMatches: boolean;
+  activeCollectionAddress: string | null;
+  collectionSource: "runtime" | "env" | "missing";
+  relayReady: boolean;
+  relayMissing: string[];
+  sponsorAddress?: string;
+  warnings: string[];
+}
+
+export type AdminDeploymentCheckStatus = "ready" | "warning" | "missing";
+
+export interface AdminDeploymentCheck {
+  id:
+    | "public_urls"
+    | "telegram_core"
+    | "auth_session"
+    | "postgres"
+    | "worker_auth"
+    | "ton_runtime"
+    | "storage_desktop";
+  label: string;
+  status: AdminDeploymentCheckStatus;
+  summary: string;
+  hint: string;
+}
+
+export interface AdminDeploymentReadinessSnapshot {
+  updatedAt: string;
+  overallState: AdminDeploymentCheckStatus;
+  readyChecks: number;
+  warningChecks: number;
+  missingChecks: number;
+  checks: AdminDeploymentCheck[];
+}

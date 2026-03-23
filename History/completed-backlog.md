@@ -279,6 +279,13 @@
   - hero артиста отражает доступность поддержки и число релизов с превью
   - каталог артиста стал показывать тип релиза, число треков, число форматов и NFT availability
   - `Студия` получила quick actions, next-step guidance и более явные правила профиля, релизов и выплат
+- Следующим slice `Sprint 09` получил TON environment visibility и active-network guard:
+  - runtime collection теперь сохраняется с явной сетью
+  - sponsored mint и TON collection routes используют runtime collection только для активной сети
+  - в админке появился отдельный TON environment block с active network, collection source, relay readiness и warning'ами о testnet/mainnet drift
+- Следующим slice `Sprint 09` получил deployment readiness snapshot:
+  - в админке появился preflight по public URLs, auth, Postgres, worker secrets, TON runtime и storage/desktop flags
+  - operator теперь видит не только инциденты, но и базовую готовность окружения к rollout
 - Следующим slice admin artist moderation тоже получила hydration из normalized layers:
   - `/api/admin/artist-applications` умеет брать fallback application/profile из merge-store
   - `/api/admin/artists` умеет модерировать профиль с fallback на normalized artist profile

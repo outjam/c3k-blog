@@ -13,6 +13,7 @@ import {
   deleteAdminPromo,
   fetchAdminCustomers,
   fetchAdminDashboard,
+  fetchAdminDeploymentReadiness,
   fetchAdminIncidentStatus,
   fetchAdminMigrationStatus,
   fetchAdminMembers,
@@ -21,6 +22,7 @@ import {
   fetchAdminPromos,
   fetchAdminSession,
   fetchAdminSettings,
+  fetchAdminTonEnvironmentStatus,
   fetchAdminWorkerRuns,
   patchAdminProductCategory,
   patchAdminProduct,
@@ -39,8 +41,10 @@ import {
   type AdminMigrationBackfillSuiteResult,
   type AdminMigrationDomainStatus,
   type AdminArtistSupportBackfillResult,
+  type AdminDeploymentReadinessSnapshot,
   type AdminIncidentStatusSnapshot,
   type AdminMigrationStatusSnapshot,
+  type AdminTonEnvironmentStatus,
   type AdminWorkerRunSnapshot,
   upsertAdminMember,
   type AdminSocialEntitlementBackfillResult,
@@ -142,6 +146,16 @@ const WORKER_STATUS_LABELS: Record<NonNullable<AdminWorkerRunSnapshot["runs"][nu
   partial: "Частично",
   failed: "Ошибка",
 };
+const TON_COLLECTION_SOURCE_LABELS: Record<AdminTonEnvironmentStatus["collectionSource"], string> = {
+  runtime: "runtime config",
+  env: "env fallback",
+  missing: "не задана",
+};
+const DEPLOYMENT_STATE_LABELS: Record<AdminDeploymentReadinessSnapshot["overallState"], string> = {
+  ready: "Готово",
+  warning: "Есть предупреждения",
+  missing: "Не готово",
+};
 
 const TAB_COPY: Record<AdminTab, { title: string; description: string; example: string }> = {
   dashboard: {
@@ -242,8 +256,10 @@ export default function AdminPage() {
   const [session, setSession] = useState<AdminSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
+  const [deploymentReadiness, setDeploymentReadiness] = useState<AdminDeploymentReadinessSnapshot | null>(null);
   const [incidentStatus, setIncidentStatus] = useState<AdminIncidentStatusSnapshot | null>(null);
   const [migrationStatus, setMigrationStatus] = useState<AdminMigrationStatusSnapshot | null>(null);
+  const [tonEnvironmentStatus, setTonEnvironmentStatus] = useState<AdminTonEnvironmentStatus | null>(null);
   const [workerRuns, setWorkerRuns] = useState<AdminWorkerRunSnapshot | null>(null);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [products, setProducts] = useState<AdminProductWithMeta[]>([]);
@@ -352,6 +368,14 @@ export default function AdminPage() {
         }),
       );
       jobs.push(
+        fetchAdminDeploymentReadiness().then((response) => {
+          setDeploymentReadiness(response.status);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
+      jobs.push(
         fetchAdminIncidentStatus().then((response) => {
           setIncidentStatus(response.status);
           if (response.error) {
@@ -370,6 +394,14 @@ export default function AdminPage() {
       jobs.push(
         fetchAdminWorkerRuns().then((response) => {
           setWorkerRuns(response.snapshot);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
+      jobs.push(
+        fetchAdminTonEnvironmentStatus().then((response) => {
+          setTonEnvironmentStatus(response.status);
           if (response.error) {
             errors.push(response.error);
           }
@@ -1024,6 +1056,135 @@ export default function AdminPage() {
                       появятся здесь.
                     </p>
                   ) : null}
+                </div>
+              </div>
+            ) : null}
+            {tonEnvironmentStatus ? (
+              <div className={styles.tonStatusBlock}>
+                <div className={styles.tonStatusHead}>
+                  <div>
+                    <h3>TON environment</h3>
+                    <p>
+                      Контроль активной сети, NFT runtime и collection source. Нужен, чтобы не смешивать
+                      testnet и mainnet перед mint/deploy сценариями.
+                    </p>
+                  </div>
+                  <span className={styles.workerRunUpdatedAt}>
+                    Updated {new Date(tonEnvironmentStatus.updatedAt).toLocaleString("ru-RU")}
+                  </span>
+                </div>
+                <div className={styles.tonStatusSummary}>
+                  <div>
+                    <span>Сеть</span>
+                    <b>{tonEnvironmentStatus.network}</b>
+                  </div>
+                  <div>
+                    <span>Mint</span>
+                    <b>{tonEnvironmentStatus.onchainMintEnabled ? "enabled" : "disabled"}</b>
+                  </div>
+                  <div>
+                    <span>Relay</span>
+                    <b>{tonEnvironmentStatus.relayReady ? "ready" : "incomplete"}</b>
+                  </div>
+                  <div>
+                    <span>Collection source</span>
+                    <b>{TON_COLLECTION_SOURCE_LABELS[tonEnvironmentStatus.collectionSource]}</b>
+                  </div>
+                </div>
+                <div className={styles.tonStatusGrid}>
+                  <article className={styles.tonStatusCard}>
+                    <strong>Runtime config</strong>
+                    <p>Сеть: {tonEnvironmentStatus.runtimeConfigNetwork ?? "не сохранена"}</p>
+                    <p>Collection: {tonEnvironmentStatus.runtimeCollectionAddress ?? "не задана"}</p>
+                    <p>
+                      Совпадает с активной сетью:{" "}
+                      {tonEnvironmentStatus.runtimeCollectionAddress
+                        ? tonEnvironmentStatus.runtimeNetworkMatches
+                          ? "да"
+                          : "нет"
+                        : "не применимо"}
+                    </p>
+                  </article>
+                  <article className={styles.tonStatusCard}>
+                    <strong>Активный контур</strong>
+                    <p>Активная collection: {tonEnvironmentStatus.activeCollectionAddress ?? "не задана"}</p>
+                    <p>Env fallback: {tonEnvironmentStatus.envCollectionAddress ?? "не задан"}</p>
+                    <p>Public URL: {tonEnvironmentStatus.publicBaseUrl ?? "не определён"}</p>
+                  </article>
+                  <article className={styles.tonStatusCard}>
+                    <strong>Relay config</strong>
+                    <p>Sponsor: {tonEnvironmentStatus.sponsorAddress ?? "не определён"}</p>
+                    <p>
+                      Missing env:{" "}
+                      {tonEnvironmentStatus.relayMissing.length > 0
+                        ? tonEnvironmentStatus.relayMissing.join(", ")
+                        : "нет"}
+                    </p>
+                  </article>
+                </div>
+                {tonEnvironmentStatus.warnings.length > 0 ? (
+                  <div className={styles.tonWarningList}>
+                    {tonEnvironmentStatus.warnings.map((warning) => (
+                      <p key={warning}>{warning}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.tonStatusOk}>
+                    TON runtime не показывает признаков смешения сетей. Активный контур выглядит согласованным.
+                  </p>
+                )}
+              </div>
+            ) : null}
+            {deploymentReadiness ? (
+              <div className={styles.deploymentBlock}>
+                <div className={styles.deploymentHead}>
+                  <div>
+                    <h3>Deployment readiness</h3>
+                    <p>
+                      Preflight по базовым env и infra-контурам. Удобно проверять перед rollout или после обновления
+                      настроек Vercel и Supabase.
+                    </p>
+                  </div>
+                  <span className={styles.workerRunUpdatedAt}>
+                    {DEPLOYMENT_STATE_LABELS[deploymentReadiness.overallState]} ·{" "}
+                    {new Date(deploymentReadiness.updatedAt).toLocaleString("ru-RU")}
+                  </span>
+                </div>
+                <div className={styles.deploymentSummary}>
+                  <div>
+                    <span>Ready</span>
+                    <b>{deploymentReadiness.readyChecks}</b>
+                  </div>
+                  <div>
+                    <span>Warning</span>
+                    <b>{deploymentReadiness.warningChecks}</b>
+                  </div>
+                  <div>
+                    <span>Missing</span>
+                    <b>{deploymentReadiness.missingChecks}</b>
+                  </div>
+                </div>
+                <div className={styles.deploymentGrid}>
+                  {deploymentReadiness.checks.map((check) => (
+                    <article key={check.id} className={styles.deploymentCard}>
+                      <div className={styles.deploymentCardHead}>
+                        <strong>{check.label}</strong>
+                        <span
+                          className={
+                            check.status === "missing"
+                              ? styles.incidentStateCritical
+                              : check.status === "warning"
+                                ? styles.incidentStateWarning
+                                : styles.incidentStateInfo
+                          }
+                        >
+                          {check.status}
+                        </span>
+                      </div>
+                      <p>{check.summary}</p>
+                      <p>{check.hint}</p>
+                    </article>
+                  ))}
                 </div>
               </div>
             ) : null}

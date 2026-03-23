@@ -178,6 +178,12 @@
 - `/api/admin/storage/ingest`
   - запуск test-mode ingest pipeline
   - подготовка placeholder bags и ingest jobs
+- `/api/admin/ton/status`
+  - snapshot active TON environment
+  - active network, collection source, relay readiness и runtime/env drift warnings
+- `/api/admin/deployment/readiness`
+  - preflight по базовым env и infra-контурам
+  - readiness snapshot для public URLs, auth, Postgres, workers, TON и storage/desktop flags
 
 ### Shop operations
 

@@ -219,6 +219,8 @@ Status: current
 - [x] Дополнительный UX/design pass для admin cutover, studio finance и downloads library
 - [x] Incident/admin обзор по оплатам, payout, delivery, ingest и NFT runtime
 - [x] Retry-safe claim/lease слой для Telegram storage delivery worker
+- [x] Operator visibility по TON environment: active network, runtime/env collection source и предупреждения о testnet/mainnet drift
+- [x] Deployment readiness snapshot по базовым env/infra контурам в админке
 
 Что должно быть доставлено:
 - [ ] Наблюдаемость, аудит и retry-safe jobs

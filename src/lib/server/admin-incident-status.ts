@@ -3,7 +3,11 @@ import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { listShopOrders } from "@/lib/server/shop-orders-store";
 import { getStorageDeliveryState } from "@/lib/server/storage-delivery-store";
 import { listStorageIngestJobs } from "@/lib/server/storage-ingest-store";
-import { getTonRuntimeConfig } from "@/lib/server/ton-runtime-config-store";
+import {
+  getActiveTonRuntimeCollectionAddress,
+  getCurrentTonRuntimeNetwork,
+  getTonRuntimeConfig,
+} from "@/lib/server/ton-runtime-config-store";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import {
   isTonOnchainNftMintEnabled,
@@ -393,7 +397,9 @@ const buildNftRuntimeSection = async (): Promise<AdminIncidentSection> => {
   const nowMs = Date.now();
   const runtimeConfig = await getTonRuntimeConfig();
   const onchainMintEnabled = isTonOnchainNftMintEnabled();
-  const configuredCollectionAddress = runtimeConfig?.collectionAddress || resolveTonNftCollectionAddress();
+  const activeNetwork = getCurrentTonRuntimeNetwork();
+  const runtimeCollectionAddress = getActiveTonRuntimeCollectionAddress(runtimeConfig);
+  const configuredCollectionAddress = runtimeCollectionAddress || resolveTonNftCollectionAddress();
   const sponsorMnemonicWords = String(
     process.env.TON_SPONSOR_WALLET_MNEMONIC ?? process.env.TON_TESTNET_WALLET_MNEMONIC ?? "",
   )
@@ -402,6 +408,17 @@ const buildNftRuntimeSection = async (): Promise<AdminIncidentSection> => {
     .filter(Boolean);
 
   const entries: AdminIncidentEntry[] = [];
+
+  if (runtimeConfig?.collectionAddress && runtimeConfig.network && runtimeConfig.network !== activeNetwork) {
+    entries.push({
+      id: "nft-runtime:network-mismatch",
+      severity: "warning",
+      title: "TON runtime config сохранён для другой сети",
+      description: `Runtime collection привязана к ${runtimeConfig.network}, а активная сеть сейчас ${activeNetwork}.`,
+      timestamp: runtimeConfig.updatedAt ?? new Date().toISOString(),
+      ageLabel: formatAgeLabel(runtimeConfig.updatedAt ?? new Date().toISOString(), nowMs),
+    });
+  }
 
   if (onchainMintEnabled && !configuredCollectionAddress) {
     entries.push({
@@ -444,7 +461,9 @@ const buildNftRuntimeSection = async (): Promise<AdminIncidentSection> => {
     summary:
       entries.some((entry) => entry.severity === "critical")
         ? "NFT runtime требует настройки перед боевым mint."
-        : onchainMintEnabled
+        : entries.some((entry) => entry.severity === "warning")
+          ? "TON runtime требует проверки сети и collection source."
+          : onchainMintEnabled
           ? "NFT runtime выглядит готовым к testnet mint."
           : "NFT mint сейчас выключен и не создаёт operational risk.",
     actionHint: "Проверьте TON collection, sponsor wallet и runtime config перед тестом mint.",

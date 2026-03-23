@@ -8,7 +8,7 @@ import {
   spendSocialWalletBalanceCents,
   topUpSocialWalletBalanceCents,
 } from "@/lib/server/social-user-state-store";
-import { getTonRuntimeConfig } from "@/lib/server/ton-runtime-config-store";
+import { getActiveTonRuntimeCollectionAddress, getTonRuntimeConfig } from "@/lib/server/ton-runtime-config-store";
 import {
   buildReferenceNftItemContentValue,
   isTonOnchainNftMintEnabled,
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
 
   const ownerAddress = normalizeTonAddress(payload.ownerAddress) || normalizeTonAddress(snapshotBefore.tonWalletAddress) || "";
   const tonRuntimeConfig = await getTonRuntimeConfig();
-  const runtimeCollectionAddress = tonRuntimeConfig?.collectionAddress;
+  const runtimeCollectionAddress = getActiveTonRuntimeCollectionAddress(tonRuntimeConfig);
 
   if (!ownerAddress) {
     return buildMintFailure({

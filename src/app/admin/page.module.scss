@@ -281,6 +281,139 @@
   gap: 0.6rem;
 }
 
+.tonStatusBlock {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.tonStatusHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tonStatusHead h3,
+.tonStatusHead p,
+.tonStatusOk,
+.tonWarningList p,
+.tonStatusSummary span,
+.tonStatusCard p {
+  margin: 0;
+  color: var(--tg-hint);
+}
+
+.tonStatusHead h3,
+.tonStatusSummary b,
+.tonStatusCard strong {
+  color: var(--tg-text);
+}
+
+.tonStatusHead p,
+.tonStatusOk,
+.tonWarningList p,
+.tonStatusSummary span,
+.tonStatusSummary b,
+.tonStatusCard p {
+  font-size: 0.78rem;
+}
+
+.tonStatusSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.tonStatusSummary div,
+.tonStatusCard {
+  padding: 0.68rem;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.tonStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.tonWarningList {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.tonWarningList p {
+  padding: 0.68rem;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, #ff9f0a 30%, transparent);
+  background: color-mix(in srgb, #ff9f0a 12%, var(--tg-section-bg));
+}
+
+.deploymentBlock {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.deploymentHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.deploymentHead h3,
+.deploymentHead p,
+.deploymentCard p,
+.deploymentSummary span {
+  margin: 0;
+  color: var(--tg-hint);
+}
+
+.deploymentHead h3,
+.deploymentSummary b,
+.deploymentCardHead strong {
+  color: var(--tg-text);
+}
+
+.deploymentHead p,
+.deploymentCard p,
+.deploymentSummary span,
+.deploymentSummary b {
+  font-size: 0.78rem;
+}
+
+.deploymentSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.deploymentSummary div,
+.deploymentCard {
+  padding: 0.68rem;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.deploymentGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.deploymentCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
 .workerRunHead {
   display: flex;
   align-items: flex-start;
@@ -965,14 +1098,24 @@
     width: 100%;
   }
 
+  .workerRunHead,
+  .tonStatusHead,
+  .deploymentHead {
+    flex-direction: column;
+  }
+
   .introGrid,
   .tabLead,
   .metrics,
   .migrationSummary,
   .incidentSummary,
+  .tonStatusSummary,
+  .deploymentSummary,
   .migrationGrid,
   .incidentGrid,
+  .tonStatusGrid,
   .workerRunList,
+  .deploymentGrid,
   .actionGuideGrid,
   .productsList,
   .promoList,

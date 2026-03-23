@@ -1,7 +1,8 @@
 "use client";
 
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
-import type { AdminIncidentStatusSnapshot, AdminWorkerRunSnapshot } from "@/types/admin";
+import type { AdminIncidentStatusSnapshot, AdminTonEnvironmentStatus, AdminWorkerRunSnapshot } from "@/types/admin";
+import type { AdminDeploymentReadinessSnapshot } from "@/types/admin";
 import type {
   ArtistApplication,
   ArtistPayoutAuditEntry,
@@ -81,6 +82,8 @@ export interface AdminMigrationStatusSnapshot {
 }
 
 export type { AdminIncidentStatusSnapshot } from "@/types/admin";
+export type { AdminDeploymentReadinessSnapshot } from "@/types/admin";
+export type { AdminTonEnvironmentStatus } from "@/types/admin";
 export type { AdminWorkerRunSnapshot } from "@/types/admin";
 
 export interface AdminSocialEntitlementBackfillResult {
@@ -295,6 +298,48 @@ export const fetchAdminWorkerRuns = async (): Promise<{
     return { snapshot: (await response.json()) as AdminWorkerRunSnapshot };
   } catch {
     return { snapshot: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminTonEnvironmentStatus = async (): Promise<{
+  status: AdminTonEnvironmentStatus | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/ton/status", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { status: null, error: await parseApiError(response) };
+    }
+
+    return { status: (await response.json()) as AdminTonEnvironmentStatus };
+  } catch {
+    return { status: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminDeploymentReadiness = async (): Promise<{
+  status: AdminDeploymentReadinessSnapshot | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/deployment/readiness", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { status: null, error: await parseApiError(response) };
+    }
+
+    return { status: (await response.json()) as AdminDeploymentReadinessSnapshot };
+  } catch {
+    return { status: null, error: "Network error" };
   }
 };
 

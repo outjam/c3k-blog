@@ -1305,3 +1305,54 @@
 - artist-facing интерфейсы перестали заметно отставать от уже реализованной бизнес-логики
 - студия стала ближе к рабочему инструменту артиста, а не к длинной форме
 - страница артиста визуально лучше синхронизирована с уже обновлёнными профилем, каталогом и релизом
+
+### Sprint 09 slice: TON environment visibility and active-network runtime guard
+
+- В runtime config TON collection появился явный `network`, чтобы runtime collection была привязана к конкретной сети:
+  - [src/lib/server/ton-runtime-config-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/ton-runtime-config-store.ts)
+- Добавлены active-network helper'ы:
+  - runtime collection теперь используется только если её сеть совпадает с текущим `NEXT_PUBLIC_TON_NETWORK`
+  - это подключено в:
+    - [src/app/api/ton/sponsored-mint/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/ton/sponsored-mint/route.ts)
+    - [src/app/api/ton/collection/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/ton/collection/route.ts)
+    - [src/lib/server/admin-incident-status.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-incident-status.ts)
+- Добавлен отдельный operator snapshot по TON environment:
+  - [src/lib/server/admin-ton-environment-status.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-ton-environment-status.ts)
+  - [src/app/api/admin/ton/status/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/ton/status/route.ts)
+- Admin dashboard теперь показывает:
+  - активную сеть
+  - runtime/env collection source
+  - relay readiness
+  - public base URL
+  - warning'и о runtime/env drift
+  - это в [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx) и [src/app/admin/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.module.scss)
+
+### Что это даёт
+
+- operator теперь видит, какой именно TON contour активен сейчас, без чтения env и runtime state вручную
+- sponsored mint и collection status больше не подхватывают runtime collection из другой сети по ошибке
+- это первый реальный production-hardening slice по направлению `testnet / mainnet split`, а не только по worker safety
+
+### Sprint 09 slice: deployment readiness snapshot
+
+- Добавлен отдельный deployment preflight snapshot:
+  - [src/lib/server/admin-deployment-readiness.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-deployment-readiness.ts)
+  - [src/app/api/admin/deployment/readiness/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/deployment/readiness/route.ts)
+- Snapshot проверяет базовые production/test rollout контуры:
+  - public URLs
+  - Telegram core
+  - admin/session auth
+  - Postgres
+  - worker auth
+  - TON runtime
+  - storage/desktop flags
+- Admin dashboard теперь показывает отдельный `Deployment readiness` блок:
+  - [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx)
+  - [src/app/admin/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.module.scss)
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+
+### Что это даёт
+
+- operator получает не только incident view, но и preflight-картину по env/infra readiness
+- перед rollout больше не нужно вручную сверять базовые секреты и флаги по нескольким местам
+- `Sprint 09` продвинулся от точечных hardening-fix'ов к реальному deployment-oriented operator flow

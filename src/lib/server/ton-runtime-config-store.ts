@@ -2,6 +2,7 @@ import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
 
 const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1" || process.env.NODE_ENV === "production";
 const TON_RUNTIME_CONFIG_KEY = "ton_runtime_config_v1";
+export type TonRuntimeNetwork = "mainnet" | "testnet";
 
 interface PostgresAppStateRow {
   payload?: unknown;
@@ -15,6 +16,7 @@ interface PostgresPutStateResult {
 }
 
 export interface TonRuntimeConfig {
+  network?: TonRuntimeNetwork;
   collectionAddress?: string;
   deployedAt?: string;
   updatedAt: string;
@@ -30,6 +32,10 @@ const normalizeTonAddress = (value: unknown): string => {
     .trim()
     .replace(/\s+/g, "")
     .slice(0, 160);
+};
+
+const normalizeTonNetwork = (value: unknown): TonRuntimeNetwork => {
+  return String(value ?? "").trim().toLowerCase() === "mainnet" ? "mainnet" : "testnet";
 };
 
 const normalizeIsoDateTime = (value: unknown, fallbackIso: string): string => {
@@ -57,10 +63,43 @@ const sanitizeState = (value: unknown): TonRuntimeConfig => {
   const source = value as Record<string, unknown>;
 
   return {
+    network: source.network ? normalizeTonNetwork(source.network) : undefined,
     collectionAddress: normalizeTonAddress(source.collectionAddress) || undefined,
     deployedAt: source.deployedAt ? normalizeIsoDateTime(source.deployedAt, now) : undefined,
     updatedAt: normalizeIsoDateTime(source.updatedAt, now),
   };
+};
+
+export const getCurrentTonRuntimeNetwork = (
+  env: NodeJS.ProcessEnv = process.env,
+): TonRuntimeNetwork => {
+  return normalizeTonNetwork(env.NEXT_PUBLIC_TON_NETWORK);
+};
+
+export const isTonRuntimeConfigForActiveNetwork = (
+  config: TonRuntimeConfig | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean => {
+  if (!config?.collectionAddress) {
+    return false;
+  }
+
+  if (!config.network) {
+    return true;
+  }
+
+  return config.network === getCurrentTonRuntimeNetwork(env);
+};
+
+export const getActiveTonRuntimeCollectionAddress = (
+  config: TonRuntimeConfig | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined => {
+  if (!config?.collectionAddress) {
+    return undefined;
+  }
+
+  return isTonRuntimeConfigForActiveNetwork(config, env) ? config.collectionAddress : undefined;
 };
 
 const ensureDbEnabled = (): boolean => {
@@ -209,6 +248,7 @@ export const getTonRuntimeConfig = async (): Promise<TonRuntimeConfig | null> =>
 export const setTonRuntimeCollectionAddress = async (
   collectionAddress: string,
   deployedAt?: string,
+  network?: TonRuntimeNetwork,
 ): Promise<TonRuntimeConfig | null> => {
   const normalizedAddress = normalizeTonAddress(collectionAddress);
 
@@ -218,6 +258,7 @@ export const setTonRuntimeCollectionAddress = async (
 
   return mutateState((current) => ({
     ...current,
+    network: network ?? getCurrentTonRuntimeNetwork(),
     collectionAddress: normalizedAddress,
     deployedAt: normalizeIsoDateTime(deployedAt, new Date().toISOString()),
   }));

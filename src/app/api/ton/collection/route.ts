@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { resolvePublicBaseUrl } from "@/lib/server/public-base-url";
-import { getTonRuntimeConfig, setTonRuntimeCollectionAddress } from "@/lib/server/ton-runtime-config-store";
+import {
+  getActiveTonRuntimeCollectionAddress,
+  getCurrentTonRuntimeNetwork,
+  getTonRuntimeConfig,
+  isTonRuntimeConfigForActiveNetwork,
+  setTonRuntimeCollectionAddress,
+} from "@/lib/server/ton-runtime-config-store";
 import { resolveTonNftCollectionAddress } from "@/lib/server/ton-nft-reference";
 import { deploySponsoredNftCollection, getSponsoredRelayConfigStatus } from "@/lib/server/ton-sponsored-relay";
 
@@ -36,12 +42,16 @@ export async function GET(request: Request) {
 
   try {
     const runtimeConfig = await getTonRuntimeConfig();
-    const activeCollectionAddress = runtimeConfig?.collectionAddress || resolveTonNftCollectionAddress();
+    const activeNetwork = getCurrentTonRuntimeNetwork();
+    const activeRuntimeCollectionAddress = getActiveTonRuntimeCollectionAddress(runtimeConfig);
+    const activeCollectionAddress = activeRuntimeCollectionAddress || resolveTonNftCollectionAddress();
     const relayConfig = getSponsoredRelayConfigStatus(activeCollectionAddress);
 
     return NextResponse.json({
       ok: true,
+      activeNetwork,
       runtimeConfig,
+      runtimeNetworkMatches: isTonRuntimeConfigForActiveNetwork(runtimeConfig),
       envCollectionAddress: resolveTonNftCollectionAddress() || null,
       activeCollectionAddress: activeCollectionAddress || null,
       relayConfig,
@@ -78,11 +88,16 @@ export async function POST(request: Request) {
 
   try {
     const runtimeConfig = await getTonRuntimeConfig();
+    const activeRuntimeCollectionAddress = getActiveTonRuntimeCollectionAddress(runtimeConfig);
     const deployResult = await deploySponsoredNftCollection({
       collectionMetadataUrl: `${publicBaseUrl}/api/ton/nft/metadata/collection`,
-      collectionAddress: runtimeConfig?.collectionAddress,
+      collectionAddress: activeRuntimeCollectionAddress,
     });
-    const savedConfig = await setTonRuntimeCollectionAddress(deployResult.collectionAddress, new Date().toISOString());
+    const savedConfig = await setTonRuntimeCollectionAddress(
+      deployResult.collectionAddress,
+      new Date().toISOString(),
+      getCurrentTonRuntimeNetwork(),
+    );
 
     return NextResponse.json({
       ok: true,
