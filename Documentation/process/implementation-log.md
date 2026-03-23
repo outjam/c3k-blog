@@ -279,6 +279,50 @@
 - `npm run typecheck`
 - targeted `eslint` по operator guide, admin page и TON collection route
 
+## 2026-03-23
+
+### Sprint 10 slice: target UI для C3K Storage Node
+
+- [storage page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx) перестроена из `foundation/program form` в целевой user-facing dashboard
+- На одном экране теперь показан target state будущей ноды:
+  - статус участия и node readiness
+  - swarm/bags preview
+  - будущая reward-модель `C3K Credit`
+  - desktop runtime readiness
+  - текущий delivery layer как уже живой operational слой
+- [storage styles](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.module.scss) полностью пересобраны под новый layout и более зрелый product-layer
+
+### Что именно изменилось в UI
+
+- Hero теперь показывает не просто программу, а `C3K Storage Node` как продукт:
+  - node state
+  - release mode
+  - tier
+  - desktop readiness
+- Добавлен отдельный wallet/reward card для `C3K Credit`, чтобы было видно, как будет считываться мотивация пользователя
+- Появился `Node control center`:
+  - выделенное место
+  - цель по bags
+  - health target
+  - Telegram delivery readiness
+- Добавлен `swarm`-блок с preview раздаваемых bags и ожидаемого вклада
+- Добавлен блок правил начисления rewards
+- Участие и заявка сохранены, но встроены в новый product-dashboard, а не висят как отдельная форма без контекста
+
+### Зачем это сделано
+
+- перед real `TON Storage` runtime нужен не только backend, но и понятный target UI, к которому движется storage workstream
+- теперь у storage sprint есть визуальная цель:
+  - что пользователь видит
+  - зачем он держит ноду
+  - за что получает будущую монету
+- это позволяет следующие backend/runtime slices делать уже под конкретную модель интерфейса, а не под абстрактный storage layer
+
+### Проверка
+
+- `npm run typecheck`
+- `npx eslint src/app/storage/page.tsx`
+
 ## 2026-03-18
 
 ### Контекст

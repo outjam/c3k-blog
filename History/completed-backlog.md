@@ -134,6 +134,18 @@
 - Для TON collection deploy добавлен `confirmNetwork` guard, чтобы deploy не уходил в неверную сеть по ошибке.
 - После этого `Sprint 09` можно считать закрытым: есть visibility, recovery, audit, go-live guidance и жёстче выраженный network split.
 
+### Старт Sprint 10: target UI для C3K Storage Node
+
+- Пользовательский экран `/storage` больше не выглядит как форма-заявка с парой статусов.
+- Он переведён в target dashboard будущей storage-ноды:
+  - статус участия и readiness
+  - swarm/bags preview
+  - wallet card для `C3K Credit`
+  - health и contribution goals
+  - связь с desktop runtime
+- Это зафиксировало визуальную цель для всего следующего storage runtime workstream.
+- Теперь можно делать реальный `TON Storage` test contour уже под конкретный product UI, а не под абстрактные данные.
+
 ## 2026-03-18
 
 ### Профиль и публичный профиль

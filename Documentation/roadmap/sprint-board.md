@@ -240,6 +240,7 @@ Status: current
 - перейти от test placeholders к реальному `TON Storage` на тестовом контуре
 
 Что должно быть доставлено:
+- [x] Target UI для user-facing `C3K Storage Node`: статус ноды, swarm/bags, будущие rewards и desktop readiness
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 
