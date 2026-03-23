@@ -73,6 +73,7 @@ export type StorageIngestJobStatus =
   | "queued"
   | "processing"
   | "prepared"
+  | "uploaded"
   | "failed"
   | "skipped";
 
@@ -241,6 +242,8 @@ export interface StorageIngestJob {
   storagePointer?: string;
   message?: string;
   attemptCount: number;
+  workerLockId?: string;
+  workerLockedAt?: string;
   failureCode?: string;
   failureMessage?: string;
   createdAt: string;

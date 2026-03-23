@@ -249,6 +249,8 @@ Status: current
 - [x] Первый Telegram retrieval contour через `storagePointer` и runtime bag mapping
 - [x] Первый web retrieval contour через auth-proxy и storage runtime mapping
 - [x] Operator runtime diagnostics: resolvable assets/bags, pointer readiness и unresolved runtime issues
+- [x] External upload worker handoff: claim/complete queue для `tonstorage_testnet`
+- [x] Simulated upload pass для бесплатного end-to-end теста storage contour
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 

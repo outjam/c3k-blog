@@ -1539,3 +1539,35 @@
 - Важный эффект:
   - operator видит не только runtime mode, но и реальную готовность registry к выдаче файлов
   - следующий storage step теперь проще диагностировать до user-теста, не дожидаясь падения delivery request
+
+### Sprint 10 slice: external upload worker handoff
+
+- В ingest jobs добавлены `uploaded` status и worker lock metadata:
+  - [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts)
+  - [src/lib/server/storage-ingest-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ingest-store.ts)
+- Добавлен отдельный handoff helper для `tonstorage_testnet`:
+  - [src/lib/server/storage-upload-worker.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts)
+- Новый worker route:
+  - [src/app/api/storage/ingest/worker/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/ingest/worker/route.ts)
+  - умеет:
+    - отдавать queue status
+    - claim следующего `prepared` job
+    - принимать completion/failure от внешнего upload worker
+- Admin storage dashboard теперь показывает отдельную upload queue для внешнего worker:
+  - [src/app/admin/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx)
+- Важный эффект:
+  - `tonstorage_testnet` contour получил честный внешний upload stage
+  - теперь система умеет не только готовить bags/pointers, но и принимать назад подтверждённый upload result
+  - это ещё не встроенный daemon bridge, но уже реальный handoff между приложением и внешним storage runtime
+
+### Sprint 10 slice: simulated upload pass for free testing
+
+- Добавлен test-only simulated upload helper:
+  - [src/lib/server/storage-upload-worker.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts)
+- Добавлен admin route:
+  - [src/app/api/admin/storage/upload-simulate/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/upload-simulate/route.ts)
+- Admin storage dashboard получил кнопку `Симулировать upload`:
+  - [src/app/admin/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx)
+- Важный эффект:
+  - storage contour теперь можно прогонять end-to-end в test-only режиме без реального daemon bridge
+  - prepared jobs переходят в `uploaded` через тот же handoff слой, который потом будет использовать настоящий внешний worker

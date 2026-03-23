@@ -179,6 +179,9 @@
   - запуск runtime-aware ingest pipeline
   - поддерживает `test_prepare` и `tonstorage_testnet`
   - создаёт ingest jobs, runtime-aware bags и testnet-style pointers
+- `/api/admin/storage/upload-simulate`
+  - test-only simulated upload pass для `tonstorage_testnet`
+  - позволяет прогнать внешний upload stage без реального daemon bridge
 - `/api/admin/ton/status`
   - snapshot active TON environment
   - active network, collection source, relay readiness и runtime/env drift warnings
@@ -246,9 +249,17 @@
 - `/api/storage/downloads/[id]`
   - `GET`: статус конкретного delivery request
   - `POST`: retry/reopen delivery request
+- `/api/storage/downloads/[id]/file`
+  - auth-protected browser proxy для выдачи файла
+  - умеет использовать storage runtime mapping, а не только прямой `deliveryUrl`
 - `/api/storage/downloads/worker`
   - worker для Telegram delivery queue
   - `mode=status` возвращает размер очереди
+- `/api/storage/ingest/worker`
+  - внешний upload handoff для `tonstorage_testnet`
+  - `GET`: status или claim следующего prepared upload job
+  - `POST action=claim`: забрать следующий prepared job
+  - `POST action=complete`: подтвердить upload, bag pointer и replicas
 - `/api/desktop/runtime`
   - runtime contract для `C3K Desktop Client`
   - единая конфигурация для Electron shell, local gateway и web onboarding

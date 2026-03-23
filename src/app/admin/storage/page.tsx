@@ -10,6 +10,7 @@ import {
   fetchAdminStorage,
   patchAdminStorageMembership,
   runAdminStorageIngest,
+  runAdminStorageUploadSimulate,
   syncAdminStorageArtistTracks,
   type AdminSession,
   type AdminStorageSnapshot,
@@ -56,6 +57,7 @@ export default function AdminStoragePage() {
   >({});
   const [syncingTracks, setSyncingTracks] = useState(false);
   const [ingestingAssets, setIngestingAssets] = useState(false);
+  const [simulatingUpload, setSimulatingUpload] = useState(false);
   const [ingestMode, setIngestMode] = useState<StorageIngestMode>("test_prepare");
 
   const canView = Boolean(session?.permissions.includes("storage:view"));
@@ -122,6 +124,16 @@ export default function AdminStoragePage() {
       memberships: snapshot?.memberships.length ?? 0,
       deliveries: snapshot?.deliveryRequests.length ?? 0,
       ingestJobs: snapshot?.ingestJobs.length ?? 0,
+    };
+  }, [snapshot]);
+
+  const uploadQueue = useMemo(() => {
+    const jobs = (snapshot?.ingestJobs ?? []).filter((job) => job.mode === "tonstorage_testnet");
+    return {
+      prepared: jobs.filter((job) => job.status === "prepared").length,
+      processing: jobs.filter((job) => job.status === "processing").length,
+      uploaded: jobs.filter((job) => job.status === "uploaded").length,
+      failed: jobs.filter((job) => job.status === "failed").length,
     };
   }, [snapshot]);
 
@@ -316,6 +328,26 @@ export default function AdminStoragePage() {
     await load();
   };
 
+  const simulateUpload = async () => {
+    setSimulatingUpload(true);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await runAdminStorageUploadSimulate({ limit: 5 });
+    setSimulatingUpload(false);
+
+    if (response.error || !response.summary) {
+      setError(response.error ?? "Не удалось выполнить simulated upload pass.");
+      return;
+    }
+
+    setIngestMessage(
+      `Simulated upload · processed ${response.summary.processed} · uploaded ${response.summary.uploaded} · failed ${response.summary.failed} · remaining prepared ${response.summary.remainingPrepared}`,
+    );
+    await load();
+  };
+
   if (loading) {
     return <div className={styles.page}>Загрузка storage dashboard...</div>;
   }
@@ -362,6 +394,9 @@ export default function AdminStoragePage() {
                 </select>
                 <button type="button" onClick={() => void ingestAssets()} disabled={ingestingAssets}>
                   {ingestingAssets ? "Подготовка..." : "Подготовить runtime bags"}
+                </button>
+                <button type="button" onClick={() => void simulateUpload()} disabled={simulatingUpload}>
+                  {simulatingUpload ? "Симулируем..." : "Симулировать upload"}
                 </button>
               </>
             ) : null}
@@ -462,6 +497,40 @@ export default function AdminStoragePage() {
           </article>
         </section>
 
+        <section className={styles.runtimeGrid}>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Upload worker queue</h2>
+            </div>
+            <p className={styles.blockHint}>
+              Это очередь для внешнего testnet upload worker. `prepared` означает, что pointer и bag уже подготовлены, и
+              отдельный runtime-процесс может забрать задачу на реальную загрузку.
+            </p>
+            <div className={styles.itemMeta}>
+              <span>prepared: {uploadQueue.prepared}</span>
+              <span>processing: {uploadQueue.processing}</span>
+              <span>uploaded: {uploadQueue.uploaded}</span>
+              <span>failed: {uploadQueue.failed}</span>
+            </div>
+          </article>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Следующий шаг</h2>
+            </div>
+            <p className={styles.blockHint}>
+              После `Подготовить runtime bags` внешний worker должен забрать prepared jobs, загрузить файл и вернуть в
+              приложение подтверждённый pointer, статус bag и число реплик. Только после этого `TON Storage` contour станет
+              честно end-to-end.
+            </p>
+            <div className={styles.noteList}>
+              <span>prepared = metadata готова, но upload ещё не подтверждён</span>
+              <span>processing = job уже забран внешним worker</span>
+              <span>uploaded = worker подтвердил bag и pointer</span>
+              <span>Симуляция позволяет прогнать этот этап локально и бесплатно до реального daemon bridge.</span>
+            </div>
+          </article>
+        </section>
+
         <section className={styles.guideGrid}>
           <article className={styles.guideCard}>
             <span className={styles.guideEyebrow}>Шаг 1</span>
@@ -485,6 +554,14 @@ export default function AdminStoragePage() {
             <p>
               Артист опубликовал релиз, вы синхронизировали assets, подготовили bags в нужном runtime и проверили, что
               delivery requests начинают находить правильные файлы и storage pointers.
+            </p>
+          </article>
+          <article className={styles.guideCard}>
+            <span className={styles.guideEyebrow}>Шаг 3</span>
+            <strong>Потом внешний upload worker</strong>
+            <p>
+              Когда runtime работает в `tonstorage_testnet`, отдельный worker забирает prepared jobs, грузит файл в storage и
+              возвращает в систему уже подтверждённый pointer. Без этого stage bags остаются только подготовленными.
             </p>
           </article>
         </section>

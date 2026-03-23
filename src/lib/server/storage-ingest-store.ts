@@ -62,6 +62,7 @@ const normalizeMode = (value: unknown): StorageIngestMode => {
 const normalizeStatus = (value: unknown): StorageIngestJobStatus => {
   return value === "processing" ||
     value === "prepared" ||
+    value === "uploaded" ||
     value === "failed" ||
     value === "skipped"
     ? value
@@ -95,6 +96,10 @@ const normalizeJob = (id: string, value: unknown, now: string): StorageIngestJob
     storagePointer: normalizeOptionalText(source.storagePointer, 500),
     message: normalizeOptionalText(source.message, 500),
     attemptCount: normalizeNonNegativeInt(source.attemptCount),
+    workerLockId: normalizeOptionalText(source.workerLockId, 160),
+    workerLockedAt: source.workerLockedAt
+      ? normalizeIsoDateTime(source.workerLockedAt, now)
+      : undefined,
     failureCode: normalizeOptionalText(source.failureCode, 120),
     failureMessage: normalizeOptionalText(source.failureMessage, 500),
     createdAt: normalizeIsoDateTime(source.createdAt, now),
@@ -260,6 +265,17 @@ export const listStorageIngestJobs = async (input?: {
   return limit > 0 ? filtered.slice(0, limit) : filtered;
 };
 
+export const getStorageIngestJob = async (id: string): Promise<StorageIngestJob | null> => {
+  const normalizedId = normalizeSafeId(id, 120);
+
+  if (!normalizedId) {
+    return null;
+  }
+
+  const state = await getStorageIngestState();
+  return state?.jobs[normalizedId] ?? null;
+};
+
 export const createStorageIngestJob = async (input: {
   id?: string;
   assetId: string;
@@ -270,6 +286,8 @@ export const createStorageIngestJob = async (input: {
   storagePointer?: string;
   message?: string;
   attemptCount?: number;
+  workerLockId?: string;
+  workerLockedAt?: string;
   failureCode?: string;
   failureMessage?: string;
   startedAt?: string;
@@ -299,6 +317,11 @@ export const createStorageIngestJob = async (input: {
       storagePointer: normalizeOptionalText(input.storagePointer, 500) ?? existing?.storagePointer,
       message: normalizeOptionalText(input.message, 500) ?? existing?.message,
       attemptCount: normalizeNonNegativeInt(input.attemptCount ?? existing?.attemptCount ?? 0),
+      workerLockId: normalizeOptionalText(input.workerLockId, 160) ?? existing?.workerLockId,
+      workerLockedAt:
+        input.workerLockedAt === null
+          ? undefined
+          : normalizeOptionalText(input.workerLockedAt, 120) ?? existing?.workerLockedAt,
       failureCode: normalizeOptionalText(input.failureCode, 120) ?? existing?.failureCode,
       failureMessage: normalizeOptionalText(input.failureMessage, 500) ?? existing?.failureMessage,
       createdAt: existing?.createdAt ?? now,
@@ -333,6 +356,8 @@ export const updateStorageIngestJob = async (
     storagePointer?: string | null;
     message?: string | null;
     attemptCount?: number;
+    workerLockId?: string | null;
+    workerLockedAt?: string | null;
     failureCode?: string | null;
     failureMessage?: string | null;
     startedAt?: string | null;
@@ -369,6 +394,14 @@ export const updateStorageIngestJob = async (
           ? undefined
           : normalizeOptionalText(patch.message, 500) ?? existing.message,
       attemptCount: normalizeNonNegativeInt(patch.attemptCount ?? existing.attemptCount),
+      workerLockId:
+        patch.workerLockId === null
+          ? undefined
+          : normalizeOptionalText(patch.workerLockId, 160) ?? existing.workerLockId,
+      workerLockedAt:
+        patch.workerLockedAt === null
+          ? undefined
+          : normalizeOptionalText(patch.workerLockedAt, 120) ?? existing.workerLockedAt,
       failureCode:
         patch.failureCode === null
           ? undefined
@@ -409,4 +442,73 @@ export const updateStorageIngestJob = async (
   }
 
   return next?.jobs[normalizedId] ?? null;
+};
+
+export const claimStorageIngestJob = async (input: {
+  mode: StorageIngestMode;
+  staleAfterMs?: number;
+  lockId?: string;
+}): Promise<StorageIngestJob | null> => {
+  const staleAfterMs = Math.max(60_000, normalizeNonNegativeInt(input.staleAfterMs ?? 15 * 60 * 1000));
+  const lockId = normalizeOptionalText(input.lockId, 160) || `ingest-lock-${Date.now()}`;
+  const next = await mutateState((current) => {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const staleThreshold = now.getTime() - staleAfterMs;
+    const jobs = Object.values(current.jobs)
+      .filter((job) => job.mode === input.mode)
+      .filter((job) => {
+        if (job.status === "prepared") {
+          return true;
+        }
+
+        if (job.status !== "processing") {
+          return false;
+        }
+
+        const lockedAt = Date.parse(job.workerLockedAt ?? job.updatedAt);
+        return Number.isFinite(lockedAt) && lockedAt <= staleThreshold;
+      })
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.updatedAt || left.createdAt);
+        const rightTime = Date.parse(right.updatedAt || right.createdAt);
+        return leftTime - rightTime;
+      });
+
+    const candidate = jobs[0];
+
+    if (!candidate) {
+      return current;
+    }
+
+    const updated: StorageIngestJob = {
+      ...candidate,
+      status: "processing",
+      workerLockId: lockId,
+      workerLockedAt: nowIso,
+      startedAt: nowIso,
+      completedAt: undefined,
+      attemptCount: candidate.attemptCount + 1,
+      failureCode: undefined,
+      failureMessage: undefined,
+      message: "Claimed by external storage upload worker.",
+      updatedAt: nowIso,
+    };
+
+    return {
+      ...current,
+      jobs: {
+        ...current.jobs,
+        [candidate.id]: updated,
+      },
+    };
+  });
+
+  if (!next) {
+    return null;
+  }
+
+  return (
+    Object.values(next.jobs).find((job) => job.workerLockId === lockId && job.mode === input.mode) ?? null
+  );
 };

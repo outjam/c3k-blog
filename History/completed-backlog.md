@@ -433,3 +433,19 @@
   - сколько assets и bags уже готовы к runtime delivery
   - pointer-ready bags
   - unresolved assets/bags с причинами
+
+### Sprint 10: внешний upload worker handoff
+
+- в ingest jobs добавлены `uploaded` status и worker lock metadata
+- добавлен route `/api/storage/ingest/worker`
+- внешний worker теперь может:
+  - получить queue status
+  - claim prepared `tonstorage_testnet` job
+  - вернуть completion/failure и подтвердить bag pointer
+- storage dashboard показывает отдельную upload queue для этого внешнего этапа
+
+### Sprint 10: simulated upload pass
+
+- добавлен admin route `/api/admin/storage/upload-simulate`
+- storage dashboard получил кнопку `Симулировать upload`
+- теперь prepared jobs можно доводить до `uploaded` в test-only режиме без реального daemon bridge

@@ -229,6 +229,13 @@ export interface AdminStorageSnapshot {
   healthEvents: StorageHealthEvent[];
 }
 
+export interface AdminStorageUploadSimulateSummary {
+  processed: number;
+  uploaded: number;
+  failed: number;
+  remainingPrepared: number;
+}
+
 export type AdminOrdersSort = "updated_desc" | "updated_asc" | "created_desc" | "created_asc" | "total_desc" | "total_asc";
 
 export interface AdminOrdersPageInfo {
@@ -871,6 +878,33 @@ export const runAdminStorageIngest = async (payload?: {
     };
   } catch {
     return { ok: false, error: "Network error" };
+  }
+};
+
+export const runAdminStorageUploadSimulate = async (payload?: {
+  limit?: number;
+}): Promise<{ summary: AdminStorageUploadSimulateSummary | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/upload-simulate", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify({
+        limit: payload?.limit,
+      }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStorageUploadSimulateSummary };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
   }
 };
 
