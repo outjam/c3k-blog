@@ -201,6 +201,25 @@ export interface AdminSession {
 
 export interface AdminStorageSnapshot {
   runtimeStatus: StorageRuntimeStatusSnapshot;
+  runtimeDiagnostics: {
+    generatedAt: string;
+    assetsTotal: number;
+    assetsResolvable: number;
+    bagsTotal: number;
+    bagsResolvable: number;
+    pointerReadyBags: number;
+    viaCounts: Record<"delivery_url" | "resolved_source" | "bag_meta" | "asset_source" | "bag_http_pointer", number>;
+    unresolvedAssets: Array<{
+      id: string;
+      label: string;
+      reason: string;
+    }>;
+    unresolvedBags: Array<{
+      id: string;
+      label: string;
+      reason: string;
+    }>;
+  };
   assets: StorageAsset[];
   bags: StorageBag[];
   nodes: StorageNode[];

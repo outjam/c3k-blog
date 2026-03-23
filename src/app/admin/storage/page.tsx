@@ -411,6 +411,57 @@ export default function AdminStoragePage() {
           </article>
         </section>
 
+        <section className={styles.runtimeGrid}>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Runtime readiness</h2>
+            </div>
+            <p className={styles.blockHint}>
+              Этот блок показывает, какая часть registry уже реально резолвится в fetchable source для web и Telegram delivery,
+              а что ещё застряло на уровне pointer-prep.
+            </p>
+            <div className={styles.itemMeta}>
+              <span>
+                assets ready: {snapshot?.runtimeDiagnostics.assetsResolvable || 0} /{" "}
+                {snapshot?.runtimeDiagnostics.assetsTotal || 0}
+              </span>
+              <span>
+                bags ready: {snapshot?.runtimeDiagnostics.bagsResolvable || 0} /{" "}
+                {snapshot?.runtimeDiagnostics.bagsTotal || 0}
+              </span>
+              <span>pointer-ready bags: {snapshot?.runtimeDiagnostics.pointerReadyBags || 0}</span>
+            </div>
+            <div className={styles.noteList}>
+              <span>
+                asset source: {snapshot?.runtimeDiagnostics.viaCounts.asset_source || 0}
+              </span>
+              <span>
+                bag meta: {snapshot?.runtimeDiagnostics.viaCounts.bag_meta || 0}
+              </span>
+              <span>
+                bag http pointer: {snapshot?.runtimeDiagnostics.viaCounts.bag_http_pointer || 0}
+              </span>
+              <span>
+                resolved source: {snapshot?.runtimeDiagnostics.viaCounts.resolved_source || 0}
+              </span>
+            </div>
+          </article>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Операторский смысл</h2>
+            </div>
+            <p className={styles.blockHint}>
+              Если `assets ready` или `bags ready` заметно отстают, значит sync или ingest уже создали записи, но delivery ещё
+              не сможет честно достать файл из runtime. Это сигнал проверить source URLs, bag metadata и pointer mapping.
+            </p>
+            <div className={styles.noteList}>
+              <span>После sync должны появиться source URLs или resource keys у assets.</span>
+              <span>После ingest у bags должны появляться runtime label, bag id или pointer.</span>
+              <span>Перед user-тестом смотри, чтобы unresolved списки не росли после нового релиза.</span>
+            </div>
+          </article>
+        </section>
+
         <section className={styles.guideGrid}>
           <article className={styles.guideCard}>
             <span className={styles.guideEyebrow}>Шаг 1</span>
@@ -815,6 +866,54 @@ export default function AdminStoragePage() {
                 </div>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className={styles.block}>
+          <div className={styles.blockHeading}>
+            <h2>Runtime issues</h2>
+          </div>
+          <p className={styles.blockHint}>
+            Здесь собраны первые проблемные assets и bags, которые сейчас не удаётся сопоставить с fetchable source. Это
+            короткий operational список для диагностики перед user-тестом.
+          </p>
+          <div className={styles.list}>
+            {(snapshot?.runtimeDiagnostics.unresolvedAssets ?? []).map((entry) => (
+              <article key={`asset-${entry.id}`} className={styles.itemCard}>
+                <div className={styles.itemRow}>
+                  <strong>{entry.id}</strong>
+                  <span>asset</span>
+                </div>
+                <div className={styles.itemMeta}>
+                  <span>{entry.label}</span>
+                  <span>{entry.reason}</span>
+                </div>
+              </article>
+            ))}
+            {(snapshot?.runtimeDiagnostics.unresolvedBags ?? []).map((entry) => (
+              <article key={`bag-${entry.id}`} className={styles.itemCard}>
+                <div className={styles.itemRow}>
+                  <strong>{entry.id}</strong>
+                  <span>bag</span>
+                </div>
+                <div className={styles.itemMeta}>
+                  <span>{entry.label}</span>
+                  <span>{entry.reason}</span>
+                </div>
+              </article>
+            ))}
+            {(snapshot?.runtimeDiagnostics.unresolvedAssets?.length ?? 0) === 0 &&
+            (snapshot?.runtimeDiagnostics.unresolvedBags?.length ?? 0) === 0 ? (
+              <article className={styles.itemCard}>
+                <div className={styles.itemRow}>
+                  <strong>Runtime mapping clean</strong>
+                  <span>ok</span>
+                </div>
+                <div className={styles.itemMeta}>
+                  <span>Для первых проверенных записей fetchable source уже найден.</span>
+                </div>
+              </article>
+            ) : null}
           </div>
         </section>
 

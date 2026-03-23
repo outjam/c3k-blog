@@ -11,6 +11,22 @@ interface StorageDeliveryResponseShape {
   error?: string;
 }
 
+const triggerBlobDownload = (blob: Blob, fileName?: string) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName || "c3k-file";
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1_000);
+};
+
 const storageHeaders = (): HeadersInit => {
   return {
     "content-type": "application/json",
@@ -202,5 +218,32 @@ export const fetchMyStorageDeliveryRequests = async (
     return { requests: Array.isArray(data.requests) ? data.requests : [] };
   } catch {
     return { requests: [], error: "Network error" };
+  }
+};
+
+export const downloadStorageDeliveryRequestFile = async (
+  request: StorageDeliveryRequest,
+): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const response = await fetch(`/api/storage/downloads/${encodeURIComponent(request.id)}/file`, {
+      method: "GET",
+      headers: getTelegramAuthHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      try {
+        const payload = (await response.json()) as StorageDeliveryResponseShape;
+        return { ok: false, error: payload.error ?? payload.message ?? `HTTP ${response.status}` };
+      } catch {
+        return { ok: false, error: `HTTP ${response.status}` };
+      }
+    }
+
+    const blob = await response.blob();
+    triggerBlobDownload(blob, request.fileName);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
   }
 };

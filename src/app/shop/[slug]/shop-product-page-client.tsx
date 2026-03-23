@@ -50,6 +50,7 @@ import { formatStarsFromCents } from "@/lib/stars-format";
 import { openStorageDeliveryInDesktop } from "@/lib/desktop-runtime-api";
 import { C3K_STORAGE_DESKTOP_CLIENT_ENABLED } from "@/lib/storage-config";
 import {
+  downloadStorageDeliveryRequestFile,
   fetchMyStorageDeliveryRequests,
   requestReleaseDownload,
   retryStorageDeliveryRequestApi,
@@ -509,19 +510,6 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     playQueue(releaseQueue, 0);
   };
 
-  const triggerBrowserDownload = useCallback((url: string, fileName?: string) => {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.target = "_blank";
-    anchor.rel = "noreferrer";
-    if (fileName) {
-      anchor.download = fileName;
-    }
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-  }, []);
-
   const upsertDeliveryRequest = useCallback((request: StorageDeliveryRequest) => {
     setDeliveryHistory((current) => {
       const next = current.filter((entry) => entry.id !== request.id);
@@ -558,8 +546,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
       upsertDeliveryRequest(result.request);
 
-      if (channel === "web_download" && result.request.deliveryUrl) {
-        triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
+      if (channel === "web_download") {
+        const downloadResult = await downloadStorageDeliveryRequestFile(result.request);
+        if (!downloadResult.ok) {
+          setWalletMessage(downloadResult.error ?? "Файл релиза подготовлен, но web download пока недоступен.");
+          hapticNotification("warning");
+          return;
+        }
       }
       if (
         channel === "desktop_download" &&
@@ -582,7 +575,6 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       ownsWholeRelease,
       product.slug,
       selectedFormat,
-      triggerBrowserDownload,
       upsertDeliveryRequest,
       user?.id,
     ],
@@ -619,8 +611,15 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
       upsertDeliveryRequest(result.request);
 
-      if (channel === "web_download" && result.request.deliveryUrl) {
-        triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
+      if (channel === "web_download") {
+        const downloadResult = await downloadStorageDeliveryRequestFile(result.request);
+        if (!downloadResult.ok) {
+          setWalletMessage(
+            downloadResult.error ?? `Трек «${track.title}» подготовлен, но web download пока недоступен.`,
+          );
+          hapticNotification("warning");
+          return;
+        }
       }
       if (
         channel === "desktop_download" &&
@@ -644,7 +643,6 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       ownsWholeRelease,
       product,
       selectedFormat,
-      triggerBrowserDownload,
       upsertDeliveryRequest,
       user?.id,
     ],
@@ -664,12 +662,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
       upsertDeliveryRequest(result.request);
 
-      if (
-        result.request.channel === "web_download" &&
-        result.request.deliveryUrl &&
-        result.request.status === "ready"
-      ) {
-        triggerBrowserDownload(result.request.deliveryUrl, result.request.fileName);
+      if (result.request.channel === "web_download" && result.request.status === "ready") {
+        const downloadResult = await downloadStorageDeliveryRequestFile(result.request);
+        if (!downloadResult.ok) {
+          setWalletMessage(downloadResult.error ?? "Файл готов, но web download пока недоступен.");
+          hapticNotification("warning");
+          return;
+        }
       }
       if (
         result.request.channel === "desktop_download" &&
@@ -682,7 +681,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       setWalletMessage(result.message ?? "Запрос на выдачу обновлён.");
       hapticNotification("success");
     },
-    [triggerBrowserDownload, upsertDeliveryRequest],
+    [upsertDeliveryRequest],
   );
 
   const resolveMintOwnerAddress = (): string | null => {
@@ -1337,9 +1336,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                             onClick={() =>
                               request.channel === "desktop_download"
                                 ? openStorageDeliveryInDesktop(request)
-                                : request.deliveryUrl
-                                  ? triggerBrowserDownload(request.deliveryUrl, request.fileName)
-                                  : undefined
+                                : void downloadStorageDeliveryRequestFile(request)
                             }
                           >
                             {request.channel === "desktop_download" ? "Открыть в Desktop" : "Открыть файл"}

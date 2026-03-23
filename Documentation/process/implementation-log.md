@@ -1491,3 +1491,51 @@
   - bag metadata
   - runtime visibility
 - фактический upload/replication всё ещё остаётся задачей следующего storage worker slice
+
+### Sprint 10 slice: first runtime retrieval path for Telegram
+
+- Добавлен отдельный runtime fetch helper:
+  - [src/lib/server/storage-runtime-fetch.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-fetch.ts)
+- Telegram delivery worker теперь может:
+  - брать файл по прямому `deliveryUrl`
+  - брать файл по `resolvedSourceUrl`
+  - восстанавливать fetchable source через `storagePointer`, `bagId` и `assetId`
+- Это подключено в:
+  - [src/lib/server/storage-delivery.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts)
+- Важный эффект:
+  - Telegram delivery больше не требует только прямой URL
+  - первый retrieval contour начинает реально использовать storage runtime mapping
+  - это всё ещё не daemon bridge, но уже шаг от pointer-prep к runtime consumption
+
+### Sprint 10 slice: first runtime retrieval path for web download
+
+- Добавлен auth-protected proxy route для выдачи storage delivery request в браузер:
+  - [src/app/api/storage/downloads/[id]/file/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/[id]/file/route.ts)
+- Client helper для web download теперь скачивает файл через этот route, а не только через прямой `deliveryUrl`:
+  - [src/lib/storage-delivery-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/storage-delivery-api.ts)
+- Страница релиза, экран `C3K Storage` и `downloads center` теперь используют новый proxy flow:
+  - [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/[slug]/shop-product-page-client.tsx)
+  - [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx)
+  - [src/app/downloads/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.tsx)
+- Важный эффект:
+  - web download теперь может работать даже когда у delivery request нет прямого `deliveryUrl`, но есть `storagePointer`/bag mapping
+  - storage runtime начинает использоваться уже и для browser delivery, а не только для Telegram worker
+  - это первый user-facing retrieval contour для web до полноценного daemon bridge
+
+### Sprint 10 slice: runtime diagnostics for operator
+
+- storage runtime fetch helper теперь умеет резолвить fetch target из уже загруженного registry snapshot:
+  - [src/lib/server/storage-runtime-fetch.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-fetch.ts)
+- Добавлен отдельный diagnostics helper:
+  - [src/lib/server/storage-runtime-diagnostics.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-diagnostics.ts)
+- Admin storage route и dashboard теперь показывают:
+  - сколько `assets` уже резолвятся в fetchable source
+  - сколько `bags` уже резолвятся в fetchable source
+  - сколько bags pointer-ready
+  - первые unresolved assets/bags с человеческой причиной
+  - это подключено в:
+    - [src/app/api/admin/storage/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/route.ts)
+    - [src/app/admin/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx)
+- Важный эффект:
+  - operator видит не только runtime mode, но и реальную готовность registry к выдаче файлов
+  - следующий storage step теперь проще диагностировать до user-теста, не дожидаясь падения delivery request

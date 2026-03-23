@@ -10,7 +10,11 @@ import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchStorageProgramSnapshot, joinMyStorageProgram } from "@/lib/admin-api";
 import { openStorageDeliveryInDesktop } from "@/lib/desktop-runtime-api";
-import { fetchMyStorageDeliveryRequests, retryStorageDeliveryRequestApi } from "@/lib/storage-delivery-api";
+import {
+  downloadStorageDeliveryRequestFile,
+  fetchMyStorageDeliveryRequests,
+  retryStorageDeliveryRequestApi,
+} from "@/lib/storage-delivery-api";
 import type { StorageDeliveryRequest, StorageProgramMembership, StorageProgramSnapshot } from "@/types/storage";
 
 import styles from "./page.module.scss";
@@ -367,11 +371,11 @@ export default function StorageProgramPage() {
       return;
     }
 
-    if (!request.deliveryUrl) {
-      return;
-    }
-
-    window.open(request.deliveryUrl, "_blank", "noopener,noreferrer");
+    void downloadStorageDeliveryRequestFile(request).then((result) => {
+      if (!result.ok) {
+        setError(result.error ?? "Не удалось скачать файл через storage runtime.");
+      }
+    });
   };
 
   const updateDeliveryRequest = (nextRequest: StorageDeliveryRequest) => {

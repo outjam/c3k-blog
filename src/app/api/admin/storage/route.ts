@@ -9,6 +9,7 @@ import {
 } from "@/lib/server/storage-registry-store";
 import { listStorageDeliveryRequests } from "@/lib/server/storage-delivery-store";
 import { listStorageIngestJobs } from "@/lib/server/storage-ingest-store";
+import { buildStorageRuntimeDiagnostics } from "@/lib/server/storage-runtime-diagnostics";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
 import {
   forbiddenResponse,
@@ -41,9 +42,11 @@ export async function GET(request: Request) {
     listStorageHealthEvents(),
   ]);
   const runtimeStatus = getStorageRuntimeStatus();
+  const runtimeDiagnostics = buildStorageRuntimeDiagnostics({ assets, bags });
 
   return NextResponse.json({
     runtimeStatus,
+    runtimeDiagnostics,
     assets,
     bags,
     nodes,

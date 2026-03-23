@@ -408,3 +408,28 @@
 - admin может запускать ingest в двух режимах
 - bags и ingest jobs теперь получают runtime metadata
 - user-facing `/storage` начал отражать реальный storage runtime contour, а не только future-state copy
+
+### Sprint 10: Telegram retrieval через storage runtime
+
+- добавлен `storage-runtime-fetch` helper
+- Telegram worker теперь умеет доставлять файл по:
+  - `deliveryUrl`
+  - `resolvedSourceUrl`
+  - `storagePointer`/bag mapping
+- storage runtime начал использоваться не только для pointer-prep, но и для реального retrieval path
+
+### Sprint 10: web retrieval через storage runtime
+
+- добавлен auth-protected route `/api/storage/downloads/[id]/file`
+- web download helper теперь скачивает файл через server proxy, а не только через прямой `deliveryUrl`
+- релиз, storage screen и downloads center переведены на новый flow
+- browser delivery теперь тоже умеет работать через `storagePointer`/bag mapping storage runtime
+
+### Sprint 10: runtime diagnostics в админке
+
+- runtime fetch helper теперь умеет резолвить target из уже загруженного registry snapshot
+- добавлен diagnostics helper по assets/bags
+- storage dashboard показывает:
+  - сколько assets и bags уже готовы к runtime delivery
+  - pointer-ready bags
+  - unresolved assets/bags с причинами

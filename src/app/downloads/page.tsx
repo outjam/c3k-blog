@@ -11,6 +11,7 @@ import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import { fetchPublicCatalog } from "@/lib/admin-api";
 import { openStorageDeliveryInDesktop } from "@/lib/desktop-runtime-api";
 import {
+  downloadStorageDeliveryRequestFile,
   fetchMyStorageDeliveryRequests,
   retryStorageDeliveryRequestApi,
 } from "@/lib/storage-delivery-api";
@@ -245,11 +246,11 @@ export default function DownloadsPage() {
       return;
     }
 
-    if (!request.deliveryUrl) {
-      return;
-    }
-
-    window.open(request.deliveryUrl, "_blank", "noopener,noreferrer");
+    void downloadStorageDeliveryRequestFile(request).then((result) => {
+      if (!result.ok) {
+        setError(result.error ?? "Не удалось скачать файл через storage runtime.");
+      }
+    });
   };
 
   const updateRequest = (request: StorageDeliveryRequest) => {

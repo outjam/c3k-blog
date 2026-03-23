@@ -246,6 +246,9 @@ Status: current
 - [x] Admin ingest mode selector для `test_prepare / tonstorage_testnet`
 - [x] Runtime-aware ingest jobs и bags с `runtimeMode/runtimeLabel`
 - [x] Honest messaging про `real pointers` и `external upload worker`
+- [x] Первый Telegram retrieval contour через `storagePointer` и runtime bag mapping
+- [x] Первый web retrieval contour через auth-proxy и storage runtime mapping
+- [x] Operator runtime diagnostics: resolvable assets/bags, pointer readiness и unresolved runtime issues
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 
