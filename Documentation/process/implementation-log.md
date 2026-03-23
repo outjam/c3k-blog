@@ -1282,3 +1282,26 @@
   - полным релизом
   - частично купленными треками
   - NFT-улучшением
+
+### UI/UX pass: artist page and studio alignment
+
+- Проведён следующий consumer/creator-facing UI pass по:
+  - [src/app/shop/artist/[slug]/shop-artist-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/artist/[slug]/shop-artist-page-client.tsx)
+  - [src/app/shop/artist/[slug]/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/artist/[slug]/page.module.scss)
+  - [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx)
+  - [src/app/studio/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.module.scss)
+- Страница артиста теперь лучше отражает уже существующие product flows:
+  - support availability вынесен в hero-pills
+  - донаты и подписка объясняются как два разных сценария поддержки
+  - каталог артиста показывает тип релиза, число треков, число форматов и NFT availability
+- `Студия` перестроена ближе к dashboard-поверхности:
+  - появились quick actions из hero
+  - overview показывает не только числа, но и следующий рабочий шаг артиста
+  - profile/release/payout tabs получили human banners с правилами работы
+  - список релизов стал лучше показывать цену и состояние NFT
+
+### Что это даёт
+
+- artist-facing интерфейсы перестали заметно отставать от уже реализованной бизнес-логики
+- студия стала ближе к рабочему инструменту артиста, а не к длинной форме
+- страница артиста визуально лучше синхронизирована с уже обновлёнными профилем, каталогом и релизом

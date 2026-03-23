@@ -49,7 +49,7 @@
 .identityMeta {
   min-width: 0;
   display: grid;
-  gap: 0.28rem;
+  gap: 0.42rem;
 }
 
 .identityHeading {
@@ -72,12 +72,33 @@
 
 .identityMeta p,
 .panelText,
+.sectionLead,
 .empty,
 .error,
 .walletSupportMessage {
   margin: 0;
   color: var(--tg-subtitle-text);
   line-height: 1.55;
+}
+
+.heroPillRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.infoPill,
+.panelStatus,
+.trackFacts span {
+  min-height: 1.85rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.72rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
+  font-weight: 700;
 }
 
 .kicker,
@@ -143,6 +164,16 @@
   font-size: 0.92rem;
 }
 
+.statsStack {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.statsStack small {
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+}
+
 .starsBadge {
   width: fit-content;
   min-height: 2rem;
@@ -162,6 +193,11 @@
   height: 0.92rem;
   color: #ffc535;
   flex-shrink: 0;
+}
+
+.supportSection {
+  display: grid;
+  gap: 0.82rem;
 }
 
 .supportGrid {
@@ -187,6 +223,13 @@
 .sectionHeader > div {
   display: grid;
   gap: 0.22rem;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .supportPanel h2 {
@@ -239,6 +282,17 @@
   opacity: 0.55;
 }
 
+.supportFacts {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.supportFacts span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .error,
 .walletSupportMessage {
   padding: 0.78rem 0.92rem;
@@ -278,7 +332,20 @@
 .trackMeta {
   min-width: 0;
   display: grid;
-  gap: 0.32rem;
+  gap: 0.48rem;
+}
+
+.trackHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.trackHeader > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.28rem;
 }
 
 .trackMeta h3 {
@@ -292,6 +359,12 @@
   color: var(--tg-subtitle-text);
   font-size: 0.78rem;
   line-height: 1.45;
+}
+
+.trackFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
 .trackActions {
@@ -435,5 +508,9 @@
 
   .stats {
     grid-template-columns: 1fr;
+  }
+
+  .trackHeader {
+    flex-direction: column;
   }
 }

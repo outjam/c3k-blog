@@ -33,6 +33,12 @@
   gap: 0.95rem;
 }
 
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
 .headerRow {
   display: flex;
   align-items: center;
@@ -233,6 +239,54 @@
   gap: 0.75rem;
 }
 
+.overviewLead,
+.guideCard {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 72%, var(--tg-section-bg));
+}
+
+.overviewLead {
+  padding: 0.95rem 1rem;
+  display: grid;
+  gap: 0.32rem;
+}
+
+.overviewLead > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.overviewLead span,
+.guideCard span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.75rem;
+}
+
+.overviewLead strong,
+.guideCard strong {
+  color: var(--tg-text);
+}
+
+.overviewLead p,
+.guideCard p {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  line-height: 1.5;
+}
+
+.guideGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.guideCard {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.24rem;
+}
+
 .fieldGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -350,6 +404,11 @@
   color: var(--tg-text);
 }
 
+.releaseMetaLine {
+  color: var(--tg-subtitle-text);
+  font-size: 0.74rem;
+}
+
 .auditTrail {
   display: grid;
   gap: 0.42rem;
@@ -444,7 +503,8 @@
   .heroMain,
   .fieldGrid,
   .metricGrid,
-  .financeHeroGrid {
+  .financeHeroGrid,
+  .guideGrid {
     grid-template-columns: 1fr;
   }
 

@@ -274,6 +274,11 @@
   - коллекция в профиле теперь показывает owned formats, если релиз куплен в нескольких качествах
   - карточки каталога стали показывать ownership/format/progress полезнее и без лишнего описательного шума
   - страница релиза переведена в более track-first layout: компактный format block, tracklist выше, collection/delivery/NFT собраны в utility panels
+- Следующим slice проведён creator-facing UI/UX pass по странице артиста и `Студии`:
+  - страница артиста теперь яснее показывает два support-сценария: донат и подписка
+  - hero артиста отражает доступность поддержки и число релизов с превью
+  - каталог артиста стал показывать тип релиза, число треков, число форматов и NFT availability
+  - `Студия` получила quick actions, next-step guidance и более явные правила профиля, релизов и выплат
 - Следующим slice admin artist moderation тоже получила hydration из normalized layers:
   - `/api/admin/artist-applications` умеет брать fallback application/profile из merge-store
   - `/api/admin/artists` умеет модерировать профиль с fallback на normalized artist profile

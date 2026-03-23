@@ -37,6 +37,17 @@ interface SupportPayload {
   error?: string;
 }
 
+const formatReleaseTypeLabel = (value: ShopProduct["releaseType"]): string => {
+  switch (value) {
+    case "album":
+      return "Альбом";
+    case "ep":
+      return "EP";
+    default:
+      return "Сингл";
+  }
+};
+
 function PlayIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
@@ -178,6 +189,18 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
   const playbackQueueByTrackId = useMemo(() => {
     return new Map(tracks.map((track) => [track.id, buildReleasePlaybackQueue(track)]));
   }, [tracks]);
+  const totalTrackItems = useMemo(() => {
+    return tracks.reduce((sum, track) => sum + Math.max(1, track.releaseTracklist?.length ?? 1), 0);
+  }, [tracks]);
+  const availablePreviewCount = useMemo(() => {
+    return tracks.reduce((sum, track) => sum + (playbackQueueByTrackId.get(track.id)?.length ? 1 : 0), 0);
+  }, [playbackQueueByTrackId, tracks]);
+  const supportAvailability = useMemo(() => {
+    return [
+      artist?.donationEnabled ? "Донаты открыты" : "Донаты выключены",
+      artist?.subscriptionEnabled ? "Подписка доступна" : "Подписка выключена",
+    ];
+  }, [artist?.donationEnabled, artist?.subscriptionEnabled]);
 
   const runWalletSupport = async (kind: "donation" | "subscription") => {
     if (!artist) {
@@ -354,6 +377,16 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
                 <span className={styles.kicker}>Артист</span>
               </div>
               <p>{artist.bio || "Автор публикует релизы в витрине Culture3k."}</p>
+              <div className={styles.heroPillRow}>
+                {supportAvailability.map((item) => (
+                  <span key={item} className={styles.infoPill}>
+                    {item}
+                  </span>
+                ))}
+                <span className={styles.infoPill}>
+                  Превью доступны у {availablePreviewCount} релизов
+                </span>
+              </div>
             </div>
 
             {artist.avatarUrl ? (
@@ -381,104 +414,133 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
               <strong>{artist.followersCount}</strong>
             </article>
             <article>
-              <span>Донаты</span>
-              <div className={styles.starsBadge}>
-                <StarsIcon className={styles.starsIcon} />
-                {formatStarsFromCents(stats.donationsTotal)}
-              </div>
+              <span>Треки</span>
+              <strong>{totalTrackItems}</strong>
             </article>
             <article>
-              <span>Подписка</span>
-              <strong>{stats.activeSubscribers}</strong>
+              <span>Support</span>
+              <div className={styles.statsStack}>
+                <div className={styles.starsBadge}>
+                  <StarsIcon className={styles.starsIcon} />
+                  {formatStarsFromCents(stats.donationsTotal)}
+                </div>
+                <small>{stats.activeSubscribers} подписок</small>
+              </div>
             </article>
           </div>
         </div>
       </section>
 
-      <section className={styles.supportGrid}>
-        <article className={styles.supportPanel}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <span className={styles.sectionEyebrow}>Поддержка</span>
-              <h2>Донат артисту</h2>
-            </div>
-            <div className={styles.starsBadge}>
-              <StarsIcon className={styles.starsIcon} />
-              {formatStarsFromCents(walletBalanceCents)}
-            </div>
+      <section className={styles.supportSection}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <span className={styles.sectionEyebrow}>Поддержка</span>
+            <h2>Поддержать артиста</h2>
           </div>
+          <div className={styles.starsBadge}>
+            <StarsIcon className={styles.starsIcon} />
+            {formatStarsFromCents(walletBalanceCents)}
+          </div>
+        </div>
+        <p className={styles.sectionLead}>
+          Поддержка работает двумя способами: единичный донат или регулярная подписка. В обоих
+          случаях можно платить через Stars или списывать средства с баланса приложения.
+        </p>
+        <div className={styles.supportGrid}>
+          <article className={styles.supportPanel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <span className={styles.sectionEyebrow}>Разовый платёж</span>
+                <h2>Донат артисту</h2>
+              </div>
+              <span className={styles.panelStatus}>
+                {artist.donationEnabled ? "Включено" : "Выключено"}
+              </span>
+            </div>
 
-          <p className={styles.panelText}>
-            Быстрый способ поддержать релизы артиста с баланса приложения или через Stars.
-          </p>
+            <p className={styles.panelText}>
+              Подойдёт, если хочешь поддержать конкретный релиз или просто быстро отправить артисту
+              Stars без оформления подписки.
+            </p>
 
-          <div className={styles.supportRow}>
-            <input
-              type="number"
-              min={1}
-              value={donationAmount}
-              onChange={(event) => setDonationAmount(event.target.value)}
-            />
+            <div className={styles.supportFacts}>
+              <span>Общая сумма поддержки: {formatStarsFromCents(stats.donationsTotal)}</span>
+              <span>Списывается сразу после успешной оплаты</span>
+            </div>
+
+            <div className={styles.supportRow}>
+              <input
+                type="number"
+                min={1}
+                value={donationAmount}
+                onChange={(event) => setDonationAmount(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={isPayingDonation || !artist.donationEnabled}
+                onClick={() => void runSupportPayment("donation")}
+              >
+                {artist.donationEnabled
+                  ? isPayingDonation
+                    ? "Оплата..."
+                    : "Через Stars"
+                  : "Донаты отключены"}
+              </button>
+            </div>
+
             <button
               type="button"
-              disabled={isPayingDonation || !artist.donationEnabled}
-              onClick={() => void runSupportPayment("donation")}
+              className={styles.walletAction}
+              disabled={!artist.donationEnabled}
+              onClick={() => void runWalletSupport("donation")}
             >
-              {artist.donationEnabled
-                ? isPayingDonation
-                  ? "Оплата..."
-                  : "Через Stars"
-                : "Донаты отключены"}
+              С баланса приложения
             </button>
-          </div>
+          </article>
 
-          <button
-            type="button"
-            className={styles.walletAction}
-            disabled={!artist.donationEnabled}
-            onClick={() => void runWalletSupport("donation")}
-          >
-            С баланса приложения
-          </button>
-        </article>
-
-        <article className={styles.supportPanel}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <span className={styles.sectionEyebrow}>Подписка</span>
-              <h2>Поддержка по подписке</h2>
+          <article className={styles.supportPanel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <span className={styles.sectionEyebrow}>Регулярная поддержка</span>
+                <h2>Поддержка по подписке</h2>
+              </div>
+              <span className={styles.panelStatus}>
+                {artist.subscriptionEnabled ? "Включено" : "Выключено"}
+              </span>
             </div>
-            <div className={styles.starsBadge}>
-              <StarsIcon className={styles.starsIcon} />
-              {formatStarsFromCents(artist.subscriptionPriceStarsCents)}
+
+            <p className={styles.panelText}>
+              Подписка подходит, если хочешь регулярно поддерживать новые релизы и активность
+              артиста, а не совершать отдельные донаты вручную.
+            </p>
+
+            <div className={styles.supportFacts}>
+              <span>Цена подписки: {formatStarsFromCents(artist.subscriptionPriceStarsCents)}</span>
+              <span>Активных подписок: {stats.activeSubscribers}</span>
             </div>
-          </div>
 
-          <p className={styles.panelText}>
-            Оформите подписку и поддерживайте новые релизы артиста регулярно.
-          </p>
+            <button
+              type="button"
+              disabled={isPayingSubscription || !artist.subscriptionEnabled}
+              onClick={() => void runSupportPayment("subscription")}
+            >
+              {artist.subscriptionEnabled
+                ? isPayingSubscription
+                  ? "Оплата..."
+                  : "Оформить через Stars"
+                : "Подписка отключена"}
+            </button>
 
-          <button
-            type="button"
-            disabled={isPayingSubscription || !artist.subscriptionEnabled}
-            onClick={() => void runSupportPayment("subscription")}
-          >
-            {artist.subscriptionEnabled
-              ? isPayingSubscription
-                ? "Оплата..."
-                : "Оформить через Stars"
-              : "Подписка отключена"}
-          </button>
-
-          <button
-            type="button"
-            className={styles.walletAction}
-            disabled={!artist.subscriptionEnabled}
-            onClick={() => void runWalletSupport("subscription")}
-          >
-            Оформить с баланса
-          </button>
-        </article>
+            <button
+              type="button"
+              className={styles.walletAction}
+              disabled={!artist.subscriptionEnabled}
+              onClick={() => void runWalletSupport("subscription")}
+            >
+              Оформить с баланса
+            </button>
+          </article>
+        </div>
       </section>
 
       {error ? <p className={styles.error}>{error}</p> : null}
@@ -506,6 +568,10 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
             В каталог
           </Link>
         </div>
+        <p className={styles.sectionLead}>
+          Здесь собраны все опубликованные релизы артиста. Можно сразу открыть релиз, включить
+          превью или добавить его в очередь без лишних промежуточных экранов.
+        </p>
         {tracks.length === 0 ? (
           <p className={styles.empty}>Пока нет опубликованных треков.</p>
         ) : (
@@ -516,11 +582,21 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
                   <Image src={track.image} alt={track.title} width={90} height={64} />
                 </Link>
                 <div className={styles.trackMeta}>
-                  <h3>{track.title}</h3>
-                  <p>{track.subtitle}</p>
-                  <div className={styles.starsBadge}>
-                    <StarsIcon className={styles.starsIcon} />
-                    {formatStarsFromCents(track.priceStarsCents)}
+                  <div className={styles.trackHeader}>
+                    <div>
+                      <h3>{track.title}</h3>
+                      <p>{track.artistName || track.subtitle || "Релиз артиста"}</p>
+                    </div>
+                    <div className={styles.starsBadge}>
+                      <StarsIcon className={styles.starsIcon} />
+                      {formatStarsFromCents(track.priceStarsCents)}
+                    </div>
+                  </div>
+                  <div className={styles.trackFacts}>
+                    <span>{formatReleaseTypeLabel(track.releaseType)}</span>
+                    <span>{Math.max(1, track.releaseTracklist?.length ?? 1)} треков</span>
+                    <span>{Math.max(1, track.formats?.length ?? 1)} форматов</span>
+                    {track.isMintable ? <span>NFT доступен</span> : <span>NFT выключен</span>}
                   </div>
                 </div>
                 <div className={styles.trackActions}>

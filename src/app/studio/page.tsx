@@ -477,6 +477,45 @@ export default function StudioPage() {
     return map;
   }, [payoutAuditEntries]);
 
+  const nextHoldReleaseLabel = useMemo(() => {
+    if (!payoutSummary?.nextHoldReleaseAt) {
+      return "";
+    }
+
+    return new Date(payoutSummary.nextHoldReleaseAt).toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "long",
+    });
+  }, [payoutSummary]);
+
+  const studioPrimaryInsight = useMemo(() => {
+    if (!profile?.tonWalletAddress) {
+      return {
+        title: "Добавьте TON-кошелёк",
+        body: "Без кошелька артист не сможет запросить вывод после прохождения hold-периода.",
+      };
+    }
+
+    if ((stats?.pendingReleasesCount ?? 0) > 0) {
+      return {
+        title: "На модерации есть релизы",
+        body: "Проверьте pending-релизы: после публикации они начнут собирать продажи и статистику.",
+      };
+    }
+
+    if (payoutSummary?.canRequest) {
+      return {
+        title: "Можно запросить вывод",
+        body: "Часть заработка уже прошла hold. Откройте выплаты и отправьте запрос на TON-кошелёк.",
+      };
+    }
+
+    return {
+      title: "Студия готова к работе",
+      body: "Следующий рост даёт регулярный выпуск релизов, обновление профиля и поддержка подписок.",
+    };
+  }, [payoutSummary?.canRequest, profile?.tonWalletAddress, stats?.pendingReleasesCount]);
+
   const formatPayoutAuditAction = (entry: ArtistPayoutAuditEntry): string => {
     if (entry.action === "requested") {
       return "Запрос создан";
@@ -601,6 +640,18 @@ export default function StudioPage() {
               </div>
             </div>
           </div>
+
+          <div className={styles.heroActions}>
+            <button type="button" className={styles.secondaryButton} onClick={() => setCurrentTab("releases")}>
+              Новый релиз
+            </button>
+            <button type="button" className={styles.secondaryButton} onClick={() => setCurrentTab("payouts")}>
+              Выплаты
+            </button>
+            <Link href={`/shop/artist/${profile.slug}`} className={styles.secondaryButton}>
+              Профиль артиста
+            </Link>
+          </div>
         </section>
 
         {error ? <div className={styles.error}>{error}</div> : null}
@@ -617,6 +668,38 @@ export default function StudioPage() {
 
         {currentTab === "overview" ? (
           <section className={styles.card}>
+            <div className={styles.overviewLead}>
+              <div>
+                <span>Что важно сейчас</span>
+                <strong>{studioPrimaryInsight.title}</strong>
+              </div>
+              <p>{studioPrimaryInsight.body}</p>
+            </div>
+
+            <div className={styles.guideGrid}>
+              <article className={styles.guideCard}>
+                <span>Статус релизов</span>
+                <strong>
+                  {stats?.publishedReleasesCount ?? 0} опубликовано · {stats?.pendingReleasesCount ?? 0} на модерации
+                </strong>
+                <p>Сначала публикуйте релиз, затем проверяйте продажи, реакции и upgrade в релизном экране.</p>
+              </article>
+              <article className={styles.guideCard}>
+                <span>Финансовый цикл</span>
+                <strong>
+                  Hold 21 дней · минимум {formatStarsFromCents(payoutSummary?.minimumRequestStarsCents ?? 0)}
+                </strong>
+                <p>
+                  Доход сначала попадает в hold, после этого становится доступен к запросу на TON-кошелёк.
+                </p>
+              </article>
+              <article className={styles.guideCard}>
+                <span>Публичная витрина</span>
+                <strong>{profile.displayName}</strong>
+                <p>Обновляйте bio, обложку, кошелёк и поддержку: эти данные сразу видят слушатели.</p>
+              </article>
+            </div>
+
             <div className={styles.financeHeroGrid}>
               <article className={styles.metricCard}>
                 <span>Доступно</span>
@@ -704,6 +787,14 @@ export default function StudioPage() {
               <p>То, что увидят слушатели и коллекционеры.</p>
             </div>
 
+            <div className={styles.infoBanner}>
+              <strong>Публичная карточка артиста</strong>
+              <span>
+                Эти поля используются на странице артиста, в релизах и в точках поддержки. Кошелёк нужен и для
+                профиля, и для вывода средств.
+              </span>
+            </div>
+
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
                 <span>Имя артиста</span>
@@ -781,6 +872,22 @@ export default function StudioPage() {
               </label>
             </div>
 
+            <div className={styles.guideGrid}>
+              <article className={styles.guideCard}>
+                <span>TON-кошелёк</span>
+                <strong>{formatShortTonAddress(profileDraft.tonWalletAddress) || "Не указан"}</strong>
+                <p>На этот адрес уходит вывод после ручного approve и прохождения hold-периода.</p>
+              </article>
+              <article className={styles.guideCard}>
+                <span>Поддержка</span>
+                <strong>
+                  {profileDraft.donationEnabled ? "Донаты включены" : "Донаты выключены"} ·{" "}
+                  {profileDraft.subscriptionEnabled ? "Подписка включена" : "Подписка выключена"}
+                </strong>
+                <p>Цена подписки задаётся здесь и сразу используется на публичной странице артиста.</p>
+              </article>
+            </div>
+
             <button
               type="button"
               className={styles.primaryButton}
@@ -797,6 +904,32 @@ export default function StudioPage() {
             <div className={styles.sectionHeader}>
               <h2>Новый релиз</h2>
               <p>Создание нового релиза для модерации и публикации.</p>
+            </div>
+
+            <div className={styles.infoBanner}>
+              <strong>Как работает релиз</strong>
+              <span>
+                Слушатель может купить релиз целиком по формату или купить отдельные треки. NFT-upgrade применяется
+                только к полному релизу и только если у релиза включён mint.
+              </span>
+            </div>
+
+            <div className={styles.guideGrid}>
+              <article className={styles.guideCard}>
+                <span>Опубликовано</span>
+                <strong>{stats?.publishedReleasesCount ?? 0}</strong>
+                <p>Это релизы, которые уже доступны слушателям в каталоге и на странице артиста.</p>
+              </article>
+              <article className={styles.guideCard}>
+                <span>На модерации</span>
+                <strong>{stats?.pendingReleasesCount ?? 0}</strong>
+                <p>Их нужно дождаться в админке: после approve релиз попадёт в витрину и в профиль артиста.</p>
+              </article>
+              <article className={styles.guideCard}>
+                <span>Черновики и правки</span>
+                <strong>{stats?.draftReleasesCount ?? 0}</strong>
+                <p>Если релиз отклонён, обновите поля и треклист, затем отправьте его повторно на модерацию.</p>
+              </article>
             </div>
 
             <div className={styles.fieldGrid}>
@@ -965,6 +1098,9 @@ export default function StudioPage() {
                       <span>
                         {track.releaseTracklist?.length ?? 1} треков · {track.releaseType.toUpperCase()}
                       </span>
+                      <span className={styles.releaseMetaLine}>
+                        {formatStarsFromCents(track.priceStarsCents)} · {track.isMintable ? "NFT включён" : "NFT выключен"}
+                      </span>
                     </div>
                     <span
                       className={`${styles.statusBadge} ${toToneClassName(styles, getReleaseStatusTone(track.status))}`}
@@ -984,6 +1120,16 @@ export default function StudioPage() {
             <div className={styles.sectionHeader}>
               <h2>Выплаты</h2>
               <p>Вывод по TON-кошельку после hold 21 дней и ручного admin approval.</p>
+            </div>
+
+            <div className={styles.infoBanner}>
+              <strong>Правила вывода</strong>
+              <span>
+                Минимальный запрос: {formatStarsFromCents(payoutSummary?.minimumRequestStarsCents ?? 0)}.{" "}
+                {nextHoldReleaseLabel
+                  ? `Следующий hold завершится около ${nextHoldReleaseLabel}.`
+                  : "Новая доступная сумма появится после завершения hold-периода."}
+              </span>
             </div>
 
             <div className={styles.metricGrid}>
