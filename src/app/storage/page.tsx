@@ -8,33 +8,79 @@ import { TonConnectButton, useTonWallet } from "@tonconnect/ui-react";
 import { BackButtonController } from "@/components/back-button-controller";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { useAppAuthUser } from "@/hooks/use-app-auth-user";
-import {
-  fetchStorageProgramSnapshot,
-  joinMyStorageProgram,
-} from "@/lib/admin-api";
+import { fetchStorageProgramSnapshot, joinMyStorageProgram } from "@/lib/admin-api";
 import { openStorageDeliveryInDesktop } from "@/lib/desktop-runtime-api";
-import {
-  fetchMyStorageDeliveryRequests,
-  retryStorageDeliveryRequestApi,
-} from "@/lib/storage-delivery-api";
-import type { StorageDeliveryRequest } from "@/types/storage";
+import { fetchMyStorageDeliveryRequests, retryStorageDeliveryRequestApi } from "@/lib/storage-delivery-api";
+import type { StorageDeliveryRequest, StorageProgramMembership, StorageProgramSnapshot } from "@/types/storage";
 
 import styles from "./page.module.scss";
 
-const formatTier = (value: string | undefined): string => {
-  switch (value) {
-    case "keeper":
-      return "Keeper";
-    case "core":
-      return "Core";
-    case "guardian":
-      return "Guardian";
-    default:
-      return "Supporter";
-  }
+type TierMeta = {
+  label: string;
+  targetDiskGb: number;
+  targetBags: number;
+  weeklyCredits: number;
+  healthGoal: string;
+  nextTier: string | null;
 };
 
-const formatStatus = (value: string | undefined): string => {
+type NodeStateTone = "live" | "ready" | "pending" | "locked";
+
+interface NodeState {
+  label: string;
+  description: string;
+  tone: NodeStateTone;
+}
+
+interface SeedPreviewItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  health: string;
+  peers: string;
+  payout: string;
+}
+
+const TIER_META: Record<StorageProgramMembership["tier"], TierMeta> = {
+  supporter: {
+    label: "Supporter",
+    targetDiskGb: 25,
+    targetBags: 3,
+    weeklyCredits: 120,
+    healthGoal: "4+ часа онлайн в день",
+    nextTier: "Keeper",
+  },
+  keeper: {
+    label: "Keeper",
+    targetDiskGb: 80,
+    targetBags: 8,
+    weeklyCredits: 340,
+    healthGoal: "8+ часов онлайн в день",
+    nextTier: "Core",
+  },
+  core: {
+    label: "Core",
+    targetDiskGb: 180,
+    targetBags: 18,
+    weeklyCredits: 760,
+    healthGoal: "Почти постоянная раздача",
+    nextTier: "Guardian",
+  },
+  guardian: {
+    label: "Guardian",
+    targetDiskGb: 400,
+    targetBags: 36,
+    weeklyCredits: 1480,
+    healthGoal: "24/7 node health",
+    nextTier: null,
+  },
+};
+
+const formatTier = (value: StorageProgramMembership["tier"] | undefined): string => {
+  return value ? TIER_META[value].label : "Supporter";
+};
+
+const formatStatus = (value: StorageProgramMembership["status"] | undefined): string => {
   switch (value) {
     case "approved":
       return "Одобрено";
@@ -66,7 +112,7 @@ const formatDeliveryStatus = (value: StorageDeliveryRequest["status"]): string =
 
 const formatDeliveryTarget = (request: StorageDeliveryRequest): string => {
   if (request.targetType === "track") {
-    return request.trackId ? `Трек: ${request.trackId}` : "Трек";
+    return request.trackId ? `Трек · ${request.trackId}` : "Трек";
   }
 
   return "Полный релиз";
@@ -83,6 +129,107 @@ const formatDeliveryChannel = (value: StorageDeliveryRequest["channel"]): string
   }
 };
 
+const formatShortWallet = (value: string | undefined): string => {
+  const normalized = String(value ?? "").trim();
+
+  if (normalized.length < 13) {
+    return normalized || "Не привязан";
+  }
+
+  return `${normalized.slice(0, 5)}…${normalized.slice(-5)}`;
+};
+
+const resolveNodeState = (
+  membership: StorageProgramMembership | null,
+  snapshot: StorageProgramSnapshot | null,
+): NodeState => {
+  if (!membership) {
+    return {
+      label: "Ещё не активна",
+      description: "Сначала нужно вступить в программу и получить доступ к desktop-клиенту.",
+      tone: "locked",
+    };
+  }
+
+  if (membership.status === "approved" && snapshot?.desktopClientEnabled && snapshot.nodeCount > 0) {
+    return {
+      label: "Нода подключена",
+      description: "Можно держать bags в раздаче, следить за health и накапливать C3K Credit.",
+      tone: "live",
+    };
+  }
+
+  if (membership.status === "approved") {
+    return {
+      label: "Готова к запуску",
+      description: "Аккаунт одобрен. Следующий шаг — поднять C3K Desktop Client и включить раздачу.",
+      tone: "ready",
+    };
+  }
+
+  return {
+    label: "Ожидает допуска",
+    description: "Заявка уже есть, но нода и награды откроются после модерации.",
+    tone: "pending",
+  };
+};
+
+const buildSeedPreview = (
+  history: StorageDeliveryRequest[],
+  membership: StorageProgramMembership | null,
+): SeedPreviewItem[] => {
+  const uniqueReleases = Array.from(new Set(history.map((entry) => entry.releaseSlug))).slice(0, 3);
+  const tier = membership?.tier ?? "supporter";
+  const basePeers = tier === "guardian" ? 36 : tier === "core" ? 22 : tier === "keeper" ? 12 : 6;
+  const basePayout = TIER_META[tier].weeklyCredits;
+
+  if (uniqueReleases.length === 0) {
+    return [
+      {
+        id: "preview-release-1",
+        title: "collector-archive",
+        subtitle: "lossless release bag · priority",
+        health: "Healthy",
+        peers: `${basePeers} peers`,
+        payout: `+${Math.round(basePayout * 0.18)} C3K / неделя`,
+      },
+      {
+        id: "preview-release-2",
+        title: "nft-media-bundle",
+        subtitle: "NFT media + booklet",
+        health: membership?.status === "approved" ? "Replicating" : "Ждёт допуска",
+        peers: `${Math.max(3, basePeers - 4)} peers`,
+        payout: `+${Math.round(basePayout * 0.12)} C3K / неделя`,
+      },
+      {
+        id: "preview-release-3",
+        title: "desktop-site-cache",
+        subtitle: "c3k.ton bundle cache",
+        health: snapshotEnabledHealth(membership),
+        peers: `${Math.max(2, basePeers - 6)} peers`,
+        payout: `+${Math.round(basePayout * 0.09)} C3K / неделя`,
+      },
+    ];
+  }
+
+  return uniqueReleases.map((slug, index) => ({
+    id: `${slug}-${index + 1}`,
+    title: slug,
+    subtitle: index === 0 ? "release bag" : index === 1 ? "collector archive" : "desktop mirror",
+    health: index === 0 ? "Healthy" : index === 1 ? "Replicating" : "Queued",
+    peers: `${Math.max(2, basePeers - index * 3)} peers`,
+    payout: `+${Math.max(12, Math.round(basePayout * (0.18 - index * 0.04)))} C3K / неделя`,
+  }));
+};
+
+function snapshotEnabledHealth(membership: StorageProgramMembership | null): string {
+  if (membership?.status === "approved") {
+    return "Ready";
+  }
+
+  return "Preview";
+}
+
 export default function StorageProgramPage() {
   const router = useRouter();
   const tonWallet = useTonWallet();
@@ -96,14 +243,27 @@ export default function StorageProgramPage() {
   const [joining, setJoining] = useState(false);
   const [deliveryHistory, setDeliveryHistory] = useState<StorageDeliveryRequest[]>([]);
   const [retryingRequestId, setRetryingRequestId] = useState("");
-  const [snapshot, setSnapshot] = useState<Awaited<
-    ReturnType<typeof fetchStorageProgramSnapshot>
-  >["snapshot"]>(null);
+  const [snapshot, setSnapshot] = useState<Awaited<ReturnType<typeof fetchStorageProgramSnapshot>>["snapshot"]>(null);
 
   const connectedWalletAddress = useMemo(
     () => String(tonWallet?.account?.address ?? "").trim(),
     [tonWallet?.account?.address],
   );
+
+  const membership = snapshot?.membership ?? null;
+  const tierMeta = membership ? TIER_META[membership.tier] : TIER_META.supporter;
+  const nodeState = useMemo(() => resolveNodeState(membership, snapshot), [membership, snapshot]);
+  const seedPreview = useMemo(
+    () => buildSeedPreview(deliveryHistory, membership),
+    [deliveryHistory, membership],
+  );
+
+  const liveRewards = membership?.status === "approved" ? tierMeta.weeklyCredits : Math.round(tierMeta.weeklyCredits * 0.55);
+  const tokenBalancePreview = membership?.status === "approved" ? tierMeta.weeklyCredits * 3 + 84 : 0;
+  const bagsInFocus = membership?.status === "approved" ? Math.max(seedPreview.length, tierMeta.targetBags) : tierMeta.targetBags;
+  const nodeCountLabel = snapshot?.nodeCount && snapshot.nodeCount > 0 ? `${snapshot.nodeCount}` : "Подключите desktop";
+  const desktopModeLabel = snapshot?.desktopClientEnabled ? "Готов к запуску" : "Beta waiting";
+  const releaseModeLabel = snapshot?.testModeIngestEnabled ? "Test-only" : "Preview only";
 
   useEffect(() => {
     if (!connectedWalletAddress || connectedWalletAddress === walletAddress) {
@@ -200,10 +360,7 @@ export default function StorageProgramPage() {
   };
 
   const openDelivery = (request: StorageDeliveryRequest) => {
-    if (
-      request.channel === "desktop_download" &&
-      (request.storagePointer || request.deliveryUrl)
-    ) {
+    if (request.channel === "desktop_download" && (request.storagePointer || request.deliveryUrl)) {
       openStorageDeliveryInDesktop(request);
       return;
     }
@@ -250,42 +407,84 @@ export default function StorageProgramPage() {
             <button type="button" className={styles.backButton} onClick={handleBack}>
               Назад
             </button>
-            <span className={styles.heroChip}>C3K Storage</span>
+            <span className={styles.heroChip}>Sprint 10 · Storage</span>
           </div>
+
           <div className={styles.heroMain}>
             <div className={styles.identityCard}>
               <div className={styles.identityMeta}>
-                <h1>Программа хранения и раздачи</h1>
-                <strong>C3K Storage</strong>
+                <p className={styles.kicker}>C3K Storage Node</p>
+                <h1>Раздавайте контент сети и копите C3K Credit</h1>
                 <span>
-                  Участники программы помогают хранить bags, раздавать релизы и
-                  получают статус внутри экосистемы.
+                  Это уже не просто форма вступления. Это целевой интерфейс вашей storage-ноды: здоровье раздачи, вклад в
+                  сеть, bags в работе и будущая монета за участие.
                 </span>
+              </div>
+
+              <div className={styles.heroPills}>
+                <span className={`${styles.statusPill} ${styles[`statusPill${nodeState.tone.charAt(0).toUpperCase()}${nodeState.tone.slice(1)}`]}`}>
+                  {nodeState.label}
+                </span>
+                <span className={styles.statusPill}>{formatTier(membership?.tier)}</span>
+                <span className={styles.statusPill}>{releaseModeLabel}</span>
+              </div>
+
+              <div className={styles.heroStats}>
+                <article className={styles.metricTile}>
+                  <span>Desktop runtime</span>
+                  <strong>{desktopModeLabel}</strong>
+                  <small>{snapshot?.desktopClientEnabled ? "Electron node + c3k.ton gateway" : "Откроется после desktop slice"}</small>
+                </article>
+                <article className={styles.metricTile}>
+                  <span>Ноды</span>
+                  <strong>{nodeCountLabel}</strong>
+                  <small>{snapshot?.nodeCount ? "Активные runtime точки" : "Пока ни одна нода не подключена"}</small>
+                </article>
+                <article className={styles.metricTile}>
+                  <span>Storage bags</span>
+                  <strong>{bagsInFocus}</strong>
+                  <small>Целевой пул раздачи для вашего tier</small>
+                </article>
               </div>
             </div>
 
-            <div className={styles.balanceCard}>
-              <span className={styles.balanceCardLabel}>Desktop stack</span>
-              <strong className={styles.balanceCardValue}>Electron + TON</strong>
-              <small className={styles.balanceCardHint}>
-                Desktop-клиент совмещает node, gateway для <code>c3k.ton</code> и
-                storage runtime.
+            <aside className={styles.walletCard}>
+              <div className={styles.walletBadge}>C3K Credit</div>
+              <strong className={styles.walletValue}>{tokenBalancePreview}</strong>
+              <span className={styles.walletCaption}>Баланс монеты за вклад в сеть</span>
+              <div className={styles.walletRows}>
+                <div>
+                  <span>Эта неделя</span>
+                  <b>+{liveRewards}</b>
+                </div>
+                <div>
+                  <span>Следующий апгрейд</span>
+                  <b>{tierMeta.nextTier ?? "Максимальный tier"}</b>
+                </div>
+                <div>
+                  <span>Кошелёк</span>
+                  <b>{formatShortWallet(membership?.walletAddress || connectedWalletAddress)}</b>
+                </div>
+              </div>
+              <small className={styles.walletHint}>
+                Пока это target UI для reward-layer. Следующий этап — реальный test-only runtime и начисление за uptime,
+                storage bags и peer-to-peer раздачу.
               </small>
-            </div>
+            </aside>
           </div>
         </section>
 
         {isSessionLoading || loading ? (
-          <section className={styles.group}>
-            <div className={styles.loadingState}>Загружаем статус программы...</div>
+          <section className={styles.sectionCard}>
+            <div className={styles.loadingState}>Загружаем статус программы и storage dashboard...</div>
           </section>
         ) : null}
 
         {!isSessionLoading && !user?.id ? (
-          <section className={styles.group}>
-            <div className={styles.groupHeading}>
+          <section className={styles.sectionCard}>
+            <div className={styles.sectionHead}>
               <h2>Вход в программу</h2>
-              <p>Для участия нужен аккаунт C3K и Telegram-авторизация.</p>
+              <p>Для участия в `C3K Storage` нужен аккаунт приложения и Telegram-авторизация.</p>
             </div>
             <TelegramLoginWidget onAuthorized={() => void refreshSession()} />
           </section>
@@ -296,149 +495,202 @@ export default function StorageProgramPage() {
 
         {user?.id ? (
           <>
-            <section className={styles.group}>
-              <div className={styles.groupHeading}>
-                <h2>Статус участия</h2>
-                <p>Текущее состояние программы C3K Storage для вашего аккаунта.</p>
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Node control center</h2>
+                <p>{nodeState.description}</p>
               </div>
 
-              <div className={styles.statsGrid}>
-                <article className={styles.metricCard}>
-                  <span>Программа</span>
-                  <strong>{snapshot?.enabled ? "Включена" : "Выключена"}</strong>
-                </article>
-                <article className={styles.metricCard}>
-                  <span>Desktop client</span>
-                  <strong>
-                    {snapshot?.desktopClientEnabled ? "Доступен" : "Ещё не открыт"}
-                  </strong>
-                </article>
-                <article className={styles.metricCard}>
-                  <span>TON Site gateway</span>
-                  <strong>
-                    {snapshot?.tonSiteDesktopGatewayEnabled
-                      ? "Запланирован"
-                      : "Не включён"}
-                  </strong>
-                </article>
-                <article className={styles.metricCard}>
-                  <span>Ваши ноды</span>
-                  <strong>{snapshot?.nodeCount ?? 0}</strong>
-                </article>
-              </div>
-
-              {snapshot?.membership ? (
-                <div className={styles.membershipCard}>
-                  <div className={styles.infoRow}>
-                    <span>Статус</span>
-                    <strong>{formatStatus(snapshot.membership.status)}</strong>
-                  </div>
-                  <div className={styles.infoRow}>
-                    <span>Tier</span>
-                    <strong>{formatTier(snapshot.membership.tier)}</strong>
-                  </div>
-                  <div className={styles.infoRow}>
-                    <span>Кошелёк</span>
-                    <strong>
-                      {snapshot.membership.walletAddress || "Пока не указан"}
-                    </strong>
-                  </div>
-                  {snapshot.membership.moderationNote ? (
-                    <div className={styles.noticeError}>
-                      {snapshot.membership.moderationNote}
+              <div className={styles.controlGrid}>
+                <article className={styles.controlPanel}>
+                  <div className={styles.controlHead}>
+                    <div>
+                      <strong>Раздача и здоровье</strong>
+                      <p>Как пользователь будет видеть рабочую ноду и peer-to-peer контур прямо в приложении.</p>
                     </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className={styles.emptyState}>
-                  Вы ещё не вступили в программу. Ниже можно подать заявку на участие.
-                </div>
-              )}
+                    <span className={styles.controlPill}>Target state</span>
+                  </div>
+                  <div className={styles.controlMetrics}>
+                    <div>
+                      <span>Выделено под storage</span>
+                      <b>{tierMeta.targetDiskGb} GB</b>
+                    </div>
+                    <div>
+                      <span>Цель по bags</span>
+                      <b>{tierMeta.targetBags}</b>
+                    </div>
+                    <div>
+                      <span>Health target</span>
+                      <b>{tierMeta.healthGoal}</b>
+                    </div>
+                    <div>
+                      <span>Telegram delivery</span>
+                      <b>{snapshot?.telegramBotDeliveryEnabled ? "Включено" : "Ещё не подключено"}</b>
+                    </div>
+                  </div>
+                </article>
+
+                <article className={styles.controlPanel}>
+                  <div className={styles.controlHead}>
+                    <div>
+                      <strong>Участие в программе</strong>
+                      <p>Здесь считываются moderation state, tier, кошелёк и readiness desktop-клиента.</p>
+                    </div>
+                  </div>
+                  <div className={styles.controlMetrics}>
+                    <div>
+                      <span>Статус</span>
+                      <b>{formatStatus(membership?.status)}</b>
+                    </div>
+                    <div>
+                      <span>Tier</span>
+                      <b>{formatTier(membership?.tier)}</b>
+                    </div>
+                    <div>
+                      <span>TON gateway</span>
+                      <b>{snapshot?.tonSiteDesktopGatewayEnabled ? "Запланирован" : "Дальше по roadmap"}</b>
+                    </div>
+                    <div>
+                      <span>Кошелёк</span>
+                      <b>{membership?.walletAddress ? "Привязан" : "Пока не указан"}</b>
+                    </div>
+                  </div>
+                </article>
+              </div>
             </section>
 
-            <section className={styles.group}>
-              <div className={styles.groupHeading}>
-                <h2>Подать заявку</h2>
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Что раздаётся через ноду</h2>
                 <p>
-                  На первом этапе программа запускается постепенно. Укажите TON-кошелёк
-                  и кратко опишите, зачем вы хотите участвовать.
+                  Это целевой вид swarm-экрана: релизные bags, архивы, NFT media и desktop cache будут видны как живые
+                  сущности с peers и доходностью.
                 </p>
               </div>
 
-              <div className={styles.formGrid}>
-                <label className={styles.field}>
-                  <span>TON-кошелёк</span>
-                  <input
-                    value={walletAddress}
-                    onChange={(event) => setWalletAddress(event.target.value)}
-                    placeholder="EQ..."
-                  />
-                </label>
-
-                <div className={styles.walletTools}>
-                  <TonConnectButton className={styles.tonConnectButton} />
-                </div>
-
-                <label className={`${styles.field} ${styles.fieldWide}`}>
-                  <span>Заметка к заявке</span>
-                  <textarea
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    placeholder="Например: готов выделить 50 GB и хочу участвовать в C3K Storage beta."
-                  />
-                </label>
-              </div>
-
-              <div className={styles.panelActions}>
-                <button
-                  type="button"
-                  className={styles.primaryButton}
-                  onClick={() => void handleJoin()}
-                  disabled={joining}
-                >
-                  {joining ? "Отправляем..." : "Подать заявку"}
-                </button>
-                <Link href="/profile/edit" className={styles.secondaryLink}>
-                  Вернуться в настройки
-                </Link>
-                <Link href="/storage/desktop" className={styles.secondaryLink}>
-                  Desktop beta
-                </Link>
+              <div className={styles.seedGrid}>
+                {seedPreview.map((item) => (
+                  <article key={item.id} className={styles.seedCard}>
+                    <div className={styles.seedCardHead}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p>{item.subtitle}</p>
+                      </div>
+                      <span className={styles.seedHealthPill}>{item.health}</span>
+                    </div>
+                    <div className={styles.seedMeta}>
+                      <span>{item.peers}</span>
+                      <span>{item.payout}</span>
+                    </div>
+                  </article>
+                ))}
               </div>
             </section>
 
-            <section className={styles.group}>
-              <div className={styles.groupHeading}>
-                <h2>Что входит в программу</h2>
-                <p>
-                  Это не просто storage node, а единый desktop-клиент для C3K
-                  ecosystem.
-                </p>
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Как начисляется C3K Credit</h2>
+                <p>Будущая reward-логика уже заложена в интерфейсе, чтобы было видно, к чему идём в следующем storage sprint.</p>
               </div>
 
-              <div className={styles.featureList}>
-                <article className={styles.featureCard}>
-                  <strong>Storage Node</strong>
-                  <span>Хранение и раздача bags с релизами и архивами.</span>
+              <div className={styles.rewardRuleGrid}>
+                <article className={styles.rewardRuleCard}>
+                  <strong>Uptime</strong>
+                  <span>Чем стабильнее node online, тем выше доля еженедельного C3K Credit.</span>
                 </article>
-                <article className={styles.featureCard}>
-                  <strong>c3k.ton gateway</strong>
-                  <span>Локальное открытие TON Site через ваш C3K desktop client.</span>
+                <article className={styles.rewardRuleCard}>
+                  <strong>Bags в раздаче</strong>
+                  <span>Редкие релизы, lossless архивы и коллекционные bundles дают больший вес в программе.</span>
                 </article>
-                <article className={styles.featureCard}>
-                  <strong>Collector status</strong>
-                  <span>Badge, tier и доступ к special drops и будущим perks.</span>
+                <article className={styles.rewardRuleCard}>
+                  <strong>Peer contribution</strong>
+                  <span>Раздача в пиковые моменты и здоровый swarm будут повышать reward multiplier и tier progress.</span>
                 </article>
               </div>
             </section>
 
-            <section className={styles.group}>
-              <div className={styles.groupHeading}>
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Участие и запуск</h2>
+                <p>Этот блок остаётся рабочим уже сейчас: здесь заявка, кошелёк, moderation note и вход в desktop-контур.</p>
+              </div>
+
+              <div className={styles.membershipGrid}>
+                <article className={styles.membershipPanel}>
+                  <div className={styles.membershipRows}>
+                    <div>
+                      <span>Статус</span>
+                      <b>{formatStatus(membership?.status)}</b>
+                    </div>
+                    <div>
+                      <span>Tier</span>
+                      <b>{formatTier(membership?.tier)}</b>
+                    </div>
+                    <div>
+                      <span>TON-кошелёк</span>
+                      <b>{membership?.walletAddress || connectedWalletAddress || "Пока не указан"}</b>
+                    </div>
+                  </div>
+                  {membership?.moderationNote ? <div className={styles.noticeError}>{membership.moderationNote}</div> : null}
+                  <div className={styles.panelActions}>
+                    <Link href="/storage/desktop" className={styles.primaryButton}>
+                      Открыть desktop-контур
+                    </Link>
+                    <Link href="/downloads" className={styles.secondaryLink}>
+                      Файлы и delivery
+                    </Link>
+                    <Link href="/profile/edit" className={styles.secondaryLink}>
+                      Настройки
+                    </Link>
+                  </div>
+                </article>
+
+                <article className={styles.joinPanel}>
+                  <div className={styles.joinPanelHead}>
+                    <strong>{membership ? "Обновить участие" : "Подать заявку"}</strong>
+                    <p>
+                      На текущем этапе программа запускается постепенно. Укажите TON-кошелёк и кратко опишите, какой объём
+                      storage вы готовы выделить.
+                    </p>
+                  </div>
+
+                  <div className={styles.joinGrid}>
+                    <label className={styles.field}>
+                      <span>TON-кошелёк</span>
+                      <input
+                        value={walletAddress}
+                        onChange={(event) => setWalletAddress(event.target.value)}
+                        placeholder="EQ..."
+                      />
+                    </label>
+
+                    <div className={styles.walletTools}>
+                      <TonConnectButton className={styles.tonConnectButton} />
+                    </div>
+
+                    <label className={`${styles.field} ${styles.fieldWide}`}>
+                      <span>Что хотите выделить под ноду</span>
+                      <textarea
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        placeholder="Например: готов держать 120 GB, хочу раздавать архивы релизов и участвовать в C3K Storage beta."
+                      />
+                    </label>
+                  </div>
+
+                  <div className={styles.panelActions}>
+                    <button type="button" className={styles.primaryButton} onClick={() => void handleJoin()} disabled={joining}>
+                      {joining ? "Отправляем..." : membership ? "Обновить заявку" : "Подать заявку"}
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
                 <h2>Последние выдачи</h2>
-                <p>
-                  Здесь видны ваши последние запросы на скачивание и отправку
-                  файлов через C3K Storage.
-                </p>
+                <p>Здесь уже живой слой: файлы, desktop handoff, Telegram delivery и retry после ошибок.</p>
               </div>
 
               {deliveryHistory.length > 0 ? (
@@ -454,25 +706,15 @@ export default function StorageProgramPage() {
                         <span>{formatDeliveryChannel(request.channel)}</span>
                         <span>{request.resolvedFormat || request.requestedFormat || "no format"}</span>
                       </div>
-                      {request.failureMessage ? (
-                        <p className={styles.deliveryMessage}>{request.failureMessage}</p>
-                      ) : null}
-                      {request.status === "ready" &&
-                      (request.deliveryUrl || request.storagePointer) ? (
+                      {request.failureMessage ? <p className={styles.deliveryMessage}>{request.failureMessage}</p> : null}
+                      {request.status === "ready" && (request.deliveryUrl || request.storagePointer) ? (
                         <div className={styles.deliveryActions}>
-                          <button
-                            type="button"
-                            className={styles.primaryButton}
-                            onClick={() => openDelivery(request)}
-                          >
-                            {request.channel === "desktop_download"
-                              ? "Открыть в Desktop"
-                              : "Открыть файл"}
+                          <button type="button" className={styles.primaryButton} onClick={() => openDelivery(request)}>
+                            {request.channel === "desktop_download" ? "Открыть в Desktop" : "Открыть файл"}
                           </button>
                         </div>
                       ) : null}
-                      {(request.status === "failed" ||
-                        request.status === "pending_asset_mapping") ? (
+                      {(request.status === "failed" || request.status === "pending_asset_mapping") ? (
                         <div className={styles.deliveryActions}>
                           <button
                             type="button"
@@ -489,8 +731,8 @@ export default function StorageProgramPage() {
                 </div>
               ) : (
                 <div className={styles.emptyState}>
-                  История выдач пока пустая. После покупки релиза или трека здесь
-                  появятся download и Telegram delivery requests.
+                  История выдач пока пустая. После покупки релиза или трека здесь останется уже живой post-purchase слой, а
+                  сверху будет отдельный node dashboard.
                 </div>
               )}
             </section>
