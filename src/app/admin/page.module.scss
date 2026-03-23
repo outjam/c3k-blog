@@ -276,6 +276,243 @@
   gap: 0.6rem;
 }
 
+.workerRunBlock {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.workerRunHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.workerRunHead h3,
+.workerRunHead p,
+.workerRunUpdatedAt,
+.workerRunCardHead p,
+.workerRunError,
+.workerRunEmpty,
+.workerRunMetrics span {
+  margin: 0;
+  color: var(--tg-hint);
+}
+
+.workerRunHead h3,
+.workerRunCardHead strong,
+.workerRunMetrics b {
+  color: var(--tg-text);
+}
+
+.workerRunUpdatedAt,
+.workerRunHead p,
+.workerRunCardHead p,
+.workerRunError,
+.workerRunEmpty,
+.workerRunMetrics p {
+  font-size: 0.78rem;
+}
+
+.workerRunList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.workerRunCard {
+  padding: 0.68rem;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.workerRunCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.workerRunMetrics {
+  display: grid;
+  gap: 0.26rem;
+}
+
+.workerRunMetrics p {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.incidentBlock {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.incidentSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.incidentSummary div {
+  padding: 0.62rem;
+  border-radius: 0.64rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.incidentSummary span,
+.incidentCardHead p,
+.incidentSummaryText,
+.incidentActionHint,
+.incidentWindow,
+.incidentSourceNote,
+.incidentEntry p,
+.incidentEntryMeta,
+.incidentEmpty {
+  color: var(--tg-hint);
+}
+
+.incidentSummary b,
+.incidentCardHead strong,
+.incidentEntryHead strong {
+  color: var(--tg-text);
+}
+
+.incidentGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.incidentCard {
+  padding: 0.68rem;
+  border-radius: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: var(--tg-section-bg);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.incidentCardOk {
+  border-color: color-mix(in srgb, #1f9d55 22%, var(--tg-section-separator));
+}
+
+.incidentCardWarning {
+  border-color: color-mix(in srgb, #ff9f0a 36%, var(--tg-section-separator));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #ff9f0a 7%, transparent), transparent 70%),
+    var(--tg-section-bg);
+}
+
+.incidentCardCritical {
+  border-color: color-mix(in srgb, #ff5f57 42%, var(--tg-section-separator));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #ff5f57 9%, transparent), transparent 68%),
+    var(--tg-section-bg);
+}
+
+.incidentCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.incidentCardHead h3,
+.incidentCardHead p,
+.incidentSummaryText,
+.incidentActionHint,
+.incidentWindow,
+.incidentSourceNote,
+.incidentEntry p,
+.incidentEntryMeta,
+.incidentEmpty {
+  margin: 0;
+}
+
+.incidentCardHead h3 {
+  font-size: 0.9rem;
+  color: var(--tg-text);
+}
+
+.incidentCardHead strong {
+  font-size: 1rem;
+}
+
+.incidentSummaryText,
+.incidentActionHint,
+.incidentWindow,
+.incidentSourceNote,
+.incidentEmpty {
+  font-size: 0.78rem;
+}
+
+.incidentEntryList {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.incidentEntry {
+  padding: 0.55rem;
+  border-radius: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 76%, var(--tg-section-bg));
+  display: grid;
+  gap: 0.28rem;
+}
+
+.incidentEntryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.incidentEntryMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+}
+
+.incidentStateCritical,
+.incidentStateWarning,
+.incidentStateInfo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.55rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.incidentStateCritical {
+  color: #ff5f57;
+  background: color-mix(in srgb, #ff5f57 14%, transparent);
+}
+
+.incidentStateWarning {
+  color: #ff9f0a;
+  background: color-mix(in srgb, #ff9f0a 16%, transparent);
+}
+
+.incidentStateInfo {
+  color: var(--tg-link-color, var(--tg-btn));
+  background: color-mix(in srgb, var(--tg-link-color, var(--tg-btn)) 14%, transparent);
+}
+
 .migrationSummary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -732,7 +969,10 @@
   .tabLead,
   .metrics,
   .migrationSummary,
+  .incidentSummary,
   .migrationGrid,
+  .incidentGrid,
+  .workerRunList,
   .actionGuideGrid,
   .productsList,
   .promoList,

@@ -85,8 +85,9 @@ export function ShopProductCard({
       : product.releaseType === "ep"
         ? "EP"
         : "Single";
+  const releaseContext = product.subcategoryLabel ?? product.attributes.collection ?? "Релиз";
   const ownershipSummary = ownership?.isFullReleaseOwned
-    ? "В коллекции"
+    ? "Полный релиз"
     : ownership && ownership.ownedTrackCount > 0
       ? `${ownership.ownedTrackCount} из ${ownership.totalTrackCount} треков`
       : `${trackCount} треков`;
@@ -94,6 +95,13 @@ export function ShopProductCard({
     ownership && ownership.ownedFormatLabels.length > 0
       ? ownership.ownedFormatLabels.join(" · ")
       : ownership?.availableFormatLabels.slice(0, 2).join(" · ") || "Форматы";
+  const ownershipDetail = ownership?.isFullReleaseOwned
+    ? ownership.ownedFormatLabels.length > 0
+      ? `Ваши форматы: ${ownership.ownedFormatLabels.join(" · ")}`
+      : "Релиз уже в коллекции"
+    : ownership && ownership.ownedTrackCount > 0
+      ? "Можно докупить релиз целиком"
+      : "Доступен полный релиз";
 
   const handleFavorite: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
@@ -166,7 +174,9 @@ export function ShopProductCard({
           </div>
 
           <h3 className={styles.title}>{product.title}</h3>
-          <p className={styles.description}>{product.description}</p>
+          <p className={styles.supportingLine}>
+            {releaseContext} · {trackCount} треков
+          </p>
 
           <div className={styles.metaRow}>
             <span className={styles.infoChip}>{ownershipSummary}</span>
@@ -177,7 +187,7 @@ export function ShopProductCard({
           </div>
 
           <div className={styles.metaRow}>
-            <span>{product.subcategoryLabel ?? product.attributes.collection}</span>
+            <span>{ownershipDetail}</span>
             <div className={styles.priceBadge}>
               <StarsIcon className={styles.priceBadgeIcon} />
               {formatStarsFromCents(product.priceStarsCents)}

@@ -217,9 +217,10 @@ Status: current
 
 Что уже доставлено в этом спринте:
 - [x] Дополнительный UX/design pass для admin cutover, studio finance и downloads library
+- [x] Incident/admin обзор по оплатам, payout, delivery, ingest и NFT runtime
+- [x] Retry-safe claim/lease слой для Telegram storage delivery worker
 
 Что должно быть доставлено:
-- [ ] Incident/admin обзор по mint, delivery и payout проблемам
 - [ ] Наблюдаемость, аудит и retry-safe jobs
 - [ ] Чистое разделение `testnet / mainnet`
 - [ ] Подготовка mainnet-ready TON contour

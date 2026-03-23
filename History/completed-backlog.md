@@ -262,6 +262,18 @@
 - Следующим slice admin payout moderation тоже стала устойчивее к migration drift:
   - `/api/admin/artist-payouts` умеет гидрировать request из normalized finance snapshot
   - moderation больше не требует, чтобы request уже существовал в legacy JSON слое
+- Следующим slice `Sprint 09` получила live incident visibility в админке:
+  - добавлен `admin incident snapshot` по оплатам, payouts, delivery, ingest и NFT runtime
+  - появился новый route `/api/admin/incidents`
+  - dashboard теперь показывает не только cutover/migration status, но и реальные operational сигналы
+- Следующим slice `Sprint 09` storage delivery worker получил retry-safe claim/lease слой:
+  - request теперь может быть захвачен worker-ом через `workerLockId` и `workerLockedAt`
+  - конкурентные worker-запуски должны пропускать уже занятый request
+  - после `delivered/failed` lock очищается, а `workerAttemptCount` сохраняет число реальных попыток
+- Следующим slice проведён consumer UI/UX pass по профилю, каталогу и релизу:
+  - коллекция в профиле теперь показывает owned formats, если релиз куплен в нескольких качествах
+  - карточки каталога стали показывать ownership/format/progress полезнее и без лишнего описательного шума
+  - страница релиза переведена в более track-first layout: компактный format block, tracklist выше, collection/delivery/NFT собраны в utility panels
 - Следующим slice admin artist moderation тоже получила hydration из normalized layers:
   - `/api/admin/artist-applications` умеет брать fallback application/profile из merge-store
   - `/api/admin/artists` умеет модерировать профиль с fallback на normalized artist profile

@@ -1202,3 +1202,83 @@
 - browser login больше не опирается на deprecated Telegram widget script
 - Mini App auth через `initData` не затронут и остаётся основным flow внутри Telegram
 - web/browser режим теперь ближе к официальному Telegram OIDC-подходу
+
+### Sprint 09 slice: admin incident/status overview
+
+- Добавлен отдельный server-side incident snapshot для operator dashboard:
+  - [src/lib/server/admin-incident-status.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-incident-status.ts)
+  - [src/types/admin.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/admin.ts)
+- Snapshot собирает live-сигналы по:
+  - оплатам и stuck checkout
+  - payout requests
+  - failed/stale delivery requests
+  - failed/stale ingest jobs
+  - NFT runtime readiness
+- Добавлен admin API route:
+  - [src/app/api/admin/incidents/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/incidents/route.ts)
+- Client admin API расширен новым fetch helper:
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- В [src/app/admin/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx) dashboard теперь показывает:
+  - число открытых инцидентов
+  - число critical/warning сигналов
+  - по каждому operational домену:
+    - human summary
+    - action hint
+    - source state
+    - список свежих сигналов
+
+### Что это даёт
+
+- админка теперь показывает не только migration coverage, но и реальные operational risk-сигналы
+- у project owner появился быстрый ответ на вопрос “что сейчас сломано или требует внимания”
+- `Sprint 09` получил первый настоящий production-hardening UI slice, а не только backend groundwork
+
+### Sprint 09 slice: retry-safe storage delivery worker
+
+- Добавлен worker claim/lease слой для delivery requests:
+  - [src/lib/server/storage-delivery-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery-store.ts)
+  - [src/lib/server/storage-delivery.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts)
+  - [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts)
+- У delivery request появились поля:
+  - `workerLockId`
+  - `workerLockedAt`
+  - `workerAttemptCount`
+- Telegram worker теперь перед отправкой файла:
+  - claim-ит request через lock/lease
+  - пропускает уже занятые requests
+  - очищает lock после `delivered` или `failed`
+
+### Что это даёт
+
+- параллельные worker-запуски больше не должны отправлять один и тот же файл дважды
+- storage delivery стал ближе к retry-safe production-поведению
+- `Sprint 09` получил первый backend slice именно в направлении job safety, а не только operator visibility
+
+### UI/UX pass: profile, catalog and release page alignment
+
+- Проведён отдельный consumer-facing UI pass по:
+  - [src/app/profile/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.tsx)
+  - [src/app/profile/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.module.scss)
+  - [src/components/shop/shop-product-card.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/shop/shop-product-card.tsx)
+  - [src/components/shop/shop-product-card.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/shop/shop-product-card.module.scss)
+  - [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/[slug]/shop-product-page-client.tsx)
+  - [src/app/shop/[slug]/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/[slug]/page.module.scss)
+- В профиле коллекция теперь показывает не только сам релиз, но и форматы, если полный релиз был куплен в нескольких качествах.
+- В каталоге карточки релизов стали менее текстовыми и больше показывают полезную personal state информацию:
+  - ownership progress
+  - owned formats
+  - тип релиза и число треков
+- Экран релиза перестроен в более `track-first` сценарий:
+  - формат релиза вынесен в компактный control block
+  - tracklist поднят выше и получил более ясный контекст
+  - шумный отдельный purchase/delivery слой убран
+  - коллекция, выдача файлов и NFT сведены в более собранные utility panels
+
+### Что это даёт
+
+- реализованные purchase/delivery/NFT фичи теперь лучше читаются на основных consumer-экранах
+- страница релиза стала менее шумной и лучше соответствует реальному пользовательскому сценарию
+- каталог и профиль стали лучше показывать разницу между:
+  - полным релизом
+  - частично купленными треками
+  - NFT-улучшением

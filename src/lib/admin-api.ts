@@ -1,6 +1,7 @@
 "use client";
 
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
+import type { AdminIncidentStatusSnapshot, AdminWorkerRunSnapshot } from "@/types/admin";
 import type {
   ArtistApplication,
   ArtistPayoutAuditEntry,
@@ -78,6 +79,9 @@ export interface AdminMigrationStatusSnapshot {
   legacyDomains: number;
   domains: AdminMigrationDomainStatus[];
 }
+
+export type { AdminIncidentStatusSnapshot } from "@/types/admin";
+export type { AdminWorkerRunSnapshot } from "@/types/admin";
 
 export interface AdminSocialEntitlementBackfillResult {
   ok: true;
@@ -249,6 +253,48 @@ export const fetchAdminMigrationStatus = async (): Promise<{
     return { status: (await response.json()) as AdminMigrationStatusSnapshot };
   } catch {
     return { status: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminIncidentStatus = async (): Promise<{
+  status: AdminIncidentStatusSnapshot | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/incidents", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { status: null, error: await parseApiError(response) };
+    }
+
+    return { status: (await response.json()) as AdminIncidentStatusSnapshot };
+  } catch {
+    return { status: null, error: "Network error" };
+  }
+};
+
+export const fetchAdminWorkerRuns = async (): Promise<{
+  snapshot: AdminWorkerRunSnapshot | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/workers/runs?limit=12", {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { snapshot: null, error: await parseApiError(response) };
+    }
+
+    return { snapshot: (await response.json()) as AdminWorkerRunSnapshot };
+  } catch {
+    return { snapshot: null, error: "Network error" };
   }
 };
 

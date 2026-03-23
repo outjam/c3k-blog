@@ -11,6 +11,7 @@ import {
   listStorageBags,
 } from "@/lib/server/storage-registry-store";
 import {
+  claimStorageDeliveryRequestForWorker,
   createStorageDeliveryRequest,
   getStorageDeliveryRequest,
   listStorageDeliveryRequests,
@@ -33,10 +34,14 @@ type DeliveryFailureReason =
 export interface TelegramStorageDeliveryWorkerStats {
   queueSize: number;
   processed: number;
+  claimed: number;
   delivered: number;
   failed: number;
   skipped: number;
+  remaining: number;
 }
+
+const DELIVERY_WORKER_LOCK_STALE_MS = 15 * 60 * 1000;
 
 interface DeliveryAccessResolution {
   allowed: boolean;
@@ -533,6 +538,9 @@ const requestDelivery = async (input: {
         fileName: null,
         mimeType: null,
         telegramChatId: telegramUserId,
+        workerLockId: null,
+        workerLockedAt: null,
+        workerAttemptCount: 0,
         failureCode: null,
         failureMessage: null,
         deliveredAt: null,
@@ -547,6 +555,7 @@ const requestDelivery = async (input: {
         resolvedFormat: access.resolvedFormat,
         status: "processing",
         telegramChatId: telegramUserId,
+        workerAttemptCount: 0,
       });
 
   if (!draftRequest) {
@@ -629,6 +638,8 @@ const requestDelivery = async (input: {
       failureCode: "",
       failureMessage: "",
       deliveredAt: null,
+      workerLockId: null,
+      workerLockedAt: null,
     });
 
     return {
@@ -753,23 +764,42 @@ export const processTelegramStorageDeliveryQueue = async (
     return {
       queueSize: queue.length,
       processed: 0,
+      claimed: 0,
       delivered: 0,
       failed: 0,
       skipped: queue.length,
+      remaining: queue.length,
     };
   }
 
   let processed = 0;
+  let claimed = 0;
   let delivered = 0;
   let failed = 0;
   let skipped = 0;
 
-  for (const request of queue) {
+  const runId = `worker-${Date.now()}`;
+
+  for (const [index, request] of queue.entries()) {
+    const claimedRequest = await claimStorageDeliveryRequestForWorker({
+      id: request.id,
+      workerLockId: `${runId}-${index + 1}`,
+      staleAfterMs: DELIVERY_WORKER_LOCK_STALE_MS,
+    });
+
+    if (!claimedRequest) {
+      skipped += 1;
+      continue;
+    }
+
+    claimed += 1;
     processed += 1;
 
-    if (!request.deliveryUrl || !request.telegramChatId) {
-      await updateStorageDeliveryRequest(request.id, {
+    if (!claimedRequest.deliveryUrl || !claimedRequest.telegramChatId) {
+      await updateStorageDeliveryRequest(claimedRequest.id, {
         status: "failed",
+        workerLockId: null,
+        workerLockedAt: null,
         failureCode: "telegram_delivery_unresolvable",
         failureMessage: "Запрос не содержит deliveryUrl или telegramChatId.",
       });
@@ -778,16 +808,18 @@ export const processTelegramStorageDeliveryQueue = async (
     }
 
     const deliveredOk = await deliverToTelegram({
-      chatId: request.telegramChatId,
-      fileName: request.fileName || "c3k-file",
-      mimeType: request.mimeType || "application/octet-stream",
-      deliveryUrl: request.deliveryUrl,
-      caption: await buildDeliveryCaptionFromRequest(request),
+      chatId: claimedRequest.telegramChatId,
+      fileName: claimedRequest.fileName || "c3k-file",
+      mimeType: claimedRequest.mimeType || "application/octet-stream",
+      deliveryUrl: claimedRequest.deliveryUrl,
+      caption: await buildDeliveryCaptionFromRequest(claimedRequest),
     });
 
     if (!deliveredOk) {
-      await updateStorageDeliveryRequest(request.id, {
+      await updateStorageDeliveryRequest(claimedRequest.id, {
         status: "failed",
+        workerLockId: null,
+        workerLockedAt: null,
         failureCode: "telegram_delivery_failed",
         failureMessage: "Не удалось отправить файл в Telegram worker-ом.",
       });
@@ -795,11 +827,13 @@ export const processTelegramStorageDeliveryQueue = async (
       continue;
     }
 
-    const nextStatus = request.deliveryUrl ? "delivered" : "failed";
+    const nextStatus = claimedRequest.deliveryUrl ? "delivered" : "failed";
 
     if (nextStatus === "delivered") {
-      await updateStorageDeliveryRequest(request.id, {
+      await updateStorageDeliveryRequest(claimedRequest.id, {
         status: "delivered",
+        workerLockId: null,
+        workerLockedAt: null,
         deliveredAt: new Date().toISOString(),
         failureCode: "",
         failureMessage: "",
@@ -814,8 +848,10 @@ export const processTelegramStorageDeliveryQueue = async (
   return {
     queueSize: queue.length,
     processed,
+    claimed,
     delivered,
     failed,
     skipped,
+    remaining: Math.max(0, queue.length - delivered - failed),
   };
 };

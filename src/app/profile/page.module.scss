@@ -621,6 +621,11 @@
   font-size: 0.7rem;
 }
 
+.collectionFormatLine {
+  color: var(--tg-text) !important;
+  opacity: 0.72;
+}
+
 .studioSummaryGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

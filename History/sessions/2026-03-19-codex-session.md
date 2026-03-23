@@ -107,3 +107,47 @@
 - sync route был слишком хрупким для большого каталога: один длинный прогон и один проблемный релиз могли валить весь action
 - route переведён на batched sync с `cursorTrackId`
 - admin storage UI теперь сам проходит несколько батчей подряд и показывает частичный итог вместо общего падения
+
+## Следующий slice Sprint 09: incident overview
+
+- в `Пульт C3K` добавлен отдельный incident/status слой, чтобы оператор видел не только миграции, но и живые проблемы
+- новый snapshot собирает сигналы по:
+  - платежам
+  - payout requests
+  - file delivery
+  - storage ingest
+  - NFT runtime
+- dashboard теперь показывает:
+  - open incidents
+  - critical и warning counts
+  - по каждому домену summary, action hint, source state и последние сигналы
+- это первый реальный `production hardening` deliverable, который уже полезен не разработчику, а оператору продукта
+
+## Следующий slice Sprint 09: retry-safe delivery worker
+
+- у `storage delivery request` появились worker lease-поля:
+  - `workerLockId`
+  - `workerLockedAt`
+  - `workerAttemptCount`
+- Telegram delivery worker теперь перед отправкой файла сначала claim-ит request
+- если request уже занят другим worker или lease ещё не протух, текущий запуск его пропускает
+- после `delivered` или `failed` worker очищает lock, чтобы request можно было безопасно повторить
+- это закрывает один из production-risks storage слоя: двойную отправку одного и того же файла при параллельных worker runs
+
+## Следующий consumer UI pass: профиль, каталог и релиз
+
+- в профиле коллекция стала лучше отражать реальные покупки:
+  - полный релиз
+  - частичная покупка треков
+  - owned formats по полному релизу
+  - NFT улучшение
+- в каталоге карточки релизов стали менее описательными и более полезными:
+  - ownership progress
+  - форматы
+  - тип релиза
+  - число треков
+- страница релиза получила более гармоничную структуру:
+  - компактный блок выбора формата
+  - tracklist стал главным блоком экрана
+  - отдельный шумный delivery section убран
+  - collection/files/NFT собраны в более спокойные utility panels

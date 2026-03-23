@@ -29,6 +29,7 @@ import {
   buildPublicProfiles,
   buildTelegramShareUrl,
   readMintedReleaseNfts,
+  readPurchasedReleaseFormatKeys,
   readPurchasedTrackKeys,
   readTonWalletAddress,
   profileSlugFromIdentity,
@@ -44,11 +45,13 @@ import {
   type MintedReleaseNft,
 } from "@/lib/social-hub";
 import { fetchMyShopOrders } from "@/lib/shop-orders-api";
+import { getDefaultTrackFormat, getFormatLabel } from "@/lib/shop-release-format";
 import { formatStarsFromCents } from "@/lib/stars-format";
 import { hapticNotification, hapticSelection } from "@/lib/telegram";
 import type { ProfileMode } from "@/types/social";
 import type { StorageDeliveryRequest } from "@/types/storage";
 import type {
+  ArtistAudioFormat,
   ArtistProfile,
   ArtistTrack,
   ArtistStudioStats,
@@ -75,6 +78,7 @@ interface CollectionEntry {
   ownedTracksCount: number;
   totalTracksCount: number;
   isFullRelease: boolean;
+  ownedFormatLabels: string[];
 }
 
 type ProfileTab = "collection" | "awards" | "artist";
@@ -155,6 +159,7 @@ export default function ProfilePage() {
   const [purchasedReleaseSlugs, setPurchasedReleaseSlugs] = useState<string[]>(
     [],
   );
+  const [purchasedReleaseFormatKeys, setPurchasedReleaseFormatKeys] = useState<string[]>([]);
   const [purchasedTrackKeys, setPurchasedTrackKeys] = useState<string[]>([]);
   const [tonWalletAddress, setTonWalletAddress] = useState("");
   const [mintedReleaseNfts, setMintedReleaseNfts] = useState<
@@ -240,6 +245,7 @@ export default function ProfilePage() {
         visibility,
         followOverview,
         purchases,
+        purchasedReleaseFormatKeys,
         purchasedTracks,
         connectedTonWalletAddress,
         mintedNfts,
@@ -250,6 +256,7 @@ export default function ProfilePage() {
         readPurchasesVisibility(viewerKey),
         readFollowOverview([viewerSlug]),
         readPurchasedReleaseSlugs(viewerKey),
+        readPurchasedReleaseFormatKeys(viewerKey),
         readPurchasedTrackKeys(viewerKey),
         readTonWalletAddress(viewerKey),
         readMintedReleaseNfts(viewerKey),
@@ -264,11 +271,12 @@ export default function ProfilePage() {
       setWalletCents(balance);
       setPurchasesVisible(visibility);
       setFollowingSlugs(followOverview.followingSlugs);
-      setFollowerSlugs(followOverview.followerSlugs);
-      setFollowStatsBySlug(followOverview.statsBySlug);
-      setFollowProfilesBySlug(followOverview.profilesBySlug);
-      setPurchasedReleaseSlugs(purchases);
-      setPurchasedTrackKeys(purchasedTracks);
+        setFollowerSlugs(followOverview.followerSlugs);
+        setFollowStatsBySlug(followOverview.statsBySlug);
+        setFollowProfilesBySlug(followOverview.profilesBySlug);
+        setPurchasedReleaseSlugs(purchases);
+        setPurchasedReleaseFormatKeys(purchasedReleaseFormatKeys);
+        setPurchasedTrackKeys(purchasedTracks);
       setTonWalletAddress(connectedTonWalletAddress);
       setMintedReleaseNfts(mintedNfts);
       setDeliveryHistory(deliveryRequests.requests);
@@ -475,6 +483,41 @@ export default function ProfilePage() {
 
     return grouped;
   }, [purchasedTrackKeys]);
+  const purchasedReleaseFormatLabelsByRelease = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+
+    purchasedReleaseFormatKeys.forEach((entry) => {
+      const [releaseSlug = "", format = ""] = entry.split("::", 2);
+
+      if (!releaseSlug || !format) {
+        return;
+      }
+
+      const next = grouped.get(releaseSlug) ?? [];
+      const nextLabel = getFormatLabel(format as ArtistAudioFormat);
+
+      if (nextLabel && !next.includes(nextLabel)) {
+        next.push(nextLabel);
+      }
+
+      grouped.set(releaseSlug, next);
+    });
+
+    allPurchasedReleaseSlugs.forEach((slug) => {
+      if (grouped.has(slug)) {
+        return;
+      }
+
+      const release = products.find((item) => item.slug === slug);
+      if (!release) {
+        return;
+      }
+
+      grouped.set(slug, [getFormatLabel(getDefaultTrackFormat(release))]);
+    });
+
+    return grouped;
+  }, [allPurchasedReleaseSlugs, products, purchasedReleaseFormatKeys]);
   const collectionEntries = useMemo(() => {
     const releaseBySlug = new Map(products.map((item) => [item.slug, item]));
     const nftBySlug = new Map<string, MintedReleaseNft>();
@@ -515,6 +558,7 @@ export default function ProfilePage() {
         ownedTracksCount: isFullRelease ? totalTracksCount : ownedTrackIds.length,
         totalTracksCount,
         isFullRelease,
+        ownedFormatLabels: purchasedReleaseFormatLabelsByRelease.get(slug) ?? [],
       });
 
       return acc;
@@ -523,6 +567,7 @@ export default function ProfilePage() {
     allPurchasedReleaseSlugs,
     onchainMintedReleaseCards,
     products,
+    purchasedReleaseFormatLabelsByRelease,
     purchasedTrackIdsByRelease,
   ]);
   const awards = currentProfile?.awards ?? [];
@@ -1168,6 +1213,11 @@ export default function ProfilePage() {
                                     ? `Полный релиз · ${entry.totalTracksCount} треков`
                                     : `${entry.ownedTracksCount} из ${entry.totalTracksCount} треков в коллекции`}
                                 </span>
+                                {entry.ownedFormatLabels.length > 0 ? (
+                                  <span className={styles.collectionFormatLine}>
+                                    {entry.ownedFormatLabels.join(" · ")}
+                                  </span>
+                                ) : null}
                               </div>
                             </Link>
                           </article>

@@ -31,3 +31,30 @@ export interface AdminIncidentStatusSnapshot {
   warningIncidents: number;
   sections: AdminIncidentSection[];
 }
+
+export type AdminWorkerRunWorkerId = "telegram_notifications" | "storage_delivery_telegram";
+export type AdminWorkerRunStatus = "completed" | "partial" | "failed";
+
+export interface AdminWorkerRunRecord {
+  id: string;
+  workerId: AdminWorkerRunWorkerId;
+  status: AdminWorkerRunStatus;
+  startedAt: string;
+  completedAt: string;
+  limit: number;
+  queueSizeBefore?: number;
+  queueSizeAfter?: number;
+  processed: number;
+  delivered: number;
+  failed: number;
+  retried?: number;
+  skipped?: number;
+  claimed?: number;
+  remaining?: number;
+  errorMessage?: string;
+}
+
+export interface AdminWorkerRunSnapshot {
+  updatedAt: string;
+  runs: AdminWorkerRunRecord[];
+}

@@ -13,6 +13,7 @@ import {
   deleteAdminPromo,
   fetchAdminCustomers,
   fetchAdminDashboard,
+  fetchAdminIncidentStatus,
   fetchAdminMigrationStatus,
   fetchAdminMembers,
   fetchAdminProductCategories,
@@ -20,6 +21,7 @@ import {
   fetchAdminPromos,
   fetchAdminSession,
   fetchAdminSettings,
+  fetchAdminWorkerRuns,
   patchAdminProductCategory,
   patchAdminProduct,
   patchAdminPromo,
@@ -37,7 +39,9 @@ import {
   type AdminMigrationBackfillSuiteResult,
   type AdminMigrationDomainStatus,
   type AdminArtistSupportBackfillResult,
+  type AdminIncidentStatusSnapshot,
   type AdminMigrationStatusSnapshot,
+  type AdminWorkerRunSnapshot,
   upsertAdminMember,
   type AdminSocialEntitlementBackfillResult,
   type AdminCustomer,
@@ -118,6 +122,25 @@ const CUTOVER_LABELS: Record<AdminMigrationStatusSnapshot["overallState"], strin
   legacy_only: "Только legacy",
   dual_write: "Переходный dual-write",
   ready: "Готово к cutover",
+};
+const INCIDENT_STATE_LABELS: Record<NonNullable<AdminIncidentStatusSnapshot["sections"][number]["state"]>, string> = {
+  ok: "Стабильно",
+  warning: "Нужно внимание",
+  critical: "Критично",
+};
+const INCIDENT_SOURCE_LABELS: Record<NonNullable<AdminIncidentStatusSnapshot["sections"][number]["sourceState"]>, string> =
+  {
+    ok: "источник ok",
+    degraded: "источник degraded",
+  };
+const WORKER_LABELS: Record<NonNullable<AdminWorkerRunSnapshot["runs"][number]["workerId"]>, string> = {
+  telegram_notifications: "Telegram notifications",
+  storage_delivery_telegram: "Storage delivery",
+};
+const WORKER_STATUS_LABELS: Record<NonNullable<AdminWorkerRunSnapshot["runs"][number]["status"]>, string> = {
+  completed: "Выполнен",
+  partial: "Частично",
+  failed: "Ошибка",
 };
 
 const TAB_COPY: Record<AdminTab, { title: string; description: string; example: string }> = {
@@ -219,7 +242,9 @@ export default function AdminPage() {
   const [session, setSession] = useState<AdminSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
+  const [incidentStatus, setIncidentStatus] = useState<AdminIncidentStatusSnapshot | null>(null);
   const [migrationStatus, setMigrationStatus] = useState<AdminMigrationStatusSnapshot | null>(null);
+  const [workerRuns, setWorkerRuns] = useState<AdminWorkerRunSnapshot | null>(null);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [products, setProducts] = useState<AdminProductWithMeta[]>([]);
   const [productCategories, setProductCategories] = useState<ShopProductCategory[]>([]);
@@ -327,8 +352,24 @@ export default function AdminPage() {
         }),
       );
       jobs.push(
+        fetchAdminIncidentStatus().then((response) => {
+          setIncidentStatus(response.status);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
+      jobs.push(
         fetchAdminMigrationStatus().then((response) => {
           setMigrationStatus(response.status);
+          if (response.error) {
+            errors.push(response.error);
+          }
+        }),
+      );
+      jobs.push(
+        fetchAdminWorkerRuns().then((response) => {
+          setWorkerRuns(response.snapshot);
           if (response.error) {
             errors.push(response.error);
           }
@@ -761,6 +802,84 @@ export default function AdminPage() {
                 </p>
               ))}
             </div>
+            {incidentStatus ? (
+              <div className={styles.incidentBlock}>
+                <div className={styles.incidentSummary}>
+                  <div>
+                    <span>Открытые сигналы</span>
+                    <b>{incidentStatus.openIncidents}</b>
+                  </div>
+                  <div>
+                    <span>Критичные</span>
+                    <b>{incidentStatus.criticalIncidents}</b>
+                  </div>
+                  <div>
+                    <span>Warnings</span>
+                    <b>{incidentStatus.warningIncidents}</b>
+                  </div>
+                </div>
+                <div className={styles.incidentGrid}>
+                  {incidentStatus.sections.map((section) => (
+                    <article
+                      key={section.id}
+                      className={[
+                        styles.incidentCard,
+                        section.state === "critical"
+                          ? styles.incidentCardCritical
+                          : section.state === "warning"
+                            ? styles.incidentCardWarning
+                            : styles.incidentCardOk,
+                      ].join(" ")}
+                    >
+                      <div className={styles.incidentCardHead}>
+                        <div>
+                          <h3>{section.label}</h3>
+                          <p>
+                            Статус: {INCIDENT_STATE_LABELS[section.state]} · {INCIDENT_SOURCE_LABELS[section.sourceState]}
+                          </p>
+                        </div>
+                        <strong>{section.count}</strong>
+                      </div>
+                      <p className={styles.incidentSummaryText}>{section.summary}</p>
+                      <p className={styles.incidentActionHint}>{section.actionHint}</p>
+                      {section.windowLabel ? <p className={styles.incidentWindow}>{section.windowLabel}</p> : null}
+                      {section.sourceNote ? <p className={styles.incidentSourceNote}>{section.sourceNote}</p> : null}
+                      {section.entries.length > 0 ? (
+                        <div className={styles.incidentEntryList}>
+                          {section.entries.map((entry) => (
+                            <article key={entry.id} className={styles.incidentEntry}>
+                              <div className={styles.incidentEntryHead}>
+                                <strong>{entry.title}</strong>
+                                <span
+                                  className={
+                                    entry.severity === "critical"
+                                      ? styles.incidentStateCritical
+                                      : entry.severity === "warning"
+                                        ? styles.incidentStateWarning
+                                        : styles.incidentStateInfo
+                                  }
+                                >
+                                  {entry.severity}
+                                </span>
+                              </div>
+                              <p>{entry.description}</p>
+                              <div className={styles.incidentEntryMeta}>
+                                <span>{new Date(entry.timestamp).toLocaleString("ru-RU")}</span>
+                                {entry.ageLabel ? <span>{entry.ageLabel} назад</span> : null}
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className={styles.incidentEmpty}>
+                          Активных инцидентов нет. Этот блок нужен как быстрый операционный радар перед ручными действиями.
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {migrationStatus ? (
               <div className={styles.migrationBlock}>
                 <div className={styles.migrationSummary}>
@@ -813,6 +932,98 @@ export default function AdminPage() {
                       </p>
                     </article>
                   ))}
+                </div>
+              </div>
+            ) : null}
+            {workerRuns ? (
+              <div className={styles.workerRunBlock}>
+                <div className={styles.workerRunHead}>
+                  <div>
+                    <h3>История worker runs</h3>
+                    <p>
+                      Последние реальные прогоны очередей. Нужны, чтобы быстро понять, срабатывают ли worker routes и чем
+                      заканчивается обработка.
+                    </p>
+                  </div>
+                  <span className={styles.workerRunUpdatedAt}>
+                    Updated {new Date(workerRuns.updatedAt).toLocaleString("ru-RU")}
+                  </span>
+                </div>
+                <div className={styles.workerRunList}>
+                  {workerRuns.runs.map((run) => (
+                    <article key={run.id} className={styles.workerRunCard}>
+                      <div className={styles.workerRunCardHead}>
+                        <div>
+                          <strong>{WORKER_LABELS[run.workerId]}</strong>
+                          <p>
+                            {new Date(run.completedAt).toLocaleString("ru-RU")} · limit {run.limit}
+                          </p>
+                        </div>
+                        <span
+                          className={
+                            run.status === "failed"
+                              ? styles.incidentStateCritical
+                              : run.status === "partial"
+                                ? styles.incidentStateWarning
+                                : styles.incidentStateInfo
+                          }
+                        >
+                          {WORKER_STATUS_LABELS[run.status]}
+                        </span>
+                      </div>
+                      <div className={styles.workerRunMetrics}>
+                        <p>
+                          <span>Очередь</span>
+                          <b>
+                            {run.queueSizeBefore ?? 0} → {run.queueSizeAfter ?? run.remaining ?? 0}
+                          </b>
+                        </p>
+                        <p>
+                          <span>Обработано</span>
+                          <b>{run.processed}</b>
+                        </p>
+                        <p>
+                          <span>Доставлено</span>
+                          <b>{run.delivered}</b>
+                        </p>
+                        <p>
+                          <span>Ошибки</span>
+                          <b>{run.failed}</b>
+                        </p>
+                        {run.claimed !== undefined ? (
+                          <p>
+                            <span>Claimed</span>
+                            <b>{run.claimed}</b>
+                          </p>
+                        ) : null}
+                        {run.retried !== undefined ? (
+                          <p>
+                            <span>Retry</span>
+                            <b>{run.retried}</b>
+                          </p>
+                        ) : null}
+                        {run.skipped !== undefined ? (
+                          <p>
+                            <span>Skipped</span>
+                            <b>{run.skipped}</b>
+                          </p>
+                        ) : null}
+                        {run.remaining !== undefined ? (
+                          <p>
+                            <span>Осталось</span>
+                            <b>{run.remaining}</b>
+                          </p>
+                        ) : null}
+                      </div>
+                      {run.errorMessage ? <p className={styles.workerRunError}>{run.errorMessage}</p> : null}
+                    </article>
+                  ))}
+                  {workerRuns.runs.length === 0 ? (
+                    <p className={styles.workerRunEmpty}>
+                      История пуста. Как только worker routes начнут реально отрабатывать очереди, последние прогоны
+                      появятся здесь.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : null}

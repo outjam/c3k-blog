@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { recordAdminWorkerRun } from "@/lib/server/admin-worker-run-store";
 import {
   getTelegramStorageDeliveryQueueSize,
   processTelegramStorageDeliveryQueue,
@@ -24,8 +25,45 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, queueSize });
   }
 
-  const stats = await processTelegramStorageDeliveryQueue(parseWorkerQueueLimit(request));
-  return NextResponse.json({ ok: true, ...stats });
+  const limit = parseWorkerQueueLimit(request);
+  const queueSizeBefore = await getTelegramStorageDeliveryQueueSize();
+  const startedAt = new Date().toISOString();
+
+  try {
+    const stats = await processTelegramStorageDeliveryQueue(limit);
+    await recordAdminWorkerRun({
+      workerId: "storage_delivery_telegram",
+      status: stats.failed > 0 ? "partial" : "completed",
+      startedAt,
+      completedAt: new Date().toISOString(),
+      limit,
+      queueSizeBefore,
+      queueSizeAfter: stats.remaining,
+      processed: stats.processed,
+      delivered: stats.delivered,
+      failed: stats.failed,
+      skipped: stats.skipped,
+      claimed: stats.claimed,
+      remaining: stats.remaining,
+    });
+    return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
+  } catch (error) {
+    await recordAdminWorkerRun({
+      workerId: "storage_delivery_telegram",
+      status: "failed",
+      startedAt,
+      completedAt: new Date().toISOString(),
+      limit,
+      queueSizeBefore,
+      queueSizeAfter: queueSizeBefore,
+      processed: 0,
+      delivered: 0,
+      failed: 1,
+      remaining: queueSizeBefore,
+      errorMessage: error instanceof Error ? error.message : "storage delivery worker failed",
+    });
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
@@ -34,6 +72,42 @@ export async function POST(request: Request) {
   }
 
   const queueSizeBefore = await getTelegramStorageDeliveryQueueSize();
-  const stats = await processTelegramStorageDeliveryQueue(parseWorkerQueueLimit(request));
-  return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
+  const limit = parseWorkerQueueLimit(request);
+  const startedAt = new Date().toISOString();
+
+  try {
+    const stats = await processTelegramStorageDeliveryQueue(limit);
+    await recordAdminWorkerRun({
+      workerId: "storage_delivery_telegram",
+      status: stats.failed > 0 ? "partial" : "completed",
+      startedAt,
+      completedAt: new Date().toISOString(),
+      limit,
+      queueSizeBefore,
+      queueSizeAfter: stats.remaining,
+      processed: stats.processed,
+      delivered: stats.delivered,
+      failed: stats.failed,
+      skipped: stats.skipped,
+      claimed: stats.claimed,
+      remaining: stats.remaining,
+    });
+    return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
+  } catch (error) {
+    await recordAdminWorkerRun({
+      workerId: "storage_delivery_telegram",
+      status: "failed",
+      startedAt,
+      completedAt: new Date().toISOString(),
+      limit,
+      queueSizeBefore,
+      queueSizeAfter: queueSizeBefore,
+      processed: 0,
+      delivered: 0,
+      failed: 1,
+      remaining: queueSizeBefore,
+      errorMessage: error instanceof Error ? error.message : "storage delivery worker failed",
+    });
+    throw error;
+  }
 }

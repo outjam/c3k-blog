@@ -67,6 +67,16 @@ const normalizeIsoDateTime = (value: unknown, fallbackIso: string): string => {
   return fallbackIso;
 };
 
+const isStaleTimestamp = (value: string | undefined, staleAfterMs: number, nowMs: number): boolean => {
+  const timestamp = Date.parse(String(value ?? ""));
+
+  if (!Number.isFinite(timestamp)) {
+    return true;
+  }
+
+  return nowMs - timestamp >= staleAfterMs;
+};
+
 const normalizeChannel = (value: unknown): StorageDeliveryChannel => {
   return value === "telegram_bot" || value === "desktop_download"
     ? value
@@ -129,6 +139,9 @@ const normalizeRequest = (
     fileName: normalizeOptionalText(source.fileName, 255),
     mimeType: normalizeOptionalText(source.mimeType, 180),
     telegramChatId: normalizeNonNegativeInt(source.telegramChatId) || undefined,
+    workerLockId: normalizeOptionalText(source.workerLockId, 120),
+    workerLockedAt: source.workerLockedAt ? normalizeIsoDateTime(source.workerLockedAt, now) : undefined,
+    workerAttemptCount: normalizeNonNegativeInt(source.workerAttemptCount),
     failureCode: normalizeOptionalText(source.failureCode, 120),
     failureMessage: normalizeOptionalText(source.failureMessage, 500),
     createdAt: normalizeIsoDateTime(source.createdAt, now),
@@ -358,8 +371,14 @@ export const getStorageDeliveryRequest = async (
 };
 
 export const createStorageDeliveryRequest = async (
-  input: Omit<StorageDeliveryRequest, "id" | "createdAt" | "updatedAt"> & {
+  input: Omit<
+    StorageDeliveryRequest,
+    "id" | "createdAt" | "updatedAt" | "workerLockId" | "workerLockedAt" | "workerAttemptCount"
+  > & {
     id?: string;
+    workerLockId?: string;
+    workerLockedAt?: string;
+    workerAttemptCount?: number;
   },
 ): Promise<StorageDeliveryRequest | null> => {
   const telegramUserId = normalizeNonNegativeInt(input.telegramUserId);
@@ -393,6 +412,9 @@ export const createStorageDeliveryRequest = async (
       fileName: normalizeOptionalText(input.fileName, 255),
       mimeType: normalizeOptionalText(input.mimeType, 180),
       telegramChatId: normalizeNonNegativeInt(input.telegramChatId) || undefined,
+      workerLockId: normalizeOptionalText(input.workerLockId, 120),
+      workerLockedAt: input.workerLockedAt ? normalizeIsoDateTime(input.workerLockedAt, now) : undefined,
+      workerAttemptCount: normalizeNonNegativeInt(input.workerAttemptCount),
       failureCode: normalizeOptionalText(input.failureCode, 120),
       failureMessage: normalizeOptionalText(input.failureMessage, 500),
       createdAt: now,
@@ -433,6 +455,9 @@ export const updateStorageDeliveryRequest = async (
       | "fileName"
       | "mimeType"
       | "telegramChatId"
+      | "workerLockId"
+      | "workerLockedAt"
+      | "workerAttemptCount"
       | "failureCode"
       | "failureMessage"
       | "deliveredAt"
@@ -448,6 +473,9 @@ export const updateStorageDeliveryRequest = async (
     fileName?: string | null;
     mimeType?: string | null;
     telegramChatId?: number | null;
+    workerLockId?: string | null;
+    workerLockedAt?: string | null;
+    workerAttemptCount?: number;
     failureCode?: string | null;
     failureMessage?: string | null;
     deliveredAt?: string | null;
@@ -544,6 +572,24 @@ export const updateStorageDeliveryRequest = async (
                 ? undefined
                 : normalizeNonNegativeInt(patch.telegramChatId) || undefined
               : existing.telegramChatId,
+          workerLockId:
+            patch.workerLockId !== undefined
+              ? patch.workerLockId === null
+                ? undefined
+                : normalizeOptionalText(patch.workerLockId, 120)
+              : existing.workerLockId,
+          workerLockedAt:
+            patch.workerLockedAt !== undefined
+              ? patch.workerLockedAt === null
+                ? undefined
+                : patch.workerLockedAt
+                  ? normalizeIsoDateTime(patch.workerLockedAt, now)
+                  : undefined
+              : existing.workerLockedAt,
+          workerAttemptCount:
+            patch.workerAttemptCount !== undefined
+              ? normalizeNonNegativeInt(patch.workerAttemptCount)
+              : existing.workerAttemptCount,
           failureCode:
             patch.failureCode !== undefined
               ? patch.failureCode === null
@@ -564,4 +610,57 @@ export const updateStorageDeliveryRequest = async (
   });
 
   return next?.requests[normalizedId] ?? null;
+};
+
+export const claimStorageDeliveryRequestForWorker = async (input: {
+  id: string;
+  workerLockId: string;
+  staleAfterMs?: number;
+}): Promise<StorageDeliveryRequest | null> => {
+  const normalizedId = normalizeSafeId(input.id, 120);
+  const workerLockId = normalizeSafeId(input.workerLockId, 120);
+  const staleAfterMs = Math.max(60_000, normalizeNonNegativeInt(input.staleAfterMs ?? 15 * 60 * 1000));
+
+  if (!normalizedId || !workerLockId) {
+    return null;
+  }
+
+  const next = await mutateState((current) => {
+    const existing = current.requests[normalizedId];
+
+    if (!existing || existing.status !== "processing") {
+      return current;
+    }
+
+    const now = new Date().toISOString();
+    const nowMs = Date.parse(now);
+    const lockIsActive =
+      existing.workerLockId &&
+      !isStaleTimestamp(existing.workerLockedAt, staleAfterMs, nowMs);
+
+    if (lockIsActive) {
+      return current;
+    }
+
+    return {
+      ...current,
+      requests: {
+        ...current.requests,
+        [normalizedId]: {
+          ...existing,
+          workerLockId,
+          workerLockedAt: now,
+          workerAttemptCount: Math.max(0, existing.workerAttemptCount) + 1,
+          updatedAt: now,
+        },
+      },
+    };
+  });
+
+  if (!next) {
+    return null;
+  }
+
+  const claimed = next.requests[normalizedId];
+  return claimed?.workerLockId === workerLockId ? claimed : null;
 };

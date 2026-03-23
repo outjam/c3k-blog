@@ -464,7 +464,20 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
     () => deliveryHistory.filter((entry) => entry.releaseSlug === product.slug).slice(0, 6),
     [deliveryHistory, product.slug],
   );
+  const recentReleaseDeliveryRequests = useMemo(
+    () => releaseDeliveryRequests.slice(0, 3),
+    [releaseDeliveryRequests],
+  );
   const desktopDownloadsEnabled = C3K_STORAGE_DESKTOP_CLIENT_ENABLED;
+  const selectedFormatLabel = getFormatLabel(selectedFormat);
+  const releaseCollectionSummary = ownsWholeRelease
+    ? ownedFormatLabels.length > 0
+      ? `В коллекции · ${ownedFormatLabels.join(" · ")}`
+      : "Полный релиз уже в коллекции"
+    : "Полный релиз ещё не куплен";
+  const releaseTrackOwnershipSummary = ownsWholeRelease
+    ? `Все ${releaseTracklist.length} треков доступны`
+    : `${ownedTrackKeys.filter((entry) => entry.startsWith(`${product.slug}::`)).length} из ${releaseTracklist.length} треков уже куплено`;
 
   const isTrackOwned = useCallback(
     (trackId: string) => {
@@ -1056,14 +1069,16 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           <ReleasePageSkeleton />
         ) : (
           <>
-            <section className={styles.section}>
-              <div className={styles.sectionHeader}>
+            <section className={`${styles.section} ${styles.releaseControlsSection}`}>
+              <div className={styles.releaseControlTop}>
                 <div>
-                  <span className={styles.sectionEyebrow}>Покупка релиза</span>
-                  <h2>Выберите формат и собирайте релиз целиком</h2>
+                  <span className={styles.sectionEyebrow}>Формат релиза</span>
+                  <h2>Сначала выберите качество, потом собирайте треки или весь релиз</h2>
                 </div>
-                <div className={styles.releasePurchaseCard}>
-                  <span className={styles.releasePurchaseLabel}>Полный релиз</span>
+                <div className={styles.releaseControlPrice}>
+                  <span className={styles.releasePurchaseLabel}>
+                    {ownsReleaseInSelectedFormat ? `Куплен · ${selectedFormatLabel}` : `Полный релиз · ${selectedFormatLabel}`}
+                  </span>
                   <div className={styles.starsBadge}>
                     <StarsIcon className={styles.starsBadgeIcon} />
                     {formatStarsFromCents(selectedPriceStarsCents)}
@@ -1096,97 +1111,31 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 })}
               </div>
 
-              <div className={styles.releasePurchaseMeta}>
-                <div>
+              <div className={styles.releaseContextGrid}>
+                <article className={styles.releaseContextCard}>
                   <span>Коллекция</span>
-                  <strong>
-                    {ownsWholeRelease
-                      ? ownedFormatLabels.length > 0
-                        ? ownedFormatLabels.join(", ")
-                        : "Куплен"
-                      : "Ещё не куплен"}
-                  </strong>
-                </div>
-                <div>
+                  <strong>{releaseCollectionSummary}</strong>
+                  <small>{releaseTrackOwnershipSummary}</small>
+                </article>
+                <article className={styles.releaseContextCard}>
                   <span>Кошелек приложения</span>
                   <div className={styles.starsBadge}>
                     <StarsIcon className={styles.starsBadgeIcon} />
                     {formatStarsFromCents(walletBalanceCents)}
                   </div>
-                </div>
+                  <small>Нужен для покупки релиза, треков и sponsored mint газа</small>
+                </article>
+                <article className={styles.releaseContextCard}>
+                  <span>Логика релиза</span>
+                  <strong>
+                    {ownsWholeRelease
+                      ? "Можно скачивать и улучшать в NFT"
+                      : "Отдельные треки покупаются независимо"}
+                  </strong>
+                  <small>NFT доступен только после полной покупки релиза</small>
+                </article>
               </div>
             </section>
-
-            {releaseDeliveryRequests.length > 0 ? (
-              <section className={styles.section}>
-                <div className={styles.sectionHeader}>
-                  <div>
-                    <span className={styles.sectionEyebrow}>Выдача файлов</span>
-                    <h2>Последние запросы по релизу</h2>
-                  </div>
-                  <p>{releaseDeliveryRequests.length}</p>
-                </div>
-
-                <div className={styles.deliveryRequestList}>
-                  {releaseDeliveryRequests.map((request) => (
-                    <article key={request.id} className={styles.deliveryRequestCard}>
-                      <div className={styles.deliveryRequestTopline}>
-                        <strong>
-                          {request.targetType === "track"
-                            ? request.trackId || "Трек"
-                            : "Полный релиз"}
-                        </strong>
-                        <span>{formatDeliveryStatus(request.status)}</span>
-                      </div>
-                      <div className={styles.deliveryRequestMeta}>
-                        <span>{formatDeliveryChannel(request.channel)}</span>
-                        <span>{request.resolvedFormat || request.requestedFormat || "no format"}</span>
-                        <span>{request.fileName || "file pending"}</span>
-                      </div>
-                      {request.failureMessage ? (
-                        <p className={styles.deliveryRequestMessage}>{request.failureMessage}</p>
-                      ) : null}
-                      <div className={styles.deliveryRequestActions}>
-                        {request.status === "ready" &&
-                        (request.deliveryUrl || request.storagePointer) ? (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={() =>
-                              request.channel === "desktop_download"
-                                ? openStorageDeliveryInDesktop(request)
-                                : request.deliveryUrl
-                                  ? triggerBrowserDownload(request.deliveryUrl, request.fileName)
-                                  : undefined
-                            }
-                          >
-                            {request.channel === "desktop_download" ? (
-                              <DesktopIcon className={styles.buttonIcon} />
-                            ) : (
-                              <DownloadIcon className={styles.buttonIcon} />
-                            )}
-                            {request.channel === "desktop_download"
-                              ? "Открыть в Desktop"
-                              : "Открыть файл"}
-                          </button>
-                        ) : null}
-                        {(request.status === "failed" ||
-                          request.status === "pending_asset_mapping") ? (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={() => void retryDeliveryRequest(request)}
-                            disabled={retryingDeliveryId === request.id}
-                          >
-                            {retryingDeliveryId === request.id ? "Повторяем..." : "Повторить"}
-                          </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ) : null}
 
             <section className={styles.section}>
               <div className={styles.sectionHeader}>
@@ -1194,8 +1143,15 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   <span className={styles.sectionEyebrow}>Tracklist</span>
                   <h2>Треки</h2>
                 </div>
-                <p>{releaseTracklist.length}</p>
+                <div className={styles.sectionHeaderMeta}>
+                  <p>{releaseTracklist.length}</p>
+                  <span className={styles.sectionHeaderBadge}>{selectedFormatLabel}</span>
+                </div>
               </div>
+
+              <p className={styles.trackListHint}>
+                Треки можно покупать по одному. Полная покупка релиза остаётся отдельным действием и открывает NFT upgrade.
+              </p>
 
               <ol className={styles.trackList}>
                 {releaseTracklist.map((track, index) => {
@@ -1285,7 +1241,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 <div className={styles.panelHeader}>
                   <div>
                     <span className={styles.sectionEyebrow}>Коллекция</span>
-                    <h3>Покупка релиза целиком</h3>
+                    <h3>Релиз целиком и файлы</h3>
                   </div>
                   <span className={styles.panelState}>
                     {ownsWholeRelease ? "Активно" : "Доступно"}
@@ -1346,9 +1302,53 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                       ? `Куплен в ${getFormatLabel(selectedFormat)}`
                       : releasePurchasing
                         ? "Покупаем..."
-                        : `Купить релиз за ${formatStarsFromCents(selectedPriceStarsCents)}`}
+                      : `Купить релиз за ${formatStarsFromCents(selectedPriceStarsCents)}`}
                   </button>
                 )}
+
+                {recentReleaseDeliveryRequests.length > 0 ? (
+                  <div className={styles.deliveryMiniList}>
+                    {recentReleaseDeliveryRequests.map((request) => (
+                      <article key={request.id} className={styles.deliveryMiniItem}>
+                        <div className={styles.deliveryMiniTop}>
+                          <strong>
+                            {request.targetType === "track"
+                              ? request.trackId || "Трек"
+                              : "Полный релиз"}
+                          </strong>
+                          <span>{formatDeliveryStatus(request.status)}</span>
+                        </div>
+                        <p>
+                          {formatDeliveryChannel(request.channel)} · {request.resolvedFormat || request.requestedFormat || "no format"}
+                        </p>
+                        {(request.status === "failed" || request.status === "pending_asset_mapping") ? (
+                          <button
+                            type="button"
+                            className={styles.inlineAction}
+                            onClick={() => void retryDeliveryRequest(request)}
+                            disabled={retryingDeliveryId === request.id}
+                          >
+                            {retryingDeliveryId === request.id ? "Повторяем..." : "Повторить выдачу"}
+                          </button>
+                        ) : request.status === "ready" && (request.deliveryUrl || request.storagePointer) ? (
+                          <button
+                            type="button"
+                            className={styles.inlineAction}
+                            onClick={() =>
+                              request.channel === "desktop_download"
+                                ? openStorageDeliveryInDesktop(request)
+                                : request.deliveryUrl
+                                  ? triggerBrowserDownload(request.deliveryUrl, request.fileName)
+                                  : undefined
+                            }
+                          >
+                            {request.channel === "desktop_download" ? "Открыть в Desktop" : "Открыть файл"}
+                          </button>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
               </article>
 
               <article className={styles.panel}>

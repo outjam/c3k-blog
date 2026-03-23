@@ -201,6 +201,9 @@ export interface StorageDeliveryRequest {
   fileName?: string;
   mimeType?: string;
   telegramChatId?: number;
+  workerLockId?: string;
+  workerLockedAt?: string;
+  workerAttemptCount: number;
   failureCode?: string;
   failureMessage?: string;
   createdAt: string;

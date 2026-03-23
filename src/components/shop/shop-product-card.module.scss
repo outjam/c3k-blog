@@ -117,15 +117,11 @@
   line-height: 1.16;
 }
 
-.description {
+.supportingLine {
   margin: 0;
   color: var(--tg-subtitle-text);
-  font-size: 0.82rem;
-  line-height: 1.46;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .metaRow strong {
