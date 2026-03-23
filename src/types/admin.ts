@@ -34,11 +34,14 @@ export interface AdminIncidentStatusSnapshot {
 
 export type AdminWorkerRunWorkerId = "telegram_notifications" | "storage_delivery_telegram";
 export type AdminWorkerRunStatus = "completed" | "partial" | "failed";
+export type AdminWorkerRunTrigger = "worker_route" | "admin_manual";
 
 export interface AdminWorkerRunRecord {
   id: string;
   workerId: AdminWorkerRunWorkerId;
   status: AdminWorkerRunStatus;
+  trigger: AdminWorkerRunTrigger;
+  triggeredByTelegramUserId?: number;
   startedAt: string;
   completedAt: string;
   limit: number;

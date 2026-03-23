@@ -34,6 +34,7 @@ import {
   runAdminArtistFinanceBackfill,
   runAdminMigrationBackfillSuite,
   runAdminArtistSupportBackfill,
+  runAdminWorker,
   runAdminSocialEntitlementBackfill,
   type AdminArtistApplicationBackfillResult,
   type AdminArtistCatalogBackfillResult,
@@ -46,6 +47,7 @@ import {
   type AdminMigrationStatusSnapshot,
   type AdminTonEnvironmentStatus,
   type AdminWorkerRunSnapshot,
+  type AdminWorkerRunWorkerId,
   upsertAdminMember,
   type AdminSocialEntitlementBackfillResult,
   type AdminCustomer,
@@ -145,6 +147,10 @@ const WORKER_STATUS_LABELS: Record<NonNullable<AdminWorkerRunSnapshot["runs"][nu
   completed: "Выполнен",
   partial: "Частично",
   failed: "Ошибка",
+};
+const WORKER_TRIGGER_LABELS: Record<NonNullable<AdminWorkerRunSnapshot["runs"][number]["trigger"]>, string> = {
+  worker_route: "Автоматический route",
+  admin_manual: "Ручной recovery",
 };
 const TON_COLLECTION_SOURCE_LABELS: Record<AdminTonEnvironmentStatus["collectionSource"], string> = {
   runtime: "runtime config",
@@ -312,6 +318,8 @@ export default function AdminPage() {
   const [supportBackfillResult, setSupportBackfillResult] = useState<AdminArtistSupportBackfillResult | null>(null);
   const [migrationSuiteLoading, setMigrationSuiteLoading] = useState<"dry-run" | "run" | null>(null);
   const [migrationSuiteResult, setMigrationSuiteResult] = useState<AdminMigrationBackfillSuiteResult | null>(null);
+  const [runningWorkerId, setRunningWorkerId] = useState<AdminWorkerRunWorkerId | null>(null);
+  const [workerTriggerMessage, setWorkerTriggerMessage] = useState("");
 
   const hasPermission = useCallback(
     (permission: ShopAdminPermission): boolean => {
@@ -533,6 +541,60 @@ export default function AdminPage() {
 
     setLoading(false);
   }, [hasPermission, productCategories, session?.isAdmin]);
+
+  const refreshWorkerOperations = useCallback(async () => {
+    if (!hasPermission("dashboard:view")) {
+      return;
+    }
+
+    const errors: string[] = [];
+    const [incidentResponse, workerResponse] = await Promise.all([fetchAdminIncidentStatus(), fetchAdminWorkerRuns()]);
+
+    setIncidentStatus(incidentResponse.status);
+    setWorkerRuns(workerResponse.snapshot);
+
+    if (incidentResponse.error) {
+      errors.push(incidentResponse.error);
+    }
+
+    if (workerResponse.error) {
+      errors.push(workerResponse.error);
+    }
+
+    if (errors.length > 0) {
+      setError(errors.join(" · "));
+    }
+  }, [hasPermission]);
+
+  const handleWorkerTrigger = useCallback(
+    async (workerId: AdminWorkerRunWorkerId) => {
+      setRunningWorkerId(workerId);
+      setWorkerTriggerMessage("");
+      setError("");
+
+      const response = await runAdminWorker({
+        workerId,
+        limit: workerId === "storage_delivery_telegram" ? 20 : 25,
+      });
+
+      if (response.error) {
+        setError(response.error);
+        setRunningWorkerId(null);
+        return;
+      }
+
+      await refreshWorkerOperations();
+
+      const run = response.run;
+      setWorkerTriggerMessage(
+        run
+          ? `${WORKER_LABELS[workerId]}: обработано ${run.processed}, доставлено ${run.delivered}, ошибок ${run.failed}, в очереди осталось ${run.remaining ?? 0}.`
+          : `${WORKER_LABELS[workerId]}: запуск выполнен, но итоговая запись run не была прочитана.`,
+      );
+      setRunningWorkerId(null);
+    },
+    [refreshWorkerOperations],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -977,10 +1039,35 @@ export default function AdminPage() {
                       заканчивается обработка.
                     </p>
                   </div>
-                  <span className={styles.workerRunUpdatedAt}>
-                    Updated {new Date(workerRuns.updatedAt).toLocaleString("ru-RU")}
-                  </span>
+                  <div className={styles.workerRunControls}>
+                    <div className={styles.workerRunActions}>
+                      <button
+                        type="button"
+                        className={styles.workerRunTriggerButton}
+                        onClick={() => void handleWorkerTrigger("telegram_notifications")}
+                        disabled={runningWorkerId !== null}
+                      >
+                        {runningWorkerId === "telegram_notifications" ? "Запускаю…" : "Прогнать notifications"}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.workerRunTriggerButton}
+                        onClick={() => void handleWorkerTrigger("storage_delivery_telegram")}
+                        disabled={runningWorkerId !== null}
+                      >
+                        {runningWorkerId === "storage_delivery_telegram" ? "Запускаю…" : "Прогнать storage delivery"}
+                      </button>
+                    </div>
+                    <span className={styles.workerRunUpdatedAt}>
+                      Updated {new Date(workerRuns.updatedAt).toLocaleString("ru-RU")}
+                    </span>
+                  </div>
                 </div>
+                <p className={styles.workerRunActionResult}>
+                  Ручной прогон нужен для recovery-кейсов: например, после деплоя, очереди ошибок или подозрения, что cron
+                  не дошёл до нужного worker route.
+                </p>
+                {workerTriggerMessage ? <p className={styles.workerRunActionResult}>{workerTriggerMessage}</p> : null}
                 <div className={styles.workerRunList}>
                   {workerRuns.runs.map((run) => (
                     <article key={run.id} className={styles.workerRunCard}>
@@ -990,6 +1077,12 @@ export default function AdminPage() {
                           <p>
                             {new Date(run.completedAt).toLocaleString("ru-RU")} · limit {run.limit}
                           </p>
+                          <div className={styles.workerRunMetaRow}>
+                            <span className={styles.workerRunMetaPill}>{WORKER_TRIGGER_LABELS[run.trigger]}</span>
+                            {run.triggeredByTelegramUserId ? (
+                              <span className={styles.workerRunMetaPill}>admin {run.triggeredByTelegramUserId}</span>
+                            ) : null}
+                          </div>
                         </div>
                         <span
                           className={

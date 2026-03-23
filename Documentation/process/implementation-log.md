@@ -205,6 +205,57 @@
 - `npm run typecheck`
 - targeted `eslint` по admin/studio/downloads и связанным helper/routes
 
+### Sprint 09 slice: manual worker recovery from admin
+
+- Добавлен единый execution helper для worker jobs:
+  - [admin-worker-execution.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-worker-execution.ts)
+- На него переведены existing worker routes:
+  - [storage delivery worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/worker/route.ts)
+  - [telegram notifications worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/notifications/worker/route.ts)
+- [admin worker runs route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/workers/runs/route.ts) теперь умеет не только читать историю запусков, но и вручную запускать:
+  - `telegram_notifications`
+  - `storage_delivery_telegram`
+- [admin dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx) получил recovery-кнопки для обоих worker-ов и operator-copy с объяснением, когда их использовать
+- [admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) расширен helper-ом `runAdminWorker(...)`
+
+### Зачем это сделано
+
+- до этого оператор видел только incident status и history прошлых запусков, но не мог из UI сам перезапустить очередь
+- recovery после деплоя, временного падения cron или застрявшей delivery queue требовал ручного обращения к worker routes
+- единый execution helper уменьшает дублирование логики между cron/worker routes и ручным админским запуском
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по worker routes, admin route, admin page и client helper
+
+### Sprint 09 slice: worker run provenance and operator audit
+
+- [admin worker run types](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/admin.ts) расширены полями:
+  - `trigger`
+  - `triggeredByTelegramUserId`
+- [admin-worker-run-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-worker-run-store.ts) теперь сохраняет и нормализует provenance worker run-ов
+- [admin-worker-execution.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/admin-worker-execution.ts) принимает trigger-source и actor
+- automated worker routes записывают `worker_route`, а manual trigger из админки пишет `admin_manual` и `telegramUserId` администратора:
+  - [admin worker runs route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/workers/runs/route.ts)
+  - [storage delivery worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/worker/route.ts)
+  - [telegram notifications worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/telegram/notifications/worker/route.ts)
+- [admin dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/page.tsx) теперь показывает provenance pills внутри run history:
+  - `Автоматический route`
+  - `Ручной recovery`
+  - `admin <telegramUserId>`, если запуск был ручным
+
+### Зачем это сделано
+
+- history worker jobs без provenance плохо подходит для production hardening: оператор видит факт запуска, но не видит, это cron/route или ручной recovery
+- после ручного восстановления очереди важно иметь след в UI, кто именно его инициировал
+- это подготавливает `Пульт C3K` к более полному operational audit слою без отдельной таблицы и без усложнения infra на этом этапе
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по admin worker run типам, store, helper, routes и admin page
+
 ## 2026-03-18
 
 ### Контекст

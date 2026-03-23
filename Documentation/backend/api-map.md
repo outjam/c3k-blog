@@ -184,6 +184,11 @@
 - `/api/admin/deployment/readiness`
   - preflight по базовым env и infra-контурам
   - readiness snapshot для public URLs, auth, Postgres, workers, TON и storage/desktop flags
+- `/api/admin/workers/runs`
+  - `GET`: история последних worker run-ов
+  - `POST`: ручной запуск supported worker queues из админки
+  - сейчас поддерживает `telegram_notifications` и `storage_delivery_telegram`
+  - run history хранит provenance: automated route или manual admin recovery
 
 ### Shop operations
 
@@ -200,6 +205,7 @@
   - создание Telegram Stars invoice
 - `/api/telegram/notifications/worker`
   - worker для очереди уведомлений
+  - использует общий execution layer для run history и ручного recovery trigger-а
 
 ## 9. TON
 

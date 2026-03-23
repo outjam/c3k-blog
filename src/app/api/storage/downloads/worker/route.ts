@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { recordAdminWorkerRun } from "@/lib/server/admin-worker-run-store";
+import { executeAdminWorkerRun } from "@/lib/server/admin-worker-execution";
 import {
   getTelegramStorageDeliveryQueueSize,
   processTelegramStorageDeliveryQueue,
@@ -26,44 +26,26 @@ export async function GET(request: Request) {
   }
 
   const limit = parseWorkerQueueLimit(request);
-  const queueSizeBefore = await getTelegramStorageDeliveryQueueSize();
-  const startedAt = new Date().toISOString();
+  const run = await executeAdminWorkerRun({
+    workerId: "storage_delivery_telegram",
+    limit,
+    getQueueSize: getTelegramStorageDeliveryQueueSize,
+    run: processTelegramStorageDeliveryQueue,
+    failureMessage: "storage delivery worker failed",
+    trigger: "worker_route",
+  });
 
-  try {
-    const stats = await processTelegramStorageDeliveryQueue(limit);
-    await recordAdminWorkerRun({
-      workerId: "storage_delivery_telegram",
-      status: stats.failed > 0 ? "partial" : "completed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: stats.remaining,
-      processed: stats.processed,
-      delivered: stats.delivered,
-      failed: stats.failed,
-      skipped: stats.skipped,
-      claimed: stats.claimed,
-      remaining: stats.remaining,
-    });
-    return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
-  } catch (error) {
-    await recordAdminWorkerRun({
-      workerId: "storage_delivery_telegram",
-      status: "failed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: queueSizeBefore,
-      processed: 0,
-      delivered: 0,
-      failed: 1,
-      remaining: queueSizeBefore,
-      errorMessage: error instanceof Error ? error.message : "storage delivery worker failed",
-    });
-    throw error;
-  }
+  return NextResponse.json({
+    ok: true,
+    run,
+    queueSizeBefore: run?.queueSizeBefore ?? 0,
+    processed: run?.processed ?? 0,
+    delivered: run?.delivered ?? 0,
+    failed: run?.failed ?? 0,
+    skipped: run?.skipped ?? 0,
+    claimed: run?.claimed ?? 0,
+    remaining: run?.remaining ?? 0,
+  });
 }
 
 export async function POST(request: Request) {
@@ -71,43 +53,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const queueSizeBefore = await getTelegramStorageDeliveryQueueSize();
   const limit = parseWorkerQueueLimit(request);
-  const startedAt = new Date().toISOString();
+  const run = await executeAdminWorkerRun({
+    workerId: "storage_delivery_telegram",
+    limit,
+    getQueueSize: getTelegramStorageDeliveryQueueSize,
+    run: processTelegramStorageDeliveryQueue,
+    failureMessage: "storage delivery worker failed",
+    trigger: "worker_route",
+  });
 
-  try {
-    const stats = await processTelegramStorageDeliveryQueue(limit);
-    await recordAdminWorkerRun({
-      workerId: "storage_delivery_telegram",
-      status: stats.failed > 0 ? "partial" : "completed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: stats.remaining,
-      processed: stats.processed,
-      delivered: stats.delivered,
-      failed: stats.failed,
-      skipped: stats.skipped,
-      claimed: stats.claimed,
-      remaining: stats.remaining,
-    });
-    return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
-  } catch (error) {
-    await recordAdminWorkerRun({
-      workerId: "storage_delivery_telegram",
-      status: "failed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: queueSizeBefore,
-      processed: 0,
-      delivered: 0,
-      failed: 1,
-      remaining: queueSizeBefore,
-      errorMessage: error instanceof Error ? error.message : "storage delivery worker failed",
-    });
-    throw error;
-  }
+  return NextResponse.json({
+    ok: true,
+    run,
+    queueSizeBefore: run?.queueSizeBefore ?? 0,
+    processed: run?.processed ?? 0,
+    delivered: run?.delivered ?? 0,
+    failed: run?.failed ?? 0,
+    skipped: run?.skipped ?? 0,
+    claimed: run?.claimed ?? 0,
+    remaining: run?.remaining ?? 0,
+  });
 }

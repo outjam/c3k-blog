@@ -96,6 +96,30 @@
   - channel/format/file pills
   - признаки готовности к desktop/direct delivery
 
+### Ручной recovery worker-ов из админки
+
+- Добавлен единый execution layer для worker jobs, чтобы run history и ручной запуск использовали одну и ту же логику записи результата.
+- На `Dashboard` появились две реальные recovery-кнопки:
+  - `Прогнать notifications`
+  - `Прогнать storage delivery`
+- После ручного запуска администратор сразу видит:
+  - новый run в истории
+  - обновлённый incident status
+  - понятное текстовое резюме по обработке очереди
+- Это убирает лишний разрыв между operator visibility и operator action: теперь админка не только показывает проблему, но и даёт минимальный recovery-инструмент.
+
+### Provenance для worker run-ов
+
+- История worker run-ов теперь хранит provenance:
+  - `worker_route`
+  - `admin_manual`
+- Если worker запускался вручную из админки, в run history сохраняется `telegramUserId` администратора.
+- В UI это выведено отдельными pills внутри карточки запуска, поэтому оператор сразу видит:
+  - это был автоматический прогон
+  - или ручной recovery
+  - и кем именно он был инициирован
+- Это делает background job audit заметно полезнее для production hardening и операторских разборов.
+
 ## 2026-03-18
 
 ### Профиль и публичный профиль

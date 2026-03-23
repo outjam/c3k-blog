@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { recordAdminWorkerRun } from "@/lib/server/admin-worker-run-store";
+import { executeAdminWorkerRun } from "@/lib/server/admin-worker-execution";
 import {
   getTelegramNotificationQueueSize,
   processTelegramNotificationQueue,
@@ -26,43 +26,25 @@ export async function GET(request: Request) {
   }
 
   const limit = parseWorkerQueueLimit(request);
-  const queueSizeBefore = await getTelegramNotificationQueueSize();
-  const startedAt = new Date().toISOString();
+  const run = await executeAdminWorkerRun({
+    workerId: "telegram_notifications",
+    limit,
+    getQueueSize: getTelegramNotificationQueueSize,
+    run: processTelegramNotificationQueue,
+    failureMessage: "telegram notifications worker failed",
+    trigger: "worker_route",
+  });
 
-  try {
-    const stats = await processTelegramNotificationQueue(limit);
-    await recordAdminWorkerRun({
-      workerId: "telegram_notifications",
-      status: stats.failed > 0 ? "partial" : "completed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: stats.remaining,
-      processed: stats.processed,
-      delivered: stats.delivered,
-      failed: stats.failed,
-      retried: stats.retried,
-      remaining: stats.remaining,
-    });
-    return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
-  } catch (error) {
-    await recordAdminWorkerRun({
-      workerId: "telegram_notifications",
-      status: "failed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: queueSizeBefore,
-      processed: 0,
-      delivered: 0,
-      failed: 1,
-      remaining: queueSizeBefore,
-      errorMessage: error instanceof Error ? error.message : "telegram notifications worker failed",
-    });
-    throw error;
-  }
+  return NextResponse.json({
+    ok: true,
+    run,
+    queueSizeBefore: run?.queueSizeBefore ?? 0,
+    processed: run?.processed ?? 0,
+    delivered: run?.delivered ?? 0,
+    failed: run?.failed ?? 0,
+    retried: run?.retried ?? 0,
+    remaining: run?.remaining ?? 0,
+  });
 }
 
 export async function POST(request: Request) {
@@ -70,42 +52,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const queueSizeBefore = await getTelegramNotificationQueueSize();
   const limit = parseWorkerQueueLimit(request);
-  const startedAt = new Date().toISOString();
+  const run = await executeAdminWorkerRun({
+    workerId: "telegram_notifications",
+    limit,
+    getQueueSize: getTelegramNotificationQueueSize,
+    run: processTelegramNotificationQueue,
+    failureMessage: "telegram notifications worker failed",
+    trigger: "worker_route",
+  });
 
-  try {
-    const stats = await processTelegramNotificationQueue(limit);
-    await recordAdminWorkerRun({
-      workerId: "telegram_notifications",
-      status: stats.failed > 0 ? "partial" : "completed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: stats.remaining,
-      processed: stats.processed,
-      delivered: stats.delivered,
-      failed: stats.failed,
-      retried: stats.retried,
-      remaining: stats.remaining,
-    });
-    return NextResponse.json({ ok: true, queueSizeBefore, ...stats });
-  } catch (error) {
-    await recordAdminWorkerRun({
-      workerId: "telegram_notifications",
-      status: "failed",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      limit,
-      queueSizeBefore,
-      queueSizeAfter: queueSizeBefore,
-      processed: 0,
-      delivered: 0,
-      failed: 1,
-      remaining: queueSizeBefore,
-      errorMessage: error instanceof Error ? error.message : "telegram notifications worker failed",
-    });
-    throw error;
-  }
+  return NextResponse.json({
+    ok: true,
+    run,
+    queueSizeBefore: run?.queueSizeBefore ?? 0,
+    processed: run?.processed ?? 0,
+    delivered: run?.delivered ?? 0,
+    failed: run?.failed ?? 0,
+    retried: run?.retried ?? 0,
+    remaining: run?.remaining ?? 0,
+  });
 }

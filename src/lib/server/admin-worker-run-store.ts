@@ -1,5 +1,11 @@
 import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
-import type { AdminWorkerRunRecord, AdminWorkerRunSnapshot, AdminWorkerRunStatus, AdminWorkerRunWorkerId } from "@/types/admin";
+import type {
+  AdminWorkerRunRecord,
+  AdminWorkerRunSnapshot,
+  AdminWorkerRunStatus,
+  AdminWorkerRunTrigger,
+  AdminWorkerRunWorkerId,
+} from "@/types/admin";
 
 const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1" || process.env.NODE_ENV === "production";
 const WORKER_RUNS_KEY = "admin_worker_runs_v1";
@@ -59,6 +65,10 @@ const normalizeStatus = (value: unknown): AdminWorkerRunStatus => {
   return value === "failed" || value === "partial" ? value : "completed";
 };
 
+const normalizeTrigger = (value: unknown): AdminWorkerRunTrigger => {
+  return value === "admin_manual" ? "admin_manual" : "worker_route";
+};
+
 const emptyState = (now = new Date().toISOString()): AdminWorkerRunSnapshot => ({
   runs: [],
   updatedAt: now,
@@ -80,6 +90,8 @@ const normalizeRun = (value: unknown, fallbackId: string, now: string): AdminWor
     id,
     workerId: normalizeWorkerId(source.workerId),
     status: normalizeStatus(source.status),
+    trigger: normalizeTrigger(source.trigger),
+    triggeredByTelegramUserId: normalizeNonNegativeInt(source.triggeredByTelegramUserId) || undefined,
     startedAt: normalizeIsoDateTime(source.startedAt, now),
     completedAt: normalizeIsoDateTime(source.completedAt, now),
     limit: normalizeNonNegativeInt(source.limit),
@@ -277,6 +289,8 @@ export const recordAdminWorkerRun = async (
     id: normalizeSafeId(input.id ?? `worker-run-${Date.now()}`, 120) || `worker-run-${Date.now()}`,
     workerId: normalizeWorkerId(input.workerId),
     status: normalizeStatus(input.status),
+    trigger: normalizeTrigger(input.trigger),
+    triggeredByTelegramUserId: normalizeNonNegativeInt(input.triggeredByTelegramUserId) || undefined,
     startedAt: normalizeIsoDateTime(input.startedAt, now),
     completedAt: normalizeIsoDateTime(input.completedAt, now),
     limit: normalizeNonNegativeInt(input.limit),

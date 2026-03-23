@@ -221,6 +221,8 @@ Status: current
 - [x] Retry-safe claim/lease слой для Telegram storage delivery worker
 - [x] Operator visibility по TON environment: active network, runtime/env collection source и предупреждения о testnet/mainnet drift
 - [x] Deployment readiness snapshot по базовым env/infra контурам в админке
+- [x] Manual recovery triggers для worker queues из админки через единый execution layer и общую run history
+- [x] Provenance/audit для worker run-ов: видно, был ли запуск автоматическим или ручным и каким админом инициирован
 
 Что должно быть доставлено:
 - [ ] Наблюдаемость, аудит и retry-safe jobs

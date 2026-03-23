@@ -1,7 +1,13 @@
 "use client";
 
 import { getTelegramAuthHeaders } from "@/lib/telegram-init-data-client";
-import type { AdminIncidentStatusSnapshot, AdminTonEnvironmentStatus, AdminWorkerRunSnapshot } from "@/types/admin";
+import type {
+  AdminIncidentStatusSnapshot,
+  AdminTonEnvironmentStatus,
+  AdminWorkerRunRecord,
+  AdminWorkerRunSnapshot,
+  AdminWorkerRunWorkerId,
+} from "@/types/admin";
 import type { AdminDeploymentReadinessSnapshot } from "@/types/admin";
 import type {
   ArtistApplication,
@@ -85,6 +91,7 @@ export type { AdminIncidentStatusSnapshot } from "@/types/admin";
 export type { AdminDeploymentReadinessSnapshot } from "@/types/admin";
 export type { AdminTonEnvironmentStatus } from "@/types/admin";
 export type { AdminWorkerRunSnapshot } from "@/types/admin";
+export type { AdminWorkerRunWorkerId } from "@/types/admin";
 
 export interface AdminSocialEntitlementBackfillResult {
   ok: true;
@@ -298,6 +305,37 @@ export const fetchAdminWorkerRuns = async (): Promise<{
     return { snapshot: (await response.json()) as AdminWorkerRunSnapshot };
   } catch {
     return { snapshot: null, error: "Network error" };
+  }
+};
+
+export const runAdminWorker = async (input: {
+  workerId: AdminWorkerRunWorkerId;
+  limit?: number;
+}): Promise<{
+  run: AdminWorkerRunRecord | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/workers/runs", {
+      method: "POST",
+      headers: {
+        ...adminHeaders(),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        workerId: input.workerId,
+        limit: input.limit,
+      }),
+    });
+
+    if (!response.ok) {
+      return { run: null, error: await parseApiError(response) };
+    }
+
+    const payload = (await response.json()) as { run?: AdminWorkerRunRecord | null };
+    return { run: payload.run ?? null };
+  } catch {
+    return { run: null, error: "Network error" };
   }
 };
 
