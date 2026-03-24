@@ -6,6 +6,29 @@
 
 ## Что было сделано
 
+### Production desktop поверх локальной ноды
+
+- В [desktop runtime client](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts) добавлен приоритет `window.c3kDesktop.runtime()` над HTTP `/api/desktop/runtime`
+- Это дало рабочий contour:
+  - локальный `storage-daemon`
+  - локальный `storage-daemon-cli`
+  - локальный Next runtime control-plane
+  - продовый UI `https://c3k-blog.vercel.app/storage/desktop`
+- Для Vercel добавлен [.vercelignore](/Users/culture3k/Documents/GitHub/c3k-blog/.vercelignore), чтобы deploy не тащил `.local/ton` и nested `c3k/`
+
+### One-click launcher для локальной storage-ноды
+
+- Добавлен [scripts/desktop-node-launcher.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/desktop-node-launcher.mjs)
+- Он одной командой умеет:
+  - поднимать `storage-daemon`
+  - поднимать local Next runtime control-plane
+  - запускать Electron на prod UI Vercel
+  - передавать Electron локальный runtime URL
+- Добавлены root scripts:
+  - `npm run desktop:node`
+  - `npm run desktop:node:headless`
+- Headless smoke-test прошёл успешно: launcher корректно переиспользовал уже поднятые daemon/runtime процессы и подтвердил готовый node contour
+
 ### Отдельный pitch deck простыми словами
 
 - В проект добавлена отдельная презентация:

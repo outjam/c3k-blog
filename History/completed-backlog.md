@@ -4,6 +4,23 @@
 
 ## 2026-03-24
 
+### Production desktop теперь может жить поверх локальной ноды
+
+- `C3K Desktop Client` теперь можно запускать так, чтобы:
+  - UI открывался с `https://c3k-blog.vercel.app/storage/desktop`
+  - runtime при этом брался из локального Electron-процесса и локальной ноды
+- Это закрыло главный практический разрыв между `prod UI` и `real local node`
+- Для Vercel добавлен [.vercelignore](/Users/culture3k/Documents/GitHub/c3k-blog/.vercelignore), чтобы deploy не тащил локальные TON binaries, daemon db и nested `c3k/`
+
+### One-click launcher для desktop-ноды
+
+- Добавлен единый root launcher [scripts/desktop-node-launcher.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/desktop-node-launcher.mjs)
+- Теперь node contour можно поднимать одной командой:
+  - `npm run desktop:node`
+- Для безопасной проверки без GUI есть:
+  - `npm run desktop:node:headless`
+- Launcher уже умеет переиспользовать живые daemon/runtime процессы и не требует ручной склейки из трёх отдельных терминалов
+
 ### Презентация C3K простыми словами
 
 - Добавлен отдельный presentation-deck в [Documentation/Мечты/Презентация C3K — простыми словами.md](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/Мечты/Презентация%20C3K%20%E2%80%94%20простыми%20словами.md).

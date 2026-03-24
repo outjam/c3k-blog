@@ -10,13 +10,14 @@
   - безопасный bridge для renderer
 - `gateway.mjs`
   - local gateway stub для `c3k.ton` и `storagePointer`
+- root launcher для real local node mode
+  - [scripts/desktop-node-launcher.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/desktop-node-launcher.mjs)
 
 Что здесь пока сознательно не сделано:
 
-- реальный запуск `storage-daemon`
-- реальный retrieval из `TON Storage`
 - auto-update
 - packaging/signing
+- полноценный packaged node client без `next dev`
 
 Ожидаемый контракт:
 
@@ -122,4 +123,35 @@ C3K_DESKTOP_TON_SITE_HOST=c3k.ton
 
 ```bash
 C3K_DESKTOP_RUNTIME_URL=http://127.0.0.1:3000/api/desktop/runtime npm run desktop:dev
+```
+
+## One-click prod desktop node mode
+
+Если хочешь одной командой поднять:
+
+- локальный `storage-daemon`
+- локальный Next runtime control-plane
+- локальный runtime gateway
+- Electron, который открывает продовый UI с Vercel
+
+используй из корня проекта:
+
+```bash
+npm run desktop:node
+```
+
+По умолчанию launcher открывает:
+
+`https://c3k-blog.vercel.app`
+
+Если нужно переопределить prod URL:
+
+```bash
+npm run desktop:node -- --public-url=https://your-domain.com
+```
+
+Для headless smoke-test без открытия Electron:
+
+```bash
+npm run desktop:node:headless
 ```

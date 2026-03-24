@@ -2,6 +2,31 @@
 
 ## 2026-03-24
 
+### Sprint 11 slice: production desktop boots from local node runtime
+
+- [desktop runtime client](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts) теперь в Electron сначала читает runtime через `window.c3kDesktop.runtime()`, а уже потом падает обратно на HTTP `/api/desktop/runtime`
+- Это позволило запустить локальный `C3K Desktop Client` поверх продового UI `https://c3k-blog.vercel.app/storage/desktop`, но с живым runtime локальной ноды:
+  - локальный `storage-daemon`
+  - локальный `storage-daemon-cli`
+  - локальный built-in runtime gateway
+  - живые `daemonReady / gatewayReady / bagCount`
+- Для выката в Vercel добавлен [.vercelignore](/Users/culture3k/Documents/GitHub/c3k-blog/.vercelignore), чтобы deploy больше не затягивал `.local/ton`, daemon db и вложенный `c3k/`
+
+### Sprint 11 slice: one-click desktop node launcher
+
+- Добавлен one-click launcher:
+  - [scripts/desktop-node-launcher.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/desktop-node-launcher.mjs)
+- Новый root script:
+  - `npm run desktop:node`
+  - `npm run desktop:node:headless`
+- Launcher умеет:
+  - проверять локальные TON binaries и ключи
+  - поднимать `storage-daemon`, если он ещё не запущен
+  - поднимать local Next runtime с правильным `tonstorage_cli` и local gateway env
+  - запускать Electron так, чтобы он открывал prod UI, но использовал runtime локальной ноды
+  - корректно переиспользовать уже запущенные daemon/runtime процессы
+- [desktop README](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/README.md) обновлён под новый one-click режим
+
 ### Sprint 11 slice: desktop local node runtime status
 
 - [desktop runtime](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts) теперь собирает живой статус локальной ноды:
