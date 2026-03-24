@@ -19,6 +19,16 @@ export interface C3kDesktopOnboardingStep {
   description: string;
 }
 
+export interface C3kDesktopNodeMapNode {
+  id: string;
+  city: string;
+  role: string;
+  health: string;
+  bags: string;
+  tone: "live" | "ready" | "relay";
+  coordinates: [number, number];
+}
+
 export interface C3kDesktopRuntimeContract {
   appId: string;
   appName: string;
@@ -36,6 +46,10 @@ export interface C3kDesktopRuntimeContract {
     targetDiskGb: number;
     supportedPlatforms: string[];
     steps: C3kDesktopOnboardingStep[];
+  };
+  nodeMap: {
+    nodes: C3kDesktopNodeMapNode[];
+    bounds: [[number, number], [number, number]];
   };
   deepLinks: {
     openTonSite: string;

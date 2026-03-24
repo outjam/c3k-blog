@@ -491,3 +491,8 @@
   - gateway для `c3k.ton`
   - archive и collector точки
   - связи между ними
+
+### Desktop node map stabilization
+
+- исправлено растягивание карты по высоте
+- node map вынесена в `desktop runtime contract`, чтобы дальше подменять preview-точки реальными runtime данными

@@ -10,46 +10,31 @@ import {
   fetchDesktopRuntimeContract,
   openTonSiteInDesktop,
 } from "@/lib/desktop-runtime-api";
-import type { C3kDesktopRuntimeContract } from "@/types/desktop";
+import type { C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
 
 import styles from "./page.module.scss";
 
-type DesktopNodeTone = "live" | "ready" | "relay";
-
-interface DesktopNodeMarker {
-  id: string;
-  city: string;
-  role: string;
-  health: string;
-  bags: string;
-  tone: DesktopNodeTone;
-  coordinates: [number, number];
-}
-
 const NODE_MAP_STYLE = "https://demotiles.maplibre.org/style.json";
 
-const buildDesktopNodeMap = (runtime: C3kDesktopRuntimeContract | null): { nodes: DesktopNodeMarker[]; bounds: [[number, number], [number, number]] } => {
-  const desktopTone: DesktopNodeTone = runtime?.features.desktopClientEnabled ? "live" : "ready";
-  const gatewayTone: DesktopNodeTone = runtime?.features.tonSiteDesktopGatewayEnabled ? "relay" : "ready";
-
+const buildDesktopNodeMapFallback = (): { nodes: C3kDesktopNodeMapNode[]; bounds: [[number, number], [number, number]] } => {
   return {
     nodes: [
       {
         id: "desktop-home",
-        city: "Ваш desktop",
+        city: "Moscow desktop",
         role: "Локальная нода и storage cache",
-        health: runtime?.features.desktopClientEnabled ? "Ready to seed" : "Beta scaffold",
-        bags: runtime?.features.desktopClientEnabled ? "6 bags" : "Target 6 bags",
-        tone: desktopTone,
+        health: "Beta scaffold",
+        bags: "Target 6 bags",
+        tone: "ready",
         coordinates: [37.6176, 55.7558],
       },
       {
         id: "gateway-core",
         city: "Amsterdam gateway",
         role: "c3k.ton и runtime handoff",
-        health: runtime?.features.tonSiteDesktopGatewayEnabled ? "Gateway ready" : "Gateway pending",
-        bags: `${runtime?.gateway.host ?? "127.0.0.1"}:${runtime?.gateway.port ?? 3467}`,
-        tone: gatewayTone,
+        health: "Gateway pending",
+        bags: "127.0.0.1:3467",
+        tone: "ready",
         coordinates: [4.9041, 52.3676],
       },
       {
@@ -74,7 +59,7 @@ const buildDesktopNodeMap = (runtime: C3kDesktopRuntimeContract | null): { nodes
         id: "site-belgrade",
         city: "Belgrade site cache",
         role: "Desktop site bundle",
-        health: runtime?.features.storageProgramEnabled ? "Standby" : "Preview",
+        health: "Preview",
         bags: "4 peers",
         tone: "relay",
         coordinates: [20.4489, 44.7866],
@@ -115,7 +100,7 @@ export default function StorageDesktopPage() {
   const [bootLoading, setBootLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const nodeMap = useMemo(() => buildDesktopNodeMap(runtime), [runtime]);
+  const nodeMap = useMemo(() => runtime?.nodeMap ?? buildDesktopNodeMapFallback(), [runtime]);
 
   useEffect(() => {
     let mounted = true;
@@ -158,6 +143,8 @@ export default function StorageDesktopPage() {
         padding: 44,
         duration: 0,
       });
+
+      map.resize();
 
       map.addSource("c3k-node-links", {
         type: "geojson",

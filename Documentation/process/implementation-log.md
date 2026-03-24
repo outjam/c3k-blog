@@ -1671,3 +1671,15 @@
 - Важный эффект:
   - storage node в desktop больше не выглядит как чисто технический onboarding screen
   - пользователь уже видит, к какой сети он подключается и как будет выглядеть swarm-раздача на настоящей географии
+
+### Desktop node map stabilization slice
+
+- Исправлен баг, из-за которого MapLibre-карта растягивалась по высоте:
+  - у карты теперь жёсткий viewport height и нормализованные `maplibregl` container/canvas styles
+  - это в [src/app/storage/desktop/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.module.scss)
+- Node map вынесена в desktop runtime contract:
+  - [src/lib/server/desktop-runtime.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts)
+  - [src/types/desktop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/desktop.ts)
+- Важный эффект:
+  - карта больше не живёт page-local hardcode
+  - следующий шаг уже не UI refactor, а замена preview node points на реальные runtime данные

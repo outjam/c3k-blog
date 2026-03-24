@@ -8,7 +8,65 @@ import {
   getDefaultDesktopGatewayConfig,
 } from "@/lib/desktop-runtime";
 import { getC3kStorageConfig } from "@/lib/storage-config";
-import type { C3kDesktopRuntimeContract } from "@/types/desktop";
+import type { C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
+
+const buildDesktopNodeMap = (features: ReturnType<typeof getC3kStorageConfig>) => {
+  const nodes: C3kDesktopNodeMapNode[] = [
+    {
+      id: "desktop-home",
+      city: "Moscow desktop",
+      role: "Локальная нода и storage cache",
+      health: features.desktopClientEnabled ? "Ready to seed" : "Beta scaffold",
+      bags: features.desktopClientEnabled ? "6 bags" : "Target 6 bags",
+      tone: features.desktopClientEnabled ? "live" : "ready",
+      coordinates: [37.6176, 55.7558],
+    },
+    {
+      id: "gateway-core",
+      city: "Amsterdam gateway",
+      role: "c3k.ton и runtime handoff",
+      health: features.tonSiteDesktopGatewayEnabled ? "Gateway ready" : "Gateway pending",
+      bags: `${getDefaultDesktopGatewayConfig().host}:${getDefaultDesktopGatewayConfig().port}`,
+      tone: features.tonSiteDesktopGatewayEnabled ? "relay" : "ready",
+      coordinates: [4.9041, 52.3676],
+    },
+    {
+      id: "archive-helsinki",
+      city: "Helsinki archive",
+      role: "Lossless release mirror",
+      health: "Healthy",
+      bags: "18 peers",
+      tone: "live",
+      coordinates: [24.9384, 60.1699],
+    },
+    {
+      id: "collector-almaty",
+      city: "Almaty collector",
+      role: "NFT media + booklet",
+      health: "Replicating",
+      bags: "9 peers",
+      tone: "ready",
+      coordinates: [76.886, 43.2389],
+    },
+    {
+      id: "site-belgrade",
+      city: "Belgrade site cache",
+      role: "Desktop site bundle",
+      health: features.enabled ? "Standby" : "Preview",
+      bags: "4 peers",
+      tone: "relay",
+      coordinates: [20.4489, 44.7866],
+    },
+  ];
+
+  return {
+    nodes,
+    bounds: [
+      [0, 35],
+      [85, 62],
+    ] as [[number, number], [number, number]],
+  };
+};
 
 const readAppVersion = (): string => {
   try {
@@ -90,6 +148,7 @@ export const getC3kDesktopRuntimeContract = (options?: {
         },
       ],
     },
+    nodeMap: buildDesktopNodeMap(features),
     deepLinks: {
       openTonSite: buildDesktopTonSiteOpenUrl({ gateway, appScheme }).deepLink,
       openStorageExample: buildDesktopStorageOpenUrl(
