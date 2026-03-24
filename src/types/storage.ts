@@ -232,6 +232,29 @@ export interface StorageTonRuntimeBridgeStatus {
   notes: string[];
 }
 
+export interface StorageTonRuntimePreflightSnapshot {
+  checkedAt: string;
+  uploadMode: StorageTonUploadBridgeMode;
+  workerSecretConfigured: boolean;
+  daemonCliBin?: string;
+  daemonCliArgsConfigured: boolean;
+  gatewayBase?: string;
+  cliChecked: boolean;
+  cliOk: boolean;
+  cliCommand?: string;
+  cliKnownBagCount?: number;
+  cliSample?: string;
+  cliError?: string;
+  gatewayChecked: boolean;
+  gatewayOk: boolean;
+  gatewayProbeUrl?: string;
+  gatewayStatus?: number;
+  gatewayError?: string;
+  overallReady: boolean;
+  notes: string[];
+  nextActions: string[];
+}
+
 export interface StorageDeliveryRequest {
   id: string;
   telegramUserId: number;

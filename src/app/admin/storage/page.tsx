@@ -11,7 +11,9 @@ import {
   fetchAdminStorage,
   patchAdminStorageMembership,
   probeAdminStorageRuntime,
+  runAdminStorageBridgePreflight,
   runAdminStorageIngest,
+  runAdminStoragePrepareAndUpload,
   runAdminStorageUploadOnce,
   runAdminStorageUploadOnceTargeted,
   runAdminStorageUploadSimulate,
@@ -20,7 +22,7 @@ import {
   type AdminSession,
   type AdminStorageSnapshot,
 } from "@/lib/admin-api";
-import type { StorageIngestMode, StorageProgramMembership } from "@/types/storage";
+import type { StorageIngestMode, StorageProgramMembership, StorageTonRuntimePreflightSnapshot } from "@/types/storage";
 
 import styles from "./page.module.scss";
 
@@ -79,6 +81,7 @@ export default function AdminStoragePage() {
   const [simulatingUpload, setSimulatingUpload] = useState(false);
   const [runningUploadOnce, setRunningUploadOnce] = useState(false);
   const [runningUploadTargetKey, setRunningUploadTargetKey] = useState("");
+  const [runningPrepareTargetKey, setRunningPrepareTargetKey] = useState("");
   const [ingestMode, setIngestMode] = useState<StorageIngestMode>("test_prepare");
   const [runtimeProbe, setRuntimeProbe] = useState<AdminStorageRuntimeProbe | null>(null);
   const [probingRuntime, setProbingRuntime] = useState(false);
@@ -86,6 +89,8 @@ export default function AdminStoragePage() {
     assetId: "",
     bagId: "",
   });
+  const [bridgePreflight, setBridgePreflight] = useState<StorageTonRuntimePreflightSnapshot | null>(null);
+  const [probingBridge, setProbingBridge] = useState(false);
 
   const canView = Boolean(session?.permissions.includes("storage:view"));
   const canManage = Boolean(session?.permissions.includes("storage:manage"));
@@ -174,6 +179,45 @@ export default function AdminStoragePage() {
     }, {});
   }, [snapshot]);
 
+  const assetPipelineByAssetId = useMemo(() => {
+    const jobs = snapshot?.ingestJobs ?? [];
+    const bags = snapshot?.bags ?? [];
+
+    return (snapshot?.assets ?? []).reduce<
+      Record<
+        string,
+        {
+          bagStatus?: string;
+          runtimeFetchStatus?: string;
+          latestJobStatus?: string;
+          latestJobMode?: string;
+        }
+      >
+    >((accumulator, asset) => {
+      const assetBags = bags.filter((entry) => entry.assetId === asset.id);
+      const preferredBag =
+        [...assetBags].sort(
+          (left, right) =>
+            Date.parse(right.updatedAt || right.createdAt) - Date.parse(left.updatedAt || left.createdAt),
+        )[0] ?? null;
+      const latestJob =
+        [...jobs]
+          .filter((entry) => entry.assetId === asset.id)
+          .sort(
+            (left, right) =>
+              Date.parse(right.updatedAt || right.createdAt) - Date.parse(left.updatedAt || left.createdAt),
+          )[0] ?? null;
+
+      accumulator[asset.id] = {
+        bagStatus: preferredBag?.status,
+        runtimeFetchStatus: preferredBag?.runtimeFetchStatus,
+        latestJobStatus: latestJob?.status,
+        latestJobMode: latestJob?.mode,
+      };
+      return accumulator;
+    }, {});
+  }, [snapshot]);
+
   const formatRuntimeFetchStatus = (value: string | undefined): string => {
     switch (value) {
       case "verified":
@@ -184,6 +228,25 @@ export default function AdminStoragePage() {
         return "runtime pending";
       default:
         return "runtime unknown";
+    }
+  };
+
+  const formatRuntimeProbeMeaning = (via: AdminStorageRuntimeProbe["via"]): string => {
+    switch (via) {
+      case "tonstorage_gateway":
+        return "Это уже реальный TON Storage runtime path.";
+      case "bag_http_pointer":
+        return "Это pointer-based HTTP fetch, но ещё не подтверждённый TON Storage gateway.";
+      case "bag_meta":
+        return "Это fallback через bag metadata/source URL, а не реальный TON Storage gateway.";
+      case "asset_source":
+        return "Это fallback напрямую к source URL asset, а не TON Storage.";
+      case "resolved_source":
+        return "Это fallback к заранее резолвленному source URL, а не TON Storage.";
+      case "delivery_url":
+        return "Это fallback к прямому delivery URL, а не TON Storage.";
+      default:
+        return "Runtime path пока не определён.";
     }
   };
 
@@ -324,6 +387,23 @@ export default function AdminStoragePage() {
 
     setRuntimeProbe(response.probe);
     setProbingRuntime(false);
+  };
+
+  const runBridgePreflight = async () => {
+    setProbingBridge(true);
+    setError("");
+
+    const response = await runAdminStorageBridgePreflight();
+
+    if (response.error || !response.preflight) {
+      setBridgePreflight(null);
+      setError(response.error ?? "Не удалось выполнить bridge preflight.");
+      setProbingBridge(false);
+      return;
+    }
+
+    setBridgePreflight(response.preflight);
+    setProbingBridge(false);
   };
 
   const saveMembership = async (telegramUserId: number) => {
@@ -470,6 +550,7 @@ export default function AdminStoragePage() {
       return;
     }
 
+    const noPreparedJobs = response.summary.processed === 0;
     setIngestMessage(
       [
         `Upload once (${response.summary.mode})`,
@@ -478,6 +559,9 @@ export default function AdminStoragePage() {
         `failed ${response.summary.failed}`,
         `remaining prepared ${response.summary.remainingPrepared}`,
         response.summary.bagExternalId ? `bag ${response.summary.bagExternalId}` : "",
+        response.summary.runtimeFetchStatus ? `runtime ${response.summary.runtimeFetchStatus}` : "",
+        response.summary.runtimeFetchError ? `runtime error ${response.summary.runtimeFetchError}` : "",
+        noPreparedJobs ? "prepared jobs не найдены, сначала подготовь runtime bags" : "",
         response.summary.error ? `error ${response.summary.error}` : response.summary.message || "",
       ]
         .filter(Boolean)
@@ -500,6 +584,7 @@ export default function AdminStoragePage() {
       return;
     }
 
+    const noPreparedJobs = response.summary.processed === 0;
     setIngestMessage(
       [
         `Upload asset ${assetId}`,
@@ -508,7 +593,91 @@ export default function AdminStoragePage() {
         `uploaded ${response.summary.uploaded}`,
         `failed ${response.summary.failed}`,
         response.summary.bagExternalId ? `bag ${response.summary.bagExternalId}` : "",
+        response.summary.runtimeFetchStatus ? `runtime ${response.summary.runtimeFetchStatus}` : "",
+        response.summary.runtimeFetchError ? `runtime error ${response.summary.runtimeFetchError}` : "",
+        noPreparedJobs ? "сначала подготовь runtime bags именно для этого asset" : "",
         response.summary.error ? `error ${response.summary.error}` : response.summary.message || "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    await load();
+  };
+
+  const prepareAssetForRuntime = async (assetId: string, mode: StorageIngestMode) => {
+    setRunningPrepareTargetKey(`asset:${assetId}:${mode}`);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await runAdminStorageIngest({
+      assetIds: [assetId],
+      onlyMissingBags: false,
+      limit: 1,
+      mode,
+    });
+
+    setRunningPrepareTargetKey("");
+
+    if (!response.ok) {
+      setError(response.error);
+      return false;
+    }
+
+    setIngestMessage(
+      [
+        `Prepared asset ${assetId}`,
+        `mode ${response.mode}`,
+        `selected ${response.selectedAssets}`,
+        `prepared ${response.preparedJobs}`,
+        `failed ${response.failedJobs}`,
+        response.reusedBags ? `reused bags ${response.reusedBags}` : "",
+        response.createdBags ? `created bags ${response.createdBags}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    await load();
+    return response.failedJobs === 0;
+  };
+
+  const prepareAndUploadAsset = async (assetId: string) => {
+    setRunningUploadTargetKey(`asset:${assetId}:prepare-upload`);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const uploadResponse = await runAdminStoragePrepareAndUpload({
+      assetId,
+      mode: "tonstorage_testnet",
+    });
+    setRunningUploadTargetKey("");
+
+    if (uploadResponse.error || !uploadResponse.summary) {
+      setError(uploadResponse.error ?? "Не удалось выполнить prepare + upload для asset.");
+      return;
+    }
+
+    setIngestMessage(
+      [
+        `Prepare + upload ${assetId}`,
+        `mode ${uploadResponse.summary.mode}`,
+        `prepared ${uploadResponse.summary.ingestPreparedJobs}`,
+        `failed ingest ${uploadResponse.summary.ingestFailedJobs}`,
+        `processed ${uploadResponse.summary.upload.processed}`,
+        `uploaded ${uploadResponse.summary.upload.uploaded}`,
+        `failed upload ${uploadResponse.summary.upload.failed}`,
+        uploadResponse.summary.upload.bagExternalId ? `bag ${uploadResponse.summary.upload.bagExternalId}` : "",
+        uploadResponse.summary.upload.runtimeFetchStatus
+          ? `runtime ${uploadResponse.summary.upload.runtimeFetchStatus}`
+          : "",
+        uploadResponse.summary.upload.runtimeFetchError
+          ? `runtime error ${uploadResponse.summary.upload.runtimeFetchError}`
+          : "",
+        uploadResponse.summary.endToEndReady ? "end-to-end ready" : "",
+        uploadResponse.summary.upload.error
+          ? `error ${uploadResponse.summary.upload.error}`
+          : uploadResponse.summary.message,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -662,6 +831,11 @@ export default function AdminStoragePage() {
           <article className={styles.runtimeCard}>
             <div className={styles.blockHeading}>
               <h2>TON Storage bridge</h2>
+              {canManage ? (
+                <button type="button" onClick={() => void runBridgePreflight()} disabled={probingBridge}>
+                  {probingBridge ? "Проверяем..." : "Проверить daemon/gateway"}
+                </button>
+              ) : null}
             </div>
             <p className={styles.blockHint}>
               Этот блок показывает, можно ли уже перейти от локальной симуляции к настоящему testnet upload через
@@ -686,6 +860,34 @@ export default function AdminStoragePage() {
                 <span key={item}>{item}</span>
               ))}
             </div>
+            {bridgePreflight ? (
+              <div className={styles.noteList}>
+                <span>{bridgePreflight.overallReady ? "preflight: ready" : "preflight: not ready"}</span>
+                {bridgePreflight.cliChecked ? (
+                  <span>cli: {bridgePreflight.cliOk ? "ok" : "failed"}</span>
+                ) : (
+                  <span>cli: skipped</span>
+                )}
+                {typeof bridgePreflight.cliKnownBagCount === "number" ? (
+                  <span>cli bags: {bridgePreflight.cliKnownBagCount}</span>
+                ) : null}
+                {bridgePreflight.gatewayChecked ? (
+                  <span>
+                    gateway: {bridgePreflight.gatewayOk ? "ok" : "failed"}
+                    {typeof bridgePreflight.gatewayStatus === "number" ? ` · HTTP ${bridgePreflight.gatewayStatus}` : ""}
+                  </span>
+                ) : (
+                  <span>gateway: skipped</span>
+                )}
+                {bridgePreflight.cliCommand ? <span>{bridgePreflight.cliCommand}</span> : null}
+                {bridgePreflight.cliSample ? <span>{bridgePreflight.cliSample}</span> : null}
+                {bridgePreflight.cliError ? <span>{bridgePreflight.cliError}</span> : null}
+                {bridgePreflight.gatewayError ? <span>{bridgePreflight.gatewayError}</span> : null}
+                {(bridgePreflight.nextActions ?? []).map((step) => (
+                  <span key={step}>{step}</span>
+                ))}
+              </div>
+            ) : null}
           </article>
           <article className={styles.runtimeCard}>
             <div className={styles.blockHeading}>
@@ -722,6 +924,7 @@ export default function AdminStoragePage() {
             <div className={styles.noteList}>
               <span>`Симулировать upload` нужен для бесплатного e2e теста без daemon bridge.</span>
               <span>`Прогнать upload once` пытается выполнить один реальный server-side upload cycle через текущий bridge mode.</span>
+              <span>`Подготовить + загрузить` на карточке asset прогоняет весь короткий путь на одном файле.</span>
             </div>
           </article>
           <article className={styles.runtimeCard}>
@@ -778,6 +981,7 @@ export default function AdminStoragePage() {
           {runtimeProbe ? (
             <div className={styles.noteList}>
               <span>{runtimeProbe.ok ? "Runtime fetch доступен" : "Runtime fetch пока не доступен"}</span>
+              <span>{formatRuntimeProbeMeaning(runtimeProbe.via)}</span>
               {runtimeProbe.assetLabel ? <span>{runtimeProbe.assetLabel}</span> : null}
               {runtimeProbe.bagLabel ? <span>{runtimeProbe.bagLabel}</span> : null}
               {runtimeProbe.via ? <span>via: {runtimeProbe.via}</span> : null}
@@ -1357,15 +1561,40 @@ export default function AdminStoragePage() {
                   <span>{asset.format}</span>
                   <span>{asset.resourceKey || "no key"}</span>
                   <span>{asset.sizeBytes} bytes</span>
+                  <span>job: {assetPipelineByAssetId[asset.id]?.latestJobStatus || "none"}</span>
+                  <span>job mode: {assetPipelineByAssetId[asset.id]?.latestJobMode || "none"}</span>
+                  <span>bag: {assetPipelineByAssetId[asset.id]?.bagStatus || "none"}</span>
+                  <span>runtime: {assetPipelineByAssetId[asset.id]?.runtimeFetchStatus || "unknown"}</span>
                 </div>
                 {canManage ? (
                   <div className={styles.controls}>
                     <button
                       type="button"
+                      onClick={() => void prepareAssetForRuntime(asset.id, ingestMode)}
+                      disabled={runningPrepareTargetKey === `asset:${asset.id}:${ingestMode}`}
+                    >
+                      {runningPrepareTargetKey === `asset:${asset.id}:${ingestMode}`
+                        ? "Готовим..."
+                        : "Подготовить этот asset"}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => void runUploadForAsset(asset.id)}
-                      disabled={runningUploadTargetKey === `asset:${asset.id}`}
+                      disabled={
+                        runningUploadTargetKey === `asset:${asset.id}` ||
+                        runningUploadTargetKey === `asset:${asset.id}:prepare-upload`
+                      }
                     >
                       {runningUploadTargetKey === `asset:${asset.id}` ? "Гоним..." : "Загрузить этот asset"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void prepareAndUploadAsset(asset.id)}
+                      disabled={runningUploadTargetKey === `asset:${asset.id}:prepare-upload`}
+                    >
+                      {runningUploadTargetKey === `asset:${asset.id}:prepare-upload`
+                        ? "Готовим и грузим..."
+                        : "Подготовить + загрузить"}
                     </button>
                   </div>
                 ) : null}

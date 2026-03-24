@@ -35,6 +35,14 @@ const encodePath = (path: string | undefined): string => {
     .join("/");
 };
 
+export interface TonStorageBridgeEnvConfig {
+  uploadMode: StorageTonUploadBridgeMode;
+  workerSecretConfigured: boolean;
+  daemonCliBin?: string;
+  daemonCliArgs: string[];
+  gatewayBase?: string;
+}
+
 export const isRealTonStorageBagId = (value: unknown): boolean => {
   return TONSTORAGE_BAG_ID_PATTERN.test(normalizeText(value));
 };
@@ -94,12 +102,25 @@ export const buildTonStorageGatewayFetchUrl = (input: {
   return filePath ? `${gatewayBase}/${bagId}/${encodePath(filePath)}` : `${gatewayBase}/${bagId}`;
 };
 
-export const getTonStorageRuntimeBridgeStatus = (): StorageTonRuntimeBridgeStatus => {
+export const getTonStorageBridgeEnvConfig = (): TonStorageBridgeEnvConfig => {
   const uploadMode = parseBridgeMode(process.env.C3K_STORAGE_TON_UPLOAD_BRIDGE_MODE);
   const workerSecretConfigured = Boolean(normalizeText(process.env.C3K_STORAGE_WORKER_SECRET));
   const daemonCliBin = normalizeText(process.env.C3K_STORAGE_TON_DAEMON_CLI_BIN) || "storage-daemon-cli";
   const daemonCliArgs = parseJsonArray(process.env.C3K_STORAGE_TON_DAEMON_CLI_ARGS_JSON);
   const gatewayBase = normalizeBaseUrl(process.env.C3K_STORAGE_TON_HTTP_GATEWAY_BASE);
+
+  return {
+    uploadMode,
+    workerSecretConfigured,
+    daemonCliBin: uploadMode === "tonstorage_cli" ? daemonCliBin : undefined,
+    daemonCliArgs,
+    gatewayBase,
+  };
+};
+
+export const getTonStorageRuntimeBridgeStatus = (): StorageTonRuntimeBridgeStatus => {
+  const config = getTonStorageBridgeEnvConfig();
+  const { uploadMode, workerSecretConfigured, daemonCliBin, daemonCliArgs, gatewayBase } = config;
 
   const missing: string[] = [];
   const notes: string[] = [];
@@ -133,7 +154,7 @@ export const getTonStorageRuntimeBridgeStatus = (): StorageTonRuntimeBridgeStatu
     generatedAt: new Date().toISOString(),
     uploadMode,
     workerSecretConfigured,
-    daemonCliBin: uploadMode === "tonstorage_cli" ? daemonCliBin : undefined,
+    daemonCliBin,
     daemonCliArgsConfigured: daemonCliArgs.length > 0,
     gatewayBase,
     realUploadReady: workerSecretConfigured && uploadMode === "tonstorage_cli",

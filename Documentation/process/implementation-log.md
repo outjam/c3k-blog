@@ -2,6 +2,70 @@
 
 ## 2026-03-24
 
+### Sprint 10 slice: live bridge preflight and honest runtime probe messaging
+
+- Добавлен отдельный bridge preflight:
+  - [storage-ton-runtime-preflight.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-preflight.ts)
+  - [bridge-preflight route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/bridge-preflight/route.ts)
+- [bridge env/status helper](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-bridge.ts) теперь отдаёт общий env-config для live preflight
+- В [storage admin api](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) появился client helper `runAdminStorageBridgePreflight()`
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь умеет:
+  - запускать проверку `storage-daemon-cli`
+  - проверять доступность gateway base
+  - показывать `cli ok/failed`, число известных bag id, gateway HTTP status и next actions
+- `upload once` summary теперь возвращает:
+  - `runtimeFetchStatus`
+  - `runtimeFetchError`
+- В `Runtime probe` UI теперь прямо объясняется, является ли текущий `via`:
+  - реальным `TON Storage gateway`
+  - или ещё только fallback source path
+
+### Зачем это сделано
+
+- по старому UI можно было увидеть `Runtime fetch доступен`, хотя фактически это был лишь `bag_meta` fallback
+- для первого живого testnet-прогона оператору нужен честный ответ:
+  - CLI вообще запускается?
+  - gateway вообще отвечает?
+  - pointer реально подтверждён через runtime или система всё ещё качает файл по старому URL?
+- этот слой сокращает ложные “почти готово” состояния перед настоящим `TON Storage` тестом
+
+### Sprint 10 slice: per-asset prepare and upload flow in storage admin
+
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь показывает на карточке asset:
+  - последний ingest job status
+  - job mode
+  - bag status
+  - runtime fetch status
+- Для каждого asset появились operator actions:
+  - `Подготовить этот asset`
+  - `Загрузить этот asset`
+  - `Подготовить + загрузить`
+
+### Зачем это сделано
+
+- раньше `Загрузить этот asset` мог честно ответить `Prepared jobs не найдены`, и оператору приходилось вручную догадываться, что сначала нужен targeted ingest
+- теперь storage admin даёт короткий и предсказуемый путь на одном asset:
+  - подготовить pointer/job
+  - сразу же попробовать upload
+- это особенно важно для первого живого testnet-прогона, когда проверяется один конкретный релиз или трек, а не весь каталог
+
+### Sprint 10 slice: server-side one-shot prepare+upload route
+
+- [storage upload worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) теперь умеет выполнять объединённый цикл:
+  - targeted ingest
+  - targeted upload
+  - итоговый `runtimeFetchStatus`
+- Для этого добавлен:
+  - [prepare-and-upload route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/prepare-and-upload/route.ts)
+  - [client helper](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) переведён с client-side склейки на единый server-side one-shot flow
+
+### Зачем это сделано
+
+- раньше `Подготовить + загрузить` был двумя отдельными клиентскими запросами
+- это было достаточно для теста, но не давало одного операторского результата и не было похоже на настоящий runtime operation
+- теперь у storage admin есть единый one-shot action для конкретного asset, который ближе к будущему live worker cycle
+
 ### Sprint 10 slice: runtime pointer verification and bag-file manifest
 
 - [storage upload completion](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) теперь не заканчивается просто записью `bagId/pointer`:

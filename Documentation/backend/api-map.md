@@ -182,9 +182,15 @@
 - `/api/admin/storage/upload-simulate`
   - test-only simulated upload pass для `tonstorage_testnet`
   - позволяет прогнать внешний upload stage без реального daemon bridge
+- `/api/admin/storage/prepare-and-upload`
+  - server-side one-shot flow для конкретного asset
+  - делает targeted ingest, затем targeted upload и возвращает итоговый runtime status
 - `/api/admin/storage/runtime-probe`
   - точечная проверка конкретного asset/bag через storage runtime
   - показывает `via`, HTTP status и фактическую доступность fetch target
+- `/api/admin/storage/bridge-preflight`
+  - живой preflight для `storage-daemon-cli` и HTTP gateway
+  - показывает, готов ли bridge к реальному `TON Storage` test upload
 - `/api/admin/ton/status`
   - snapshot active TON environment
   - active network, collection source, relay readiness и runtime/env drift warnings

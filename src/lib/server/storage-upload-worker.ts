@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
 import { C3K_STORAGE_ENABLED } from "@/lib/storage-config";
+import { runStorageIngest } from "@/lib/server/storage-ingest";
 import {
   claimStorageIngestJob,
   getStorageIngestJob,
@@ -17,12 +18,12 @@ import {
   appendStorageHealthEvent,
   listStorageAssets,
   listStorageBags,
-  upsertStorageBagFile,
   upsertStorageBag,
+  upsertStorageBagFile,
 } from "@/lib/server/storage-registry-store";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
 import { reconcileStorageDeliveryRequestsForRuntimeAsset } from "@/lib/server/storage-delivery";
-import type { StorageAsset, StorageBag, StorageIngestJob } from "@/types/storage";
+import type { StorageAsset, StorageBag, StorageIngestJob, StorageIngestMode } from "@/types/storage";
 
 const UPLOAD_WORKER_STALE_MS = 20 * 60 * 1000;
 const execFileAsync = promisify(execFile);
@@ -138,8 +139,23 @@ export interface StorageUploadRunOnceSummary {
   jobId?: string;
   bagExternalId?: string;
   tonstorageUri?: string;
+  runtimeFetchStatus?: StorageBag["runtimeFetchStatus"];
+  runtimeFetchError?: string;
   message?: string;
   error?: string;
+}
+
+export interface StoragePrepareAndUploadSummary {
+  assetId: string;
+  mode: StorageIngestMode;
+  ingestSelectedAssets: number;
+  ingestPreparedJobs: number;
+  ingestFailedJobs: number;
+  ingestCreatedBags: number;
+  ingestReusedBags: number;
+  upload: StorageUploadRunOnceSummary;
+  endToEndReady: boolean;
+  message: string;
 }
 
 interface TelegramFileInfo {
@@ -710,6 +726,8 @@ export const runSingleTonStorageUploadCycle = async (input?: {
       jobId: claimed.job.id,
       bagExternalId: uploadResult.bagExternalId,
       tonstorageUri: uploadResult.tonstorageUri,
+      runtimeFetchStatus: result.bag?.runtimeFetchStatus,
+      runtimeFetchError: result.bag?.runtimeFetchError,
       message: uploadResult.message,
       error: result.ok ? undefined : result.reason,
     };
@@ -734,4 +752,67 @@ export const runSingleTonStorageUploadCycle = async (input?: {
       error: message,
     };
   }
+};
+
+export const runPrepareAndUploadStorageAssetCycle = async (input: {
+  assetId: string;
+  mode?: StorageIngestMode;
+  requestedByTelegramUserId?: number;
+}): Promise<
+  | { ok: false; error: string }
+  | { ok: true; summary: StoragePrepareAndUploadSummary }
+> => {
+  const assetId = String(input.assetId || "").trim();
+
+  if (!assetId) {
+    return {
+      ok: false,
+      error: "assetId is required",
+    };
+  }
+
+  const mode = input.mode ?? "tonstorage_testnet";
+  const ingest = await runStorageIngest({
+    assetIds: [assetId],
+    onlyMissingBags: false,
+    limit: 1,
+    mode,
+    requestedByTelegramUserId: input.requestedByTelegramUserId,
+  });
+
+  if (!ingest.ok) {
+    return {
+      ok: false,
+      error: ingest.message,
+    };
+  }
+
+  const upload = await runSingleTonStorageUploadCycle({ assetId });
+  const endToEndReady = upload.uploaded > 0 && upload.runtimeFetchStatus === "verified";
+  const message =
+    upload.processed === 0
+      ? "Ingest завершён, но upload stage не нашёл prepared job."
+      : upload.runtimeFetchStatus === "verified"
+        ? "Asset подготовлен, загружен и подтверждён через runtime gateway."
+        : upload.runtimeFetchStatus === "failed"
+          ? "Asset подготовлен и загружен, но runtime gateway пока не подтвердил pointer."
+          : upload.uploaded > 0
+            ? "Asset подготовлен и загружен, runtime verification ещё не подтверждён."
+            : "Asset подготовлен, но upload не завершился успешно.";
+
+  return {
+    ok: true,
+    summary: {
+      assetId,
+      mode,
+      ingestSelectedAssets: ingest.summary.selectedAssets,
+      ingestPreparedJobs: ingest.summary.preparedJobs,
+      ingestFailedJobs: ingest.summary.failedJobs,
+      ingestCreatedBags: ingest.summary.createdBags,
+      ingestReusedBags: ingest.summary.reusedBags,
+      upload,
+      endToEndReady,
+      message,
+    },
+  };
 };

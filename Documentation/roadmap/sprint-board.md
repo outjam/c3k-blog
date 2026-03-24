@@ -261,6 +261,10 @@ Status: current
 - [x] User-facing delivery history показывает реальный runtime path выдачи файла
 - [x] Admin storage dashboard умеет запускать один server-side upload cycle для локального bridge-теста
 - [x] Admin storage dashboard умеет запускать targeted upload cycle для конкретного asset
+- [x] Admin storage dashboard умеет прогонять живой bridge preflight для `storage-daemon-cli` и HTTP gateway
+- [x] Upload cycle summary теперь показывает, подтвердился ли runtime pointer через gateway
+- [x] Admin storage dashboard теперь даёт per-asset flow `подготовить -> загрузить` без ручного переключения между общими действиями
+- [x] Для конкретного asset теперь есть server-side one-shot flow `prepare + upload`
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 

@@ -4,6 +4,45 @@
 
 ## 2026-03-24
 
+### Живой bridge preflight и честная диагностика runtime
+
+- В storage dashboard появилась отдельная проверка `daemon/gateway`, которая показывает:
+  - запускается ли `storage-daemon-cli`
+  - видит ли он bag list
+  - отвечает ли HTTP gateway
+  - готов ли весь bridge к первому живому testnet upload
+- Это особенно важно для перехода от simulated upload к реальному `TON Storage`, потому что раньше в UI было видно только env-ready состояние, но не реальная работоспособность контура.
+
+### Runtime probe теперь честно различает fallback и реальный TON Storage
+
+- По старому поведению оператор мог увидеть `Runtime fetch доступен`, даже если файл пришёл через `bag_meta` или `asset source`.
+- Теперь storage admin прямо объясняет:
+  - это уже реальный `TON Storage gateway`
+  - или это пока fallback path
+- Это убирает ложное ощущение, что `TON Storage` уже работает end-to-end, когда на самом деле система всё ещё сидит на старом source layer.
+
+### Per-asset pipeline в storage admin
+
+- На карточках asset теперь видно:
+  - последний ingest job
+  - в каком mode он шёл
+  - есть ли bag
+  - что с runtime fetch status
+- И там же появились три действия:
+  - `Подготовить этот asset`
+  - `Загрузить этот asset`
+  - `Подготовить + загрузить`
+- Это закрывает практическую проблему, когда оператор нажимал upload и получал `Prepared jobs не найдены`, но интерфейс не помогал пройти следующий правильный шаг.
+
+### Server-side one-shot prepare+upload
+
+- Flow `Подготовить + загрузить` теперь больше не склеен только на клиенте.
+- Для него появился отдельный серверный маршрут, который сам:
+  - готовит asset в runtime ingest
+  - запускает targeted upload
+  - возвращает итоговый runtime status
+- Это делает операторский сценарий ближе к реальному живому runtime, а не к последовательности двух ручных UI-действий.
+
 ### Runtime pointer verification и bag-file manifest
 
 - После storage upload completion система теперь сохраняет не только `bagId` или `tonstorage:// pointer`, но и путь файла внутри bag.

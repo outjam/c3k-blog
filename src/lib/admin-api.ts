@@ -43,6 +43,7 @@ import type {
   StorageProgramMembership,
   StorageProgramSnapshot,
   StorageTonRuntimeBridgeStatus,
+  StorageTonRuntimePreflightSnapshot,
   StorageRuntimeStatusSnapshot,
 } from "@/types/storage";
 
@@ -270,8 +271,23 @@ export interface AdminStorageUploadRunOnceSummary {
   jobId?: string;
   bagExternalId?: string;
   tonstorageUri?: string;
+  runtimeFetchStatus?: "pending" | "verified" | "failed";
+  runtimeFetchError?: string;
   message?: string;
   error?: string;
+}
+
+export interface AdminStoragePrepareAndUploadSummary {
+  assetId: string;
+  mode: StorageIngestMode;
+  ingestSelectedAssets: number;
+  ingestPreparedJobs: number;
+  ingestFailedJobs: number;
+  ingestCreatedBags: number;
+  ingestReusedBags: number;
+  upload: AdminStorageUploadRunOnceSummary;
+  endToEndReady: boolean;
+  message: string;
 }
 
 export interface AdminStorageNodeInput {
@@ -744,6 +760,32 @@ export const probeAdminStorageRuntime = async (payload?: {
   }
 };
 
+export const runAdminStorageBridgePreflight = async (): Promise<{
+  preflight: StorageTonRuntimePreflightSnapshot | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/storage/bridge-preflight", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify({}),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { preflight: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { preflight?: StorageTonRuntimePreflightSnapshot | null };
+    return { preflight: data.preflight ?? null };
+  } catch {
+    return { preflight: null, error: "Network error" };
+  }
+};
+
 export const createAdminStorageAsset = async (payload: {
   id?: string;
   releaseSlug?: string;
@@ -1073,6 +1115,35 @@ export const runAdminStorageUploadOnceTargeted = async (payload: {
     }
 
     const data = (await response.json()) as { summary?: AdminStorageUploadRunOnceSummary };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
+  }
+};
+
+export const runAdminStoragePrepareAndUpload = async (payload: {
+  assetId: string;
+  mode?: StorageIngestMode;
+}): Promise<{
+  summary: AdminStoragePrepareAndUploadSummary | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/storage/prepare-and-upload", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStoragePrepareAndUploadSummary };
     return { summary: data.summary ?? null };
   } catch {
     return { summary: null, error: "Network error" };
