@@ -66,6 +66,77 @@
 - это было достаточно для теста, но не давало одного операторского результата и не было похоже на настоящий runtime operation
 - теперь у storage admin есть единый one-shot action для конкретного asset, который ближе к будущему live worker cycle
 
+### Sprint 10 slice: bag runtime reverify without re-upload
+
+- [storage-ton-runtime-verification.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-verification.ts) теперь умеет:
+  - повторно проверять конкретный bag через gateway
+  - сохранять новый `runtimeFetchStatus`
+  - писать health event
+  - заново reconcile-ить delivery requests
+- Для этого добавлен route:
+  - [bags/reverify route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/bags/reverify/route.ts)
+- В [storage admin api](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) добавлен helper `runAdminStorageBagReverify(...)`
+- На [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) у bag теперь есть действие `Перепроверить runtime`
+
+### Зачем это сделано
+
+- реальный gateway может появиться позже, чем был загружен bag
+- раньше в таком случае приходилось повторять upload или просто смотреть на stale `runtime pending/failed`
+- теперь оператор может поднять gateway и затем просто переподтвердить bag, после чего delivery layer сразу начинает получать свежий runtime state
+
+### Sprint 10 slice: bulk runtime reverify for pointer-ready bags
+
+- [storage-ton-runtime-verification.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-verification.ts) теперь умеет массово проходить по pointer-ready bags
+- Для этого добавлен route:
+  - [bags/reverify-all route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/bags/reverify-all/route.ts)
+- [storage admin api](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) получил helper `runAdminStorageBagReverifyAll(...)`
+- В [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) в блоке `TON Storage bridge` появилась кнопка `Перепроверить все bags`
+
+### Зачем это сделано
+
+- после поднятия gateway часто нужно оживить не один bag, а целую пачку уже подготовленных pointers
+- вручную проходить по одному bag неудобно и медленно
+- теперь у оператора есть один bulk-action:
+  - проверить всё pointer-ready
+  - перевести часть bags в `verified`
+  - автоматически оживить delivery requests там, где runtime уже стал доступен
+
+### Sprint 10 slice: targeted external worker claim
+
+- [storage ingest worker route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/ingest/worker/route.ts) теперь поддерживает targeted claim по:
+  - `assetId`
+  - `bagId`
+  - `targetJobId`
+- [storage testnet worker script](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/storage-testnet-worker.mjs) получил CLI-флаги:
+  - `--asset=<id>`
+  - `--bag=<id>`
+  - `--job=<id>`
+
+### Зачем это сделано
+
+- раньше внешний worker мог забрать только “следующую prepared job”
+- для первого живого testnet-прогона это неудобно: обычно нужно прогнать один конкретный asset или проблемный bag
+- теперь реальный `tonstorage_cli` контур можно запускать адресно и гораздо предсказуемее
+
+### Sprint 10 slice: worker launch commands in storage admin
+
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь показывает готовые команды запуска внешнего worker:
+  - env bootstrap
+  - one-shot
+  - loop
+  - targeted by `asset`
+  - targeted by `job`
+- Для этого добавлены визуальные command blocks в [page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.module.scss)
+
+### Зачем это сделано
+
+- до этого путь к живому `tonstorage_cli` запуску всё ещё требовал вручную собирать команды
+- теперь storage admin даёт оператору прямой мост:
+  - посмотрел prepared job
+  - скопировал команду
+  - запустил внешний worker
+- это делает первый реальный testnet-прогон не только технически возможным, но и реально удобным
+
 ### Sprint 10 slice: runtime pointer verification and bag-file manifest
 
 - [storage upload completion](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) теперь не заканчивается просто записью `bagId/pointer`:

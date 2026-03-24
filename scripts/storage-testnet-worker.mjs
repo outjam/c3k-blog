@@ -39,6 +39,14 @@ const args = new Set(process.argv.slice(2));
 const loop = args.has("--loop");
 const intervalArg = [...args].find((entry) => entry.startsWith("--interval="));
 const intervalMs = Math.max(1_000, Number(intervalArg?.split("=")[1] || 5_000));
+const assetArg = [...args].find((entry) => entry.startsWith("--asset="));
+const bagArg = [...args].find((entry) => entry.startsWith("--bag="));
+const jobArg = [...args].find((entry) => entry.startsWith("--job="));
+const claimTarget = {
+  assetId: assetArg?.split("=")[1] || "",
+  bagId: bagArg?.split("=")[1] || "",
+  targetJobId: jobArg?.split("=")[1] || "",
+};
 
 if (!WORKER_SECRET.trim()) {
   console.error("Missing C3K_STORAGE_WORKER_SECRET");
@@ -155,7 +163,12 @@ const claimJob = async () => {
       "content-type": "application/json",
       ...workerHeaders,
     },
-    body: JSON.stringify({ action: "claim" }),
+    body: JSON.stringify({
+      action: "claim",
+      assetId: claimTarget.assetId || undefined,
+      bagId: claimTarget.bagId || undefined,
+      targetJobId: claimTarget.targetJobId || undefined,
+    }),
     cache: "no-store",
   });
 
@@ -211,7 +224,14 @@ const runOnce = async () => {
   const claimed = claimPayload?.claimed;
 
   if (!claimed?.job?.id || !claimed?.job?.workerLockId || !claimPayload?.endpoints?.source) {
-    console.log("[storage-worker] no prepared jobs");
+    const targetLabel = claimTarget.targetJobId
+      ? `job=${claimTarget.targetJobId}`
+      : claimTarget.assetId
+        ? `asset=${claimTarget.assetId}`
+        : claimTarget.bagId
+          ? `bag=${claimTarget.bagId}`
+          : "";
+    console.log(`[storage-worker] no prepared jobs${targetLabel ? ` for ${targetLabel}` : ""}`);
     return false;
   }
 
@@ -274,7 +294,10 @@ const runOnce = async () => {
 
 const main = async () => {
   console.log(
-    `[storage-worker] baseUrl=${baseUrl} loop=${loop ? "yes" : "no"} interval=${intervalMs}ms mode=${UPLOAD_MODE}`,
+    `[storage-worker] baseUrl=${baseUrl} loop=${loop ? "yes" : "no"} interval=${intervalMs}ms mode=${UPLOAD_MODE}` +
+      `${claimTarget.assetId ? ` asset=${claimTarget.assetId}` : ""}` +
+      `${claimTarget.bagId ? ` bag=${claimTarget.bagId}` : ""}` +
+      `${claimTarget.targetJobId ? ` job=${claimTarget.targetJobId}` : ""}`,
   );
 
   if (!loop) {

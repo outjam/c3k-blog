@@ -255,6 +255,35 @@ export interface StorageTonRuntimePreflightSnapshot {
   nextActions: string[];
 }
 
+export interface StorageBagRuntimeReverifySummary {
+  checkedAt: string;
+  bagId: string;
+  assetId: string;
+  filePath?: string;
+  status: StorageBagRuntimeFetchStatus;
+  gatewayUrl?: string;
+  error?: string;
+  probeMethod?: "HEAD" | "GET";
+  httpStatus?: number;
+  reconciledRequestsUpdated: number;
+  reconciledReady: number;
+  reconciledProcessing: number;
+  reconciledPending: number;
+}
+
+export interface StorageBagRuntimeSweepSummary {
+  checkedAt: string;
+  scanned: number;
+  verified: number;
+  failed: number;
+  pending: number;
+  reconciledRequestsUpdated: number;
+  reconciledReady: number;
+  reconciledProcessing: number;
+  reconciledPending: number;
+  bagIds: string[];
+}
+
 export interface StorageDeliveryRequest {
   id: string;
   telegramUserId: number;

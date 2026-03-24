@@ -34,6 +34,8 @@ import type {
 import type {
   StorageAsset,
   StorageBag,
+  StorageBagRuntimeReverifySummary,
+  StorageBagRuntimeSweepSummary,
   StorageBagFile,
   StorageDeliveryRequest,
   StorageHealthEvent,
@@ -289,6 +291,9 @@ export interface AdminStoragePrepareAndUploadSummary {
   endToEndReady: boolean;
   message: string;
 }
+
+export type AdminStorageBagReverifySummary = StorageBagRuntimeReverifySummary;
+export type AdminStorageBagReverifyAllSummary = StorageBagRuntimeSweepSummary;
 
 export interface AdminStorageNodeInput {
   id?: string;
@@ -1144,6 +1149,63 @@ export const runAdminStoragePrepareAndUpload = async (payload: {
     }
 
     const data = (await response.json()) as { summary?: AdminStoragePrepareAndUploadSummary };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
+  }
+};
+
+export const runAdminStorageBagReverify = async (payload: {
+  bagId: string;
+}): Promise<{
+  summary: AdminStorageBagReverifySummary | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/storage/bags/reverify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStorageBagReverifySummary };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
+  }
+};
+
+export const runAdminStorageBagReverifyAll = async (payload?: {
+  limit?: number;
+  onlyUnverified?: boolean;
+}): Promise<{
+  summary: AdminStorageBagReverifyAllSummary | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/storage/bags/reverify-all", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload ?? {}),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStorageBagReverifyAllSummary };
     return { summary: data.summary ?? null };
   } catch {
     return { summary: null, error: "Network error" };

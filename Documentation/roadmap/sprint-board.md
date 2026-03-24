@@ -265,6 +265,10 @@ Status: current
 - [x] Upload cycle summary теперь показывает, подтвердился ли runtime pointer через gateway
 - [x] Admin storage dashboard теперь даёт per-asset flow `подготовить -> загрузить` без ручного переключения между общими действиями
 - [x] Для конкретного asset теперь есть server-side one-shot flow `prepare + upload`
+- [x] Для bag теперь есть отдельный runtime reverify flow без повторного upload
+- [x] Для pointer-ready bags теперь есть bulk runtime reverify flow
+- [x] Внешний upload worker теперь можно таргетировать по `asset`, `bag` или `job`
+- [x] Storage admin теперь показывает готовые worker-команды для живого `tonstorage_cli` прогона
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 

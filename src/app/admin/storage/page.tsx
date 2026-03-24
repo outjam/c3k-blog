@@ -12,6 +12,8 @@ import {
   patchAdminStorageMembership,
   probeAdminStorageRuntime,
   runAdminStorageBridgePreflight,
+  runAdminStorageBagReverify,
+  runAdminStorageBagReverifyAll,
   runAdminStorageIngest,
   runAdminStoragePrepareAndUpload,
   runAdminStorageUploadOnce,
@@ -82,6 +84,8 @@ export default function AdminStoragePage() {
   const [runningUploadOnce, setRunningUploadOnce] = useState(false);
   const [runningUploadTargetKey, setRunningUploadTargetKey] = useState("");
   const [runningPrepareTargetKey, setRunningPrepareTargetKey] = useState("");
+  const [reverifyingBagKey, setReverifyingBagKey] = useState("");
+  const [reverifyingAllBags, setReverifyingAllBags] = useState(false);
   const [ingestMode, setIngestMode] = useState<StorageIngestMode>("test_prepare");
   const [runtimeProbe, setRuntimeProbe] = useState<AdminStorageRuntimeProbe | null>(null);
   const [probingRuntime, setProbingRuntime] = useState(false);
@@ -177,6 +181,38 @@ export default function AdminStoragePage() {
       accumulator[entry.bagId]?.push(entry.path);
       return accumulator;
     }, {});
+  }, [snapshot]);
+
+  const workerLaunchPlan = useMemo(() => {
+    const tonstoragePreparedJob =
+      (snapshot?.ingestJobs ?? [])
+        .filter((job) => job.mode === "tonstorage_testnet" && job.status === "prepared")
+        .sort((left, right) => Date.parse(right.updatedAt || right.createdAt) - Date.parse(left.updatedAt || left.createdAt))[0] ??
+      null;
+    const baseUrl =
+      typeof window !== "undefined" ? `${window.location.protocol}//${window.location.host}` : "http://127.0.0.1:3000";
+    const mode = snapshot?.runtimeBridge.uploadMode || "simulated";
+    const daemonBin = snapshot?.runtimeBridge.daemonCliBin || "storage-daemon-cli";
+    const envLines = [
+      `export C3K_STORAGE_WORKER_BASE_URL=${baseUrl}`,
+      "export C3K_STORAGE_WORKER_SECRET=<your_worker_secret>",
+      `export C3K_STORAGE_TON_UPLOAD_BRIDGE_MODE=${mode === "tonstorage_cli" ? "tonstorage_cli" : "simulated"}`,
+      mode === "tonstorage_cli" ? `export C3K_STORAGE_TON_DAEMON_CLI_BIN=${daemonBin}` : "",
+    ].filter(Boolean);
+
+    return {
+      preparedAssetId: tonstoragePreparedJob?.assetId || "",
+      preparedJobId: tonstoragePreparedJob?.id || "",
+      envLines,
+      onceCommand: "npm run storage:worker:once",
+      loopCommand: "npm run storage:worker:loop -- --interval=5000",
+      targetedAssetCommand: tonstoragePreparedJob?.assetId
+        ? `npm run storage:worker:once -- --asset=${tonstoragePreparedJob.assetId}`
+        : "",
+      targetedJobCommand: tonstoragePreparedJob?.id
+        ? `npm run storage:worker:once -- --job=${tonstoragePreparedJob.id}`
+        : "",
+    };
   }, [snapshot]);
 
   const assetPipelineByAssetId = useMemo(() => {
@@ -685,6 +721,71 @@ export default function AdminStoragePage() {
     await load();
   };
 
+  const reverifyBagRuntime = async (bagId: string) => {
+    setReverifyingBagKey(`bag:${bagId}`);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await runAdminStorageBagReverify({ bagId });
+    setReverifyingBagKey("");
+
+    if (response.error || !response.summary) {
+      setError(response.error ?? "Не удалось перепроверить runtime для bag.");
+      return;
+    }
+
+    setIngestMessage(
+      [
+        `Reverify bag ${bagId}`,
+        `runtime ${response.summary.status}`,
+        response.summary.filePath ? `file ${response.summary.filePath}` : "",
+        typeof response.summary.httpStatus === "number" ? `HTTP ${response.summary.httpStatus}` : "",
+        response.summary.reconciledRequestsUpdated
+          ? `delivery updated ${response.summary.reconciledRequestsUpdated}`
+          : "",
+        response.summary.error || response.summary.gatewayUrl || "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    await load();
+  };
+
+  const reverifyAllBagRuntimes = async () => {
+    setReverifyingAllBags(true);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await runAdminStorageBagReverifyAll({
+      limit: 50,
+      onlyUnverified: true,
+    });
+    setReverifyingAllBags(false);
+
+    if (response.error || !response.summary) {
+      setError(response.error ?? "Не удалось массово перепроверить runtime у bags.");
+      return;
+    }
+
+    setIngestMessage(
+      [
+        "Reverify pointer-ready bags",
+        `scanned ${response.summary.scanned}`,
+        `verified ${response.summary.verified}`,
+        `failed ${response.summary.failed}`,
+        `pending ${response.summary.pending}`,
+        response.summary.reconciledRequestsUpdated
+          ? `delivery updated ${response.summary.reconciledRequestsUpdated}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    await load();
+  };
+
   if (loading) {
     return <div className={styles.page}>Загрузка storage dashboard...</div>;
   }
@@ -831,11 +932,18 @@ export default function AdminStoragePage() {
           <article className={styles.runtimeCard}>
             <div className={styles.blockHeading}>
               <h2>TON Storage bridge</h2>
-              {canManage ? (
-                <button type="button" onClick={() => void runBridgePreflight()} disabled={probingBridge}>
-                  {probingBridge ? "Проверяем..." : "Проверить daemon/gateway"}
-                </button>
-              ) : null}
+              <div className={styles.actionsInline}>
+                {canManage ? (
+                  <button type="button" onClick={() => void runBridgePreflight()} disabled={probingBridge}>
+                    {probingBridge ? "Проверяем..." : "Проверить daemon/gateway"}
+                  </button>
+                ) : null}
+                {canManage ? (
+                  <button type="button" onClick={() => void reverifyAllBagRuntimes()} disabled={reverifyingAllBags}>
+                    {reverifyingAllBags ? "Перепроверяем..." : "Перепроверить все bags"}
+                  </button>
+                ) : null}
+              </div>
             </div>
             <p className={styles.blockHint}>
               Этот блок показывает, можно ли уже перейти от локальной симуляции к настоящему testnet upload через
@@ -902,6 +1010,38 @@ export default function AdminStoragePage() {
               <span>После sync должны появиться source URLs или resource keys у assets.</span>
               <span>После ingest у bags должны появляться runtime label, bag id или pointer.</span>
               <span>Перед user-тестом смотри, чтобы unresolved списки не росли после нового релиза.</span>
+            </div>
+          </article>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Команды worker</h2>
+            </div>
+            <p className={styles.blockHint}>
+              Это готовые команды для первого живого прогона внешнего `TON Storage` worker. Сначала выставляешь env, потом
+              запускаешь one-shot или loop режим.
+            </p>
+            <div className={styles.commandList}>
+              {workerLaunchPlan.envLines.map((line) => (
+                <code key={line} className={styles.commandCode}>
+                  {line}
+                </code>
+              ))}
+              <code className={styles.commandCode}>{workerLaunchPlan.onceCommand}</code>
+              <code className={styles.commandCode}>{workerLaunchPlan.loopCommand}</code>
+              {workerLaunchPlan.targetedAssetCommand ? (
+                <code className={styles.commandCode}>{workerLaunchPlan.targetedAssetCommand}</code>
+              ) : null}
+              {workerLaunchPlan.targetedJobCommand ? (
+                <code className={styles.commandCode}>{workerLaunchPlan.targetedJobCommand}</code>
+              ) : null}
+            </div>
+            <div className={styles.noteList}>
+              {workerLaunchPlan.preparedAssetId ? (
+                <span>Сейчас готов targeted запуск для asset: {workerLaunchPlan.preparedAssetId}</span>
+              ) : (
+                <span>Сейчас нет prepared `tonstorage_testnet` job. Сначала подготовь runtime bags для нужного asset.</span>
+              )}
+              {workerLaunchPlan.preparedJobId ? <span>job: {workerLaunchPlan.preparedJobId}</span> : null}
             </div>
           </article>
         </section>
@@ -1633,6 +1773,17 @@ export default function AdminStoragePage() {
                     <span key={`${bag.id}:${path}`}>{path}</span>
                   ))}
                 </div>
+                {canManage ? (
+                  <div className={styles.controls}>
+                    <button
+                      type="button"
+                      onClick={() => void reverifyBagRuntime(bag.id)}
+                      disabled={reverifyingBagKey === `bag:${bag.id}`}
+                    >
+                      {reverifyingBagKey === `bag:${bag.id}` ? "Проверяем..." : "Перепроверить runtime"}
+                    </button>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>

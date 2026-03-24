@@ -185,6 +185,12 @@
 - `/api/admin/storage/prepare-and-upload`
   - server-side one-shot flow для конкретного asset
   - делает targeted ingest, затем targeted upload и возвращает итоговый runtime status
+- `/api/admin/storage/bags/reverify`
+  - повторная проверка runtime pointer для конкретного bag
+  - обновляет runtime status и может оживить delivery requests без повторного upload
+- `/api/admin/storage/bags/reverify-all`
+  - массовая повторная проверка pointer-ready bags
+  - помогает быстро оживить runtime после поднятия gateway
 - `/api/admin/storage/runtime-probe`
   - точечная проверка конкретного asset/bag через storage runtime
   - показывает `via`, HTTP status и фактическую доступность fetch target
@@ -264,6 +270,10 @@
 - `/api/storage/downloads/worker`
   - worker для Telegram delivery queue
   - `mode=status` возвращает размер очереди
+- `/api/storage/ingest/worker`
+  - внешний upload worker для `tonstorage_testnet`
+  - умеет `claim` и `complete`
+  - claim теперь можно таргетировать по `assetId`, `bagId` или `targetJobId`
 - `/api/storage/ingest/worker`
   - внешний upload handoff для `tonstorage_testnet`
   - `GET`: status или claim следующего prepared upload job

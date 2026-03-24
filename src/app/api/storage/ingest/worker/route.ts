@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   claimTonStorageUploadJob,
+  claimTonStorageUploadJobTargeted,
   completeTonStorageUploadJob,
   getStorageUploadWorkerQueueStatus,
 } from "@/lib/server/storage-upload-worker";
@@ -12,6 +13,9 @@ export const dynamic = "force-dynamic";
 
 interface CompleteBody {
   action?: string;
+  assetId?: string;
+  bagId?: string;
+  targetJobId?: string;
   jobId?: string;
   workerLockId?: string;
   ok?: boolean;
@@ -33,32 +37,47 @@ const isAuthorized = (request: Request): boolean => {
   });
 };
 
+const normalizeTarget = (value: unknown): string | undefined => {
+  const normalized = String(value ?? "").trim();
+  return normalized || undefined;
+};
+
+const buildClaimResponse = (request: Request, claimed: Awaited<ReturnType<typeof claimTonStorageUploadJob>>) => {
+  const baseUrl = new URL(request.url);
+
+  return NextResponse.json({
+    ok: true,
+    claimed,
+    endpoints:
+      claimed && claimed.job.workerLockId
+        ? {
+            source: new URL(
+              `/api/storage/ingest/worker/${encodeURIComponent(claimed.job.id)}/source?lock=${encodeURIComponent(claimed.job.workerLockId)}`,
+              baseUrl,
+            ).toString(),
+            complete: new URL("/api/storage/ingest/worker", baseUrl).toString(),
+            status: new URL("/api/storage/ingest/worker", baseUrl).toString(),
+          }
+        : null,
+  });
+};
+
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const mode = (new URL(request.url).searchParams.get("mode") ?? "").trim().toLowerCase();
+  const url = new URL(request.url);
+  const mode = (url.searchParams.get("mode") ?? "").trim().toLowerCase();
 
   if (mode === "claim") {
-    const claimed = await claimTonStorageUploadJob();
-    const baseUrl = new URL(request.url);
-
-    return NextResponse.json({
-      ok: true,
-      claimed,
-      endpoints:
-        claimed && claimed.job.workerLockId
-          ? {
-              source: new URL(
-                `/api/storage/ingest/worker/${encodeURIComponent(claimed.job.id)}/source?lock=${encodeURIComponent(claimed.job.workerLockId)}`,
-                baseUrl,
-              ).toString(),
-              complete: new URL("/api/storage/ingest/worker", baseUrl).toString(),
-              status: new URL("/api/storage/ingest/worker", baseUrl).toString(),
-            }
-          : null,
+    const claimed = await claimTonStorageUploadJobTargeted({
+      assetId: normalizeTarget(url.searchParams.get("assetId")),
+      bagId: normalizeTarget(url.searchParams.get("bagId")),
+      jobId: normalizeTarget(url.searchParams.get("jobId")),
     });
+
+    return buildClaimResponse(request, claimed);
   }
 
   const status = await getStorageUploadWorkerQueueStatus();
@@ -81,24 +100,13 @@ export async function POST(request: Request) {
   const action = String(body.action ?? "claim").trim().toLowerCase();
 
   if (action === "claim") {
-    const claimed = await claimTonStorageUploadJob();
-    const baseUrl = new URL(request.url);
-
-    return NextResponse.json({
-      ok: true,
-      claimed,
-      endpoints:
-        claimed && claimed.job.workerLockId
-          ? {
-              source: new URL(
-                `/api/storage/ingest/worker/${encodeURIComponent(claimed.job.id)}/source?lock=${encodeURIComponent(claimed.job.workerLockId)}`,
-                baseUrl,
-              ).toString(),
-              complete: new URL("/api/storage/ingest/worker", baseUrl).toString(),
-              status: new URL("/api/storage/ingest/worker", baseUrl).toString(),
-            }
-          : null,
+    const claimed = await claimTonStorageUploadJobTargeted({
+      assetId: normalizeTarget(body.assetId),
+      bagId: normalizeTarget(body.bagId),
+      jobId: normalizeTarget(body.targetJobId),
     });
+
+    return buildClaimResponse(request, claimed);
   }
 
   if (action !== "complete") {

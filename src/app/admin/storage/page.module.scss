@@ -50,6 +50,14 @@
   flex-wrap: wrap;
 }
 
+.actionsInline {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .actions select {
   border-radius: 0.62rem;
   border: 1px solid color-mix(in srgb, var(--tg-section-separator) 38%, transparent);
@@ -83,6 +91,25 @@
 .noteList span {
   color: var(--tg-hint);
   font-size: 0.78rem;
+}
+
+.commandList {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.commandCode {
+  display: block;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 35%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 84%, black 6%);
+  color: var(--tg-text);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  padding: 0.58rem 0.66rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .guideGrid {
