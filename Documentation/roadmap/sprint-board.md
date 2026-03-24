@@ -289,12 +289,14 @@ Status: current
 - превратить desktop scaffold в реальный companion-клиент для `C3K Storage Node` и подготовки community storage program
 
 Что должно быть доставлено:
-- [ ] Реальный desktop retrieval path для storage pointers
+- [x] Реальный desktop retrieval path для storage pointers
 - [x] Локальный статус node/gateway/runtime
-- [ ] Базовая модель выделенного места, health и participation state
-- [ ] Подготовка UI и backend к reward-layer для storage participants
+- [x] One-click launcher для локальной ноды и prod desktop UI
+- [x] Desktop auth bridge для входа через основной браузер без ручного переноса сессии
+- [x] Базовая модель выделенного места, health и participation state
+- [x] Подготовка UI и backend к reward-layer для storage participants
 - [ ] Telegram/file delivery из реального storage runtime
-- [ ] Desktop retrieval по `storagePointer`
+- [x] Desktop retrieval по `storagePointer`
 
 ## Как обновлять sprint board
 

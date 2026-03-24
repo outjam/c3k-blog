@@ -65,10 +65,17 @@ interface BrowserSessionPayload {
   exp: number;
 }
 
+interface DesktopBridgeSessionPayload {
+  session: string;
+  iat: number;
+  exp: number;
+}
+
 export const TELEGRAM_BROWSER_AUTH_COOKIE = "c3k_tg_auth";
 
 const DEFAULT_MAX_AUTH_AGE_SECONDS = 60 * 60 * 24;
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const DEFAULT_DESKTOP_BRIDGE_TTL_SECONDS = 60 * 3;
 const TELEGRAM_OIDC_ISSUER = "https://oauth.telegram.org";
 const TELEGRAM_OIDC_JWKS_URL = "https://oauth.telegram.org/.well-known/jwks.json";
 const TELEGRAM_JWKS_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -96,6 +103,15 @@ const getSessionTtlSeconds = (): number => {
   }
 
   return DEFAULT_SESSION_TTL_SECONDS;
+};
+
+const getDesktopBridgeTtlSeconds = (): number => {
+  const parsed = Number.parseInt(process.env.TELEGRAM_DESKTOP_BRIDGE_TTL_SECONDS ?? "", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  return DEFAULT_DESKTOP_BRIDGE_TTL_SECONDS;
 };
 
 const getSessionSecret = (botToken: string): string => {
@@ -437,6 +453,20 @@ export const issueTelegramBrowserSession = (user: TelegramBrowserAuthUser, botTo
   return `${encodedPayload}.${signature}`;
 };
 
+export const issueTelegramDesktopBridgeToken = (sessionToken: string, botToken: string): string => {
+  const ttl = getDesktopBridgeTtlSeconds();
+  const now = Math.floor(Date.now() / 1000);
+  const payload: DesktopBridgeSessionPayload = {
+    session: sessionToken,
+    iat: now,
+    exp: now + ttl,
+  };
+
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signature = signValue(encodedPayload, getSessionSecret(botToken));
+  return `${encodedPayload}.${signature}`;
+};
+
 const parseBrowserSessionPayload = (value: unknown): BrowserSessionPayload | null => {
   if (!value || typeof value !== "object") {
     return null;
@@ -528,6 +558,72 @@ export const verifyTelegramBrowserSession = (
   }
 
   return payload.user;
+};
+
+const parseDesktopBridgePayload = (value: unknown): DesktopBridgeSessionPayload | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Partial<DesktopBridgeSessionPayload>;
+  const session = typeof raw.session === "string" ? raw.session.trim() : "";
+  const iat = Math.round(Number(raw.iat ?? 0));
+  const exp = Math.round(Number(raw.exp ?? 0));
+
+  if (!session || !Number.isFinite(iat) || !Number.isFinite(exp) || exp <= iat) {
+    return null;
+  }
+
+  return {
+    session,
+    iat,
+    exp,
+  };
+};
+
+export const verifyTelegramDesktopBridgeToken = (
+  token: string | null | undefined,
+  botToken: string,
+): string | null => {
+  const normalized = String(token ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const [encodedPayload, signature] = normalized.split(".");
+  if (!encodedPayload || !signature) {
+    return null;
+  }
+
+  const expectedSignature = signValue(encodedPayload, getSessionSecret(botToken));
+  const provided = Buffer.from(signature);
+  const expected = Buffer.from(expectedSignature);
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+    return null;
+  }
+
+  const payloadRaw = fromBase64Url(encodedPayload);
+  if (!payloadRaw) {
+    return null;
+  }
+
+  let payload: DesktopBridgeSessionPayload | null = null;
+  try {
+    payload = parseDesktopBridgePayload(JSON.parse(payloadRaw));
+  } catch {
+    payload = null;
+  }
+
+  if (!payload) {
+    return null;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.exp < now) {
+    return null;
+  }
+
+  return payload.session;
 };
 
 export const extractCookieValue = (request: Request, cookieName: string): string | null => {

@@ -368,6 +368,7 @@ const buildNextEnv = () => {
     C3K_STORAGE_TON_DAEMON_CLI_BIN: paths.cliBin,
     C3K_STORAGE_TON_DAEMON_CLI_ARGS_JSON: JSON.stringify(daemonCliArgs()),
     C3K_STORAGE_TON_HTTP_GATEWAY_BASE: localGatewayUrl,
+    C3K_STORAGE_LOCAL_NODE_STORAGE_ROOT: paths.storageDb,
   };
 };
 

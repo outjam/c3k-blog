@@ -29,6 +29,12 @@
   - `npm run desktop:node:headless`
 - Headless smoke-test прошёл успешно: launcher корректно переиспользовал уже поднятые daemon/runtime процессы и подтвердил готовый node contour
 
+### Telegram Login popup закреплён внутри Electron
+
+- В [desktop/main.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs) popup handler теперь считает `oauth.telegram.org` и same-origin web-app URL доверенными popup-поверхностями
+- Для них открывается встроенное modal window внутри desktop-клиента
+- Это нужно, чтобы browser Telegram Login flow не уезжал во внешний браузер и не терял связь с основным Electron окном
+
 ### Отдельный pitch deck простыми словами
 
 - В проект добавлена отдельная презентация:
@@ -323,3 +329,62 @@
   - локальный статус ноды
   - desktop retrieval path
   - реальные runtime-точки на карте нод
+
+### 30. Desktop Telegram auth больше не упирается во встроенный popup как основной путь
+
+- Для Electron собран desktop-specific login bridge:
+  - вход открывается во внешнем браузере
+  - браузерная страница `/auth/desktop-telegram` делает обычный Telegram login
+  - после этого браузер отдаёт короткий bridge token в локальный gateway `127.0.0.1:3467`
+  - Electron main process обменивает bridge token на `c3k_tg_auth` session и перезагружает desktop webview уже в авторизованном состоянии
+- Это закрывает неприятный UX, где авторизация происходила во встроенном browser window Electron, а не в основном браузере пользователя.
+- Продовый домен [c3k-blog.vercel.app](https://c3k-blog.vercel.app) уже обновлён под этот flow.
+
+### 31. Desktop теперь реально качает файл через локальную ноду
+
+- `storage/open` в desktop gateway больше не просто отвечает заглушкой.
+- Electron main process теперь:
+  - разбирает `tonstorage://` pointer
+  - выбирает локальный runtime gateway, если нода готова
+  - падает обратно на удалённый download route только как fallback
+  - шлёт в renderer события о handoff и прогрессе загрузки
+- На desktop-экране появился блок последнего handoff:
+  - источник
+  - request id
+  - storage pointer
+  - прогресс загрузки
+- Живой тест прошёл:
+  - реальный bag читался через `/api/storage/runtime-gateway/<BagID>/hello.txt`
+  - desktop handoff выбрал `local_node`
+  - файл появился в системных Downloads
+
+### 32. Desktop node получил реальные метрики участия
+
+- Runtime contract расширен тремя новыми блоками:
+  - `storage`
+  - `health`
+  - `participation`
+- Теперь desktop считает не только `daemon/gateway/bagCount`, но и:
+  - storage root path
+  - объём локальных данных
+  - свободное место на диске
+  - verified bags
+  - recent health summary
+  - beta-preview `C3K Credit` на день и неделю
+- Экран ноды теперь показывает уже не только “нода жива”, а “насколько она реально готова участвовать в storage program”.
+
+### 33. Local node heartbeat подготовлен для storage registry
+
+- One-click launcher теперь передаёт runtime путь к локальному storage root.
+- Desktop runtime пытается heartbeat’ить локальную ноду в storage registry как `community_node`, если на машине действительно есть живой local runtime/daemon.
+- Это ещё не финальный participant economy, но уже backend-подготовка к следующему слою storage program.
+
+### 34. Desktop local-node download теперь пишет назад в delivery history
+
+- До этого локальный desktop-download честно забирал файл через ноду, но история выдач об этом не узнавала.
+- Теперь после `download completed` desktop отправляет callback в delivery layer.
+- Для этого добавлен отдельный route `desktop-complete`, а desktop page вызывает его автоматически только для `local_node` handoff.
+- Итог:
+  - request переходит в `delivered`
+  - в историю пишется `lastDeliveredVia=bag_http_pointer`
+  - дальше это можно использовать и для user-facing истории, и для будущих participant/reward расчётов

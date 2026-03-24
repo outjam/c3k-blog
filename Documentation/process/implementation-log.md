@@ -2,6 +2,56 @@
 
 ## 2026-03-24
 
+### Sprint 11 slice: desktop retrieval path теперь реально идёт через local node
+
+- [desktop gateway](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/gateway.mjs) больше не отвечает `storage_open_stub` как конечным поведением
+- [desktop main process](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs) теперь:
+  - разбирает `tonstorage://` pointer
+  - предпочитает локальный runtime gateway для bag/file retrieval
+  - падает обратно на удалённый `/api/storage/downloads/:id/file`, только если локальная нода не готова
+  - шлёт в renderer события `c3k-desktop-storage-open` и `c3k-desktop-download-state`
+- [desktop page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) теперь показывает последний desktop handoff: источник, request, pointer и download progress
+- Живой smoke-test подтвердил:
+  - локальный `storage-daemon` реально читает bag
+  - `/api/storage/runtime-gateway/<BagID>/hello.txt` отдаёт `200`
+  - desktop handoff выбирает `sourceMode=local_node`
+  - файл реально попадает в системные Downloads
+
+### Sprint 11 slice: node participation preview и heartbeat в registry
+
+- [desktop runtime](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts) теперь собирает не только `daemon/gateway/bags`, но и:
+  - storage root path
+  - объём локальных данных
+  - свободное и общее место файловой системы
+  - число известных bag files и verified bags
+  - recent health summary
+  - beta-preview участия и reward-layer (`daily/weekly C3K Credit`)
+- [desktop types](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/desktop.ts) расширены блоками `storage`, `health` и `participation`
+- [desktop page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) теперь показывает:
+  - выделенное место и storage usage
+  - recent runtime health
+  - роль ноды и preview reward-layer
+- [desktop launcher](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/desktop-node-launcher.mjs) теперь передаёт `C3K_STORAGE_LOCAL_NODE_STORAGE_ROOT`, чтобы runtime видел реальный root локальной ноды
+- Если local runtime живой, desktop теперь пытается heartbeat’ить ноду в storage registry как `community_node` и готовит backend к будущему participant-layer
+
+### Зачем это сделано
+
+- до этого desktop был уже рабочим companion-клиентом, но не показывал, насколько устройство реально участвует в storage-сети
+- после этого шага `Sprint 11` двигается не только по UX, но и по доменной модели:
+  - desktop умеет реально забирать файл через локальную ноду
+  - нода показывает своё место, health и beta-награды
+  - runtime готов к следующему шагу: Telegram/file delivery из real storage runtime и более честной модели participant rewards
+
+### Sprint 11 slice: desktop local-node download замыкается обратно в delivery history
+
+- Добавлен [desktop-complete route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/[id]/desktop-complete/route.ts)
+- В [storage delivery api](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/storage-delivery-api.ts) появился client helper `completeDesktopStorageDeliveryRequestApi(...)`
+- [desktop page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) теперь после `download completed` из локальной ноды:
+  - отправляет callback в delivery layer
+  - переводит request в `delivered`
+  - пишет `lastDeliveredVia=bag_http_pointer`
+- Это нужно, чтобы desktop retrieval был виден не только в Electron, но и в общей истории выдач и будущем participant accounting
+
 ### Sprint 11 slice: production desktop boots from local node runtime
 
 - [desktop runtime client](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts) теперь в Electron сначала читает runtime через `window.c3kDesktop.runtime()`, а уже потом падает обратно на HTTP `/api/desktop/runtime`
@@ -26,6 +76,16 @@
   - запускать Electron так, чтобы он открывал prod UI, но использовал runtime локальной ноды
   - корректно переиспользовать уже запущенные daemon/runtime процессы
 - [desktop README](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/README.md) обновлён под новый one-click режим
+
+### Sprint 11 slice: Telegram Login popup остаётся внутри Electron
+
+- В [desktop/main.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs) расширен `setWindowOpenHandler`
+- Доверенные popup URL теперь не выбрасываются наружу:
+  - `oauth.telegram.org`
+  - same-origin URL текущего web app
+  - localhost runtime/gateway URL
+- Для таких popup открывается встроенное `BrowserWindow`, а не внешний браузер
+- Это нужно для browser Telegram Login flow внутри desktop-клиента, чтобы auth callback оставался в одном Electron-contour
 
 ### Sprint 11 slice: desktop local node runtime status
 
@@ -2217,3 +2277,26 @@
 - Важный эффект:
   - карта нод в desktop больше не зависит только от preview-фолбэка
   - как только в registry появляются реальные ноды с координатами, они автоматически попадают в runtime contract
+
+### Desktop Telegram auth bridge slice
+
+- В Electron login через Telegram больше не должен жить во встроенном popup-окне как основной сценарий.
+- Добавлен desktop-specific auth bridge:
+  - Electron открывает продовую страницу авторизации во внешнем браузере
+  - браузер после входа получает короткий `desktop bridge token`
+  - локальный desktop gateway принимает callback на `127.0.0.1:3467`
+  - Electron main process обменивает bridge token на браузерную сессию и ставит auth-cookie в desktop webview
+- Изменения:
+  - [desktop/main.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs)
+  - [desktop/gateway.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/gateway.mjs)
+  - [desktop/preload.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/preload.mjs)
+  - [src/components/telegram-login-widget.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/telegram-login-widget.tsx)
+  - [src/lib/server/telegram-browser-auth.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/telegram-browser-auth.ts)
+  - [src/app/auth/desktop-telegram/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/auth/desktop-telegram/page.tsx)
+  - [src/app/auth/desktop-telegram/desktop-telegram-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/auth/desktop-telegram/desktop-telegram-page-client.tsx)
+  - [src/app/api/auth/telegram/desktop/bridge/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/auth/telegram/desktop/bridge/route.ts)
+  - [src/app/api/auth/telegram/desktop/exchange/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/auth/telegram/desktop/exchange/route.ts)
+- Важный эффект:
+  - desktop login теперь идёт через основной браузер пользователя
+  - сессия возвращается обратно в Electron без ручного копирования токенов
+  - built-in auth popup перестаёт быть главным путём входа в desktop

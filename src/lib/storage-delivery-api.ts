@@ -151,6 +151,51 @@ export const fetchStorageDeliveryRequest = async (
   }
 };
 
+export const completeDesktopStorageDeliveryRequestApi = async (
+  id: string,
+  payload?: {
+    sourceUrl?: string;
+  },
+): Promise<{
+  ok: boolean;
+  request: StorageDeliveryRequest | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch(`/api/storage/downloads/${encodeURIComponent(id)}/desktop-complete`, {
+      method: "POST",
+      headers: storageHeaders(),
+      body: JSON.stringify(payload ?? {}),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      try {
+        const data = (await response.json()) as StorageDeliveryResponseShape;
+        return {
+          ok: false,
+          request: data.request ?? null,
+          error: data.error ?? data.message ?? `HTTP ${response.status}`,
+        };
+      } catch {
+        return { ok: false, request: null, error: `HTTP ${response.status}` };
+      }
+    }
+
+    const data = (await response.json()) as StorageDeliveryResponseShape;
+    return {
+      ok: Boolean(data.ok),
+      request: data.request ?? null,
+    };
+  } catch {
+    return {
+      ok: false,
+      request: null,
+      error: "Network error",
+    };
+  }
+};
+
 export const retryStorageDeliveryRequestApi = async (id: string): Promise<{
   ok: boolean;
   request: StorageDeliveryRequest | null;

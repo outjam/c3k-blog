@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, statfsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -10,9 +10,19 @@ import {
 } from "@/lib/desktop-runtime";
 import { getC3kStorageConfig } from "@/lib/storage-config";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
-import { listStorageNodes } from "@/lib/server/storage-registry-store";
+import {
+  listStorageBagFiles,
+  listStorageBags,
+  listStorageHealthEvents,
+  listStorageNodes,
+  upsertStorageNode,
+} from "@/lib/server/storage-registry-store";
 import { runTonStorageRuntimePreflight } from "@/lib/server/storage-ton-runtime-preflight";
 import type { C3kDesktopLocalNodeRuntime, C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
+
+const GIGABYTE = 1024 * 1024 * 1024;
+const LOCAL_NODE_TARGET_BYTES = 50 * GIGABYTE;
+const LOCAL_NODE_RECENT_HEALTH_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
 const toPlatformLabel = (): string => {
   const platform =
@@ -27,18 +37,241 @@ const toPlatformLabel = (): string => {
   return `${platform} ${process.arch}`;
 };
 
+const normalizeText = (value: unknown): string => String(value ?? "").trim();
+
+const normalizeSafeId = (value: unknown, maxLength: number): string => {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLength);
+};
+
+const parseOptionalNumber = (value: string | undefined): number | undefined => {
+  const parsed = Number(value ?? "");
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const toStorageNodePlatform = (): "macos" | "windows" | "linux" => {
+  if (process.platform === "darwin") {
+    return "macos";
+  }
+
+  if (process.platform === "win32") {
+    return "windows";
+  }
+
+  return "linux";
+};
+
+const resolveLocalNodeStorageRoot = (): string | undefined => {
+  const explicit = normalizeText(process.env.C3K_STORAGE_LOCAL_NODE_STORAGE_ROOT);
+  if (explicit && existsSync(explicit)) {
+    return explicit;
+  }
+
+  const fallback = path.join(process.cwd(), ".local", "ton", "storage-db");
+  return existsSync(fallback) ? fallback : undefined;
+};
+
+const measurePathBytes = (targetPath: string): number => {
+  try {
+    const stats = lstatSync(targetPath);
+
+    if (stats.isSymbolicLink()) {
+      return 0;
+    }
+
+    if (stats.isFile()) {
+      return stats.size;
+    }
+
+    if (!stats.isDirectory()) {
+      return 0;
+    }
+
+    return readdirSync(targetPath, { withFileTypes: true }).reduce((total, entry) => {
+      if (entry.isSymbolicLink()) {
+        return total;
+      }
+
+      return total + measurePathBytes(path.join(targetPath, entry.name));
+    }, 0);
+  } catch {
+    return 0;
+  }
+};
+
+const readFilesystemSpace = (targetPath: string | undefined): { totalBytes?: number; freeBytes?: number } => {
+  if (!targetPath) {
+    return {};
+  }
+
+  try {
+    const snapshot = statfsSync(targetPath);
+    const blockSize = Number(snapshot.bsize || 0);
+    const totalBlocks = Number(snapshot.blocks || 0);
+    const freeBlocks = Number(snapshot.bavail || snapshot.bfree || 0);
+
+    if (blockSize <= 0 || totalBlocks <= 0) {
+      return {};
+    }
+
+    return {
+      totalBytes: Math.max(0, Math.round(blockSize * totalBlocks)),
+      freeBytes: Math.max(0, Math.round(blockSize * freeBlocks)),
+    };
+  } catch {
+    return {};
+  }
+};
+
+const buildLocalNodeHealthState = async (): Promise<C3kDesktopLocalNodeRuntime["health"]> => {
+  const nowMs = Date.now();
+  const events = (await listStorageHealthEvents())
+    .filter((entry) => entry.entityType === "runtime" || entry.entityType === "bag" || entry.entityType === "node")
+    .filter((entry) => nowMs - new Date(entry.createdAt).getTime() <= LOCAL_NODE_RECENT_HEALTH_WINDOW_MS);
+
+  return {
+    infoCount: events.filter((entry) => entry.severity === "info").length,
+    warningCount: events.filter((entry) => entry.severity === "warning").length,
+    criticalCount: events.filter((entry) => entry.severity === "critical").length,
+    lastEventAt: events[0]?.createdAt,
+    lastEventMessage: events[0]?.message,
+  };
+};
+
+const buildLocalNodeParticipationPreview = (input: {
+  daemonReady: boolean;
+  gatewayReady: boolean;
+  overallReady: boolean;
+  bagCount: number;
+  verifiedBagCount: number;
+  storageDataBytes: number;
+  health: C3kDesktopLocalNodeRuntime["health"];
+}): C3kDesktopLocalNodeRuntime["participation"] => {
+  const storageUnits = Math.min(12, Math.floor(input.storageDataBytes / (2 * GIGABYTE)));
+  const readinessBase = input.overallReady ? 6 : input.daemonReady || input.gatewayReady ? 2 : 0;
+  const bagScore = Math.min(14, input.bagCount * 2);
+  const verifiedScore = Math.min(16, input.verifiedBagCount * 3);
+  const healthPenalty = input.health.warningCount + input.health.criticalCount * 3;
+  const estimatedDailyCredits = Math.max(0, Math.min(64, readinessBase + bagScore + verifiedScore + storageUnits - healthPenalty));
+
+  if (!input.daemonReady && !input.gatewayReady) {
+    return {
+      state: "observer",
+      label: "Observer",
+      summary: "Нода ещё не поднята. Сначала нужен живой daemon/gateway контур.",
+      estimatedDailyCredits,
+      estimatedWeeklyCredits: estimatedDailyCredits * 7,
+    };
+  }
+
+  if (!input.overallReady || input.bagCount === 0) {
+    return {
+      state: "warming",
+      label: "Warming up",
+      summary: "Контур уже собирается, но устройству ещё нужно больше bag-ов и стабильный runtime.",
+      estimatedDailyCredits,
+      estimatedWeeklyCredits: estimatedDailyCredits * 7,
+    };
+  }
+
+  if (input.verifiedBagCount === 0) {
+    return {
+      state: "serving",
+      label: "Serving beta",
+      summary: "Нода уже хранит bags и готова к runtime-выдаче, но verified pointer-сигналов пока мало.",
+      estimatedDailyCredits,
+      estimatedWeeklyCredits: estimatedDailyCredits * 7,
+    };
+  }
+
+  return {
+    state: "keeper",
+    label: "Keeper preview",
+    summary: "Нода держит живые bags и verified runtime contour. Это уже база для будущего reward-layer.",
+    estimatedDailyCredits,
+    estimatedWeeklyCredits: estimatedDailyCredits * 7,
+  };
+};
+
+const syncLocalNodeHeartbeat = async (
+  localNode: Omit<C3kDesktopLocalNodeRuntime, "registryNodeId">,
+): Promise<string | undefined> => {
+  const shouldSync =
+    Boolean(localNode.storage.rootPath) ||
+    localNode.daemonReady ||
+    localNode.gatewayReady ||
+    localNode.bagCount > 0 ||
+    Boolean(normalizeText(process.env.C3K_STORAGE_TON_DAEMON_CLI_ARGS_JSON));
+
+  if (!shouldSync) {
+    return undefined;
+  }
+
+  const nodeId =
+    normalizeSafeId(`desktop-node:${localNode.deviceLabel}`, 120) ||
+    `desktop-node:${Date.now()}`;
+  const bandwidthLimitKbps = Math.max(
+    1_000,
+    Math.round(parseOptionalNumber(process.env.C3K_STORAGE_LOCAL_NODE_BANDWIDTH_KBPS) ?? 25_000),
+  );
+
+  const node = await upsertStorageNode({
+    id: nodeId,
+    nodeLabel: localNode.deviceLabel,
+    publicLabel: normalizeText(process.env.C3K_STORAGE_LOCAL_NODE_PUBLIC_LABEL) || undefined,
+    city: normalizeText(process.env.C3K_STORAGE_LOCAL_NODE_CITY) || undefined,
+    countryCode: normalizeText(process.env.C3K_STORAGE_LOCAL_NODE_COUNTRY_CODE) || undefined,
+    latitude: parseOptionalNumber(process.env.C3K_STORAGE_LOCAL_NODE_LATITUDE),
+    longitude: parseOptionalNumber(process.env.C3K_STORAGE_LOCAL_NODE_LONGITUDE),
+    nodeType: "community_node",
+    platform: toStorageNodePlatform(),
+    status: localNode.overallReady ? "active" : localNode.daemonReady || localNode.gatewayReady ? "degraded" : "candidate",
+    diskAllocatedBytes: localNode.storage.targetBytes,
+    diskUsedBytes: localNode.storage.dataBytes,
+    bandwidthLimitKbps,
+    lastSeenAt: localNode.checkedAt,
+  }).catch(() => null);
+
+  return node?.id;
+};
+
 const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime> => {
   const checkedAt = new Date().toISOString();
   const runtimeStatus = getStorageRuntimeStatus();
   const preflight = await runTonStorageRuntimePreflight({ logHealthEvent: false }).catch(() => null);
+  const storageRootPath = resolveLocalNodeStorageRoot();
+  const [bagFiles, bags, health] = await Promise.all([
+    listStorageBagFiles(),
+    listStorageBags(),
+    buildLocalNodeHealthState(),
+  ]);
   const bagCount = preflight?.cliKnownBagCount ?? 0;
   const daemonReady = preflight?.cliOk ?? false;
   const gatewayReady = preflight?.gatewayOk ?? false;
   const overallReady = preflight?.overallReady ?? false;
   const tone: C3kDesktopLocalNodeRuntime["tone"] = overallReady ? "live" : daemonReady || gatewayReady ? "relay" : "ready";
+  const storageDataBytes = storageRootPath ? measurePathBytes(storageRootPath) : 0;
+  const storageSpace = readFilesystemSpace(storageRootPath);
+  const verifiedBagCount = bags.filter((entry) => entry.runtimeFetchStatus === "verified").length;
+  const participation = buildLocalNodeParticipationPreview({
+    daemonReady,
+    gatewayReady,
+    overallReady,
+    bagCount,
+    verifiedBagCount,
+    storageDataBytes,
+    health,
+  });
 
   const nextAction = overallReady
-    ? "Локальная нода готова к реальному storage retrieval и может обслуживать desktop/runtime flow."
+    ? verifiedBagCount > 0
+      ? "Локальная нода уже близка к настоящему participant-режиму. Дальше можно подключать reward-layer и публичные peers."
+      : "Локальная нода готова к реальному storage retrieval. Следующий шаг: накопить verified pointer-сигналы и delivery из живого runtime."
     : daemonReady && !gatewayReady
       ? "Daemon уже поднят. Следующий шаг: проверить local gateway и desktop retrieval path."
       : !daemonReady && runtimeStatus.mode === "tonstorage_testnet"
@@ -53,7 +286,7 @@ const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime
     .filter(Boolean)
     .slice(0, 6);
 
-  return {
+  const localNodeBase: Omit<C3kDesktopLocalNodeRuntime, "registryNodeId"> = {
     checkedAt,
     deviceLabel: os.hostname() || "Local device",
     platformLabel: toPlatformLabel(),
@@ -66,8 +299,26 @@ const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime
     bagCount,
     tone,
     gatewayUrl: preflight?.gatewayBase,
+    storage: {
+      rootPath: storageRootPath,
+      dataBytes: storageDataBytes,
+      freeBytes: storageSpace.freeBytes,
+      totalBytes: storageSpace.totalBytes,
+      targetBytes: LOCAL_NODE_TARGET_BYTES,
+      bagFileCount: bagFiles.length,
+      verifiedBagCount,
+    },
+    health,
+    participation,
     nextAction,
     notes,
+  };
+
+  const registryNodeId = await syncLocalNodeHeartbeat(localNodeBase);
+
+  return {
+    ...localNodeBase,
+    registryNodeId,
   };
 };
 

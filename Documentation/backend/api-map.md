@@ -267,6 +267,9 @@
 - `/api/storage/downloads/[id]/file`
   - auth-protected browser proxy для выдачи файла
   - умеет использовать storage runtime mapping, а не только прямой `deliveryUrl`
+- `/api/storage/downloads/[id]/desktop-complete`
+  - desktop callback после завершения локального node-download
+  - переводит delivery request в `delivered` и пишет `lastDeliveredVia=bag_http_pointer`
 - `/api/storage/downloads/worker`
   - worker для Telegram delivery queue
   - `mode=status` возвращает размер очереди

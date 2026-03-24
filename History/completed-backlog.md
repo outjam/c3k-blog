@@ -21,6 +21,12 @@
   - `npm run desktop:node:headless`
 - Launcher уже умеет переиспользовать живые daemon/runtime процессы и не требует ручной склейки из трёх отдельных терминалов
 
+### Telegram Login в Electron больше не уходит наружу
+
+- В [desktop/main.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs) доверенные auth popup URL теперь открываются во встроенном `BrowserWindow`
+- Это касается прежде всего `oauth.telegram.org`, который нужен для browser Telegram Login flow
+- Тем самым авторизация в desktop-клиенте больше не должна перескакивать во внешний браузер
+
 ### Презентация C3K простыми словами
 
 - Добавлен отдельный presentation-deck в [Documentation/Мечты/Презентация C3K — простыми словами.md](/Users/culture3k/Documents/GitHub/c3k-blog/Documentation/Мечты/Презентация%20C3K%20%E2%80%94%20простыми%20словами.md).
@@ -780,3 +786,35 @@
 - реально создан test bag
 - файл из него реально прочитан через новый runtime gateway route
 - этим закрыты последние два пункта `Sprint 10`: real upload contour и real bag pointer retrieval в delivery layer
+
+### Sprint 11: desktop Telegram auth bridge
+
+- для Electron собран отдельный auth path без встроенного browser popup как основного сценария
+- desktop теперь открывает Telegram login во внешнем браузере
+- браузерный login после успеха возвращает bridge token в локальный desktop gateway
+- Electron main process обменивает его на обычную browser session и ставит cookie в desktop webview
+- новый flow уже выкачен на [c3k-blog.vercel.app](https://c3k-blog.vercel.app)
+
+### Sprint 11: реальный desktop retrieval через локальную ноду
+
+- desktop handoff больше не заканчивается на `storage_open_stub`
+- Electron теперь разбирает `tonstorage://` pointer и предпочитает локальный runtime gateway
+- на desktop-экране появилась история последнего handoff и download progress
+- живой тест подтвердил, что файл из реального bag был скачан в системные Downloads через локальную ноду
+
+### Sprint 11: participation preview и node heartbeat
+
+- desktop runtime теперь показывает:
+  - storage root path
+  - объём локальных данных
+  - свободное место
+  - recent runtime health
+  - beta-preview `C3K Credit` на день и неделю
+- one-click launcher теперь передаёт runtime путь к локальному storage root
+- local runtime готовит heartbeat локальной ноды в storage registry как будущего участника storage program
+
+### Sprint 11: desktop local-node delivery callback
+
+- после завершения локального desktop-download выдача теперь замыкается обратно в delivery history
+- добавлен отдельный `desktop-complete` route для delivery request
+- это позволяет видеть локальный desktop retrieval уже не только в окне Electron, но и в общей истории выдач

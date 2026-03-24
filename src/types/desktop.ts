@@ -29,6 +29,32 @@ export interface C3kDesktopNodeMapNode {
   coordinates: [number, number];
 }
 
+export interface C3kDesktopLocalNodeStorageState {
+  rootPath?: string;
+  dataBytes: number;
+  freeBytes?: number;
+  totalBytes?: number;
+  targetBytes: number;
+  bagFileCount: number;
+  verifiedBagCount: number;
+}
+
+export interface C3kDesktopLocalNodeHealthState {
+  infoCount: number;
+  warningCount: number;
+  criticalCount: number;
+  lastEventAt?: string;
+  lastEventMessage?: string;
+}
+
+export interface C3kDesktopLocalNodeParticipationPreview {
+  state: "observer" | "warming" | "serving" | "keeper";
+  label: string;
+  summary: string;
+  estimatedDailyCredits: number;
+  estimatedWeeklyCredits: number;
+}
+
 export interface C3kDesktopLocalNodeRuntime {
   checkedAt: string;
   deviceLabel: string;
@@ -42,6 +68,10 @@ export interface C3kDesktopLocalNodeRuntime {
   bagCount: number;
   tone: "live" | "ready" | "relay";
   gatewayUrl?: string;
+  registryNodeId?: string;
+  storage: C3kDesktopLocalNodeStorageState;
+  health: C3kDesktopLocalNodeHealthState;
+  participation: C3kDesktopLocalNodeParticipationPreview;
   nextAction: string;
   notes: string[];
 }

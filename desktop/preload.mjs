@@ -4,4 +4,5 @@ contextBridge.exposeInMainWorld("c3kDesktop", {
   ping: () => ipcRenderer.invoke("desktop:ping"),
   runtime: () => ipcRenderer.invoke("desktop:get-runtime"),
   setTheme: (theme) => ipcRenderer.invoke("desktop:set-theme", theme),
+  startTelegramAuth: () => ipcRenderer.invoke("desktop:start-telegram-auth"),
 });

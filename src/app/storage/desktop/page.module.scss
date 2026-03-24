@@ -178,6 +178,90 @@
   line-height: 1.45;
 }
 
+.metricCallout {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--tg-accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-accent) 16%, transparent);
+}
+
+.metricCalloutHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metricCalloutHead strong {
+  color: var(--tg-text);
+}
+
+.metricCalloutHead span,
+.metricNote {
+  color: var(--tg-hint);
+}
+
+.metricCode {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--tg-bg) 76%, transparent);
+  color: var(--tg-text);
+  font-size: 0.82rem;
+}
+
+.downloadCard {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--tg-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-accent) 20%, transparent);
+}
+
+.downloadCardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.downloadCardHead strong {
+  color: var(--tg-text);
+}
+
+.downloadCardHead span,
+.downloadProgressMeta span {
+  color: var(--tg-hint);
+}
+
+.downloadProgressMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.downloadProgressTrack {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+}
+
+.downloadProgressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--tg-accent), color-mix(in srgb, var(--tg-accent) 68%, white 32%));
+}
+
 .nodeMap {
   display: grid;
   gap: 14px;

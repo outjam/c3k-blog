@@ -66,6 +66,7 @@ export function TelegramLoginWidget({ onAuthorized }: TelegramLoginWidgetProps) 
   const [error, setError] = useState("");
   const [clientId, setClientId] = useState("");
   const [isConfigLoading, setIsConfigLoading] = useState(true);
+  const isDesktopMode = typeof window !== "undefined" && typeof window.c3kDesktop?.startTelegramAuth === "function";
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +114,21 @@ export function TelegramLoginWidget({ onAuthorized }: TelegramLoginWidgetProps) 
 
   const startLogin = async () => {
     if (isSubmitting || isConfigLoading) {
+      return;
+    }
+
+    if (isDesktopMode) {
+      setIsSubmitting(true);
+      setError("");
+
+      try {
+        await window.c3kDesktop?.startTelegramAuth?.();
+        setIsSubmitting(false);
+      } catch {
+        setError("Не удалось открыть desktop Telegram Login в основном браузере.");
+        setIsSubmitting(false);
+      }
+
       return;
     }
 
@@ -180,9 +196,19 @@ export function TelegramLoginWidget({ onAuthorized }: TelegramLoginWidgetProps) 
         onClick={() => void startLogin()}
         disabled={isSubmitting || isConfigLoading}
       >
-        {isSubmitting ? "Подтверждаем вход..." : isConfigLoading ? "Загружаем Telegram Login..." : "Авторизоваться через Telegram"}
+        {isSubmitting
+          ? isDesktopMode
+            ? "Открываем вход в браузере..."
+            : "Подтверждаем вход..."
+          : isConfigLoading
+            ? "Загружаем Telegram Login..."
+            : "Авторизоваться через Telegram"}
       </button>
-      <p className={styles.note}>Используется актуальный Telegram Login flow для браузера.</p>
+      <p className={styles.note}>
+        {isDesktopMode
+          ? "В desktop-режиме вход откроется в основном браузере и затем вернётся обратно в приложение."
+          : "Используется актуальный Telegram Login flow для браузера."}
+      </p>
       {error ? <p className={styles.error}>Ошибка входа: {error}</p> : null}
     </section>
   );

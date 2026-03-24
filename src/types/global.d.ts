@@ -27,6 +27,7 @@ declare global {
       ping?: () => Promise<{ ok: boolean }>;
       runtime?: () => Promise<unknown>;
       setTheme?: (theme: import("@/lib/app-theme").AppTheme) => Promise<{ ok: boolean }>;
+      startTelegramAuth?: () => Promise<{ ok: boolean; authUrl?: string }>;
     };
   }
 }
