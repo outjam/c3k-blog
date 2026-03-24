@@ -266,6 +266,100 @@ const probeRuntime = async () => {
   }
 };
 
+const findListeningPid = async (port) => {
+  try {
+    const { stdout } = await execFileAsync("lsof", [`-nP`, `-iTCP:${port}`, `-sTCP:LISTEN`, `-Fp`], {
+      timeout: 5_000,
+      maxBuffer: 256 * 1024,
+    });
+
+    const pidLine = String(stdout || "")
+      .split("\n")
+      .find((line) => line.startsWith("p"));
+
+    if (!pidLine) {
+      return null;
+    }
+
+    const pid = Number(pidLine.slice(1));
+    return Number.isFinite(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+};
+
+const readProcessCommand = async (pid) => {
+  try {
+    const { stdout } = await execFileAsync("ps", ["-p", String(pid), "-o", "command="], {
+      timeout: 5_000,
+      maxBuffer: 256 * 1024,
+    });
+
+    return String(stdout || "").trim() || null;
+  } catch {
+    return null;
+  }
+};
+
+const readProcessCwd = async (pid) => {
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], {
+      timeout: 5_000,
+      maxBuffer: 256 * 1024,
+    });
+
+    const cwdLine = String(stdout || "")
+      .split("\n")
+      .find((line) => line.startsWith("n"));
+
+    return cwdLine ? cwdLine.slice(1).trim() || null : null;
+  } catch {
+    return null;
+  }
+};
+
+const stopExternalPid = async (pid, label) => {
+  try {
+    process.kill(pid, "SIGINT");
+  } catch {
+    return false;
+  }
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 5_000) {
+    const stillRunning = await findListeningPid(options.nextPort);
+    if (stillRunning !== pid) {
+      log(`${label} остановлен (PID ${pid}).`);
+      return true;
+    }
+    await wait(250);
+  }
+
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    return true;
+  }
+
+  const secondStartedAt = Date.now();
+  while (Date.now() - secondStartedAt < 5_000) {
+    const stillRunning = await findListeningPid(options.nextPort);
+    if (stillRunning !== pid) {
+      log(`${label} остановлен после SIGTERM (PID ${pid}).`);
+      return true;
+    }
+    await wait(250);
+  }
+
+  try {
+    process.kill(pid, "SIGKILL");
+    log(`${label} принудительно остановлен (PID ${pid}).`);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const waitFor = async (label, probe, validate, timeoutMs = 60_000) => {
   const startedAt = Date.now();
 
@@ -389,9 +483,32 @@ const ensureLocalRuntime = async () => {
       return { reused: true, runtime };
     }
 
-    throw new Error(
-      `Локальный runtime уже занят другой конфигурацией на ${localRuntimeUrl}. Останови его и перезапусти launcher, чтобы обновить delivery/runtime contour.`,
+    const runtimePid = await findListeningPid(options.nextPort);
+    const runtimeCommand = runtimePid ? await readProcessCommand(runtimePid) : null;
+    const runtimeCwd = runtimePid ? await readProcessCwd(runtimePid) : null;
+    const canRestart =
+      Boolean(runtimePid) &&
+      runtimeCwd === cwd &&
+      Boolean(runtimeCommand) &&
+      (runtimeCommand.includes("next-server") || runtimeCommand.includes("next dev"));
+
+    if (!canRestart) {
+      throw new Error(
+        `Локальный runtime уже занят другой конфигурацией на ${localRuntimeUrl}. Останови его и перезапусти launcher, чтобы обновить delivery/runtime contour.`,
+      );
+    }
+
+    log(
+      `Нашёл stale local runtime (PID ${runtimePid}) из этого проекта. Автоматически перезапускаю его под текущий desktop contour.`,
     );
+
+    const stopped = await stopExternalPid(runtimePid, "stale local runtime");
+
+    if (!stopped) {
+      throw new Error(
+        `Не удалось автоматически остановить stale local runtime на ${localRuntimeUrl}. Останови процесс вручную и перезапусти launcher.`,
+      );
+    }
   }
 
   log(`Запускаю local Next runtime на ${localOrigin}`);

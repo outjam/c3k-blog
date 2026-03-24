@@ -871,3 +871,102 @@
   - привязанных нод пользователя
   - публичных peer-точек
 - сеть стала видна как география, а не только как набор карточек
+
+### Sprint 11: public page для storage-ноды
+
+- у отдельной storage-ноды теперь есть своя публичная страница
+- там видно:
+  - профиль ноды
+  - health-сигналы
+  - соседние peers
+- карточки нод на `/storage` теперь могут вести в эту страницу
+
+### Sprint 11: readiness/reliability для нод
+
+- storage network теперь показывает не только статус ноды, но и её readiness/reliability score
+- score учитывает:
+  - статус ноды
+  - heartbeat freshness
+  - недавние warning/critical события
+  - базовые признаки готовности ноды
+- это выведено и на `/storage`, и на public node pages
+
+### Sprint 11: launcher сам лечит stale local runtime
+
+- `desktop-node-launcher` теперь умеет сам перезапускать устаревший `next-server` на локальном runtime-порту
+- больше не нужно вручную убивать старый процесс, если contour desktop-ноды уже изменился
+
+### Sprint 12: network reliability layer для storage-сети
+
+- user-facing `/storage` теперь показывает network health не только по статусам нод, но и по:
+  - stable / warming / attention split
+  - stale heartbeats
+  - warning / critical pressure
+  - peer-link readiness
+- peer-map теперь показывает не только точки, но и первые swarm-ready peer links между публичными нодами
+- public node pages теперь показывают место ноды в swarm, а не только её изолированный профиль
+
+### Sprint 12: network reward preview
+
+- reward/readiness score теперь есть не только у локальной desktop-ноды, но и у публичных network nodes
+- `/storage` теперь показывает:
+  - average reward score сети
+  - общий weekly `C3K Credit` preview
+  - strongest node в сети
+- карточки нод теперь показывают weekly reward preview и число peer links
+
+### Sprint 12: peer assignments и swarm prep
+
+- в storage program snapshot добавлен первый peer assignment preview layer
+- сеть теперь умеет собирать первые рекомендуемые связи между публичными нодами на основе:
+  - reliability
+  - node role
+  - geography
+  - heartbeat freshness
+- это закрывает первый шаг к более реальному swarm/replica layer поверх уже живой peer-map
+
+### Sprint 13: storage/archive status на релизах и в студии
+
+- добавлен release-level `storageSummary`, который собирает:
+  - assets
+  - bags
+  - ingest jobs
+  - runtime verification
+- studio теперь показывает archive/status по каждому релизу, а не только sales/moderation state
+- release page теперь тоже показывает storage/archive context прямо в пользовательском UI
+- auto-managed storage assets теперь сохраняют не только `releaseSlug`, но и `trackId`, чтобы storage layer точнее связывался с artist releases
+
+### Sprint 13: live runtime данные на `/storage`
+
+- user-facing `/storage` теперь получает server-side `runtimeSummary`, собранный из:
+  - assets
+  - bags
+  - ingest jobs
+  - user delivery requests
+  - runtime/bag health events
+- hero и основной runtime-блок больше не опираются только на tier-preview и target-copy
+- пользователь теперь видит:
+  - assets ready
+  - verified bags
+  - ingest queue
+  - свои выдачи
+  - последние runtime signals
+
+### Sprint 13: profile и release UI под storage/delivery
+
+- профиль теперь показывает более живую коллекцию:
+  - storage status по релизам
+  - delivery status по релизам
+  - runtime-backed file routes
+- release page теперь спокойнее и понятнее связывает:
+  - коллекцию
+  - файлы и delivery
+  - storage/archive
+  - NFT upgrade
+- tracklist на релизе теперь показывает состояние купленного трека не только как “owned”, но и через delivery summary
+
+### Sprint 13: visual polish для профиля и релиза
+
+- профиль получил более сильный collector-dashboard вид
+- релиз получил более спокойную иерархию вокруг storage/delivery/NFT
+- новые runtime и collection states теперь выглядят как часть зрелого UI, а не как технические врезки

@@ -37,8 +37,8 @@
 ## Текущий фокус
 
 - Текущая большая фаза: `Phase 5 groundwork`
-- Текущий спринт: `Sprint 11 — Desktop node runtime and storage program prep`
-- Следующий спринт: `TBD after desktop runtime baseline`
+- Текущий спринт: `Sprint 13 — Storage Automation and Archive Visibility`
+- Следующий спринт: `TBD after storage automation baseline`
 
 ## Спринты
 
@@ -283,7 +283,7 @@ Status: done
 
 ### Sprint 11 — Desktop Node Runtime and Storage Program Prep
 
-Status: current
+Status: done
 
 Цель:
 - превратить desktop scaffold в реальный companion-клиент для `C3K Storage Node` и подготовки community storage program
@@ -303,6 +303,34 @@ Status: current
 - [x] User-facing storage program показывает мои ноды и первые публичные peer-точки сети
 - [x] User-facing storage program показывает сводку public network по статусам, ролям и географии
 - [x] User-facing storage program показывает peer-map сети прямо на `/storage`
+- [x] User-facing storage network имеет отдельные public node pages
+- [x] User-facing storage network показывает readiness/reliability нод, а не только их наличие
+
+### Sprint 12 — Storage Network Reliability and Reward Layer
+
+Status: done
+
+Цель:
+- превратить storage-сеть из набора нод в более зрелый network surface с явной надёжностью, reward logic и peer-quality сигналами
+
+Что должно быть доставлено:
+- [x] Network reliability layer для peer-map и public node pages
+- [x] Reward/readiness score не только у локальной ноды, но и на network level
+- [x] Первые network health summaries для user-facing storage screens
+- [x] Подготовка к peer assignments и более реальному swarm layer
+
+### Sprint 13 — Storage Automation and Archive Visibility
+
+Status: current
+
+Цель:
+- перевести storage из network/readiness baseline к более автоматизированному runtime и более явной ценности для артистов и пользователей
+
+Что должно быть доставлено:
+- [ ] Ingest pipeline для реального release content, а не только preview/test assets
+- [ ] Bag automation и replication management для выбранных assets
+- [x] Artist-facing archive/storage status на релизах и в студии
+- [x] Больше live runtime данных на user-facing storage screens вместо product-preview текста
 
 ## Как обновлять sprint board
 

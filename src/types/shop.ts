@@ -144,6 +144,32 @@ export type ArtistPayoutRequestStatus = "pending_review" | "approved" | "rejecte
 export type ArtistEarningSource = "release_sale" | "donation" | "subscription";
 export type ArtistPayoutAuditActor = "artist" | "admin" | "system";
 export type ArtistPayoutAuditAction = "requested" | "status_changed" | "note_updated";
+export type ArtistReleaseStorageStatus =
+  | "not_synced"
+  | "syncing"
+  | "prepared"
+  | "archived"
+  | "verified"
+  | "attention";
+
+export interface ArtistReleaseStorageSummary {
+  status: ArtistReleaseStorageStatus;
+  label: string;
+  note: string;
+  assetCount: number;
+  sourceReadyAssetCount: number;
+  bagCount: number;
+  uploadedBagCount: number;
+  verifiedBagCount: number;
+  failedBagCount: number;
+  fileCount: number;
+  pendingJobCount: number;
+  preparedJobCount: number;
+  failedJobCount: number;
+  pointerReadyCount: number;
+  runtimeMode?: "test_prepare" | "tonstorage_testnet";
+  lastActivityAt?: string;
+}
 
 export interface ArtistTrackFormat {
   format: ArtistAudioFormat;
@@ -287,6 +313,7 @@ export interface ArtistTrack {
   moderationNote?: string;
   playsCount: number;
   salesCount: number;
+  storageSummary?: ArtistReleaseStorageSummary;
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
@@ -400,6 +427,7 @@ export interface ShopProduct {
   audioFileId?: string;
   previewUrl?: string;
   publishedAt?: string;
+  storageSummary?: ArtistReleaseStorageSummary;
   attributes: ShopProductAttribute;
 }
 

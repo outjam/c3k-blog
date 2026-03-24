@@ -4,6 +4,7 @@ import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
 import { readArtistSupportSnapshot } from "@/lib/server/artist-support-store";
 import { readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import { toArtistTrackProduct } from "@/lib/server/shop-artist-market";
+import { buildArtistReleaseStorageSummaryMap } from "@/lib/server/storage-archive-summary";
 import { listFollowStatsBySlugs } from "@/lib/server/social-follow-store";
 
 export const runtime = "nodejs";
@@ -27,10 +28,19 @@ export async function GET(
     return NextResponse.json({ error: "Artist not found" }, { status: 404 });
   }
 
-  const tracks = artistCatalog.tracks
+  const publishedTracks = artistCatalog.tracks
     .filter((track) => track.artistTelegramUserId === profile.telegramUserId && track.status === "published")
-    .sort((a, b) => new Date(b.publishedAt ?? b.updatedAt).getTime() - new Date(a.publishedAt ?? a.updatedAt).getTime())
-    .map((track) => toArtistTrackProduct(track, profile));
+    .sort((a, b) => new Date(b.publishedAt ?? b.updatedAt).getTime() - new Date(a.publishedAt ?? a.updatedAt).getTime());
+  const storageSummaries = await buildArtistReleaseStorageSummaryMap(
+    publishedTracks.map((track) => ({
+      trackId: track.id,
+      releaseSlug: track.slug,
+    })),
+  );
+  const tracks = publishedTracks.map((track) => ({
+    ...toArtistTrackProduct(track, profile),
+    storageSummary: storageSummaries[track.id],
+  }));
 
   const [support, followStats] = await Promise.all([
     readArtistSupportSnapshot({

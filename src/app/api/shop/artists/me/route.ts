@@ -5,6 +5,7 @@ import { readArtistApplicationSnapshot } from "@/lib/server/artist-application-s
 import { readArtistCatalogSnapshot, hydrateArtistCatalogStateInConfig, upsertArtistProfiles } from "@/lib/server/artist-catalog-store";
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { readArtistSupportSnapshot } from "@/lib/server/artist-support-store";
+import { buildArtistReleaseStorageSummaryMap } from "@/lib/server/storage-archive-summary";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import {
   applyArtistFinanceOverlay,
@@ -110,6 +111,16 @@ export async function GET(request: Request) {
   const profile = artistCatalog.profiles[0] ?? null;
   const application = applicationSnapshot.applications[0] ?? buildLegacyApplication(profile);
   const tracks = sortTracks(artistCatalog.tracks);
+  const storageSummaries = await buildArtistReleaseStorageSummaryMap(
+    tracks.map((track) => ({
+      trackId: track.id,
+      releaseSlug: track.slug,
+    })),
+  );
+  const tracksWithStorage = tracks.map((track) => ({
+    ...track,
+    storageSummary: storageSummaries[track.id],
+  }));
   const socialBySlug = await listReleaseSocialFeedSummaries(tracks.map((track) => track.slug));
   const [finance, support] = await Promise.all([
     readArtistFinanceSnapshot({
@@ -126,7 +137,7 @@ export async function GET(request: Request) {
   const donations = support.donations.length;
   const subscriptions = support.subscriptions.filter((entry) => entry.status === "active").length;
   const studioStats = buildArtistStudioStats({
-    tracks,
+    tracks: tracksWithStorage,
     donationsCount: donations,
     activeSubscriptionsCount: subscriptions,
     socialBySlug,
@@ -147,7 +158,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     application,
     profile: financeAwareProfile,
-    tracks,
+    tracks: tracksWithStorage,
     donations,
     subscriptions,
     studioStats,

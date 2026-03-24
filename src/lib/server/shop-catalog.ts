@@ -1,6 +1,7 @@
 import { readArtistCatalogSnapshot } from "@/lib/server/artist-catalog-store";
 import { listPublishedArtistProductsFromSnapshot } from "@/lib/server/shop-artist-market";
 import { readShopAdminConfig, toActivePromoRules } from "@/lib/server/shop-admin-config-store";
+import { buildArtistReleaseStorageSummaryMap } from "@/lib/server/storage-archive-summary";
 import type {
   ShopAppSettings,
   ShopCatalogArtist,
@@ -67,6 +68,12 @@ export const getCatalogSnapshot = async (): Promise<{
     artistCatalog.profiles,
     artistCatalog.tracks,
   );
+  const storageSummaries = await buildArtistReleaseStorageSummaryMap(
+    artistCatalog.tracks.map((track) => ({
+      trackId: track.id,
+      releaseSlug: track.slug,
+    })),
+  );
 
   const products = artistProducts
     .map((trackProduct) => {
@@ -92,6 +99,7 @@ export const getCatalogSnapshot = async (): Promise<{
         isNew: typeof override?.isFeatured === "boolean" ? override.isFeatured : trackProduct.isNew,
         isHit: typeof override?.isFeatured === "boolean" ? override.isFeatured : trackProduct.isHit,
         subtitle: override?.badge ? `${trackProduct.subtitle} • ${override.badge}` : trackProduct.subtitle,
+        storageSummary: storageSummaries[trackProduct.id] ?? trackProduct.storageSummary,
       });
 
       return next;

@@ -134,6 +134,44 @@ const formatDeliveryVia = (value: StorageDeliveryRequest["lastDeliveredVia"]): s
   }
 };
 
+const getDeliveryStatusBadgeClass = (
+  status: StorageDeliveryRequest["status"],
+  stylesMap: Record<string, string>,
+): string => {
+  switch (status) {
+    case "ready":
+    case "delivered":
+      return stylesMap.statusBadgeSuccess;
+    case "processing":
+    case "pending_asset_mapping":
+      return stylesMap.statusBadgeWarning;
+    case "failed":
+      return stylesMap.statusBadgeDanger;
+    default:
+      return stylesMap.statusBadge;
+  }
+};
+
+type ProductStorageStatus = NonNullable<ShopProduct["storageSummary"]>["status"];
+
+const getStorageSummaryBadgeClass = (
+  status: ProductStorageStatus,
+  stylesMap: Record<string, string>,
+): string => {
+  switch (status) {
+    case "verified":
+    case "archived":
+      return stylesMap.statusBadgeSuccess;
+    case "prepared":
+    case "syncing":
+      return stylesMap.statusBadgeWarning;
+    case "attention":
+      return stylesMap.statusBadgeDanger;
+    default:
+      return stylesMap.statusBadge;
+  }
+};
+
 function PlayIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
@@ -252,7 +290,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   const [selectedFormat, setSelectedFormat] = useState<ArtistAudioFormat>(() =>
     getDefaultTrackFormat(product),
   );
-  const [walletBalanceCents, setWalletBalanceCents] = useState(0);
+  const [, setWalletBalanceCents] = useState(0);
   const [ownedReleaseSlugs, setOwnedReleaseSlugs] = useState<string[]>([]);
   const [ownedReleaseFormatKeys, setOwnedReleaseFormatKeys] = useState<string[]>(
     [],
@@ -474,11 +512,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         value: String(releaseTracklist.length),
       },
       {
-        label: "Форматы",
-        value: formats.map((entry) => getFormatLabel(entry.format)).join(" · "),
+        label: "Storage",
+        value: product.storageSummary?.label || "Pending",
       },
     ],
-    [formats, primaryGenre, releaseLabel, releaseTracklist.length],
+    [primaryGenre, product.storageSummary?.label, releaseLabel, releaseTracklist.length],
   );
   const releaseDeliveryRequests = useMemo(
     () => deliveryHistory.filter((entry) => entry.releaseSlug === product.slug).slice(0, 6),
@@ -490,6 +528,66 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
   );
   const desktopDownloadsEnabled = C3K_STORAGE_DESKTOP_CLIENT_ENABLED;
   const selectedFormatLabel = getFormatLabel(selectedFormat);
+  const releaseDeliverySummary = useMemo(() => {
+    return releaseDeliveryRequests.reduce(
+      (acc, entry) => {
+        if (entry.status === "ready" || entry.status === "delivered") {
+          acc.ready += 1;
+        } else if (
+          entry.status === "requested" ||
+          entry.status === "processing" ||
+          entry.status === "pending_asset_mapping"
+        ) {
+          acc.active += 1;
+        } else if (entry.status === "failed") {
+          acc.failed += 1;
+        }
+
+        if (
+          entry.lastDeliveredVia === "tonstorage_gateway" ||
+          entry.lastDeliveredVia === "bag_http_pointer" ||
+          entry.lastDeliveredVia === "bag_meta"
+        ) {
+          acc.runtime += 1;
+        }
+
+        return acc;
+      },
+      {
+        ready: 0,
+        active: 0,
+        failed: 0,
+        runtime: 0,
+      },
+    );
+  }, [releaseDeliveryRequests]);
+  const trackDeliverySummaryByTrackId = useMemo(() => {
+    const grouped = new Map<string, { ready: number; active: number; failed: number }>();
+
+    releaseDeliveryRequests.forEach((entry) => {
+      if (!entry.trackId) {
+        return;
+      }
+
+      const current = grouped.get(entry.trackId) ?? { ready: 0, active: 0, failed: 0 };
+
+      if (entry.status === "ready" || entry.status === "delivered") {
+        current.ready += 1;
+      } else if (
+        entry.status === "requested" ||
+        entry.status === "processing" ||
+        entry.status === "pending_asset_mapping"
+      ) {
+        current.active += 1;
+      } else if (entry.status === "failed") {
+        current.failed += 1;
+      }
+
+      grouped.set(entry.trackId, current);
+    });
+
+    return grouped;
+  }, [releaseDeliveryRequests]);
   const releaseCollectionSummary = ownsWholeRelease
     ? ownedFormatLabels.length > 0
       ? `В коллекции · ${ownedFormatLabels.join(" · ")}`
@@ -1078,6 +1176,18 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               {ownsWholeRelease ? (
                 <span className={styles.statusBadge}>В коллекции</span>
               ) : null}
+              {product.storageSummary ? (
+                <span
+                  className={`${styles.statusBadge} ${getStorageSummaryBadgeClass(product.storageSummary.status, styles)}`}
+                >
+                  {product.storageSummary.label}
+                </span>
+              ) : null}
+              {releaseDeliverySummary.ready > 0 ? (
+                <span className={`${styles.statusBadge} ${styles.statusBadgeSuccess}`}>
+                  Файлы готовы · {releaseDeliverySummary.ready}
+                </span>
+              ) : null}
               {isMintedInTon ? (
                 <span className={`${styles.statusBadge} ${styles.statusBadgeAccent}`}>
                   NFT
@@ -1145,21 +1255,55 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                   <small>{releaseTrackOwnershipSummary}</small>
                 </article>
                 <article className={styles.releaseContextCard}>
-                  <span>Кошелек приложения</span>
-                  <div className={styles.starsBadge}>
-                    <StarsIcon className={styles.starsBadgeIcon} />
-                    {formatStarsFromCents(walletBalanceCents)}
-                  </div>
-                  <small>Нужен для покупки релиза, треков и sponsored mint газа</small>
-                </article>
-                <article className={styles.releaseContextCard}>
-                  <span>Логика релиза</span>
+                  <span>Файлы и delivery</span>
                   <strong>
                     {ownsWholeRelease
-                      ? "Можно скачивать и улучшать в NFT"
-                      : "Отдельные треки покупаются независимо"}
+                      ? releaseDeliverySummary.ready > 0
+                        ? `${releaseDeliverySummary.ready} ready`
+                        : "Можно запросить файлы"
+                      : "Откроется после полной покупки"}
                   </strong>
-                  <small>NFT доступен только после полной покупки релиза</small>
+                  <small>
+                    {ownsWholeRelease
+                      ? `${releaseDeliverySummary.active} в работе · ${releaseDeliverySummary.failed} с ошибкой · ${releaseDeliverySummary.runtime} через runtime`
+                      : "Web, Telegram и Desktop handoff откроются после полной покупки релиза"}
+                  </small>
+                </article>
+                <article className={styles.releaseContextCard}>
+                  <span>Storage / archive</span>
+                  <strong>{product.storageSummary?.label || "Ещё не в storage"}</strong>
+                  <small>{product.storageSummary?.note || "После sync релиз получит assets, bags и runtime status."}</small>
+                  {product.storageSummary ? (
+                    <div className={styles.heroBadges}>
+                      <span
+                        className={`${styles.statusBadge} ${getStorageSummaryBadgeClass(product.storageSummary.status, styles)}`}
+                      >
+                        {product.storageSummary.label}
+                      </span>
+                      <span className={styles.statusBadge}>
+                        {product.storageSummary.verifiedBagCount > 0
+                          ? `${product.storageSummary.verifiedBagCount} verified`
+                          : `${product.storageSummary.bagCount} bags`}
+                      </span>
+                    </div>
+                  ) : null}
+                </article>
+                <article className={styles.releaseContextCard}>
+                  <span>NFT upgrade</span>
+                  <strong>
+                    {isMintedInTon
+                      ? "NFT уже выпущен"
+                      : releaseMintable
+                        ? ownsWholeRelease
+                          ? `Готов к mint в ${TON_NETWORK_LABEL}`
+                          : "Откроется после полной покупки"
+                        : "Mint выключен"}
+                  </strong>
+                  <small>
+                    {isMintedInTon
+                      ? "Коллекционная версия уже закреплена on-chain."
+                      : "NFT доступен только после полной покупки релиза."}
+                  </small>
                 </article>
               </div>
             </section>
@@ -1177,7 +1321,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               </div>
 
               <p className={styles.trackListHint}>
-                Треки можно покупать по одному. Полная покупка релиза остаётся отдельным действием и открывает NFT upgrade.
+                Треки можно покупать по одному. После покупки каждый трек можно забрать через web, Telegram или Desktop, а полный релиз открывает NFT upgrade.
               </p>
 
               <ol className={styles.trackList}>
@@ -1188,9 +1332,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                     track.id,
                     selectedFormat,
                   );
+                  const trackDeliverySummary = trackDeliverySummaryByTrackId.get(track.id);
 
                   return (
-                    <li key={track.id} className={styles.trackRow}>
+                    <li
+                      key={track.id}
+                      className={`${styles.trackRow} ${trackOwned ? styles.trackRowOwned : ""}`}
+                    >
                       <button
                         type="button"
                         className={styles.trackPlayButton}
@@ -1202,7 +1350,28 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
 
                       <div className={styles.trackMeta}>
                         <strong>{track.title}</strong>
-                        <small>{formatTrackDuration(track.durationSec)}</small>
+                        <small>
+                          {formatTrackDuration(track.durationSec)}
+                          {trackOwned
+                            ? trackDeliverySummary
+                              ? ` · ${trackDeliverySummary.ready} ready · ${trackDeliverySummary.active} в работе`
+                              : " · в коллекции"
+                            : ""}
+                        </small>
+                        <div className={styles.trackStateRow}>
+                          {trackOwned ? (
+                            <span className={`${styles.statusBadge} ${styles.statusBadgeSuccess}`}>
+                              {trackDeliverySummary?.ready
+                                ? "Файл готов"
+                                : trackDeliverySummary?.active
+                                  ? "Выдача в работе"
+                                  : "В коллекции"}
+                            </span>
+                          ) : (
+                            <span className={styles.statusBadge}>Можно купить отдельно</span>
+                          )}
+                          <span className={styles.statusBadge}>{selectedFormatLabel}</span>
+                        </div>
                       </div>
 
                       <div className={styles.trackPurchase}>
@@ -1276,9 +1445,33 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 </div>
 
                 <p className={styles.panelText}>
-                  Полная покупка добавляет релиз в профиль, открывает все треки и
-                  позволяет выпускать NFT для релиза целиком.
+                  Полная покупка собирает весь релиз в коллекции, открывает выдачу через web,
+                  Telegram и Desktop и подготавливает релиз к NFT upgrade.
                 </p>
+
+                {product.storageSummary ? (
+                  <p className={styles.inlineHint}>
+                    Storage status: {product.storageSummary.label}. {product.storageSummary.note}
+                  </p>
+                ) : null}
+
+                <div className={styles.deliverySummaryGrid}>
+                  <article className={styles.deliverySummaryCard}>
+                    <span>Готово</span>
+                    <strong>{releaseDeliverySummary.ready}</strong>
+                    <small>Запросы, которые уже можно открыть или скачать.</small>
+                  </article>
+                  <article className={styles.deliverySummaryCard}>
+                    <span>В работе</span>
+                    <strong>{releaseDeliverySummary.active}</strong>
+                    <small>Выдачи, которые ещё проходят mapping или handoff.</small>
+                  </article>
+                  <article className={styles.deliverySummaryCard}>
+                    <span>Через runtime</span>
+                    <strong>{releaseDeliverySummary.runtime}</strong>
+                    <small>Выдачи, которые уже шли через storage runtime contour.</small>
+                  </article>
+                </div>
 
                 {ownsWholeRelease ? (
                   <div className={styles.releaseFileActions}>
@@ -1343,7 +1536,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                               ? request.trackId || "Трек"
                               : "Полный релиз"}
                           </strong>
-                          <span>{formatDeliveryStatus(request.status)}</span>
+                          <span
+                            className={`${styles.statusBadge} ${getDeliveryStatusBadgeClass(request.status, styles)}`}
+                          >
+                            {formatDeliveryStatus(request.status)}
+                          </span>
                         </div>
                         <p>
                           {formatDeliveryChannel(request.channel)} · {request.resolvedFormat || request.requestedFormat || "no format"}

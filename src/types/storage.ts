@@ -225,6 +225,15 @@ export interface StorageProgramNodeSummary {
   lastSeenAt?: string;
   updatedAt: string;
   mapReady: boolean;
+  reliabilityScore: number;
+  reliabilityLabel: "stable" | "warming" | "attention";
+  recentWarningCount: number;
+  recentCriticalCount: number;
+  rewardScore: number;
+  rewardLabel: "strong" | "building" | "low";
+  weeklyCreditsPreview: number;
+  staleHeartbeat: boolean;
+  peerLinkCount: number;
 }
 
 export interface StorageProgramNetworkSummary {
@@ -233,8 +242,84 @@ export interface StorageProgramNetworkSummary {
   degradedNodes: number;
   communityNodes: number;
   providerNodes: number;
+  stableNodes: number;
+  warmingNodes: number;
+  attentionNodes: number;
+  staleHeartbeatNodes: number;
+  avgReliabilityScore: number;
+  avgRewardScore: number;
+  totalWeeklyCreditsPreview: number;
+  topRewardNodeLabel?: string;
+  recentWarningEvents: number;
+  recentCriticalEvents: number;
+  peerAssignmentCount: number;
+  readyPeerAssignments: number;
+  watchPeerAssignments: number;
+  riskPeerAssignments: number;
+  overallReliabilityLabel: "stable" | "warming" | "attention";
+  summary: string;
   countries: string[];
   cities: string[];
+}
+
+export interface StorageProgramRuntimeSummary {
+  tone: "live" | "ready" | "pending";
+  headline: string;
+  note: string;
+  assetCount: number;
+  sourceReadyAssetCount: number;
+  bagCount: number;
+  uploadedBagCount: number;
+  pointerReadyBagCount: number;
+  verifiedBagCount: number;
+  failedBagCount: number;
+  bagFileCount: number;
+  queuedJobCount: number;
+  processingJobCount: number;
+  preparedJobCount: number;
+  uploadedJobCount: number;
+  failedJobCount: number;
+  userDeliveryCount: number;
+  processingDeliveryCount: number;
+  pendingAssetMappingCount: number;
+  readyDeliveryCount: number;
+  deliveredDeliveryCount: number;
+  failedDeliveryCount: number;
+  runtimeBackedDeliveryCount: number;
+  webDeliveryCount: number;
+  telegramDeliveryCount: number;
+  desktopDeliveryCount: number;
+  attentionCount: number;
+  lastActivityAt?: string;
+  lastDeliveryAt?: string;
+  recentEvents: StorageHealthEvent[];
+}
+
+export interface StoragePeerAssignmentPreview {
+  id: string;
+  sourceNodeId: string;
+  sourceLabel: string;
+  sourceNodeType: StorageNodeType;
+  sourceLatitude?: number;
+  sourceLongitude?: number;
+  sourceReliabilityScore: number;
+  targetNodeId: string;
+  targetLabel: string;
+  targetNodeType: StorageNodeType;
+  targetLatitude?: number;
+  targetLongitude?: number;
+  targetReliabilityScore: number;
+  status: "ready" | "watch" | "risk";
+  reason: string;
+  distanceKm?: number;
+}
+
+export interface StoragePublicNodeSnapshot {
+  node: StorageProgramNodeSummary;
+  recentHealthEvents: StorageHealthEvent[];
+  otherPublicNodes: StorageProgramNodeSummary[];
+  networkSummary: StorageProgramNetworkSummary;
+  peerAssignments: StoragePeerAssignmentPreview[];
 }
 
 export interface StorageRuntimeStatusSnapshot {
@@ -398,5 +483,7 @@ export interface StorageProgramSnapshot {
   nodes: StorageProgramNodeSummary[];
   publicNodeCount: number;
   publicNodes: StorageProgramNodeSummary[];
+  runtimeSummary: StorageProgramRuntimeSummary;
   networkSummary: StorageProgramNetworkSummary;
+  peerAssignments: StoragePeerAssignmentPreview[];
 }

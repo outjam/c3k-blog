@@ -60,6 +60,7 @@ const buildDesiredAssets = (track: ArtistTrack): Array<{
     return {
       id: buildReleaseStorageAssetId(track.id, entry.format),
       releaseSlug: track.slug,
+      trackId: track.id,
       artistTelegramUserId: track.artistTelegramUserId,
       resourceKey: buildReleaseDeliveryResourceKey(track.slug, entry.format),
       assetType: "audio_master" as const,
@@ -84,6 +85,7 @@ const buildDesiredAssets = (track: ArtistTrack): Array<{
           {
             id: buildPreviewStorageAssetId(track.id),
             releaseSlug: track.slug,
+            trackId: track.id,
             artistTelegramUserId: track.artistTelegramUserId,
             resourceKey: buildPreviewStorageResourceKey(track.slug),
             assetType: "audio_preview" as const,

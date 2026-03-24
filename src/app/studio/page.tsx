@@ -135,6 +135,23 @@ const formatPayoutStatusLabel = (value: ArtistPayoutRequest["status"]): string =
   }
 };
 
+const getStorageStatusTone = (
+  value: ArtistTrack["storageSummary"] | undefined,
+): "success" | "warning" | "danger" | "default" => {
+  switch (value?.status) {
+    case "verified":
+    case "archived":
+      return "success";
+    case "prepared":
+    case "syncing":
+      return "warning";
+    case "attention":
+      return "danger";
+    default:
+      return "default";
+  }
+};
+
 const toToneClassName = (
   stylesMap: Record<string, string>,
   value: "success" | "warning" | "danger" | "default",
@@ -489,6 +506,15 @@ export default function StudioPage() {
   }, [payoutSummary]);
 
   const studioPrimaryInsight = useMemo(() => {
+    const storageAttentionCount = tracks.filter((track) => track.storageSummary?.status === "attention").length;
+
+    if (storageAttentionCount > 0) {
+      return {
+        title: "Storage требует внимания",
+        body: `У ${storageAttentionCount} релизов есть archive/runtime проблемы. Проверьте storage status перед следующим релизным пушем.`,
+      };
+    }
+
     if (!profile?.tonWalletAddress) {
       return {
         title: "Добавьте TON-кошелёк",
@@ -514,7 +540,19 @@ export default function StudioPage() {
       title: "Студия готова к работе",
       body: "Следующий рост даёт регулярный выпуск релизов, обновление профиля и поддержка подписок.",
     };
-  }, [payoutSummary?.canRequest, profile?.tonWalletAddress, stats?.pendingReleasesCount]);
+  }, [payoutSummary?.canRequest, profile?.tonWalletAddress, stats?.pendingReleasesCount, tracks]);
+
+  const storageStats = useMemo(() => {
+    return {
+      verified: tracks.filter((track) => track.storageSummary?.status === "verified").length,
+      archived: tracks.filter((track) => track.storageSummary?.status === "archived").length,
+      preparing: tracks.filter((track) => {
+        const status = track.storageSummary?.status;
+        return status === "prepared" || status === "syncing";
+      }).length,
+      attention: tracks.filter((track) => track.storageSummary?.status === "attention").length,
+    };
+  }, [tracks]);
 
   const formatPayoutAuditAction = (entry: ArtistPayoutAuditEntry): string => {
     if (entry.action === "requested") {
@@ -698,6 +736,15 @@ export default function StudioPage() {
                 <strong>{profile.displayName}</strong>
                 <p>Обновляйте bio, обложку, кошелёк и поддержку: эти данные сразу видят слушатели.</p>
               </article>
+              <article className={styles.guideCard}>
+                <span>Storage / archive</span>
+                <strong>
+                  {storageStats.verified} verified · {storageStats.archived} archived
+                </strong>
+                <p>
+                  Релизы с archive status проще контролировать после публикации: видно, что уже дошло до bags и runtime.
+                </p>
+              </article>
             </div>
 
             <div className={styles.financeHeroGrid}>
@@ -764,12 +811,31 @@ export default function StudioPage() {
                         <span>
                           {track.releaseType.toUpperCase()} · {track.releaseTracklist?.length ?? 1} треков
                         </span>
+                        {track.storageSummary ? (
+                          <span className={styles.releaseMetaLine}>
+                            Storage: {track.storageSummary.label} ·{" "}
+                            {track.storageSummary.verifiedBagCount > 0
+                              ? `${track.storageSummary.verifiedBagCount} verified`
+                              : track.storageSummary.bagCount > 0
+                                ? `${track.storageSummary.bagCount} bags`
+                                : `${track.storageSummary.assetCount} assets`}
+                          </span>
+                        ) : null}
                       </div>
-                      <span
-                        className={`${styles.statusBadge} ${toToneClassName(styles, getReleaseStatusTone(track.status))}`}
-                      >
-                        {formatReleaseStatusLabel(track.status)}
-                      </span>
+                      <div className={styles.releaseBadgeRow}>
+                        <span
+                          className={`${styles.statusBadge} ${toToneClassName(styles, getReleaseStatusTone(track.status))}`}
+                        >
+                          {formatReleaseStatusLabel(track.status)}
+                        </span>
+                        {track.storageSummary ? (
+                          <span
+                            className={`${styles.statusBadge} ${toToneClassName(styles, getStorageStatusTone(track.storageSummary))}`}
+                          >
+                            {track.storageSummary.label}
+                          </span>
+                        ) : null}
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -929,6 +995,13 @@ export default function StudioPage() {
                 <span>Черновики и правки</span>
                 <strong>{stats?.draftReleasesCount ?? 0}</strong>
                 <p>Если релиз отклонён, обновите поля и треклист, затем отправьте его повторно на модерацию.</p>
+              </article>
+              <article className={styles.guideCard}>
+                <span>Archive status</span>
+                <strong>
+                  {storageStats.preparing} готовится · {storageStats.attention} требуют проверки
+                </strong>
+                <p>После sync релиза студия теперь показывает, дошёл ли он до assets, bags и runtime verification.</p>
               </article>
             </div>
 

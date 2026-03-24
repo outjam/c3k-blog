@@ -39,15 +39,6 @@ interface NodeState {
   tone: NodeStateTone;
 }
 
-interface SeedPreviewItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  health: string;
-  peers: string;
-  payout: string;
-}
-
 interface StoragePeerMapNode {
   id: string;
   label: string;
@@ -55,6 +46,15 @@ interface StoragePeerMapNode {
   health: string;
   tone: "live" | "ready" | "pending";
   coordinates: [number, number];
+}
+
+interface StoragePeerMapConnection {
+  id: string;
+  sourceLabel: string;
+  targetLabel: string;
+  status: "ready" | "watch" | "risk";
+  coordinates: [[number, number], [number, number]];
+  reason: string;
 }
 
 const TIER_META: Record<StorageProgramMembership["tier"], TierMeta> = {
@@ -198,6 +198,28 @@ const formatNodeStatus = (value: "candidate" | "active" | "degraded" | "suspende
   }
 };
 
+const formatReliabilityLabel = (value: "stable" | "warming" | "attention"): string => {
+  switch (value) {
+    case "stable":
+      return "Stable";
+    case "warming":
+      return "Warming";
+    default:
+      return "Needs attention";
+  }
+};
+
+const formatRewardLabel = (value: "strong" | "building" | "low"): string => {
+  switch (value) {
+    case "strong":
+      return "Strong";
+    case "building":
+      return "Building";
+    default:
+      return "Low";
+  }
+};
+
 const formatNodeType = (value: "owned_provider" | "partner_provider" | "community_node"): string => {
   switch (value) {
     case "owned_provider":
@@ -223,6 +245,28 @@ const formatDateTime = (value: string | undefined): string => {
     dateStyle: "short",
     timeStyle: "short",
   });
+};
+
+const formatRuntimeHeadline = (value: "live" | "ready" | "pending" | undefined): string => {
+  switch (value) {
+    case "live":
+      return "Runtime уже живой";
+    case "ready":
+      return "Runtime уже в работе";
+    default:
+      return "Runtime собирается";
+  }
+};
+
+const formatHealthSeverity = (value: "info" | "warning" | "critical"): string => {
+  switch (value) {
+    case "critical":
+      return "Critical";
+    case "warning":
+      return "Warning";
+    default:
+      return "Info";
+  }
 };
 
 const formatStorageSize = (value: number): string => {
@@ -288,6 +332,37 @@ const buildPeerMapNodes = (snapshot: StorageProgramSnapshot | null): StoragePeer
   return Array.from(deduped.values()).slice(0, 12);
 };
 
+const buildPeerMapConnections = (snapshot: StorageProgramSnapshot | null): StoragePeerMapConnection[] => {
+  if (!snapshot?.peerAssignments?.length) {
+    return [];
+  }
+
+  return snapshot.peerAssignments.flatMap((entry) => {
+    if (
+      typeof entry.sourceLatitude !== "number" ||
+      typeof entry.sourceLongitude !== "number" ||
+      typeof entry.targetLatitude !== "number" ||
+      typeof entry.targetLongitude !== "number"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id: entry.id,
+        sourceLabel: entry.sourceLabel,
+        targetLabel: entry.targetLabel,
+        status: entry.status,
+        coordinates: [
+          [entry.sourceLongitude, entry.sourceLatitude],
+          [entry.targetLongitude, entry.targetLatitude],
+        ],
+        reason: entry.reason,
+      },
+    ];
+  });
+};
+
 const buildBoundsFromMapNodes = (nodes: StoragePeerMapNode[]): [[number, number], [number, number]] | null => {
   if (nodes.length === 0) {
     return null;
@@ -337,62 +412,6 @@ const resolveNodeState = (
   };
 };
 
-const buildSeedPreview = (
-  history: StorageDeliveryRequest[],
-  membership: StorageProgramMembership | null,
-): SeedPreviewItem[] => {
-  const uniqueReleases = Array.from(new Set(history.map((entry) => entry.releaseSlug))).slice(0, 3);
-  const tier = membership?.tier ?? "supporter";
-  const basePeers = tier === "guardian" ? 36 : tier === "core" ? 22 : tier === "keeper" ? 12 : 6;
-  const basePayout = TIER_META[tier].weeklyCredits;
-
-  if (uniqueReleases.length === 0) {
-    return [
-      {
-        id: "preview-release-1",
-        title: "collector-archive",
-        subtitle: "lossless release bag · priority",
-        health: "Healthy",
-        peers: `${basePeers} peers`,
-        payout: `+${Math.round(basePayout * 0.18)} C3K / неделя`,
-      },
-      {
-        id: "preview-release-2",
-        title: "nft-media-bundle",
-        subtitle: "NFT media + booklet",
-        health: membership?.status === "approved" ? "Replicating" : "Ждёт допуска",
-        peers: `${Math.max(3, basePeers - 4)} peers`,
-        payout: `+${Math.round(basePayout * 0.12)} C3K / неделя`,
-      },
-      {
-        id: "preview-release-3",
-        title: "desktop-site-cache",
-        subtitle: "c3k.ton bundle cache",
-        health: snapshotEnabledHealth(membership),
-        peers: `${Math.max(2, basePeers - 6)} peers`,
-        payout: `+${Math.round(basePayout * 0.09)} C3K / неделя`,
-      },
-    ];
-  }
-
-  return uniqueReleases.map((slug, index) => ({
-    id: `${slug}-${index + 1}`,
-    title: slug,
-    subtitle: index === 0 ? "release bag" : index === 1 ? "collector archive" : "desktop mirror",
-    health: index === 0 ? "Healthy" : index === 1 ? "Replicating" : "Queued",
-    peers: `${Math.max(2, basePeers - index * 3)} peers`,
-    payout: `+${Math.max(12, Math.round(basePayout * (0.18 - index * 0.04)))} C3K / неделя`,
-  }));
-};
-
-function snapshotEnabledHealth(membership: StorageProgramMembership | null): string {
-  if (membership?.status === "approved") {
-    return "Ready";
-  }
-
-  return "Preview";
-}
-
 export default function StorageProgramPage() {
   const router = useRouter();
   const tonWallet = useTonWallet();
@@ -418,22 +437,18 @@ export default function StorageProgramPage() {
   const membership = snapshot?.membership ?? null;
   const tierMeta = membership ? TIER_META[membership.tier] : TIER_META.supporter;
   const nodeState = useMemo(() => resolveNodeState(membership, snapshot), [membership, snapshot]);
-  const seedPreview = useMemo(
-    () => buildSeedPreview(deliveryHistory, membership),
-    [deliveryHistory, membership],
-  );
+  const runtimeSummary = snapshot?.runtimeSummary ?? null;
 
   const liveRewards = membership?.status === "approved" ? tierMeta.weeklyCredits : Math.round(tierMeta.weeklyCredits * 0.55);
   const tokenBalancePreview = membership?.status === "approved" ? tierMeta.weeklyCredits * 3 + 84 : 0;
-  const bagsInFocus = membership?.status === "approved" ? Math.max(seedPreview.length, tierMeta.targetBags) : tierMeta.targetBags;
-  const nodeCountLabel = snapshot?.nodeCount && snapshot.nodeCount > 0 ? `${snapshot.nodeCount}` : "Подключите desktop";
-  const desktopModeLabel = snapshot?.desktopClientEnabled ? "Готов к запуску" : "Beta waiting";
+  const nodeCountLabel = snapshot?.nodeCount && snapshot.nodeCount > 0 ? `${snapshot.nodeCount}` : "0";
+  const desktopModeLabel = snapshot?.desktopClientEnabled ? "Готов к запуску" : "Ждёт desktop";
   const runtimeModeLabel =
     snapshot?.runtimeStatus.mode === "tonstorage_testnet" ? "TON Storage testnet" : "Local test prepare";
-  const runtimePointerLabel = snapshot?.runtimeStatus.supportsRealPointers ? "Real pointers" : "Placeholder only";
-  const networkNodeCountLabel = snapshot?.publicNodeCount ? String(snapshot.publicNodeCount) : "preview";
+  const runtimePointerLabel = snapshot?.runtimeStatus.supportsRealPointers ? "Real pointers" : "Pointer prep";
   const networkSummary = snapshot?.networkSummary;
   const peerMapNodes = useMemo(() => buildPeerMapNodes(snapshot), [snapshot]);
+  const peerMapConnections = useMemo(() => buildPeerMapConnections(snapshot), [snapshot]);
 
   useEffect(() => {
     if (!mapContainerRef.current || peerMapNodes.length === 0) {
@@ -453,6 +468,44 @@ export default function StorageProgramPage() {
     mapRef.current = map;
     map.on("load", () => {
       const bounds = buildBoundsFromMapNodes(peerMapNodes);
+
+      if (peerMapConnections.length) {
+        map.addSource("peer-links", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: peerMapConnections.map((entry) => ({
+              type: "Feature",
+              properties: {
+                status: entry.status,
+              },
+              geometry: {
+                type: "LineString",
+                coordinates: entry.coordinates,
+              },
+            })),
+          },
+        });
+
+        map.addLayer({
+          id: "peer-links",
+          type: "line",
+          source: "peer-links",
+          paint: {
+            "line-width": 2.4,
+            "line-opacity": 0.46,
+            "line-color": [
+              "match",
+              ["get", "status"],
+              "ready",
+              "#2ea84f",
+              "watch",
+              "#f5b83d",
+              "#e25a5a",
+            ],
+          },
+        });
+      }
 
       if (bounds) {
         map.fitBounds(bounds, {
@@ -488,7 +541,7 @@ export default function StorageProgramPage() {
       map.remove();
       mapRef.current = null;
     };
-  }, [peerMapNodes]);
+  }, [peerMapConnections, peerMapNodes]);
 
   useEffect(() => {
     if (!connectedWalletAddress || connectedWalletAddress === walletAddress) {
@@ -637,7 +690,7 @@ export default function StorageProgramPage() {
             <button type="button" className={styles.backButton} onClick={handleBack}>
               Назад
             </button>
-            <span className={styles.heroChip}>Sprint 10 · Storage</span>
+            <span className={styles.heroChip}>Storage program beta</span>
           </div>
 
           <div className={styles.heroMain}>
@@ -658,28 +711,43 @@ export default function StorageProgramPage() {
                 <span className={styles.statusPill}>{formatTier(membership?.tier)}</span>
                 <span className={styles.statusPill}>{runtimeModeLabel}</span>
                 <span className={styles.statusPill}>{runtimePointerLabel}</span>
+                {runtimeSummary ? (
+                  <span
+                    className={`${styles.statusPill} ${styles[`statusPill${runtimeSummary.tone.charAt(0).toUpperCase()}${runtimeSummary.tone.slice(1)}`]}`}
+                  >
+                    {formatRuntimeHeadline(runtimeSummary.tone)}
+                  </span>
+                ) : null}
               </div>
 
               <div className={styles.heroStats}>
                 <article className={styles.metricTile}>
                   <span>Desktop runtime</span>
                   <strong>{desktopModeLabel}</strong>
-                  <small>{snapshot?.desktopClientEnabled ? "Electron node + c3k.ton gateway" : "Откроется после desktop slice"}</small>
+                  <small>{snapshot?.desktopClientEnabled ? "Electron-нода и локальный gateway уже доступны" : "Появится после запуска desktop-ноды"}</small>
                 </article>
                 <article className={styles.metricTile}>
                   <span>Ноды</span>
                   <strong>{nodeCountLabel}</strong>
-                  <small>{snapshot?.nodeCount ? "Активные runtime точки" : "Пока ни одна нода не подключена"}</small>
+                  <small>{snapshot?.nodeCount ? "Привязанные runtime-точки вашего аккаунта" : "Пока ни одна нода не подключена"}</small>
                 </article>
                 <article className={styles.metricTile}>
-                  <span>Storage bags</span>
-                  <strong>{bagsInFocus}</strong>
-                  <small>Целевой пул раздачи для вашего tier</small>
+                  <span>Bags в runtime</span>
+                  <strong>{runtimeSummary?.bagCount ?? 0}</strong>
+                  <small>
+                    {runtimeSummary
+                      ? `${runtimeSummary.verifiedBagCount} verified · ${runtimeSummary.preparedJobCount} ждут upload`
+                      : "После первого sync здесь появятся live bags"}
+                  </small>
                 </article>
                 <article className={styles.metricTile}>
-                  <span>Сеть</span>
-                  <strong>{networkNodeCountLabel}</strong>
-                  <small>{snapshot?.publicNodeCount ? "Публичные точки на карте" : "Пока сеть ещё в preview-режиме"}</small>
+                  <span>Мои выдачи</span>
+                  <strong>{runtimeSummary?.userDeliveryCount ?? deliveryHistory.length}</strong>
+                  <small>
+                    {runtimeSummary
+                      ? `${runtimeSummary.deliveredDeliveryCount} delivered · ${runtimeSummary.readyDeliveryCount} ready`
+                      : "История выдачи появится после первых скачиваний"}
+                  </small>
                 </article>
               </div>
             </div>
@@ -703,8 +771,8 @@ export default function StorageProgramPage() {
                 </div>
               </div>
               <small className={styles.walletHint}>
-                Пока это target UI для reward-layer. Следующий этап — реальный test-only runtime и начисление за uptime,
-                storage bags и peer-to-peer раздачу.
+                Reward preview уже считает не только ваш tier, но и живую сеть: heartbeat, peer-links,
+                надёжность публичных нод и качество runtime-контуров.
               </small>
             </aside>
           </div>
@@ -733,35 +801,35 @@ export default function StorageProgramPage() {
           <>
             <section className={styles.sectionCard}>
               <div className={styles.sectionHead}>
-                <h2>Node control center</h2>
-                <p>{nodeState.description}</p>
+                <h2>Что уже работает в программе</h2>
+                <p>{runtimeSummary?.note || nodeState.description}</p>
               </div>
 
               <div className={styles.controlGrid}>
                 <article className={styles.controlPanel}>
                   <div className={styles.controlHead}>
                     <div>
-                      <strong>Раздача и здоровье</strong>
-                      <p>Как пользователь будет видеть рабочую ноду и peer-to-peer контур прямо в приложении.</p>
+                      <strong>Runtime и архив</strong>
+                      <p>Живой storage-контур: готовые файлы, bags, очередь upload и последние действия runtime.</p>
                     </div>
-                    <span className={styles.controlPill}>Target state</span>
+                    <span className={styles.controlPill}>{runtimeSummary?.headline || "Runtime status"}</span>
                   </div>
                   <div className={styles.controlMetrics}>
                     <div>
-                      <span>Выделено под storage</span>
-                      <b>{tierMeta.targetDiskGb} GB</b>
+                      <span>Assets ready</span>
+                      <b>{runtimeSummary ? `${runtimeSummary.sourceReadyAssetCount}/${runtimeSummary.assetCount}` : "0/0"}</b>
                     </div>
                     <div>
-                      <span>Цель по bags</span>
-                      <b>{tierMeta.targetBags}</b>
+                      <span>Verified bags</span>
+                      <b>{runtimeSummary?.verifiedBagCount ?? 0}</b>
                     </div>
                     <div>
-                      <span>Health target</span>
-                      <b>{tierMeta.healthGoal}</b>
+                      <span>Upload queue</span>
+                      <b>{runtimeSummary ? runtimeSummary.preparedJobCount + runtimeSummary.processingJobCount : 0}</b>
                     </div>
                     <div>
-                      <span>Storage runtime</span>
-                      <b>{snapshot?.runtimeStatus.label || runtimeModeLabel}</b>
+                      <span>Последняя активность</span>
+                      <b>{formatDateTime(runtimeSummary?.lastActivityAt)}</b>
                     </div>
                   </div>
                 </article>
@@ -769,8 +837,8 @@ export default function StorageProgramPage() {
                 <article className={styles.controlPanel}>
                   <div className={styles.controlHead}>
                     <div>
-                      <strong>Участие в программе</strong>
-                      <p>Здесь считываются moderation state, tier, кошелёк и readiness desktop-клиента.</p>
+                      <strong>Участие и выдача</strong>
+                      <p>Статус заявки, кошелёк, desktop handoff и пользовательские выдачи в одном месте.</p>
                     </div>
                   </div>
                   <div className={styles.controlMetrics}>
@@ -783,16 +851,20 @@ export default function StorageProgramPage() {
                       <b>{formatTier(membership?.tier)}</b>
                     </div>
                     <div>
-                      <span>TON gateway</span>
-                      <b>{snapshot?.tonSiteDesktopGatewayEnabled ? "Запланирован" : "Дальше по roadmap"}</b>
+                      <span>Telegram delivery</span>
+                      <b>{snapshot?.telegramBotDeliveryEnabled ? "Включён" : "Выключен"}</b>
                     </div>
                     <div>
-                      <span>Upload worker</span>
-                      <b>{snapshot?.runtimeStatus.requiresExternalUploadWorker ? "Нужен" : "Не нужен"}</b>
+                      <span>Desktop handoff</span>
+                      <b>{snapshot?.desktopClientEnabled ? "Готов" : "Недоступен"}</b>
                     </div>
                     <div>
                       <span>Кошелёк</span>
                       <b>{membership?.walletAddress ? "Привязан" : "Пока не указан"}</b>
+                    </div>
+                    <div>
+                      <span>Последняя выдача</span>
+                      <b>{formatDateTime(runtimeSummary?.lastDeliveryAt)}</b>
                     </div>
                   </div>
                 </article>
@@ -801,12 +873,89 @@ export default function StorageProgramPage() {
 
             <section className={styles.sectionCard}>
               <div className={styles.sectionHead}>
-                <h2>Что раздаётся через ноду</h2>
+                <h2>Storage runtime прямо сейчас</h2>
                 <p>
-                  Это целевой вид swarm-экрана: релизные bags, архивы, NFT media и desktop cache будут видны как живые
-                  сущности с peers и доходностью. Ниже уже отражён активный runtime-контур, в который целимся сейчас.
+                  Здесь уже не product-preview, а текущий storage-контур: сколько файлов готовы к upload,
+                  сколько bags подтверждены и как ваши выдачи идут через runtime.
                 </p>
               </div>
+
+              {runtimeSummary ? (
+                <div className={styles.heroPills}>
+                  <span
+                    className={`${styles.statusPill} ${styles[`statusPill${runtimeSummary.tone.charAt(0).toUpperCase()}${runtimeSummary.tone.slice(1)}`]}`}
+                  >
+                    {runtimeSummary.headline}
+                  </span>
+                  <span className={styles.controlPill}>Последняя активность: {formatDateTime(runtimeSummary.lastActivityAt)}</span>
+                  <span className={styles.controlPill}>Runtime-backed delivery: {runtimeSummary.runtimeBackedDeliveryCount}</span>
+                  <span className={styles.controlPill}>Attention: {runtimeSummary.attentionCount}</span>
+                </div>
+              ) : null}
+
+              <div className={styles.networkGrid}>
+                <article className={styles.networkCard}>
+                  <span>Assets ready</span>
+                  <strong>{runtimeSummary?.sourceReadyAssetCount ?? 0} / {runtimeSummary?.assetCount ?? 0}</strong>
+                  <small>Файлы уже имеют source и могут попасть в archive pipeline без ручной подготовки.</small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Bags и pointers</span>
+                  <strong>{runtimeSummary?.verifiedBagCount ?? 0} / {runtimeSummary?.bagCount ?? 0}</strong>
+                  <small>
+                    {runtimeSummary
+                      ? `${runtimeSummary.pointerReadyBagCount} pointer-ready · ${runtimeSummary.uploadedBagCount} uploaded`
+                      : "После ingest здесь появятся bag и pointer status"}
+                  </small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Ingest queue</span>
+                  <strong>
+                    {(runtimeSummary?.queuedJobCount ?? 0) + (runtimeSummary?.processingJobCount ?? 0) + (runtimeSummary?.preparedJobCount ?? 0)}
+                  </strong>
+                  <small>
+                    {runtimeSummary
+                      ? `${runtimeSummary.preparedJobCount} готовы к upload · ${runtimeSummary.failedJobCount} failed`
+                      : "Очередь появится после первого storage sync"}
+                  </small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Мои выдачи</span>
+                  <strong>{runtimeSummary?.deliveredDeliveryCount ?? 0} / {runtimeSummary?.userDeliveryCount ?? 0}</strong>
+                  <small>
+                    {runtimeSummary
+                      ? `${runtimeSummary.readyDeliveryCount} ready · ${runtimeSummary.pendingAssetMappingCount} ждут mapping`
+                      : "После первых скачиваний здесь появится delivery contour"}
+                  </small>
+                </article>
+              </div>
+
+              {runtimeSummary?.recentEvents.length ? (
+                <div className={styles.runtimeEventGrid}>
+                  {runtimeSummary.recentEvents.map((event) => (
+                    <article key={event.id} className={styles.runtimeEventCard}>
+                      <div className={styles.nodeCardHead}>
+                        <strong>{event.message}</strong>
+                        <span
+                          className={`${styles.statusPill} ${
+                            styles[
+                              `statusPill${event.severity === "critical" ? "Locked" : event.severity === "warning" ? "Pending" : "Ready"}`
+                            ]
+                          }`}
+                        >
+                          {formatHealthSeverity(event.severity)}
+                        </span>
+                      </div>
+                      <div className={styles.nodeMeta}>
+                        <span>{event.entityType}</span>
+                        <span>{event.code}</span>
+                        <span>{formatDateTime(event.createdAt)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+
               {snapshot?.runtimeStatus.notes?.length ? (
                 <div className={styles.heroPills}>
                   {snapshot.runtimeStatus.notes.slice(0, 2).map((note) => (
@@ -816,24 +965,11 @@ export default function StorageProgramPage() {
                   ))}
                 </div>
               ) : null}
-
-              <div className={styles.seedGrid}>
-                {seedPreview.map((item) => (
-                  <article key={item.id} className={styles.seedCard}>
-                    <div className={styles.seedCardHead}>
-                      <div>
-                        <strong>{item.title}</strong>
-                        <p>{item.subtitle}</p>
-                      </div>
-                      <span className={styles.seedHealthPill}>{item.health}</span>
-                    </div>
-                    <div className={styles.seedMeta}>
-                      <span>{item.peers}</span>
-                      <span>{item.payout}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
+              {!runtimeSummary ? (
+                <div className={styles.emptyState}>
+                  Runtime summary появится после первого sync storage assets и первых ingest job.
+                </div>
+              ) : null}
             </section>
 
             <section className={styles.sectionCard}>
@@ -865,7 +1001,74 @@ export default function StorageProgramPage() {
                   </strong>
                   <small>Баланс между пользовательскими нодами и инфраструктурными точками.</small>
                 </article>
+                <article className={styles.networkCard}>
+                  <span>Stable / warming / attention</span>
+                  <strong>
+                    {networkSummary?.stableNodes ?? 0} / {networkSummary?.warmingNodes ?? 0} / {networkSummary?.attentionNodes ?? 0}
+                  </strong>
+                  <small>Насколько сеть уже выглядит надёжной, а не просто “включённой”.</small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Avg reliability / reward</span>
+                  <strong>
+                    {networkSummary?.avgReliabilityScore ?? 0} / {networkSummary?.avgRewardScore ?? 0}
+                  </strong>
+                  <small>Средняя зрелость сети и готовность reward-layer по всем публичным точкам.</small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Peer links</span>
+                  <strong>
+                    {networkSummary?.peerAssignmentCount ?? 0} · {networkSummary?.readyPeerAssignments ?? 0} ready
+                  </strong>
+                  <small>Первые swarm-ready связи между нодами, на которых потом будет строиться replica layer.</small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Warnings / critical</span>
+                  <strong>
+                    {networkSummary?.recentWarningEvents ?? 0} / {networkSummary?.recentCriticalEvents ?? 0}
+                  </strong>
+                  <small>Свежие health-сигналы по публичной сети, которые влияют на confidence и reward.</small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Weekly reward preview</span>
+                  <strong>{networkSummary?.totalWeeklyCreditsPreview ?? 0} C3K</strong>
+                  <small>
+                    {networkSummary?.topRewardNodeLabel
+                      ? `Сильнейшая точка сейчас: ${networkSummary.topRewardNodeLabel}.`
+                      : "Как только сеть наполнится, здесь будет виден общий reward contour."}
+                  </small>
+                </article>
               </div>
+            </section>
+
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Network signals и география</h2>
+                <p>
+                  Здесь видно качество сети поверх самих нод: общий reliability, рискованные peer-links
+                  и первые города, где уже появились публичные storage-точки.
+                </p>
+              </div>
+
+              {networkSummary ? (
+                <div className={styles.networkMeta}>
+                  <div className={styles.networkMetaBlock}>
+                    <span>Network reliability</span>
+                    <div className={styles.heroPills}>
+                      <span className={styles.controlPill}>
+                        {formatReliabilityLabel(networkSummary.overallReliabilityLabel)} · {networkSummary.avgReliabilityScore}
+                      </span>
+                      <span className={styles.controlPill}>
+                        stale heartbeats: {networkSummary.staleHeartbeatNodes}
+                      </span>
+                      <span className={styles.controlPill}>
+                        peer watch/risk: {networkSummary.watchPeerAssignments}/{networkSummary.riskPeerAssignments}
+                      </span>
+                    </div>
+                    <p>{networkSummary.summary}</p>
+                  </div>
+                </div>
+              ) : null}
 
               {networkSummary?.countries?.length || networkSummary?.cities?.length ? (
                 <div className={styles.networkMeta}>
@@ -940,9 +1143,80 @@ export default function StorageProgramPage() {
 
             <section className={styles.sectionCard}>
               <div className={styles.sectionHead}>
-                <h2>Как начисляется C3K Credit</h2>
-                <p>Будущая reward-логика уже заложена в интерфейсе, чтобы было видно, к чему идём в следующем storage sprint.</p>
+                <h2>Peer assignments и swarm contour</h2>
+                <p>
+                  Это уже не просто список нод. Здесь видны первые рекомендуемые связи между ними:
+                  какие точки лучше держать вместе, где сеть уже сильная, а где нужен резервный peer.
+                </p>
               </div>
+
+              {snapshot?.peerAssignments?.length ? (
+                <div className={styles.peerGrid}>
+                  {snapshot.peerAssignments.map((assignment) => (
+                    <article key={assignment.id} className={styles.peerCard}>
+                      <div className={styles.nodeCardHead}>
+                        <div>
+                          <strong>
+                            {assignment.sourceLabel} → {assignment.targetLabel}
+                          </strong>
+                          <p>
+                            {formatNodeType(assignment.sourceNodeType)} · {formatNodeType(assignment.targetNodeType)}
+                          </p>
+                        </div>
+                        <span
+                          className={`${styles.statusPill} ${
+                            styles[`statusPill${assignment.status === "ready" ? "Live" : assignment.status === "watch" ? "Ready" : "Pending"}`]
+                          }`}
+                        >
+                          {assignment.status === "ready" ? "Ready" : assignment.status === "watch" ? "Watch" : "Risk"}
+                        </span>
+                      </div>
+                      <div className={styles.nodeMeta}>
+                        <span>{assignment.distanceKm ? `${assignment.distanceKm} km` : "distance pending"}</span>
+                        <span>
+                          reliability {assignment.sourceReliabilityScore}/{assignment.targetReliabilityScore}
+                        </span>
+                      </div>
+                      <p>{assignment.reason}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  У сети ещё мало публичных точек с координатами. Как только появятся хотя бы две
+                  устойчивые ноды, здесь начнут строиться первые swarm-ready peer assignments.
+                </div>
+              )}
+            </section>
+
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Как начисляется C3K Credit</h2>
+                <p>
+                  Reward-layer теперь уже виден не только у локальной ноды, но и на уровне всей сети:
+                  насколько сеть созрела, какой общий weekly contour и какие peer-links тянут reward вверх.
+                </p>
+              </div>
+
+              {networkSummary ? (
+                <div className={styles.networkGrid}>
+                  <article className={styles.networkCard}>
+                    <span>Network reward preview</span>
+                    <strong>{networkSummary.totalWeeklyCreditsPreview} C3K / неделя</strong>
+                    <small>Суммарный beta-preview по текущим публичным нодам.</small>
+                  </article>
+                  <article className={styles.networkCard}>
+                    <span>Average reward score</span>
+                    <strong>{networkSummary.avgRewardScore}/100</strong>
+                    <small>Чем выше средний score, тем ближе сеть к полноценному participant-layer.</small>
+                  </article>
+                  <article className={styles.networkCard}>
+                    <span>Top network node</span>
+                    <strong>{networkSummary.topRewardNodeLabel || "Пока нет лидера"}</strong>
+                    <small>Сейчас именно эта точка задаёт верхнюю планку network readiness.</small>
+                  </article>
+                </div>
+              ) : null}
 
               <div className={styles.rewardRuleGrid}>
                 <article className={styles.rewardRuleCard}>
@@ -1067,6 +1341,8 @@ export default function StorageProgramPage() {
                         <span>{formatNodePlatform(node.platform)}</span>
                         <span>{node.city || "Город не указан"}</span>
                         <span>{node.mapReady ? "Есть координаты" : "Нужны координаты"}</span>
+                        <span>{formatReliabilityLabel(node.reliabilityLabel)} · {node.reliabilityScore}</span>
+                        <span>{formatRewardLabel(node.rewardLabel)} · {node.rewardScore}</span>
                       </div>
 
                       <div className={styles.nodeRows}>
@@ -1082,9 +1358,22 @@ export default function StorageProgramPage() {
                           <span>Последний heartbeat</span>
                           <b>{formatDateTime(node.lastSeenAt)}</b>
                         </div>
+                        <div>
+                          <span>Reward preview</span>
+                          <b>{node.weeklyCreditsPreview} C3K / неделя</b>
+                        </div>
+                        <div>
+                          <span>Peer links</span>
+                          <b>{node.peerLinkCount}</b>
+                        </div>
                       </div>
 
                       <div className={styles.panelActions}>
+                        {node.mapReady ? (
+                          <Link href={`/storage/nodes/${node.id}`} className={styles.secondaryLink}>
+                            Public page
+                          </Link>
+                        ) : null}
                         <Link href="/storage/desktop" className={styles.secondaryLink}>
                           Открыть desktop-ноду
                         </Link>
@@ -1128,6 +1417,23 @@ export default function StorageProgramPage() {
                         <span>{node.city || "Unknown city"}</span>
                         <span>{node.countryCode || "—"}</span>
                         <span>{formatNodePlatform(node.platform)}</span>
+                        <span>{formatReliabilityLabel(node.reliabilityLabel)} · {node.reliabilityScore}</span>
+                        <span>{formatRewardLabel(node.rewardLabel)} · {node.rewardScore}</span>
+                      </div>
+                      <div className={styles.nodeRows}>
+                        <div>
+                          <span>Reward preview</span>
+                          <b>{node.weeklyCreditsPreview} C3K / неделя</b>
+                        </div>
+                        <div>
+                          <span>Peer links</span>
+                          <b>{node.peerLinkCount}</b>
+                        </div>
+                      </div>
+                      <div className={styles.panelActions}>
+                        <Link href={`/storage/nodes/${node.id}`} className={styles.secondaryLink}>
+                          Открыть ноду
+                        </Link>
                       </div>
                     </article>
                   ))}

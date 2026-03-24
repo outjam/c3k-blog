@@ -2420,3 +2420,176 @@
 - Важный эффект:
   - storage-сеть видна уже не только как список карточек и summary
   - `/storage` начинает выглядеть как настоящий network surface, а не только как onboarding-программа
+
+### Public storage node page slice
+
+- Добавлена отдельная публичная страница ноды:
+  - [src/app/storage/nodes/[id]/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/nodes/%5Bid%5D/page.tsx)
+  - [src/app/storage/nodes/[id]/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/nodes/%5Bid%5D/page.module.scss)
+- Для этого в storage registry появился helper:
+  - [buildPublicStorageNodeSnapshot](\/Users\/culture3k\/Documents\/GitHub\/c3k-blog\/src\/lib\/server\/storage-registry-store.ts)
+- Public node page показывает:
+  - статус и роль ноды
+  - storage/bandwidth/heartbeat
+  - последние node health events
+  - соседние публичные peers
+- На [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx) карточки нод теперь дают переход на public page, если нода уже map-ready
+- Важный эффект:
+  - storage node стала самостоятельной пользовательской сущностью
+  - сеть можно открывать не только как карту и список, но и как отдельные public points
+
+### Node reliability slice
+
+- `StorageProgramNodeSummary` теперь несёт:
+  - `reliabilityScore`
+  - `reliabilityLabel`
+  - число `recentWarningCount`
+  - число `recentCriticalCount`
+- Эта оценка строится из:
+  - node status
+  - давности heartbeat
+  - наличия координат
+  - bandwidth/storage признаков
+  - последних health events
+- Изменения:
+  - [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts)
+  - [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts)
+  - [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx)
+  - [src/app/storage/nodes/[id]/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/nodes/%5Bid%5D/page.tsx)
+- Важный эффект:
+  - user-facing storage network показывает уже не только “какие ноды есть”
+  - сеть начала показывать “какие из них надёжнее и какие требуют внимания”
+
+### Desktop launcher stale-runtime recovery slice
+
+- В [scripts/desktop-node-launcher.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/desktop-node-launcher.mjs) launcher больше не обрывается сразу, если на локальном `3000` уже висит устаревший `next-server` из этого же проекта.
+- Теперь он:
+  - находит PID процесса, который слушает local runtime port
+  - проверяет, что это действительно `next-server` из текущего workspace
+  - мягко останавливает его
+  - поднимает свежий local runtime под текущий desktop contour
+- Практический эффект:
+  - `npm run desktop:node` больше не требует ручного убийства stale runtime после смены delivery/runtime конфигурации
+
+## 2026-03-25
+
+### Sprint 12 slice: network reliability and reward layer
+
+- [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts) расширен новыми user-facing моделями:
+  - network-level reward/reliability fields
+  - `peerAssignments`
+  - node-level reward preview
+- В [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts) storage program snapshot теперь собирает:
+  - `rewardScore`, `rewardLabel`, `weeklyCreditsPreview` для каждой публичной ноды
+  - network summary с `stable/warming/attention`, average reliability/reward, total weekly credits и stale heartbeat pressure
+  - первые peer assignment preview links между публичными нодами
+- На [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx):
+  - peer-map теперь показывает не только ноды, но и линии peer-links
+  - добавлены network health cards
+  - добавлен network reward preview
+  - добавлен user-facing блок `Peer assignments и swarm contour`
+  - карточки user/public нод теперь показывают reward preview и peer link count
+- На [src/app/storage/nodes/[id]/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/nodes/%5Bid%5D/page.tsx) public node page теперь показывает:
+  - reward label и weekly preview
+  - peer links этой ноды
+  - network health context вокруг неё
+
+### Зачем это сделано
+
+- до этого storage network уже была видна на карте и в public node pages, но всё ещё выглядела как набор точек
+- после этого шага `Sprint 12` закрывает первый зрелый network surface:
+  - видно, насколько сеть надёжна как целое
+  - видно, как reward-layer будет выглядеть не только у локальной ноды, но и у всей сети
+  - видно, какие peer-links уже готовы к будущему swarm/replica layer
+
+### Sprint 13 slice: artist-facing archive status на релизах и в студии
+
+- Добавлен новый helper:
+  - [src/lib/server/storage-archive-summary.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-archive-summary.ts)
+- Он собирает release-level summary по:
+  - assets
+  - bags
+  - bag files
+  - ingest jobs
+  - runtime verification state
+- В [src/types/shop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/shop.ts) появились:
+  - `ArtistReleaseStorageSummary`
+  - `storageSummary` у `ArtistTrack`
+  - `storageSummary` у `ShopProduct`
+- В [src/lib/server/storage-asset-sync.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-asset-sync.ts) auto-managed assets теперь сохраняют ещё и `trackId`, а не только `releaseSlug`
+- В [src/app/api/shop/artists/me/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/route.ts) studio tracks теперь уже приходят со storage summary
+- В [src/lib/server/shop-catalog.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-catalog.ts) catalog/release product тоже теперь получает storage summary
+- В [src/app/api/shop/artists/[slug]/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/%5Bslug%5D/route.ts) artist public catalog tracks тоже получили storage summary
+- На [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx) studio теперь показывает:
+  - storage/archive status по релизам
+  - verified/archived counts
+  - releases requiring attention
+- На [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/%5Bslug%5D/shop-product-page-client.tsx) релизная страница теперь показывает archive/storage context прямо рядом с quality, wallet и collection logic
+- На [src/app/shop/artist/[slug]/shop-artist-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/artist/%5Bslug%5D/shop-artist-page-client.tsx) карточки релизов теперь тоже показывают storage label
+
+### Зачем это сделано
+
+- до этого storage был уже технически жив, но артист не видел его в своих рабочих экранах
+- после этого шага storage/archive состояние стало частью product UX:
+  - видно, что релиз вообще попал в storage
+  - видно, дошёл ли он до bag/runtime verification
+  - видно, какие релизы требуют внимания ещё до ручной проверки в админке
+
+### Sprint 13 slice: live runtime данные на user-facing `/storage`
+
+- В [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts) добавлен `StorageProgramRuntimeSummary`
+- В [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts) `buildStorageProgramSnapshot(...)` теперь собирает live summary из:
+  - storage assets
+  - bags и bag files
+  - ingest jobs
+  - user delivery requests
+  - runtime/bag health events
+- На [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx):
+  - hero больше не завязан на `target bag count` и preview-сеть
+  - появился живой runtime section с `assets ready`, `verified bags`, `ingest queue` и `моими выдачами`
+  - появились последние runtime signals вместо чисто продуктовых обещаний
+  - верхний storage UI теперь ближе к реальному состоянию системы, а не к roadmap copy
+
+### Зачем это сделано
+
+- до этого `/storage` хорошо продавал идею storage-ноды, но слабо показывал, что уже реально работает сейчас
+- после этого шага user-facing storage screen показывает:
+  - сколько файлов уже готовы к upload
+  - сколько bags подтверждены runtime
+  - сколько выдач реально готово, доставлено или требует внимания
+  - какие последние runtime-сигналы уже есть в системе
+
+### Sprint 13 slice: profile/release UI под storage и delivery-фичи
+
+- На [src/app/profile/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.tsx):
+  - `Коллекция` получила live summary по полным релизам, NFT, ready files и storage-ready релизам
+  - карточки релизов теперь показывают storage status, delivery status и runtime-route
+  - hero block `Файлы` теперь показывает не только ready/active/errors, но и delivery через storage runtime
+- На [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/%5Bslug%5D/shop-product-page-client.tsx):
+  - hero и release context стали спокойнее и полезнее
+  - появился явный delivery/runtime summary по релизу
+  - storage/archive и NFT вынесены в более понятный контекст
+  - в tracklist теперь видно не только duration, но и delivery state купленного трека
+- Под это обновлены стили:
+  - [src/app/profile/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.module.scss)
+  - [src/app/shop/[slug]/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/%5Bslug%5D/page.module.scss)
+
+### Зачем это сделано
+
+- storage и delivery уже ушли вперёд UI, особенно в профиле и на релизе
+- после этого шага пользователь лучше видит:
+  - что уже в коллекции
+  - что уже архивировано в storage
+  - где файл уже готов
+  - как релиз проходит путь `покупка -> выдача -> storage -> NFT`
+
+### Sprint 13 design pass: profile/release visual hierarchy
+
+- На [src/app/profile/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.module.scss) профиль собран как более цельный collector dashboard:
+  - hero получил более сильную карточную подачу
+  - stats и downloads стали чище и заметнее
+  - коллекция получила более выразительные карточки и summary-cards
+- На [src/app/shop/[slug]/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/%5Bslug%5D/page.module.scss) релиз стал визуально спокойнее:
+  - сильнее разделены cover / hero body / runtime context
+  - track rows читаются лучше
+  - delivery/runtime summary не спорит с NFT и purchase-блоками

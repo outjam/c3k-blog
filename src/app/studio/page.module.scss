@@ -409,6 +409,14 @@
   font-size: 0.74rem;
 }
 
+.releaseBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
 .auditTrail {
   display: grid;
   gap: 0.42rem;

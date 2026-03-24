@@ -303,7 +303,8 @@
 .deliveryList,
 .nodeGrid,
 .peerGrid,
-.networkGrid {
+.networkGrid,
+.runtimeEventGrid {
   display: grid;
   gap: 0.72rem;
 }
@@ -336,6 +337,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.runtimeEventGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .networkCard {
   padding: 0.88rem;
   border-radius: 1rem;
@@ -358,6 +363,15 @@
 .networkCard small {
   color: var(--tg-subtitle-text);
   line-height: 1.45;
+}
+
+.runtimeEventCard {
+  padding: 0.88rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 82%, var(--tg-section-bg));
+  display: grid;
+  gap: 0.58rem;
 }
 
 .networkMeta {
@@ -679,6 +693,7 @@
   .nodeGrid,
   .peerGrid,
   .networkGrid,
+  .runtimeEventGrid,
   .peerMapLegend {
     grid-template-columns: 1fr;
   }

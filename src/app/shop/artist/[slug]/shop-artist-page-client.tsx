@@ -48,6 +48,14 @@ const formatReleaseTypeLabel = (value: ShopProduct["releaseType"]): string => {
   }
 };
 
+const formatStorageLabel = (value: ShopProduct["storageSummary"]): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  return value.label;
+};
+
 function PlayIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
@@ -597,6 +605,7 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
                     <span>{Math.max(1, track.releaseTracklist?.length ?? 1)} треков</span>
                     <span>{Math.max(1, track.formats?.length ?? 1)} форматов</span>
                     {track.isMintable ? <span>NFT доступен</span> : <span>NFT выключен</span>}
+                    {formatStorageLabel(track.storageSummary) ? <span>{formatStorageLabel(track.storageSummary)}</span> : null}
                   </div>
                 </div>
                 <div className={styles.trackActions}>

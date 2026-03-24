@@ -81,6 +81,14 @@ interface CollectionEntry {
   ownedFormatLabels: string[];
 }
 
+interface CollectionDeliverySummary {
+  ready: number;
+  active: number;
+  failed: number;
+  runtimeBacked: number;
+  lastRouteLabel: string | null;
+}
+
 type ProfileTab = "collection" | "awards" | "artist";
 
 const shouldIgnoreTabSwipe = (target: EventTarget | null): boolean => {
@@ -102,6 +110,25 @@ const formatShortTonAddress = (value: string | undefined): string => {
   }
 
   return `${normalized.slice(0, 6)}...${normalized.slice(-6)}`;
+};
+
+const formatDeliveryRoute = (value: StorageDeliveryRequest["lastDeliveredVia"]): string | null => {
+  switch (value) {
+    case "tonstorage_gateway":
+      return "TON Storage";
+    case "bag_http_pointer":
+      return "Bag gateway";
+    case "bag_meta":
+      return "Bag meta";
+    case "delivery_url":
+      return "Direct";
+    case "resolved_source":
+      return "Resolved source";
+    case "asset_source":
+      return "Asset source";
+    default:
+      return null;
+  }
 };
 
 const tabTrackSpring = {
@@ -634,6 +661,79 @@ export default function ProfilePage() {
     () => deliveryHistory.filter((entry) => entry.status === "failed").length,
     [deliveryHistory],
   );
+  const runtimeBackedDeliveryCount = useMemo(
+    () =>
+      deliveryHistory.filter(
+        (entry) =>
+          entry.lastDeliveredVia === "tonstorage_gateway" ||
+          entry.lastDeliveredVia === "bag_http_pointer" ||
+          entry.lastDeliveredVia === "bag_meta",
+      ).length,
+    [deliveryHistory],
+  );
+  const deliverySummaryByRelease = useMemo(() => {
+    const grouped = new Map<string, CollectionDeliverySummary>();
+
+    deliveryHistory.forEach((entry) => {
+      const current = grouped.get(entry.releaseSlug) ?? {
+        ready: 0,
+        active: 0,
+        failed: 0,
+        runtimeBacked: 0,
+        lastRouteLabel: null,
+      };
+
+      if (entry.status === "ready" || entry.status === "delivered") {
+        current.ready += 1;
+      } else if (
+        entry.status === "requested" ||
+        entry.status === "processing" ||
+        entry.status === "pending_asset_mapping"
+      ) {
+        current.active += 1;
+      } else if (entry.status === "failed") {
+        current.failed += 1;
+      }
+
+      if (
+        entry.lastDeliveredVia === "tonstorage_gateway" ||
+        entry.lastDeliveredVia === "bag_http_pointer" ||
+        entry.lastDeliveredVia === "bag_meta"
+      ) {
+        current.runtimeBacked += 1;
+      }
+
+      const routeLabel = formatDeliveryRoute(entry.lastDeliveredVia);
+      if (routeLabel) {
+        current.lastRouteLabel = routeLabel;
+      }
+
+      grouped.set(entry.releaseSlug, current);
+    });
+
+    return grouped;
+  }, [deliveryHistory]);
+  const verifiedCollectionCount = useMemo(
+    () =>
+      collectionEntries.filter(
+        (entry) =>
+          entry.release?.storageSummary?.status === "verified" ||
+          entry.release?.storageSummary?.status === "archived",
+      ).length,
+    [collectionEntries],
+  );
+  const fullReleaseCount = useMemo(
+    () => collectionEntries.filter((entry) => entry.isFullRelease).length,
+    [collectionEntries],
+  );
+  const collectionReadyDeliveryCount = useMemo(
+    () =>
+      collectionEntries.filter((entry) => {
+        const summary = deliverySummaryByRelease.get(entry.slug);
+        return Boolean(summary && summary.ready > 0);
+      }).length,
+    [collectionEntries, deliverySummaryByRelease],
+  );
   const hasMultipleTabs = profileTabs.length > 1;
   const currentTab: ProfileTab = profileTabs.some((tab) => tab.id === activeTab)
     ? activeTab
@@ -1072,7 +1172,7 @@ export default function ProfilePage() {
               <span>Файлы</span>
               <strong>
                 {deliveryHistory.length > 0
-                  ? `${readyDeliveryCount} готово`
+                  ? `${readyDeliveryCount} готово · ${runtimeBackedDeliveryCount} через storage`
                   : "История выдач появится после покупок"}
               </strong>
               <small>
@@ -1089,6 +1189,10 @@ export default function ProfilePage() {
               <span>
                 <strong>{activeDeliveryCount}</strong>
                 В работе
+              </span>
+              <span>
+                <strong>{runtimeBackedDeliveryCount}</strong>
+                Storage
               </span>
               <span>
                 <strong>{failedDeliveryCount}</strong>
@@ -1157,11 +1261,38 @@ export default function ProfilePage() {
                     {tab.id === "collection" ? (
                 <section className={styles.section}>
                   {collectionEntries.length > 0 ? (
+                    <div className={styles.collectionOverviewGrid}>
+                      <article className={styles.collectionOverviewCard}>
+                        <span>Полные релизы</span>
+                        <strong>{fullReleaseCount}</strong>
+                        <small>Релизы, которые уже куплены целиком.</small>
+                      </article>
+                      <article className={styles.collectionOverviewCard}>
+                        <span>NFT on-chain</span>
+                        <strong>{onchainMintedReleaseCards.length}</strong>
+                        <small>Коллекционные улучшения, уже зафиксированные в TON.</small>
+                      </article>
+                      <article className={styles.collectionOverviewCard}>
+                        <span>Файлы готовы</span>
+                        <strong>{collectionReadyDeliveryCount}</strong>
+                        <small>Релизы, по которым уже был готовый delivery request.</small>
+                      </article>
+                      <article className={styles.collectionOverviewCard}>
+                        <span>Storage ready</span>
+                        <strong>{verifiedCollectionCount}</strong>
+                        <small>Релизы, которые уже дошли до archive/runtime слоя.</small>
+                      </article>
+                    </div>
+                  ) : null}
+
+                  {collectionEntries.length > 0 ? (
                     <div className={styles.collectionGrid}>
                       {collectionEntries.map((entry) => {
                         const releaseHref = entry.release
                           ? `/shop/${entry.release.slug}`
                           : "/shop";
+                        const deliverySummary = deliverySummaryByRelease.get(entry.slug);
+                        const storageSummary = entry.release?.storageSummary;
 
                         return (
                           <article
@@ -1201,14 +1332,16 @@ export default function ProfilePage() {
 
                               <div className={styles.collectionMeta}>
                                 <strong>
-                                  {entry.release?.title || entry.slug}
+                                  <span className={styles.collectionTitle}>
+                                    {entry.release?.title || entry.slug}
+                                  </span>
                                 </strong>
-                                <span>
+                                <span className={styles.collectionSubtitle}>
                                   {entry.release?.artistName ||
                                     entry.release?.subtitle ||
                                     "Релиз в коллекции"}
                                 </span>
-                                <span>
+                                <span className={styles.collectionDescription}>
                                   {entry.isFullRelease
                                     ? `Полный релиз · ${entry.totalTracksCount} треков`
                                     : `${entry.ownedTracksCount} из ${entry.totalTracksCount} треков в коллекции`}
@@ -1218,6 +1351,56 @@ export default function ProfilePage() {
                                     {entry.ownedFormatLabels.join(" · ")}
                                   </span>
                                 ) : null}
+                                <div className={styles.collectionFacts}>
+                                  <span>
+                                    {storageSummary
+                                      ? `Storage · ${storageSummary.label}`
+                                      : "Storage · ещё не синхронизирован"}
+                                  </span>
+                                  <span>
+                                    {deliverySummary
+                                      ? `Файлы · ${deliverySummary.ready} ready · ${deliverySummary.active} в работе`
+                                      : "Файлы · ещё не запрашивались"}
+                                  </span>
+                                  {deliverySummary?.lastRouteLabel ? (
+                                    <span>Последний route · {deliverySummary.lastRouteLabel}</span>
+                                  ) : null}
+                                  {deliverySummary?.runtimeBacked ? (
+                                    <span>{deliverySummary.runtimeBacked} через storage runtime</span>
+                                  ) : null}
+                                </div>
+                                <div className={styles.collectionPills}>
+                                  {entry.isFullRelease ? (
+                                    <span className={styles.collectionPill}>
+                                      Полный релиз
+                                    </span>
+                                  ) : null}
+                                  {storageSummary ? (
+                                    <span
+                                      className={`${styles.collectionPill} ${
+                                        storageSummary.status === "verified" || storageSummary.status === "archived"
+                                          ? styles.collectionPillSuccess
+                                          : storageSummary.status === "attention"
+                                            ? styles.collectionPillDanger
+                                            : styles.collectionPillWarning
+                                      }`}
+                                    >
+                                      {storageSummary.verifiedBagCount > 0
+                                        ? `${storageSummary.verifiedBagCount} verified`
+                                        : `${storageSummary.bagCount} bags`}
+                                    </span>
+                                  ) : null}
+                                  {deliverySummary?.ready ? (
+                                    <span className={`${styles.collectionPill} ${styles.collectionPillInfo}`}>
+                                      {deliverySummary.ready} ready
+                                    </span>
+                                  ) : null}
+                                  {entry.nft ? (
+                                    <span className={`${styles.collectionPill} ${styles.collectionPillAccent}`}>
+                                      On-chain NFT
+                                    </span>
+                                  ) : null}
+                                </div>
                               </div>
                             </Link>
                           </article>

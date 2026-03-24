@@ -1,0 +1,166 @@
+.page {
+  min-height: 100%;
+  display: grid;
+  justify-items: center;
+  padding: 18px 16px 64px;
+}
+
+.container {
+  width: min(100%, 920px);
+  display: grid;
+  gap: 16px;
+}
+
+.hero,
+.section,
+.metricCard,
+.eventCard,
+.peerCard,
+.emptyState {
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, var(--tg-bg));
+}
+
+.hero,
+.section,
+.emptyState {
+  padding: 18px;
+}
+
+.hero {
+  display: grid;
+  gap: 16px;
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.backLink,
+.peerLink {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 16px;
+  text-decoration: none;
+  font: inherit;
+}
+
+.backLink {
+  background: color-mix(in srgb, var(--tg-bg) 76%, var(--tg-section-bg));
+  color: var(--tg-text);
+}
+
+.peerLink {
+  background: var(--tg-link-color, var(--tg-btn));
+  color: var(--tg-btn-text);
+}
+
+.heroChip {
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--tg-accent) 12%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 84%, var(--tg-text));
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.heroBody,
+.heroMeta,
+.sectionHead {
+  display: grid;
+  gap: 8px;
+}
+
+.heroMeta h1,
+.sectionHead h2 {
+  margin: 0;
+  color: var(--tg-text);
+}
+
+.heroMeta p,
+.sectionHead p,
+.eventCard p,
+.peerCard p,
+.emptyState {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  line-height: 1.5;
+}
+
+.heroStats,
+.metricGrid,
+.peerGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.heroStats article,
+.metricCard,
+.peerCard,
+.eventCard {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.heroStats span,
+.metricCard span,
+.eventTop span,
+.peerCard span,
+.eventCard small {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.heroStats strong,
+.metricCard strong,
+.eventTop strong,
+.peerCard strong {
+  color: var(--tg-text);
+}
+
+.metricGrid,
+.eventList {
+  margin-top: 12px;
+}
+
+.eventList {
+  display: grid;
+  gap: 12px;
+}
+
+.eventTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding-inline: 14px;
+  }
+
+  .heroTop {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .heroStats,
+  .metricGrid,
+  .peerGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,4 +1,6 @@
 import { getC3kStorageConfig } from "@/lib/storage-config";
+import { getStorageDeliveryState } from "@/lib/server/storage-delivery-store";
+import { getStorageIngestState } from "@/lib/server/storage-ingest-store";
 import { getPostgresHttpConfig, postgresRpc } from "@/lib/server/postgres-http";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
 import type {
@@ -7,13 +9,18 @@ import type {
   StorageHealthEvent,
   StorageNode,
   StorageNodeAssignment,
+  StoragePeerAssignmentPreview,
+  StorageProgramRuntimeSummary,
   StorageProgramMembership,
   StorageProgramNetworkSummary,
   StorageProgramNodeSummary,
+  StoragePublicNodeSnapshot,
   StorageProgramSnapshot,
   StorageProviderContract,
   StorageRegistryState,
   StorageAsset,
+  StorageDeliveryState,
+  StorageIngestState,
 } from "@/types/storage";
 
 const POSTGRES_STRICT = process.env.POSTGRES_STRICT_MODE === "1" || process.env.NODE_ENV === "production";
@@ -112,6 +119,558 @@ const emptyState = (now = new Date().toISOString()): StorageRegistryState => ({
   healthEvents: [],
   updatedAt: now,
 });
+
+const STORAGE_NODE_HEALTH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const STORAGE_NODE_STALE_HEARTBEAT_MS = 72 * 60 * 60 * 1000;
+
+const parseTimestamp = (value: string | undefined): number => {
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const pickLatestIso = (values: Array<string | undefined>): string | undefined => {
+  return [...values]
+    .filter((entry) => parseTimestamp(entry) > 0)
+    .sort((left, right) => parseTimestamp(right) - parseTimestamp(left))[0];
+};
+
+const calculateDistanceKm = (
+  leftLat: number,
+  leftLon: number,
+  rightLat: number,
+  rightLon: number,
+): number => {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(rightLat - leftLat);
+  const dLon = toRadians(rightLon - leftLon);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(leftLat)) *
+      Math.cos(toRadians(rightLat)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusKm * c;
+};
+
+const buildNodeReliabilitySnapshot = (
+  entry: StorageNode,
+  healthEvents: StorageHealthEvent[],
+): Pick<
+  StorageProgramNodeSummary,
+  "reliabilityScore" | "reliabilityLabel" | "recentWarningCount" | "recentCriticalCount"
+> => {
+  const nowMs = Date.now();
+  const recentEvents = healthEvents.filter((event) => {
+    return (
+      event.entityType === "node" &&
+      event.entityId === entry.id &&
+      nowMs - new Date(event.createdAt).getTime() <= STORAGE_NODE_HEALTH_WINDOW_MS
+    );
+  });
+  const recentWarningCount = recentEvents.filter((event) => event.severity === "warning").length;
+  const recentCriticalCount = recentEvents.filter((event) => event.severity === "critical").length;
+  const lastSeenAgeHours = entry.lastSeenAt
+    ? Math.max(0, (nowMs - new Date(entry.lastSeenAt).getTime()) / (1000 * 60 * 60))
+    : null;
+
+  let score = 20;
+
+  if (entry.status === "active") {
+    score += 40;
+  } else if (entry.status === "degraded") {
+    score += 22;
+  } else if (entry.status === "candidate") {
+    score += 10;
+  }
+
+  if (typeof entry.latitude === "number" && typeof entry.longitude === "number") {
+    score += 10;
+  }
+
+  if (entry.diskAllocatedBytes > 0) {
+    score += 8;
+  }
+
+  if (entry.bandwidthLimitKbps > 0) {
+    score += 8;
+  }
+
+  if (lastSeenAgeHours !== null) {
+    if (lastSeenAgeHours <= 12) {
+      score += 14;
+    } else if (lastSeenAgeHours <= 48) {
+      score += 8;
+    } else if (lastSeenAgeHours <= 168) {
+      score += 2;
+    } else {
+      score -= 10;
+    }
+  }
+
+  score -= recentWarningCount * 8;
+  score -= recentCriticalCount * 18;
+
+  const reliabilityScore = Math.max(0, Math.min(100, Math.round(score)));
+  const reliabilityLabel =
+    reliabilityScore >= 72 ? "stable" : reliabilityScore >= 42 ? "warming" : "attention";
+
+  return {
+    reliabilityScore,
+    reliabilityLabel,
+    recentWarningCount,
+    recentCriticalCount,
+  };
+};
+
+const buildNodeRewardSnapshot = (
+  entry: StorageNode,
+  reliability: Pick<
+    StorageProgramNodeSummary,
+    "reliabilityScore" | "reliabilityLabel" | "recentWarningCount" | "recentCriticalCount"
+  >,
+): Pick<
+  StorageProgramNodeSummary,
+  "rewardScore" | "rewardLabel" | "weeklyCreditsPreview" | "staleHeartbeat"
+> => {
+  const nowMs = Date.now();
+  const lastSeenAgeMs = entry.lastSeenAt ? nowMs - new Date(entry.lastSeenAt).getTime() : Number.POSITIVE_INFINITY;
+  const staleHeartbeat = !entry.lastSeenAt || lastSeenAgeMs > STORAGE_NODE_STALE_HEARTBEAT_MS;
+  const diskGb = entry.diskAllocatedBytes / (1024 * 1024 * 1024);
+  const bandwidthMbps = entry.bandwidthLimitKbps / 1000;
+
+  let score = reliability.reliabilityScore * 0.58;
+
+  if (entry.status === "active") {
+    score += 12;
+  } else if (entry.status === "degraded") {
+    score += 5;
+  }
+
+  if (typeof entry.latitude === "number" && typeof entry.longitude === "number") {
+    score += 6;
+  }
+
+  score += Math.min(12, diskGb / 20);
+  score += Math.min(10, bandwidthMbps / 8);
+
+  if (entry.nodeType !== "community_node") {
+    score += 8;
+  }
+
+  if (staleHeartbeat) {
+    score -= 18;
+  }
+
+  score -= reliability.recentWarningCount * 2;
+  score -= reliability.recentCriticalCount * 6;
+
+  const rewardScore = Math.max(0, Math.min(100, Math.round(score)));
+  const rewardLabel = rewardScore >= 72 ? "strong" : rewardScore >= 42 ? "building" : "low";
+  const weeklyCreditsPreview = Math.max(
+    0,
+    Math.round(rewardScore * (entry.nodeType === "community_node" ? 2.8 : 3.6)),
+  );
+
+  return {
+    rewardScore,
+    rewardLabel,
+    weeklyCreditsPreview,
+    staleHeartbeat,
+  };
+};
+
+const buildPeerAssignmentReason = (input: {
+  source: StorageProgramNodeSummary;
+  target: StorageProgramNodeSummary;
+  distanceKm?: number;
+}): string => {
+  const crossRegion = Boolean(input.source.countryCode && input.target.countryCode && input.source.countryCode !== input.target.countryCode);
+  const mixedRoles = input.source.nodeType !== input.target.nodeType;
+
+  if (crossRegion && mixedRoles) {
+    return "Связывает разные регионы и роли сети, чтобы replica contour был устойчивее к локальным сбоям.";
+  }
+
+  if (crossRegion) {
+    return "Даёт межрегиональный резервный peer, чтобы bags не зависели от одного города или страны.";
+  }
+
+  if (mixedRoles) {
+    return "Связывает community node с provider-точкой и повышает устойчивость swarm contour.";
+  }
+
+  if ((input.distanceKm ?? 0) > 800) {
+    return "Добавляет дальний резервный peer для более здорового swarm и recovery path.";
+  }
+
+  return "Добавляет соседний peer для более плотной репликации и быстрых handoff внутри сети.";
+};
+
+const buildPeerAssignmentStatus = (input: {
+  source: StorageProgramNodeSummary;
+  target: StorageProgramNodeSummary;
+}): StoragePeerAssignmentPreview["status"] => {
+  if (
+    input.source.reliabilityLabel === "attention" ||
+    input.target.reliabilityLabel === "attention" ||
+    input.source.status === "suspended" ||
+    input.target.status === "suspended"
+  ) {
+    return "risk";
+  }
+
+  if (input.source.reliabilityLabel === "stable" && input.target.reliabilityLabel === "stable") {
+    return "ready";
+  }
+
+  return "watch";
+};
+
+const buildPeerAssignmentPreviews = (nodes: StorageProgramNodeSummary[]): StoragePeerAssignmentPreview[] => {
+  const byId = new Map(nodes.map((entry) => [entry.id, entry]));
+  const features = nodes.filter((entry) => entry.mapReady);
+  const edges = new Map<string, StoragePeerAssignmentPreview>();
+
+  features.forEach((source) => {
+    const candidates = features
+      .filter((target) => target.id !== source.id)
+      .map((target) => {
+        const distanceKm =
+          typeof source.latitude === "number" &&
+          typeof source.longitude === "number" &&
+          typeof target.latitude === "number" &&
+          typeof target.longitude === "number"
+            ? calculateDistanceKm(source.latitude, source.longitude, target.latitude, target.longitude)
+            : undefined;
+
+        let score = target.reliabilityScore * 1.2 + target.rewardScore * 0.4;
+
+        if (target.status === "active") {
+          score += 12;
+        } else if (target.status === "degraded") {
+          score += 4;
+        }
+
+        if (source.nodeType !== target.nodeType) {
+          score += 14;
+        }
+
+        if (source.countryCode && target.countryCode && source.countryCode !== target.countryCode) {
+          score += 12;
+        }
+
+        if (distanceKm !== undefined) {
+          if (distanceKm >= 2000) {
+            score += 14;
+          } else if (distanceKm >= 700) {
+            score += 10;
+          } else if (distanceKm >= 120) {
+            score += 6;
+          } else {
+            score += 2;
+          }
+        }
+
+        return {
+          target,
+          distanceKm,
+          score,
+        };
+      })
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 2);
+
+    candidates.forEach(({ target, distanceKm }) => {
+      const edgeKey = [source.id, target.id].sort().join("::");
+
+      if (edges.has(edgeKey)) {
+        return;
+      }
+
+      const status = buildPeerAssignmentStatus({ source, target });
+      const edge: StoragePeerAssignmentPreview = {
+        id: `peer-${edgeKey}`,
+        sourceNodeId: source.id,
+        sourceLabel: source.publicLabel || source.city || source.nodeLabel,
+        sourceNodeType: source.nodeType,
+        sourceLatitude: source.latitude,
+        sourceLongitude: source.longitude,
+        sourceReliabilityScore: source.reliabilityScore,
+        targetNodeId: target.id,
+        targetLabel: target.publicLabel || target.city || target.nodeLabel,
+        targetNodeType: target.nodeType,
+        targetLatitude: target.latitude,
+        targetLongitude: target.longitude,
+        targetReliabilityScore: target.reliabilityScore,
+        status,
+        reason: buildPeerAssignmentReason({ source, target, distanceKm }),
+        distanceKm: distanceKm ? Math.round(distanceKm) : undefined,
+      };
+
+      edges.set(edgeKey, edge);
+    });
+  });
+
+  return [...edges.values()]
+    .filter((entry) => byId.has(entry.sourceNodeId) && byId.has(entry.targetNodeId))
+    .sort((left, right) => {
+      const statusWeight = { ready: 0, watch: 1, risk: 2 };
+      const leftWeight = statusWeight[left.status];
+      const rightWeight = statusWeight[right.status];
+
+      if (leftWeight !== rightWeight) {
+        return leftWeight - rightWeight;
+      }
+
+      const rightReliability = right.sourceReliabilityScore + right.targetReliabilityScore;
+      const leftReliability = left.sourceReliabilityScore + left.targetReliabilityScore;
+      return rightReliability - leftReliability;
+    })
+    .slice(0, 12);
+};
+
+const toStorageProgramNodeSummary = (
+  entry: StorageNode,
+  healthEvents: StorageHealthEvent[],
+): StorageProgramNodeSummary => {
+  const reliability = buildNodeReliabilitySnapshot(entry, healthEvents);
+  const reward = buildNodeRewardSnapshot(entry, reliability);
+
+  return {
+    id: entry.id,
+    nodeLabel: entry.nodeLabel,
+    publicLabel: entry.publicLabel,
+    city: entry.city,
+    countryCode: entry.countryCode,
+    latitude: entry.latitude,
+    longitude: entry.longitude,
+    status: entry.status,
+    nodeType: entry.nodeType,
+    platform: entry.platform,
+    diskAllocatedBytes: entry.diskAllocatedBytes,
+    diskUsedBytes: entry.diskUsedBytes,
+    bandwidthLimitKbps: entry.bandwidthLimitKbps,
+    lastSeenAt: entry.lastSeenAt,
+    updatedAt: entry.updatedAt,
+    mapReady: typeof entry.latitude === "number" && typeof entry.longitude === "number",
+    peerLinkCount: 0,
+    ...reliability,
+    ...reward,
+  };
+};
+
+const applyPeerLinkCounts = (
+  nodes: StorageProgramNodeSummary[],
+  peerAssignments: StoragePeerAssignmentPreview[],
+): StorageProgramNodeSummary[] => {
+  const counts = new Map<string, number>();
+
+  peerAssignments.forEach((entry) => {
+    counts.set(entry.sourceNodeId, (counts.get(entry.sourceNodeId) ?? 0) + 1);
+    counts.set(entry.targetNodeId, (counts.get(entry.targetNodeId) ?? 0) + 1);
+  });
+
+  return nodes.map((entry) => ({
+    ...entry,
+    peerLinkCount: counts.get(entry.id) ?? 0,
+  }));
+};
+
+const buildStorageProgramNetworkSummary = (
+  nodes: StorageProgramNodeSummary[],
+  healthEvents: StorageHealthEvent[],
+  peerAssignments: StoragePeerAssignmentPreview[],
+): StorageProgramNetworkSummary => {
+  const nowMs = Date.now();
+  const publicCountries = Array.from(
+    new Set(nodes.map((entry) => normalizeText(entry.countryCode, 8).toUpperCase()).filter(Boolean)),
+  ).slice(0, 8);
+  const publicCities = Array.from(
+    new Set(nodes.map((entry) => normalizeText(entry.city, 120)).filter(Boolean)),
+  ).slice(0, 8);
+  const recentNodeEvents = healthEvents.filter(
+    (event) =>
+      event.entityType === "node" && nowMs - new Date(event.createdAt).getTime() <= STORAGE_NODE_HEALTH_WINDOW_MS,
+  );
+  const recentWarningEvents = recentNodeEvents.filter((event) => event.severity === "warning").length;
+  const recentCriticalEvents = recentNodeEvents.filter((event) => event.severity === "critical").length;
+  const stableNodes = nodes.filter((entry) => entry.reliabilityLabel === "stable").length;
+  const warmingNodes = nodes.filter((entry) => entry.reliabilityLabel === "warming").length;
+  const attentionNodes = nodes.filter((entry) => entry.reliabilityLabel === "attention").length;
+  const staleHeartbeatNodes = nodes.filter((entry) => entry.staleHeartbeat).length;
+  const avgReliabilityScore =
+    nodes.length > 0
+      ? Math.round(nodes.reduce((sum, entry) => sum + entry.reliabilityScore, 0) / nodes.length)
+      : 0;
+  const avgRewardScore =
+    nodes.length > 0 ? Math.round(nodes.reduce((sum, entry) => sum + entry.rewardScore, 0) / nodes.length) : 0;
+  const totalWeeklyCreditsPreview = nodes.reduce((sum, entry) => sum + entry.weeklyCreditsPreview, 0);
+  const topRewardNode = [...nodes].sort((left, right) => right.rewardScore - left.rewardScore)[0];
+  const readyPeerAssignments = peerAssignments.filter((entry) => entry.status === "ready").length;
+  const watchPeerAssignments = peerAssignments.filter((entry) => entry.status === "watch").length;
+  const riskPeerAssignments = peerAssignments.filter((entry) => entry.status === "risk").length;
+  const overallReliabilityLabel =
+    avgReliabilityScore >= 72 && recentCriticalEvents === 0
+      ? "stable"
+      : avgReliabilityScore >= 42
+        ? "warming"
+        : "attention";
+  const summary =
+    overallReliabilityLabel === "stable"
+      ? "Сеть уже выглядит устойчивой: есть живые peer-links, стабильные ноды и база для reward-layer."
+      : overallReliabilityLabel === "warming"
+        ? "Сеть растёт, но ей всё ещё нужны более стабильные heartbeat, peer-links и равномерная география."
+        : "Сеть пока хрупкая: мало стабильных peer-links или слишком много attention-сигналов по нодам.";
+
+  return {
+    totalNodes: nodes.length,
+    activeNodes: nodes.filter((entry) => entry.status === "active").length,
+    degradedNodes: nodes.filter((entry) => entry.status === "degraded").length,
+    communityNodes: nodes.filter((entry) => entry.nodeType === "community_node").length,
+    providerNodes: nodes.filter((entry) => entry.nodeType !== "community_node").length,
+    stableNodes,
+    warmingNodes,
+    attentionNodes,
+    staleHeartbeatNodes,
+    avgReliabilityScore,
+    avgRewardScore,
+    totalWeeklyCreditsPreview,
+    topRewardNodeLabel: topRewardNode ? topRewardNode.publicLabel || topRewardNode.city || topRewardNode.nodeLabel : undefined,
+    recentWarningEvents,
+    recentCriticalEvents,
+    peerAssignmentCount: peerAssignments.length,
+    readyPeerAssignments,
+    watchPeerAssignments,
+    riskPeerAssignments,
+    overallReliabilityLabel,
+    summary,
+    countries: publicCountries,
+    cities: publicCities,
+  };
+};
+
+const buildStorageProgramRuntimeSummary = (input: {
+  registryState: StorageRegistryState | null;
+  ingestState: StorageIngestState | null;
+  deliveryState: StorageDeliveryState | null;
+  telegramUserId: number;
+}): StorageProgramRuntimeSummary => {
+  const assets = input.registryState ? Object.values(input.registryState.assets) : [];
+  const bags = input.registryState ? Object.values(input.registryState.bags) : [];
+  const bagFiles = input.registryState ? Object.values(input.registryState.bagFiles) : [];
+  const healthEvents = input.registryState ? input.registryState.healthEvents : [];
+  const jobs = input.ingestState ? Object.values(input.ingestState.jobs) : [];
+  const userDeliveries = input.deliveryState
+    ? Object.values(input.deliveryState.requests).filter((entry) => entry.telegramUserId === input.telegramUserId)
+    : [];
+
+  const sourceReadyAssetCount = assets.filter((entry) => Boolean(entry.sourceUrl || entry.audioFileId || entry.resourceKey)).length;
+  const uploadedBagCount = bags.filter((entry) =>
+    entry.status === "uploaded" || entry.status === "replicating" || entry.status === "healthy",
+  ).length;
+  const pointerReadyBagCount = bags.filter((entry) => Boolean(entry.tonstorageUri || entry.bagId)).length;
+  const verifiedBagCount = bags.filter((entry) => entry.runtimeFetchStatus === "verified").length;
+  const failedBagCount = bags.filter(
+    (entry) => entry.runtimeFetchStatus === "failed" || entry.status === "degraded" || entry.status === "disabled",
+  ).length;
+  const queuedJobCount = jobs.filter((entry) => entry.status === "queued").length;
+  const processingJobCount = jobs.filter((entry) => entry.status === "processing").length;
+  const preparedJobCount = jobs.filter((entry) => entry.status === "prepared").length;
+  const uploadedJobCount = jobs.filter((entry) => entry.status === "uploaded").length;
+  const failedJobCount = jobs.filter((entry) => entry.status === "failed").length;
+  const processingDeliveryCount = userDeliveries.filter((entry) => entry.status === "processing").length;
+  const pendingAssetMappingCount = userDeliveries.filter((entry) => entry.status === "pending_asset_mapping").length;
+  const readyDeliveryCount = userDeliveries.filter((entry) => entry.status === "ready").length;
+  const deliveredDeliveryCount = userDeliveries.filter((entry) => entry.status === "delivered").length;
+  const failedDeliveryCount = userDeliveries.filter((entry) => entry.status === "failed").length;
+  const runtimeBackedDeliveryCount = userDeliveries.filter(
+    (entry) =>
+      entry.lastDeliveredVia === "tonstorage_gateway" ||
+      entry.lastDeliveredVia === "bag_http_pointer" ||
+      entry.lastDeliveredVia === "bag_meta",
+  ).length;
+  const attentionCount = failedBagCount + failedJobCount + failedDeliveryCount + pendingAssetMappingCount;
+  const recentEvents = [...healthEvents]
+    .filter((entry) => entry.entityType === "runtime" || entry.entityType === "bag")
+    .sort((left, right) => parseTimestamp(right.createdAt) - parseTimestamp(left.createdAt))
+    .slice(0, 3);
+  const lastActivityAt = pickLatestIso([
+    ...assets.map((entry) => entry.updatedAt || entry.createdAt),
+    ...bags.map((entry) => entry.updatedAt || entry.createdAt),
+    ...jobs.map((entry) => entry.updatedAt || entry.completedAt || entry.createdAt),
+    ...recentEvents.map((entry) => entry.createdAt),
+  ]);
+  const lastDeliveryAt = pickLatestIso(
+    userDeliveries.map((entry) => entry.deliveredAt || entry.updatedAt || entry.createdAt),
+  );
+
+  let tone: StorageProgramRuntimeSummary["tone"] = "pending";
+  let headline = "Runtime ещё собирается";
+  let note = "После первых sync и ingest здесь появятся live bags, verified pointers и выдачи файлов.";
+
+  if (verifiedBagCount > 0 || runtimeBackedDeliveryCount > 0) {
+    tone = "live";
+    headline = "Runtime уже живой";
+    note =
+      runtimeBackedDeliveryCount > 0
+        ? `${verifiedBagCount} bag подтверждён(о), а ${runtimeBackedDeliveryCount} выдач уже прошли через storage contour.`
+        : `${verifiedBagCount} bag подтверждён(о) и runtime уже готов к честной выдаче файлов.`;
+  } else if (
+    uploadedBagCount > 0 ||
+    preparedJobCount > 0 ||
+    processingJobCount > 0 ||
+    readyDeliveryCount > 0 ||
+    deliveredDeliveryCount > 0 ||
+    assets.length > 0
+  ) {
+    tone = "ready";
+    headline = "Runtime уже в работе";
+
+    if (preparedJobCount > 0) {
+      note = `${preparedJobCount} job ждут upload, ${pointerReadyBagCount} bag уже имеют pointer и metadata.`;
+    } else if (uploadedBagCount > 0) {
+      note = `${uploadedBagCount} bag уже загружены, осталось добить verification и delivery contour.`;
+    } else if (assets.length > 0) {
+      note = `${sourceReadyAssetCount}/${assets.length} файлов уже имеют source для upload и archive pipeline.`;
+    }
+  }
+
+  return {
+    tone,
+    headline,
+    note,
+    assetCount: assets.length,
+    sourceReadyAssetCount,
+    bagCount: bags.length,
+    uploadedBagCount,
+    pointerReadyBagCount,
+    verifiedBagCount,
+    failedBagCount,
+    bagFileCount: bagFiles.length,
+    queuedJobCount,
+    processingJobCount,
+    preparedJobCount,
+    uploadedJobCount,
+    failedJobCount,
+    userDeliveryCount: userDeliveries.length,
+    processingDeliveryCount,
+    pendingAssetMappingCount,
+    readyDeliveryCount,
+    deliveredDeliveryCount,
+    failedDeliveryCount,
+    runtimeBackedDeliveryCount,
+    webDeliveryCount: userDeliveries.filter((entry) => entry.channel === "web_download").length,
+    telegramDeliveryCount: userDeliveries.filter((entry) => entry.channel === "telegram_bot").length,
+    desktopDeliveryCount: userDeliveries.filter((entry) => entry.channel === "desktop_download").length,
+    attentionCount,
+    lastActivityAt,
+    lastDeliveryAt,
+    recentEvents,
+  };
+};
 
 const normalizeAsset = (id: string, value: unknown, now: string): StorageAsset | null => {
   if (!value || typeof value !== "object") {
@@ -716,26 +1275,13 @@ export const buildStorageProgramSnapshot = async (
 ): Promise<StorageProgramSnapshot> => {
   const config = getC3kStorageConfig();
   const runtimeStatus = getStorageRuntimeStatus();
-  const snapshot = await getStorageRegistrySnapshot();
+  const [snapshot, ingestState, deliveryState] = await Promise.all([
+    getStorageRegistrySnapshot(),
+    getStorageIngestState(),
+    getStorageDeliveryState(),
+  ]);
   const membership = snapshot?.memberships[String(telegramUserId)] ?? null;
-  const toNodeSummary = (entry: StorageNode): StorageProgramNodeSummary => ({
-    id: entry.id,
-    nodeLabel: entry.nodeLabel,
-    publicLabel: entry.publicLabel,
-    city: entry.city,
-    countryCode: entry.countryCode,
-    latitude: entry.latitude,
-    longitude: entry.longitude,
-    status: entry.status,
-    nodeType: entry.nodeType,
-    platform: entry.platform,
-    diskAllocatedBytes: entry.diskAllocatedBytes,
-    diskUsedBytes: entry.diskUsedBytes,
-    bandwidthLimitKbps: entry.bandwidthLimitKbps,
-    lastSeenAt: entry.lastSeenAt,
-    updatedAt: entry.updatedAt,
-    mapReady: typeof entry.latitude === "number" && typeof entry.longitude === "number",
-  });
+  const healthEvents = snapshot ? snapshot.healthEvents : [];
   const userNodes = snapshot
     ? Object.values(snapshot.nodes)
         .filter((entry) => entry.userTelegramId === telegramUserId)
@@ -756,21 +1302,20 @@ export const buildStorageProgramSnapshot = async (
         })
         .slice(0, 6)
     : [];
-  const publicCountries = Array.from(
-    new Set(publicNodes.map((entry) => normalizeText(entry.countryCode, 8).toUpperCase()).filter(Boolean)),
-  ).slice(0, 8);
-  const publicCities = Array.from(
-    new Set(publicNodes.map((entry) => normalizeText(entry.city, 120)).filter(Boolean)),
-  ).slice(0, 8);
-  const networkSummary: StorageProgramNetworkSummary = {
-    totalNodes: publicNodes.length,
-    activeNodes: publicNodes.filter((entry) => entry.status === "active").length,
-    degradedNodes: publicNodes.filter((entry) => entry.status === "degraded").length,
-    communityNodes: publicNodes.filter((entry) => entry.nodeType === "community_node").length,
-    providerNodes: publicNodes.filter((entry) => entry.nodeType !== "community_node").length,
-    countries: publicCountries,
-    cities: publicCities,
-  };
+  const publicNodeSummariesBase = publicNodes.map((entry) => toStorageProgramNodeSummary(entry, healthEvents));
+  const peerAssignments = buildPeerAssignmentPreviews(publicNodeSummariesBase);
+  const publicNodeSummaries = applyPeerLinkCounts(publicNodeSummariesBase, peerAssignments);
+  const userNodeSummaries = applyPeerLinkCounts(
+    userNodes.map((entry) => toStorageProgramNodeSummary(entry, healthEvents)),
+    peerAssignments,
+  );
+  const networkSummary = buildStorageProgramNetworkSummary(publicNodeSummaries, healthEvents, peerAssignments);
+  const runtimeSummary = buildStorageProgramRuntimeSummary({
+    registryState: snapshot,
+    ingestState,
+    deliveryState,
+    telegramUserId,
+  });
   const nodeIds = userNodes.map((entry) => entry.id);
   const nodeCount = nodeIds.length;
 
@@ -784,10 +1329,73 @@ export const buildStorageProgramSnapshot = async (
     membership,
     nodeCount,
     nodeIds,
-    nodes: userNodes.map(toNodeSummary),
+    nodes: userNodeSummaries,
     publicNodeCount: publicNodes.length,
-    publicNodes: publicNodes.map(toNodeSummary),
+    publicNodes: publicNodeSummaries,
+    runtimeSummary,
     networkSummary,
+    peerAssignments,
+  };
+};
+
+export const buildPublicStorageNodeSnapshot = async (
+  nodeId: string,
+): Promise<StoragePublicNodeSnapshot | null> => {
+  const normalizedId = normalizeSafeId(nodeId, 120);
+
+  if (!normalizedId) {
+    return null;
+  }
+
+  const snapshot = await getStorageRegistrySnapshot();
+
+  if (!snapshot) {
+    return null;
+  }
+
+  const node = snapshot.nodes[normalizedId];
+
+  if (
+    !node ||
+    node.status === "suspended" ||
+    typeof node.latitude !== "number" ||
+    typeof node.longitude !== "number"
+  ) {
+    return null;
+  }
+
+  const publicNodes = Object.values(snapshot.nodes)
+    .filter((entry) => entry.status !== "suspended")
+    .filter((entry) => typeof entry.latitude === "number" && typeof entry.longitude === "number")
+    .sort((a, b) => {
+      const left = new Date(a.updatedAt || a.createdAt).getTime();
+      const right = new Date(b.updatedAt || b.createdAt).getTime();
+      return right - left;
+    });
+
+  const recentHealthEvents = [...snapshot.healthEvents]
+    .filter((entry) => entry.entityType === "node" && entry.entityId === normalizedId)
+    .sort((a, b) => {
+      const left = new Date(a.createdAt).getTime();
+      const right = new Date(b.createdAt).getTime();
+      return right - left;
+    })
+    .slice(0, 8);
+  const publicNodeSummariesBase = publicNodes.map((entry) => toStorageProgramNodeSummary(entry, snapshot.healthEvents));
+  const peerAssignments = buildPeerAssignmentPreviews(publicNodeSummariesBase);
+  const publicNodeSummaries = applyPeerLinkCounts(publicNodeSummariesBase, peerAssignments);
+  const nodeSummary = publicNodeSummaries.find((entry) => entry.id === normalizedId) ?? toStorageProgramNodeSummary(node, snapshot.healthEvents);
+  const otherPublicNodes = publicNodeSummaries.filter((entry) => entry.id !== normalizedId).slice(0, 4);
+  const nodePeerAssignments = peerAssignments.filter(
+    (entry) => entry.sourceNodeId === normalizedId || entry.targetNodeId === normalizedId,
+  );
+
+  return {
+    node: nodeSummary,
+    recentHealthEvents,
+    otherPublicNodes,
+    networkSummary: buildStorageProgramNetworkSummary(publicNodeSummaries, snapshot.healthEvents, peerAssignments),
+    peerAssignments: nodePeerAssignments,
   };
 };
 
