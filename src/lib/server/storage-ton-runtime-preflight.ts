@@ -87,7 +87,9 @@ const appendPreflightHealthEvent = async (snapshot: StorageTonRuntimePreflightSn
   }).catch(() => null);
 };
 
-export const runTonStorageRuntimePreflight = async (): Promise<StorageTonRuntimePreflightSnapshot> => {
+export const runTonStorageRuntimePreflight = async (options?: {
+  logHealthEvent?: boolean;
+}): Promise<StorageTonRuntimePreflightSnapshot> => {
   const checkedAt = new Date().toISOString();
   const bridgeStatus = getTonStorageRuntimeBridgeStatus();
   const config = getTonStorageBridgeEnvConfig();
@@ -185,7 +187,9 @@ export const runTonStorageRuntimePreflight = async (): Promise<StorageTonRuntime
     snapshot.nextActions.push("Проверь runtime probe конкретного asset после настройки CLI и gateway.");
   }
 
-  await appendPreflightHealthEvent(snapshot);
+  if (options?.logHealthEvent !== false) {
+    await appendPreflightHealthEvent(snapshot);
+  }
 
   return snapshot;
 };

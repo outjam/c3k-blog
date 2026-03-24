@@ -37,8 +37,8 @@
 ## Текущий фокус
 
 - Текущая большая фаза: `Phase 5 groundwork`
-- Текущий спринт: `Sprint 10 — Real TON Storage test runtime`
-- Следующий спринт: `Sprint 11 — Desktop node runtime and storage program prep`
+- Текущий спринт: `Sprint 11 — Desktop node runtime and storage program prep`
+- Следующий спринт: `TBD after desktop runtime baseline`
 
 ## Спринты
 
@@ -290,7 +290,7 @@ Status: current
 
 Что должно быть доставлено:
 - [ ] Реальный desktop retrieval path для storage pointers
-- [ ] Локальный статус node/gateway/runtime
+- [x] Локальный статус node/gateway/runtime
 - [ ] Базовая модель выделенного места, health и participation state
 - [ ] Подготовка UI и backend к reward-layer для storage participants
 - [ ] Telegram/file delivery из реального storage runtime

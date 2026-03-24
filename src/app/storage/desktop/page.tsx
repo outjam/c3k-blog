@@ -101,6 +101,15 @@ export default function StorageDesktopPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const nodeMap = useMemo(() => runtime?.nodeMap ?? buildDesktopNodeMapFallback(), [runtime]);
+  const localNodeStatusLabel = runtime
+    ? runtime.localNode.overallReady
+      ? "Live node"
+      : runtime.localNode.daemonReady
+        ? "Daemon online"
+        : runtime.features.desktopClientEnabled
+          ? "Desktop beta"
+          : "Scaffold"
+    : "—";
 
   useEffect(() => {
     let mounted = true;
@@ -248,20 +257,20 @@ export default function StorageDesktopPage() {
 
             <div className={styles.heroStats}>
               <article>
-                <span>Gateway</span>
-                <strong>
-                  {runtime ? `${runtime.gateway.host}:${runtime.gateway.port}` : "—"}
-                </strong>
+                <span>Локальная нода</span>
+                <strong>{runtime?.localNode.deviceLabel ?? "—"}</strong>
               </article>
               <article>
-                <span>TON Site</span>
-                <strong>{runtime?.gateway.tonSiteHost ?? "c3k.ton"}</strong>
+                <span>Runtime</span>
+                <strong>{runtime?.localNode.storageRuntimeLabel ?? "—"}</strong>
+              </article>
+              <article>
+                <span>Bags</span>
+                <strong>{runtime ? String(runtime.localNode.bagCount) : "—"}</strong>
               </article>
               <article>
                 <span>Статус</span>
-                <strong>
-                  {runtime?.features.desktopClientEnabled ? "Enabled" : "Scaffold"}
-                </strong>
+                <strong>{localNodeStatusLabel}</strong>
               </article>
             </div>
           </div>
@@ -300,6 +309,50 @@ export default function StorageDesktopPage() {
 
             <section className={styles.group}>
               <div className={styles.groupHeading}>
+                <h2>Локальная нода</h2>
+                <p>
+                  Этот блок уже показывает не только product preview, а реальное состояние
+                  локального storage runtime на устройстве.
+                </p>
+              </div>
+
+              <div className={styles.infoGrid}>
+                <article className={styles.infoCard}>
+                  <span>Устройство</span>
+                  <strong>{runtime.localNode.deviceLabel}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Платформа</span>
+                  <strong>{runtime.localNode.platformLabel}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Daemon</span>
+                  <strong>{runtime.localNode.daemonReady ? "Connected" : "Not ready"}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Gateway</span>
+                  <strong>{runtime.localNode.gatewayReady ? "Reachable" : "Pending"}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Upload mode</span>
+                  <strong>{runtime.localNode.uploadMode}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Worker secret</span>
+                  <strong>{runtime.localNode.workerSecretConfigured ? "Configured" : "Missing"}</strong>
+                </article>
+              </div>
+
+              <div className={styles.runtimeNotes}>
+                <strong>{runtime.localNode.nextAction}</strong>
+                {runtime.localNode.notes.map((note) => (
+                  <span key={note}>{note}</span>
+                ))}
+              </div>
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
                 <h2>Onboarding node</h2>
                 <p>
                   На beta-этапе мы не запускаем реальный paid runtime. Здесь фиксируется
@@ -324,8 +377,8 @@ export default function StorageDesktopPage() {
               <div className={styles.groupHeading}>
                 <h2>Карта нод</h2>
                 <p>
-                  Так будет выглядеть живая сеть раздачи в desktop-клиенте: ваша нода, gateway для <code>c3k.ton</code>,
-                  archive bags и соседние точки, которые держат реплики рядом с пользователем.
+                  Первая точка на карте уже отражает локальную ноду этого устройства. Остальные точки
+                  показывают gateway и storage peers, которые будут участвовать в runtime и раздаче.
                 </p>
               </div>
 
@@ -375,7 +428,7 @@ export default function StorageDesktopPage() {
                 </a>
                 <a
                   className={styles.secondaryLink}
-                  href={`${runtime.gateway.baseUrl}/health`}
+                  href={runtime.localNode.gatewayUrl ?? `${runtime.gateway.baseUrl}/health`}
                   target="_blank"
                   rel="noreferrer"
                 >

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -8,18 +9,80 @@ import {
   getDefaultDesktopGatewayConfig,
 } from "@/lib/desktop-runtime";
 import { getC3kStorageConfig } from "@/lib/storage-config";
+import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
 import { listStorageNodes } from "@/lib/server/storage-registry-store";
-import type { C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
+import { runTonStorageRuntimePreflight } from "@/lib/server/storage-ton-runtime-preflight";
+import type { C3kDesktopLocalNodeRuntime, C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
 
-const buildDesktopNodeMapFallback = (features: ReturnType<typeof getC3kStorageConfig>) => {
+const toPlatformLabel = (): string => {
+  const platform =
+    process.platform === "darwin"
+      ? "macOS"
+      : process.platform === "win32"
+        ? "Windows"
+        : process.platform === "linux"
+          ? "Linux"
+          : process.platform;
+
+  return `${platform} ${process.arch}`;
+};
+
+const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime> => {
+  const checkedAt = new Date().toISOString();
+  const runtimeStatus = getStorageRuntimeStatus();
+  const preflight = await runTonStorageRuntimePreflight({ logHealthEvent: false }).catch(() => null);
+  const bagCount = preflight?.cliKnownBagCount ?? 0;
+  const daemonReady = preflight?.cliOk ?? false;
+  const gatewayReady = preflight?.gatewayOk ?? false;
+  const overallReady = preflight?.overallReady ?? false;
+  const tone: C3kDesktopLocalNodeRuntime["tone"] = overallReady ? "live" : daemonReady || gatewayReady ? "relay" : "ready";
+
+  const nextAction = overallReady
+    ? "Локальная нода готова к реальному storage retrieval и может обслуживать desktop/runtime flow."
+    : daemonReady && !gatewayReady
+      ? "Daemon уже поднят. Следующий шаг: проверить local gateway и desktop retrieval path."
+      : !daemonReady && runtimeStatus.mode === "tonstorage_testnet"
+        ? "Подними storage-daemon и подключи CLI-аргументы, чтобы превратить устройство в реальную storage-ноду."
+        : "Пока это desktop beta scaffold. Дальше нужно включить живой storage runtime contour.";
+
+  const notes = [
+    preflight?.notes ?? [],
+    preflight?.nextActions ?? [],
+  ]
+    .flat()
+    .filter(Boolean)
+    .slice(0, 6);
+
+  return {
+    checkedAt,
+    deviceLabel: os.hostname() || "Local device",
+    platformLabel: toPlatformLabel(),
+    storageRuntimeLabel: runtimeStatus.label,
+    uploadMode: preflight?.uploadMode ?? "simulated",
+    daemonReady,
+    gatewayReady,
+    overallReady,
+    workerSecretConfigured: preflight?.workerSecretConfigured ?? false,
+    bagCount,
+    tone,
+    gatewayUrl: preflight?.gatewayBase,
+    nextAction,
+    notes,
+  };
+};
+
+const buildDesktopNodeMapFallback = (
+  features: ReturnType<typeof getC3kStorageConfig>,
+  localNode: C3kDesktopLocalNodeRuntime,
+) => {
   const nodes: C3kDesktopNodeMapNode[] = [
     {
       id: "desktop-home",
-      city: "Moscow desktop",
-      role: "Локальная нода и storage cache",
-      health: features.desktopClientEnabled ? "Ready to seed" : "Beta scaffold",
-      bags: features.desktopClientEnabled ? "6 bags" : "Target 6 bags",
-      tone: features.desktopClientEnabled ? "live" : "ready",
+      city: localNode.deviceLabel,
+      role: `Локальная нода · ${localNode.platformLabel}`,
+      health: localNode.overallReady ? "Runtime ready" : localNode.daemonReady ? "Daemon online" : "Desktop beta",
+      bags: localNode.bagCount > 0 ? `${localNode.bagCount} bags` : features.desktopClientEnabled ? "0 bags" : "Target 6 bags",
+      tone: localNode.tone,
       coordinates: [37.6176, 55.7558],
     },
     {
@@ -94,6 +157,7 @@ const buildBoundsFromNodes = (nodes: C3kDesktopNodeMapNode[]): [[number, number]
 };
 
 const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConfig>) => {
+  const localNode = await buildLocalNodeRuntimeStatus();
   const gateway = getDefaultDesktopGatewayConfig();
   const registryNodes = await listStorageNodes();
   const publicNodes: C3kDesktopNodeMapNode[] = registryNodes
@@ -114,8 +178,21 @@ const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConf
     }));
 
   if (publicNodes.length === 0) {
-    return buildDesktopNodeMapFallback(features);
+    return {
+      localNode,
+      ...buildDesktopNodeMapFallback(features, localNode),
+    };
   }
+
+  const localNodeMapEntry: C3kDesktopNodeMapNode = {
+    id: "desktop-home",
+    city: localNode.deviceLabel,
+    role: `Локальная нода · ${localNode.platformLabel}`,
+    health: localNode.overallReady ? "Runtime ready" : localNode.daemonReady ? "Daemon online" : "Desktop beta",
+    bags: localNode.bagCount > 0 ? `${localNode.bagCount} bags` : "0 bags",
+    tone: localNode.tone,
+    coordinates: publicNodes[0]?.coordinates ?? [37.6176, 55.7558],
+  };
 
   const gatewayNode: C3kDesktopNodeMapNode = {
     id: "gateway-core",
@@ -127,8 +204,9 @@ const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConf
     coordinates: publicNodes[0]?.coordinates ?? [4.9041, 52.3676],
   };
 
-  const nodes = [gatewayNode, ...publicNodes];
+  const nodes = [localNodeMapEntry, gatewayNode, ...publicNodes];
   return {
+    localNode,
     nodes,
     bounds: buildBoundsFromNodes(nodes),
   };
@@ -189,6 +267,7 @@ export const getC3kDesktopRuntimeContract = async (options?: {
       testModeIngestEnabled: features.testModeIngestEnabled,
     },
     gateway,
+    localNode: nodeMap.localNode,
     onboarding: {
       minRecommendedDiskGb: 20,
       targetDiskGb: 50,

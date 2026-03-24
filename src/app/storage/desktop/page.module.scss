@@ -91,7 +91,7 @@
 .statusList {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .heroStats article,
@@ -158,6 +158,24 @@
 .stepCard strong {
   display: block;
   margin-bottom: 6px;
+}
+
+.runtimeNotes {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--tg-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-accent) 18%, transparent);
+}
+
+.runtimeNotes strong {
+  color: var(--tg-text);
+}
+
+.runtimeNotes span {
+  color: var(--tg-hint);
+  line-height: 1.45;
 }
 
 .nodeMap {

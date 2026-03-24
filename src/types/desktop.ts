@@ -29,6 +29,23 @@ export interface C3kDesktopNodeMapNode {
   coordinates: [number, number];
 }
 
+export interface C3kDesktopLocalNodeRuntime {
+  checkedAt: string;
+  deviceLabel: string;
+  platformLabel: string;
+  storageRuntimeLabel: string;
+  uploadMode: "simulated" | "tonstorage_cli";
+  daemonReady: boolean;
+  gatewayReady: boolean;
+  overallReady: boolean;
+  workerSecretConfigured: boolean;
+  bagCount: number;
+  tone: "live" | "ready" | "relay";
+  gatewayUrl?: string;
+  nextAction: string;
+  notes: string[];
+}
+
 export interface C3kDesktopRuntimeContract {
   appId: string;
   appName: string;
@@ -41,6 +58,7 @@ export interface C3kDesktopRuntimeContract {
   runtimeUrl: string | null;
   features: C3kDesktopRuntimeFeatures;
   gateway: C3kDesktopGatewayConfig;
+  localNode: C3kDesktopLocalNodeRuntime;
   onboarding: {
     minRecommendedDiskGb: number;
     targetDiskGb: number;

@@ -2,6 +2,32 @@
 
 ## 2026-03-24
 
+### Sprint 11 slice: desktop local node runtime status
+
+- [desktop runtime](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts) теперь собирает живой статус локальной ноды:
+  - устройство и платформа
+  - storage runtime label
+  - `uploadMode`
+  - готовность daemon
+  - готовность gateway
+  - число bag-ов, которое видит локальный `storage-daemon-cli`
+  - `nextAction` и notes для оператора
+- Для этого [storage preflight](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-preflight.ts) получил режим без записи health-events, чтобы desktop не спамил storage history при каждом открытии страницы.
+- [desktop types](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/desktop.ts) расширены новым блоком `localNode`.
+- [desktop page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) теперь показывает:
+  - живые hero-метрики локальной ноды
+  - отдельный блок `Локальная нода`
+  - более честную карту, где первая точка отражает текущее устройство
+
+### Зачем это сделано
+
+- до этого desktop screen был в основном onboarding-preview и не показывал, превратилось ли устройство в живую storage-ноду
+- теперь `Sprint 11` реально начался с runtime-контуром, а не только с UI-обещанием:
+  - видно, подключён ли daemon
+  - видно, отвечает ли gateway
+  - видно, сколько bag-ов реально доступно локально
+  - есть понятный следующий шаг для node participant
+
 ### Sprint 10 slice: live bridge preflight and honest runtime probe messaging
 
 - Добавлен отдельный bridge preflight:
