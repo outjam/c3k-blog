@@ -360,7 +360,10 @@ const normalizeHealthEvent = (value: unknown, index: number, now: string): Stora
   return {
     id: normalizeSafeId(source.id, 120) || `event-${index + 1}`,
     entityType:
-      source.entityType === "node" || source.entityType === "bag" || source.entityType === "provider"
+      source.entityType === "node" ||
+      source.entityType === "bag" ||
+      source.entityType === "provider" ||
+      source.entityType === "runtime"
         ? source.entityType
         : "node",
     entityId,
@@ -965,7 +968,7 @@ export const upsertStorageBagFile = async (input: {
 };
 
 export const appendStorageHealthEvent = async (input: {
-  entityType: "node" | "bag" | "provider";
+  entityType: "node" | "bag" | "provider" | "runtime";
   entityId: string;
   severity: "info" | "warning" | "critical";
   code: string;

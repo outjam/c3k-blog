@@ -137,6 +137,138 @@
   - запустил внешний worker
 - это делает первый реальный testnet-прогон не только технически возможным, но и реально удобным
 
+### Sprint 10 slice: runtime health history inside storage admin
+
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь показывает:
+  - сводку по `info / warning / critical` runtime events
+  - последние события upload/verify/reverify
+  - отдельный `next step` для проблемных bag-событий
+- На карточках bags теперь виден последний health event именно по этому контейнеру
+- Для этого добавлен отдельный визуальный слой в [page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.module.scss)
+
+### Зачем это сделано
+
+- до этого оператор видел `runtime status`, но не видел короткую историю, почему bag дошёл до `verified` или `failed`
+- при первом живом `storage-daemon/gateway` тесте это критично:
+  - быстро понять, что сломалось
+  - не открывать код и не искать внутренние логи вручную
+- теперь storage admin стал ближе к реальному операторскому пульту, а не только к реестру bags и jobs
+
+### Sprint 10 slice: next-action hints on asset cards
+
+- На [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) карточки assets теперь сами подсказывают следующий шаг:
+  - подготовить asset
+  - дождаться ingest
+  - запускать upload
+  - делать runtime reverify
+  - или уже тестировать delivery
+
+### Зачем это сделано
+
+- раньше оператор видел только `job / bag / runtime`, но должен был сам вычислять, что делать дальше
+- теперь карточка asset ведёт его по pipeline человеческим языком и сокращает ошибки при первом живом testnet-прогоне
+
+### Sprint 10 slice: bridge preflight becomes part of runtime health history
+
+- `StorageHealthEvent` теперь поддерживает entity type `runtime`
+- [bridge preflight helper](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-preflight.ts) теперь после каждой проверки пишет runtime event:
+  - `bridge_preflight_ok`
+  - `bridge_preflight_simulated`
+  - `bridge_preflight_failed`
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) показывает для этих событий понятный `next step`
+
+### Зачем это сделано
+
+- раньше `Проверить daemon/gateway` давал только разовый ответ в UI
+- после обновления оператор получает persistent след в общей history storage runtime
+- это особенно важно для первого живого `TON Storage` теста: bridge readiness теперь можно дебажить по событиям, а не только по одной кнопке
+
+### Sprint 10 slice: per-asset source probe before live upload
+
+- В [storage upload worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) добавлен `probeTonStorageUploadSourceForAsset(...)`
+- Новый admin route:
+  - [source-probe route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/assets/source-probe/route.ts)
+- Новый client helper:
+  - [admin api](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- На [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) у asset теперь есть действие `Проверить source`
+
+### Зачем это сделано
+
+- перед живым `tonstorage_cli` upload оператору важно знать не только что есть `job/bag`, но и доступны ли сами исходные байты файла
+- теперь на одном asset можно заранее увидеть:
+  - работает ли `sourceUrl`
+  - жив ли `audioFileId` в Telegram
+  - чего именно не хватает bridge-контуру
+- это убирает blind run сценарий, когда upload падает просто потому, что у файла нет реального источника
+
+### Sprint 10 slice: asset-level runtime history for source and upload
+
+- [storage upload worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) теперь пишет runtime events и по конкретному asset:
+  - `asset_source_probe_ready`
+  - `asset_source_probe_failed`
+  - `upload_source_fetch_failed`
+  - `upload_cycle_not_found`
+  - `upload_cycle_completed`
+  - `upload_cycle_failed`
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) показывает последний такой сигнал прямо на карточке asset
+
+### Зачем это сделано
+
+- раньше health history лучше покрывала bags и bridge, чем сам путь конкретного файла к живому upload
+- теперь оператор может смотреть на asset и сразу понимать:
+  - файл вообще доступен?
+  - был ли source уже подтверждён?
+  - upload реально прошёл или упал?
+- это делает первый живой testnet-прогон точнее и проще в разборе
+
+### Sprint 10 slice: unified asset runtime history for external worker completions
+
+- Логика asset-level runtime events перенесена глубже в [completeTonStorageUploadJob](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts)
+- Это значит, что одинаковые asset-события теперь пишутся для:
+  - server-side `upload once`
+  - simulated upload
+  - внешнего upload worker
+
+### Зачем это сделано
+
+- раньше asset-history лучше отражала внутренний upload path, чем внешний worker completion
+- теперь telemetry стала ровной: любой успешный или неуспешный upload completion оставляет один и тот же понятный след в storage admin
+
+### Sprint 10 slice: per-asset live readiness before real upload
+
+- Добавлен новый helper:
+  - [storage-live-readiness.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-live-readiness.ts)
+- Новый admin route:
+  - [live-readiness route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/assets/live-readiness/route.ts)
+- Новый client helper:
+  - [admin api](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- На [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) у asset теперь есть кнопка `Проверить live ready`
+
+### Зачем это сделано
+
+- до этого оператор видел source probe и bridge preflight по отдельности
+- теперь он может получить один итоговый вердикт по asset:
+  - source готов или нет
+  - bridge готов или нет
+  - есть ли prepared job
+  - есть ли уже bag/runtime status
+- это последний логический операторский шаг перед настоящим живым `tonstorage_cli` upload
+
+### Sprint 10 slice: targeted worker commands from asset live readiness
+
+- После `live readiness` [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь показывает прямо на карточке asset:
+  - env bootstrap
+  - targeted `--asset=...`
+  - targeted `--job=...`, если prepared job уже есть
+
+### Зачем это сделано
+
+- до этого live readiness давал хороший verdict, но следующий shell-step всё ещё нужно было собирать вручную
+- теперь путь почти линейный:
+  - проверил `live ready`
+  - скопировал targeted команду
+  - запустил внешний worker ровно на этот asset
+
 ### Sprint 10 slice: runtime pointer verification and bag-file manifest
 
 - [storage upload completion](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) теперь не заканчивается просто записью `bagId/pointer`:
@@ -1921,6 +2053,65 @@
 - Важный эффект:
   - operator больше не ограничен общими readiness-счётчиками
   - переход к реальному `TON Storage` теперь можно валидировать на уровне конкретного релиза/файла
+
+### Sprint 10 slice: asset-level live upload command pack and auto-refresh
+
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь рендерит per-asset live-test команды из одного локального command pack, а не из повторяющихся вызовов helper внутри JSX.
+- После `live readiness` на карточке asset теперь показываются:
+  - env bootstrap для внешнего worker
+  - targeted `--asset`
+  - targeted `--job`
+  - daemon list probe
+  - gateway `curl -I`
+  - сам `storagePointer`, если он уже есть
+- Добавлен тихий refresh `live readiness` после:
+  - `Проверить source`
+  - `Подготовить этот asset`
+  - `Загрузить этот asset`
+  - `Подготовить + загрузить`
+  - `Перепроверить runtime` у связанного bag
+
+### Зачем это сделано
+
+- раньше asset-карточка могла честно показать старый `live readiness` уже после prepare/upload/reverify
+- из-за этого оператор видел устаревшие команды и старый verdict, хотя pipeline уже изменился
+- теперь storage admin ведёт к живому `tonstorage_cli` тесту заметно точнее:
+  - команды считаются один раз
+  - verdict автоматически освежается после ключевых шагов
+  - риск прогонять worker по старой job или старому pointer уменьшается
+
+### Sprint 10 slice: built-in local TON runtime gateway and live daemon verification
+
+- Добавлен встроенный local runtime gateway:
+  - [src/app/api/storage/runtime-gateway/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/runtime-gateway/route.ts)
+  - [src/app/api/storage/runtime-gateway/[bagId]/[[...filePath]]/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/runtime-gateway/%5BbagId%5D/%5B%5B...filePath%5D%5D/route.ts)
+  - [src/lib/server/storage-ton-runtime-local-gateway.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-local-gateway.ts)
+- [storage-ton-runtime-bridge.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-bridge.ts) теперь умеет:
+  - использовать внешний `C3K_STORAGE_TON_HTTP_GATEWAY_BASE`, если он задан
+  - или падать обратно на встроенный app-level gateway `/api/storage/runtime-gateway` в `tonstorage_cli` mode
+- [storage-upload-worker.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) переведён на `create --copy --json`, чтобы daemon сохранял реальный файл внутрь своего bag storage и runtime мог читать его после upload
+
+### Живой тест
+
+- Установлены официальные macOS arm64 binaries из релиза `ton-blockchain/ton`:
+  - `storage-daemon`
+  - `storage-daemon-cli`
+  - `generate-random-id`
+- Поднят локальный `storage-daemon` на testnet config `https://ton.org/testnet-global.config.json`
+- CLI успешно ответил на `help`, `list --hashes` и `create --copy --json`
+- Через новый route реально получен файл из настоящего bag:
+  - `HEAD /api/storage/runtime-gateway/<BagID>/hello.txt` -> `HTTP 200`
+  - `GET /api/storage/runtime-gateway/<BagID>/hello.txt` -> вернул содержимое `hello ton storage`
+
+### Зачем это сделано
+
+- до этого `Sprint 10` всё ещё упирался в внешний блокер: код умел делать real upload, но delivery не имел собственного живого пути чтения bag без отдельного внешнего gateway
+- теперь внутри приложения уже есть честный local TON runtime contour:
+  - реальный daemon
+  - реальный BagID
+  - реальный `tonstorage://` pointer
+  - реальное чтение файла через app-level runtime gateway
+- это закрывает последние два незавершённых deliverable `Sprint 10` и переводит следующий фокус на desktop node runtime
 
 ### Desktop node map preview slice
 

@@ -96,6 +96,80 @@
   - как таргетироваться в конкретный asset или job
 - Это маленькая, но очень практичная вещь: она сокращает реальный путь к первому живому `TON Storage` тесту.
 
+### Живая runtime health-история в storage admin
+
+- В storage admin появился отдельный слой health events.
+- Теперь оператор видит:
+  - сколько runtime-событий сейчас `info / warning / critical`
+  - какие bags уже подтвердились через verify/reverify
+  - какие bags падают на gateway и что делать следующим шагом
+- Отдельно последний health event теперь показывается прямо в карточке bag.
+- Это делает первый живой `storage-daemon/gateway` тест заметно проще: по одному экрану видно не только состояние, но и причину последнего перехода runtime.
+
+### Asset-карточки теперь ведут по pipeline
+
+- На карточках assets появился человеческий `следующий шаг`.
+- Теперь оператору не нужно самому читать набор `job / bag / runtime status` и угадывать, что делать дальше.
+- Интерфейс сам подсказывает:
+  - сначала подготовить asset
+  - дождаться ingest
+  - потом запускать upload
+  - затем делать runtime reverify
+  - или уже проверять delivery
+
+### Bridge preflight теперь сохраняется в runtime history
+
+- Кнопка `Проверить daemon/gateway` теперь не только показывает разовый результат, но и пишет runtime event в общую историю storage.
+- Это значит, что по истории уже видно:
+  - bridge был готов
+  - bridge был в simulated-режиме
+  - bridge упал на CLI или gateway
+- Для первого живого `TON Storage` теста это сильно полезнее: состояние bridge больше не теряется между кликами.
+
+### Source probe для конкретного asset
+
+- На карточке asset появилась отдельная проверка источника файла.
+- Теперь до живого upload можно увидеть:
+  - отвечает ли `sourceUrl`
+  - жив ли `audioFileId`
+  - чего не хватает bridge-контуру
+- Это делает первый настоящий `TON Storage` тест намного практичнее: больше не нужно гонять worker вслепую и потом разбирать, что именно было сломано.
+
+### Asset-level история source и upload
+
+- После source probe и upload cycle теперь пишутся отдельные runtime events по самому asset.
+- Это значит, что прямо на карточке файла уже видно:
+  - source подтверждён или нет
+  - upload не нашёл prepared job
+  - upload упал
+  - upload завершился
+- Такой слой делает storage admin уже не просто реестром assets и bags, а настоящим операторским трекером первого живого `TON Storage` прогона.
+
+### Единая asset-history для внешнего worker
+
+- Asset-level runtime history теперь больше не зависит только от server-side `upload once`.
+- Те же понятные события теперь остаются и после completion внешнего worker.
+- Это важно для живого контура: оператор видит одинаковую историю независимо от того, был upload локальным, simulated или внешним.
+
+### Live readiness verdict по asset
+
+- Для каждого asset теперь можно получить один итоговый вердикт перед живым upload.
+- Он объединяет:
+  - source probe
+  - bridge preflight
+  - prepared job
+  - bag/runtime status
+- Это уже очень близко к финальной операторской кнопке перед настоящим `TON Storage` прогоном: сначала проверил `live ready`, потом сразу запускаешь upload.
+
+### Targeted worker-команды прямо на карточке asset
+
+- После `live readiness` asset-карточка теперь показывает готовые команды именно для этого файла.
+- То есть оператор уже не пересобирает руками:
+  - env bootstrap
+  - `--asset=...`
+  - `--job=...`
+- Это делает последний шаг до реального `TON Storage` теста максимально коротким и прикладным.
+
 ### Runtime pointer verification и bag-file manifest
 
 - После storage upload completion система теперь сохраняет не только `bagId` или `tonstorage:// pointer`, но и путь файла внутри bag.
@@ -659,3 +733,33 @@
 - у storage-ноды появились geo-поля и публичный label
 - в админке появилась возможность завести storage-ноду с координатами
 - desktop runtime начал строить карту из реальных registry-нod, если они уже есть
+
+### Sprint 10: live upload command pack на карточке asset
+
+- после `live readiness` asset теперь показывает готовый набор команд для живого теста:
+  - env bootstrap
+  - targeted worker по `asset`
+  - targeted worker по `job`
+  - daemon list probe
+  - gateway `curl -I`
+  - pointer, если он уже есть
+- команды больше не собираются повторно кусками прямо в JSX, а рендерятся как один per-asset command pack
+
+### Sprint 10: auto-refresh live readiness после ключевых действий
+
+- после `source probe`, `prepare`, `upload`, `prepare + upload` и `bag reverify` asset-карточка теперь сама пересобирает `live readiness`
+- это убирает неприятный операторский баг, когда UI ещё показывал старые команды и старый verdict уже после изменения pipeline
+
+### Sprint 10: built-in local TON runtime gateway
+
+- добавлен встроенный app-level gateway `/api/storage/runtime-gateway`
+- он умеет читать реальный файл из bag через живой `storage-daemon-cli`
+- upload worker переведён на `create --copy --json`, чтобы daemon сохранял файл внутрь своего storage и этот bag потом можно было реально читать
+
+### Sprint 10: живой local daemon test
+
+- установлены официальные TON binaries для mac arm64
+- поднят локальный `storage-daemon` на `testnet-global.config.json`
+- реально создан test bag
+- файл из него реально прочитан через новый runtime gateway route
+- этим закрыты последние два пункта `Sprint 10`: real upload contour и real bag pointer retrieval в delivery layer

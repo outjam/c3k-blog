@@ -295,6 +295,47 @@ export interface AdminStoragePrepareAndUploadSummary {
 export type AdminStorageBagReverifySummary = StorageBagRuntimeReverifySummary;
 export type AdminStorageBagReverifyAllSummary = StorageBagRuntimeSweepSummary;
 
+export interface AdminStorageAssetSourceProbeSummary {
+  checkedAt: string;
+  assetId: string;
+  ok: boolean;
+  sourceKind?: "source_url" | "telegram_file";
+  sourcePointer?: string;
+  fileName?: string;
+  mimeType?: string;
+  httpStatus?: number;
+  contentLength?: number;
+  telegramFilePath?: string;
+  bridgeUploadMode: string;
+  realUploadReady: boolean;
+  gatewayRetrievalReady: boolean;
+  nextAction: string;
+  error?: string;
+}
+
+export interface AdminStorageAssetLiveReadinessSummary {
+  checkedAt: string;
+  assetId: string;
+  sourceReady: boolean;
+  sourceKind?: "source_url" | "telegram_file";
+  bridgeUploadMode: string;
+  bridgeReady: boolean;
+  gatewayReady: boolean;
+  preparedJobId?: string;
+  latestJobId?: string;
+  latestJobStatus?: string;
+  latestJobMode?: string;
+  bagId?: string;
+  bagStatus?: string;
+  storagePointer?: string;
+  runtimeFetchStatus?: string;
+  runtimeFetchUrl?: string;
+  endToEndReady: boolean;
+  readyForLiveUpload: boolean;
+  nextAction: string;
+  notes: string[];
+}
+
 export interface AdminStorageNodeInput {
   id?: string;
   userTelegramId?: number;
@@ -788,6 +829,56 @@ export const runAdminStorageBridgePreflight = async (): Promise<{
     return { preflight: data.preflight ?? null };
   } catch {
     return { preflight: null, error: "Network error" };
+  }
+};
+
+export const probeAdminStorageAssetSource = async (payload: {
+  assetId: string;
+}): Promise<{ summary: AdminStorageAssetSourceProbeSummary | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/assets/source-probe", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStorageAssetSourceProbeSummary | null };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
+  }
+};
+
+export const probeAdminStorageAssetLiveReadiness = async (payload: {
+  assetId: string;
+}): Promise<{ summary: AdminStorageAssetLiveReadinessSummary | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/assets/live-readiness", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStorageAssetLiveReadinessSummary | null };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
   }
 };
 

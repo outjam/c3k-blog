@@ -10,7 +10,11 @@ import {
   fetchAdminSession,
   fetchAdminStorage,
   patchAdminStorageMembership,
+  probeAdminStorageAssetLiveReadiness,
+  probeAdminStorageAssetSource,
   probeAdminStorageRuntime,
+  type AdminStorageAssetLiveReadinessSummary,
+  type AdminStorageAssetSourceProbeSummary,
   runAdminStorageBridgePreflight,
   runAdminStorageBagReverify,
   runAdminStorageBagReverifyAll,
@@ -86,8 +90,12 @@ export default function AdminStoragePage() {
   const [runningPrepareTargetKey, setRunningPrepareTargetKey] = useState("");
   const [reverifyingBagKey, setReverifyingBagKey] = useState("");
   const [reverifyingAllBags, setReverifyingAllBags] = useState(false);
+  const [probingAssetSourceKey, setProbingAssetSourceKey] = useState("");
+  const [probingAssetLiveKey, setProbingAssetLiveKey] = useState("");
   const [ingestMode, setIngestMode] = useState<StorageIngestMode>("test_prepare");
   const [runtimeProbe, setRuntimeProbe] = useState<AdminStorageRuntimeProbe | null>(null);
+  const [assetSourceProbes, setAssetSourceProbes] = useState<Record<string, AdminStorageAssetSourceProbeSummary>>({});
+  const [assetLiveReadiness, setAssetLiveReadiness] = useState<Record<string, AdminStorageAssetLiveReadinessSummary>>({});
   const [probingRuntime, setProbingRuntime] = useState(false);
   const [probeDraft, setProbeDraft] = useState({
     assetId: "",
@@ -198,6 +206,9 @@ export default function AdminStoragePage() {
       "export C3K_STORAGE_WORKER_SECRET=<your_worker_secret>",
       `export C3K_STORAGE_TON_UPLOAD_BRIDGE_MODE=${mode === "tonstorage_cli" ? "tonstorage_cli" : "simulated"}`,
       mode === "tonstorage_cli" ? `export C3K_STORAGE_TON_DAEMON_CLI_BIN=${daemonBin}` : "",
+      snapshot?.runtimeBridge.gatewayBase
+        ? `export C3K_STORAGE_TON_HTTP_GATEWAY_BASE=${snapshot.runtimeBridge.gatewayBase}`
+        : "",
     ].filter(Boolean);
 
     return {
@@ -215,6 +226,94 @@ export default function AdminStoragePage() {
     };
   }, [snapshot]);
 
+  const buildTargetedWorkerCommands = (input: {
+    assetId: string;
+    jobId?: string;
+    runtimeFetchUrl?: string;
+    storagePointer?: string;
+  }) => {
+    const daemonBin = snapshot?.runtimeBridge.daemonCliBin || "storage-daemon-cli";
+    return {
+      envLines: workerLaunchPlan.envLines,
+      daemonCommand:
+        snapshot?.runtimeBridge.uploadMode === "tonstorage_cli"
+          ? `${daemonBin} -c "list --hashes"`
+          : "",
+      assetCommand: `npm run storage:worker:once -- --asset=${input.assetId}`,
+      jobCommand: input.jobId ? `npm run storage:worker:once -- --job=${input.jobId}` : "",
+      gatewayCommand: input.runtimeFetchUrl ? `curl -I ${input.runtimeFetchUrl}` : "",
+      pointerLine: input.storagePointer || "",
+    };
+  };
+
+  const latestHealthEventByBagId = useMemo(() => {
+    return (snapshot?.healthEvents ?? []).reduce<Record<string, AdminStorageSnapshot["healthEvents"][number]>>(
+      (accumulator, entry) => {
+        if (entry.entityType !== "bag") {
+          return accumulator;
+        }
+
+        const previous = accumulator[entry.entityId];
+        if (!previous || Date.parse(entry.createdAt) > Date.parse(previous.createdAt)) {
+          accumulator[entry.entityId] = entry;
+        }
+        return accumulator;
+      },
+      {},
+    );
+  }, [snapshot]);
+
+  const latestHealthEventByAssetId = useMemo(() => {
+    return (snapshot?.healthEvents ?? []).reduce<Record<string, AdminStorageSnapshot["healthEvents"][number]>>(
+      (accumulator, entry) => {
+        if (entry.entityType !== "runtime" || !entry.entityId.startsWith("asset-")) {
+          return accumulator;
+        }
+
+        const assetId = entry.entityId.slice("asset-".length);
+        if (!assetId) {
+          return accumulator;
+        }
+
+        const previous = accumulator[assetId];
+        if (!previous || Date.parse(entry.createdAt) > Date.parse(previous.createdAt)) {
+          accumulator[assetId] = entry;
+        }
+        return accumulator;
+      },
+      {},
+    );
+  }, [snapshot]);
+
+  const healthEventSummary = useMemo(() => {
+    const events = snapshot?.healthEvents ?? [];
+
+    return {
+      total: events.length,
+      info: events.filter((entry) => entry.severity === "info").length,
+      warning: events.filter((entry) => entry.severity === "warning").length,
+      critical: events.filter((entry) => entry.severity === "critical").length,
+    };
+  }, [snapshot]);
+
+  const prioritizedHealthEvents = useMemo(() => {
+    const severityWeight = {
+      critical: 3,
+      warning: 2,
+      info: 1,
+    } as const;
+
+    return [...(snapshot?.healthEvents ?? [])]
+      .sort((left, right) => {
+        const severityDiff = severityWeight[right.severity] - severityWeight[left.severity];
+        if (severityDiff !== 0) {
+          return severityDiff;
+        }
+        return Date.parse(right.createdAt) - Date.parse(left.createdAt);
+      })
+      .slice(0, 8);
+  }, [snapshot]);
+
   const assetPipelineByAssetId = useMemo(() => {
     const jobs = snapshot?.ingestJobs ?? [];
     const bags = snapshot?.bags ?? [];
@@ -223,10 +322,12 @@ export default function AdminStoragePage() {
       Record<
         string,
         {
+          bagId?: string;
           bagStatus?: string;
           runtimeFetchStatus?: string;
           latestJobStatus?: string;
           latestJobMode?: string;
+          nextAction?: string;
         }
       >
     >((accumulator, asset) => {
@@ -245,10 +346,23 @@ export default function AdminStoragePage() {
           )[0] ?? null;
 
       accumulator[asset.id] = {
+        bagId: preferredBag?.id,
         bagStatus: preferredBag?.status,
         runtimeFetchStatus: preferredBag?.runtimeFetchStatus,
         latestJobStatus: latestJob?.status,
         latestJobMode: latestJob?.mode,
+        nextAction:
+          latestJob?.status === "processing" || latestJob?.status === "queued"
+            ? "Дождись подготовки этого asset в ingest pipeline."
+            : latestJob?.status === "prepared" && latestJob?.mode === "tonstorage_testnet"
+              ? "Следующий шаг: запускай upload для этого asset через bridge или внешний worker."
+              : preferredBag?.runtimeFetchStatus === "verified"
+                ? "Runtime уже подтверждён. Можно тестировать web или Telegram delivery."
+                : preferredBag?.status === "uploaded" || latestJob?.status === "uploaded"
+                  ? "Upload уже был. Теперь нужен runtime reverify или живой gateway."
+                  : preferredBag?.id
+                    ? "Bag уже существует. Проверь runtime status и при необходимости перепроверь pointer."
+                    : "Сначала подготовь этот asset в runtime bags.",
       };
       return accumulator;
     }, {});
@@ -283,6 +397,68 @@ export default function AdminStoragePage() {
         return "Это fallback к прямому delivery URL, а не TON Storage.";
       default:
         return "Runtime path пока не определён.";
+    }
+  };
+
+  const formatHealthSeverity = (value: AdminStorageSnapshot["healthEvents"][number]["severity"]): string => {
+    switch (value) {
+      case "critical":
+        return "critical";
+      case "warning":
+        return "warning";
+      default:
+        return "info";
+    }
+  };
+
+  const getHealthSeverityClassName = (value: AdminStorageSnapshot["healthEvents"][number]["severity"]): string => {
+    switch (value) {
+      case "critical":
+        return styles.healthCritical;
+      case "warning":
+        return styles.healthWarning;
+      default:
+        return styles.healthInfo;
+    }
+  };
+
+  const formatHealthNextStep = (event: AdminStorageSnapshot["healthEvents"][number]): string => {
+    switch (event.code) {
+      case "bridge_preflight_ok":
+        return "Bridge готов. Следующий шаг: запускай upload once или внешний worker на конкретный asset.";
+      case "bridge_preflight_simulated":
+        return "Сейчас bridge в simulated-режиме. Переключи upload mode на tonstorage_cli для живого testnet upload.";
+      case "bridge_preflight_failed":
+        return "Открой bridge preflight, проверь CLI, gateway и затем повтори проверку перед upload.";
+      case "runtime_fetch_verified":
+        return "Bag уже подтверждён. Теперь можно проверять web или Telegram delivery.";
+      case "runtime_fetch_reverified":
+        return "Gateway уже отвечает. Проверь, ожили ли связанные delivery requests.";
+      case "runtime_fetch_failed":
+      case "runtime_fetch_reverify_failed":
+        return "Проверь bridge preflight, gateway URL и затем повтори runtime reverify.";
+      case "asset_source_probe_ready":
+        return "Источник файла подтверждён. Можно переходить к prepare/upload сценарию.";
+      case "asset_source_probe_failed":
+        return "Исправь source URL или Telegram file id, затем повтори source probe.";
+      case "upload_source_fetch_failed":
+        return "Источник не отдал байты. Сначала почини source, потом повторяй upload.";
+      case "upload_cycle_not_found":
+        return "Для этого asset ещё нет prepared job. Сначала подготовь runtime bags.";
+      case "upload_cycle_completed":
+        return "Upload завершён. Теперь смотри runtime verify, bag status и delivery.";
+      case "upload_cycle_failed":
+        return "Проверь daemon CLI, bridge mode и текст ошибки, затем повтори upload.";
+      case "asset_live_ready":
+        return "Asset уже end-to-end готов. Проверяй реальную выдачу файла пользователю.";
+      case "asset_live_upload_ready":
+        return "Все проверки пройдены. Можно запускать живой upload через tonstorage_cli.";
+      case "asset_live_blocked":
+        return "Сначала закрой блокирующие проверки source, bridge или prepared job.";
+      default:
+        return event.severity === "info"
+          ? "Срочных действий нет, это служебное подтверждение runtime."
+          : "Открой bag и проверь последний upload, pointer и gateway contour.";
     }
   };
 
@@ -423,6 +599,93 @@ export default function AdminStoragePage() {
 
     setRuntimeProbe(response.probe);
     setProbingRuntime(false);
+  };
+
+  const applyAssetLiveReadiness = (
+    assetId: string,
+    summary: AdminStorageAssetLiveReadinessSummary,
+    options?: { announce?: boolean },
+  ) => {
+    setAssetLiveReadiness((current) => ({
+      ...current,
+      [assetId]: summary,
+    }));
+
+    if (options?.announce) {
+      setIngestMessage(
+        [
+          `Live readiness ${assetId}`,
+          summary.endToEndReady ? "runtime ready" : summary.readyForLiveUpload ? "upload ready" : "blocked",
+          summary.preparedJobId ? `prepared ${summary.preparedJobId}` : "",
+          summary.bagId ? `bag ${summary.bagId}` : "",
+          summary.runtimeFetchStatus ? `runtime ${summary.runtimeFetchStatus}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      );
+    }
+  };
+
+  const refreshAssetLiveReadiness = async (assetId: string, options?: { announce?: boolean }) => {
+    const response = await probeAdminStorageAssetLiveReadiness({ assetId });
+
+    if (response.error || !response.summary) {
+      if (options?.announce) {
+        setError(response.error ?? "Не удалось проверить live readiness для asset.");
+      }
+      return null;
+    }
+
+    applyAssetLiveReadiness(assetId, response.summary, options);
+    return response.summary;
+  };
+
+  const probeAssetSource = async (assetId: string) => {
+    setProbingAssetSourceKey(`asset:${assetId}`);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await probeAdminStorageAssetSource({ assetId });
+    setProbingAssetSourceKey("");
+
+    if (response.error || !response.summary) {
+      setError(response.error ?? "Не удалось проверить source для asset.");
+      return;
+    }
+
+    setAssetSourceProbes((current) => ({
+      ...current,
+      [assetId]: response.summary!,
+    }));
+
+    setIngestMessage(
+      [
+        `Source probe ${assetId}`,
+        response.summary.ok ? "source ready" : "source blocked",
+        response.summary.sourceKind || "",
+        typeof response.summary.httpStatus === "number" ? `HTTP ${response.summary.httpStatus}` : "",
+        response.summary.telegramFilePath ? `telegram ${response.summary.telegramFilePath}` : "",
+        response.summary.error ? `error ${response.summary.error}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    await refreshAssetLiveReadiness(assetId);
+  };
+
+  const probeAssetLiveReadiness = async (assetId: string) => {
+    setProbingAssetLiveKey(`asset:${assetId}`);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const summary = await refreshAssetLiveReadiness(assetId, { announce: true });
+    setProbingAssetLiveKey("");
+
+    if (!summary) {
+      return;
+    }
   };
 
   const runBridgePreflight = async () => {
@@ -638,6 +901,7 @@ export default function AdminStoragePage() {
         .join(" · "),
     );
     await load();
+    await refreshAssetLiveReadiness(assetId);
   };
 
   const prepareAssetForRuntime = async (assetId: string, mode: StorageIngestMode) => {
@@ -674,6 +938,7 @@ export default function AdminStoragePage() {
         .join(" · "),
     );
     await load();
+    await refreshAssetLiveReadiness(assetId);
     return response.failedJobs === 0;
   };
 
@@ -719,9 +984,11 @@ export default function AdminStoragePage() {
         .join(" · "),
     );
     await load();
+    await refreshAssetLiveReadiness(assetId);
   };
 
   const reverifyBagRuntime = async (bagId: string) => {
+    const bagAssetId = snapshot?.bags.find((entry) => entry.id === bagId)?.assetId;
     setReverifyingBagKey(`bag:${bagId}`);
     setError("");
     setSyncMessage("");
@@ -750,6 +1017,9 @@ export default function AdminStoragePage() {
         .join(" · "),
     );
     await load();
+    if (bagAssetId) {
+      await refreshAssetLiveReadiness(bagAssetId);
+    }
   };
 
   const reverifyAllBagRuntimes = async () => {
@@ -1042,6 +1312,40 @@ export default function AdminStoragePage() {
                 <span>Сейчас нет prepared `tonstorage_testnet` job. Сначала подготовь runtime bags для нужного asset.</span>
               )}
               {workerLaunchPlan.preparedJobId ? <span>job: {workerLaunchPlan.preparedJobId}</span> : null}
+            </div>
+          </article>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>Runtime events</h2>
+            </div>
+            <p className={styles.blockHint}>
+              Это последние сигналы от upload и runtime verify. Здесь быстро видно, где bag уже подтвердился, а где contour
+              ещё ломается на gateway.
+            </p>
+            <div className={styles.itemMeta}>
+              <span>events: {healthEventSummary.total}</span>
+              <span>info: {healthEventSummary.info}</span>
+              <span>warning: {healthEventSummary.warning}</span>
+              <span>critical: {healthEventSummary.critical}</span>
+            </div>
+            <div className={styles.eventList}>
+              {prioritizedHealthEvents.slice(0, 4).map((event) => (
+                <article key={event.id} className={styles.eventCard}>
+                  <div className={styles.eventHeader}>
+                    <span className={`${styles.healthBadge} ${getHealthSeverityClassName(event.severity)}`}>
+                      {formatHealthSeverity(event.severity)}
+                    </span>
+                    <strong>{event.entityId}</strong>
+                  </div>
+                  <div className={styles.noteList}>
+                    <span>{event.code}</span>
+                    <span>{event.message}</span>
+                  </div>
+                </article>
+              ))}
+              {prioritizedHealthEvents.length === 0 ? (
+                <div className={styles.emptyState}>Health events пока пусты. Первый live upload/reverify их заполнит.</div>
+              ) : null}
             </div>
           </article>
         </section>
@@ -1689,57 +1993,144 @@ export default function AdminStoragePage() {
             Это реестр файлов, которые система знает и может потом выдать пользователю или положить в storage pipeline.
           </p>
           <div className={styles.list}>
-            {(snapshot?.assets ?? []).slice(0, 20).map((asset) => (
-              <article key={asset.id} className={styles.itemCard}>
-                <div className={styles.itemRow}>
-                  <strong>{asset.id}</strong>
-                  <span>{asset.assetType}</span>
-                </div>
-                <div className={styles.itemMeta}>
-                  <span>{asset.releaseSlug || "no release"}</span>
-                  <span>{asset.trackId || "full release"}</span>
-                  <span>{asset.format}</span>
-                  <span>{asset.resourceKey || "no key"}</span>
-                  <span>{asset.sizeBytes} bytes</span>
-                  <span>job: {assetPipelineByAssetId[asset.id]?.latestJobStatus || "none"}</span>
-                  <span>job mode: {assetPipelineByAssetId[asset.id]?.latestJobMode || "none"}</span>
-                  <span>bag: {assetPipelineByAssetId[asset.id]?.bagStatus || "none"}</span>
-                  <span>runtime: {assetPipelineByAssetId[asset.id]?.runtimeFetchStatus || "unknown"}</span>
-                </div>
-                {canManage ? (
-                  <div className={styles.controls}>
-                    <button
-                      type="button"
-                      onClick={() => void prepareAssetForRuntime(asset.id, ingestMode)}
-                      disabled={runningPrepareTargetKey === `asset:${asset.id}:${ingestMode}`}
-                    >
-                      {runningPrepareTargetKey === `asset:${asset.id}:${ingestMode}`
-                        ? "Готовим..."
-                        : "Подготовить этот asset"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void runUploadForAsset(asset.id)}
-                      disabled={
-                        runningUploadTargetKey === `asset:${asset.id}` ||
-                        runningUploadTargetKey === `asset:${asset.id}:prepare-upload`
-                      }
-                    >
-                      {runningUploadTargetKey === `asset:${asset.id}` ? "Гоним..." : "Загрузить этот asset"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void prepareAndUploadAsset(asset.id)}
-                      disabled={runningUploadTargetKey === `asset:${asset.id}:prepare-upload`}
-                    >
-                      {runningUploadTargetKey === `asset:${asset.id}:prepare-upload`
-                        ? "Готовим и грузим..."
-                        : "Подготовить + загрузить"}
-                    </button>
+            {(snapshot?.assets ?? []).slice(0, 20).map((asset) => {
+              const assetPipeline = assetPipelineByAssetId[asset.id];
+              const sourceProbe = assetSourceProbes[asset.id];
+              const liveReadiness = assetLiveReadiness[asset.id];
+              const latestAssetHealthEvent = latestHealthEventByAssetId[asset.id];
+              const targetedCommands = liveReadiness
+                ? buildTargetedWorkerCommands({
+                    assetId: asset.id,
+                    jobId: liveReadiness.preparedJobId,
+                    runtimeFetchUrl: liveReadiness.runtimeFetchUrl,
+                    storagePointer: liveReadiness.storagePointer,
+                  })
+                : null;
+
+              return (
+                <article key={asset.id} className={styles.itemCard}>
+                  <div className={styles.itemRow}>
+                    <strong>{asset.id}</strong>
+                    <span>{asset.assetType}</span>
                   </div>
-                ) : null}
-              </article>
-            ))}
+                  <div className={styles.itemMeta}>
+                    <span>{asset.releaseSlug || "no release"}</span>
+                    <span>{asset.trackId || "full release"}</span>
+                    <span>{asset.format}</span>
+                    <span>{asset.resourceKey || "no key"}</span>
+                    <span>{asset.sizeBytes} bytes</span>
+                    <span>job: {assetPipeline?.latestJobStatus || "none"}</span>
+                    <span>job mode: {assetPipeline?.latestJobMode || "none"}</span>
+                    <span>bag: {assetPipeline?.bagStatus || "none"}</span>
+                    <span>runtime: {assetPipeline?.runtimeFetchStatus || "unknown"}</span>
+                  </div>
+                  <div className={styles.noteList}>
+                    <span>{assetPipeline?.nextAction || "Дальнейший шаг появится после ingest."}</span>
+                    {sourceProbe ? (
+                      <span>
+                        source probe: {sourceProbe.ok ? "ready" : "blocked"} · {sourceProbe.sourceKind || "unknown"} ·{" "}
+                        {sourceProbe.nextAction}
+                      </span>
+                    ) : null}
+                    {liveReadiness ? (
+                      <span>
+                        live ready:{" "}
+                        {liveReadiness.endToEndReady
+                          ? "runtime ready"
+                          : liveReadiness.readyForLiveUpload
+                            ? "upload ready"
+                            : "blocked"}{" "}
+                        · {liveReadiness.nextAction}
+                      </span>
+                    ) : null}
+                  </div>
+                  {targetedCommands ? (
+                    <div className={styles.commandList}>
+                      {targetedCommands.envLines.map((line) => (
+                        <code key={`${asset.id}:${line}`} className={styles.commandCode}>
+                          {line}
+                        </code>
+                      ))}
+                      {targetedCommands.daemonCommand ? (
+                        <code className={styles.commandCode}>{targetedCommands.daemonCommand}</code>
+                      ) : null}
+                      <code className={styles.commandCode}>{targetedCommands.assetCommand}</code>
+                      {targetedCommands.jobCommand ? (
+                        <code className={styles.commandCode}>{targetedCommands.jobCommand}</code>
+                      ) : null}
+                      {targetedCommands.pointerLine ? (
+                        <code className={styles.commandCode}>{targetedCommands.pointerLine}</code>
+                      ) : null}
+                      {targetedCommands.gatewayCommand ? (
+                        <code className={styles.commandCode}>{targetedCommands.gatewayCommand}</code>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {latestAssetHealthEvent ? (
+                    <div className={styles.eventCard}>
+                      <div className={styles.eventHeader}>
+                        <span
+                          className={`${styles.healthBadge} ${getHealthSeverityClassName(latestAssetHealthEvent.severity)}`}
+                        >
+                          {formatHealthSeverity(latestAssetHealthEvent.severity)}
+                        </span>
+                        <strong>{latestAssetHealthEvent.code}</strong>
+                      </div>
+                      <div className={styles.noteList}>
+                        <span>{latestAssetHealthEvent.message}</span>
+                        <span>{formatHealthNextStep(latestAssetHealthEvent)}</span>
+                      </div>
+                    </div>
+                  ) : null}
+                  {canManage ? (
+                    <div className={styles.controls}>
+                      <button
+                        type="button"
+                        onClick={() => void probeAssetSource(asset.id)}
+                        disabled={probingAssetSourceKey === `asset:${asset.id}`}
+                      >
+                        {probingAssetSourceKey === `asset:${asset.id}` ? "Проверяем source..." : "Проверить source"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void probeAssetLiveReadiness(asset.id)}
+                        disabled={probingAssetLiveKey === `asset:${asset.id}`}
+                      >
+                        {probingAssetLiveKey === `asset:${asset.id}` ? "Проверяем live ready..." : "Проверить live ready"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void prepareAssetForRuntime(asset.id, ingestMode)}
+                        disabled={runningPrepareTargetKey === `asset:${asset.id}:${ingestMode}`}
+                      >
+                        {runningPrepareTargetKey === `asset:${asset.id}:${ingestMode}`
+                          ? "Готовим..."
+                          : "Подготовить этот asset"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runUploadForAsset(asset.id)}
+                        disabled={
+                          runningUploadTargetKey === `asset:${asset.id}` ||
+                          runningUploadTargetKey === `asset:${asset.id}:prepare-upload`
+                        }
+                      >
+                        {runningUploadTargetKey === `asset:${asset.id}` ? "Гоним..." : "Загрузить этот asset"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void prepareAndUploadAsset(asset.id)}
+                        disabled={runningUploadTargetKey === `asset:${asset.id}:prepare-upload`}
+                      >
+                        {runningUploadTargetKey === `asset:${asset.id}:prepare-upload`
+                          ? "Готовим и грузим..."
+                          : "Подготовить + загрузить"}
+                      </button>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         </section>
 
@@ -1773,6 +2164,22 @@ export default function AdminStoragePage() {
                     <span key={`${bag.id}:${path}`}>{path}</span>
                   ))}
                 </div>
+                {latestHealthEventByBagId[bag.id] ? (
+                  <div className={styles.eventCard}>
+                    <div className={styles.eventHeader}>
+                      <span
+                        className={`${styles.healthBadge} ${getHealthSeverityClassName(latestHealthEventByBagId[bag.id].severity)}`}
+                      >
+                        {formatHealthSeverity(latestHealthEventByBagId[bag.id].severity)}
+                      </span>
+                      <strong>{latestHealthEventByBagId[bag.id].code}</strong>
+                    </div>
+                    <div className={styles.noteList}>
+                      <span>{latestHealthEventByBagId[bag.id].message}</span>
+                      <span>{formatHealthNextStep(latestHealthEventByBagId[bag.id])}</span>
+                    </div>
+                  </div>
+                ) : null}
                 {canManage ? (
                   <div className={styles.controls}>
                     <button
@@ -1818,6 +2225,43 @@ export default function AdminStoragePage() {
                   После prepare/upload система должна знать не только bag, но и путь файла внутри него. Без этого real pointer
                   ещё не готов для delivery.
                 </span>
+              </article>
+            ) : null}
+          </div>
+        </section>
+
+        <section className={styles.block}>
+          <div className={styles.blockHeading}>
+            <h2>Health events</h2>
+          </div>
+          <p className={styles.blockHint}>
+            Это краткая runtime-история storage contour. По ней видно, какие bags уже подтвердились, а где gateway или
+            pointer всё ещё не проходят проверку.
+          </p>
+          <div className={styles.list}>
+            {(snapshot?.healthEvents ?? []).slice(0, 20).map((event) => (
+              <article key={event.id} className={styles.itemCard}>
+                <div className={styles.itemRow}>
+                  <div className={styles.eventHeader}>
+                    <span className={`${styles.healthBadge} ${getHealthSeverityClassName(event.severity)}`}>
+                      {formatHealthSeverity(event.severity)}
+                    </span>
+                    <strong>{event.entityId}</strong>
+                  </div>
+                  <span>{event.entityType}</span>
+                </div>
+                <div className={styles.noteList}>
+                  <span>{event.code}</span>
+                  <span>{event.message}</span>
+                  <span>{formatHealthNextStep(event)}</span>
+                  <span>{new Date(event.createdAt).toLocaleString("ru-RU")}</span>
+                </div>
+              </article>
+            ))}
+            {(snapshot?.healthEvents?.length ?? 0) === 0 ? (
+              <article className={styles.emptyState}>
+                <strong>Health events пока не появились</strong>
+                <span>Когда upload, verify или reverify начнут работать по-настоящему, здесь появится живая история контура.</span>
               </article>
             ) : null}
           </div>

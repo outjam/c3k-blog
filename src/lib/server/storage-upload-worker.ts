@@ -23,6 +23,7 @@ import {
 } from "@/lib/server/storage-registry-store";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
 import { reconcileStorageDeliveryRequestsForRuntimeAsset } from "@/lib/server/storage-delivery";
+import { getTonStorageRuntimeBridgeStatus } from "@/lib/server/storage-ton-runtime-bridge";
 import type { StorageAsset, StorageBag, StorageIngestJob, StorageIngestMode } from "@/types/storage";
 
 const UPLOAD_WORKER_STALE_MS = 20 * 60 * 1000;
@@ -89,6 +90,52 @@ const fetchTelegramFileBytes = async (fileId: string): Promise<Uint8Array | null
   return bytes.byteLength > 0 ? bytes : null;
 };
 
+const probeHttpSource = async (
+  sourceUrl: string,
+): Promise<{
+  ok: boolean;
+  httpStatus?: number;
+  contentLength?: number;
+  error?: string;
+}> => {
+  const headResponse = await fetch(sourceUrl, {
+    method: "HEAD",
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (headResponse?.ok) {
+    return {
+      ok: true,
+      httpStatus: headResponse.status,
+      contentLength: Number(headResponse.headers.get("content-length") || "0") || undefined,
+    };
+  }
+
+  const getResponse = await fetch(sourceUrl, {
+    method: "GET",
+    headers: {
+      range: "bytes=0-0",
+    },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!getResponse) {
+    return {
+      ok: false,
+      error: "source_url_fetch_failed",
+    };
+  }
+
+  await getResponse.body?.cancel().catch(() => null);
+
+  return {
+    ok: getResponse.ok,
+    httpStatus: getResponse.status,
+    contentLength: Number(getResponse.headers.get("content-length") || "0") || undefined,
+    error: getResponse.ok ? undefined : `source_url_http_${getResponse.status}`,
+  };
+};
+
 export interface StorageUploadWorkerQueueStatus {
   runtimeMode: string;
   enabled: boolean;
@@ -145,6 +192,24 @@ export interface StorageUploadRunOnceSummary {
   error?: string;
 }
 
+export interface StorageUploadSourceProbeSummary {
+  checkedAt: string;
+  assetId: string;
+  ok: boolean;
+  sourceKind?: "source_url" | "telegram_file";
+  sourcePointer?: string;
+  fileName?: string;
+  mimeType?: string;
+  httpStatus?: number;
+  contentLength?: number;
+  telegramFilePath?: string;
+  bridgeUploadMode: string;
+  realUploadReady: boolean;
+  gatewayRetrievalReady: boolean;
+  nextAction: string;
+  error?: string;
+}
+
 export interface StoragePrepareAndUploadSummary {
   assetId: string;
   mode: StorageIngestMode;
@@ -196,6 +261,43 @@ const listTonStorageBagIds = async (): Promise<string[]> => {
   return parseBagIds(output);
 };
 
+const buildAssetRuntimeEntityId = (assetId: string): string => {
+  return `asset-${String(assetId || "").trim()}`;
+};
+
+const appendAssetRuntimeEvent = async (input: {
+  assetId: string;
+  severity: "info" | "warning" | "critical";
+  code: string;
+  message: string;
+}) => {
+  const assetId = String(input.assetId || "").trim();
+
+  if (!assetId) {
+    return;
+  }
+
+  await appendStorageHealthEvent({
+    entityType: "runtime",
+    entityId: buildAssetRuntimeEntityId(assetId),
+    severity: input.severity,
+    code: input.code,
+    message: input.message,
+  }).catch(() => null);
+};
+
+const mapUploadFailureToAssetEventCode = (failureCode: string | undefined): string => {
+  switch (String(failureCode || "").trim()) {
+    case "source_url_fetch_failed":
+    case "telegram_file_fetch_failed":
+    case "missing_source_pointer":
+    case "empty_source_payload":
+      return "upload_source_fetch_failed";
+    default:
+      return "upload_cycle_failed";
+  }
+};
+
 const uploadViaTonStorageCli = async (
   claimed: ClaimedStorageUploadJob,
   source: Required<Pick<StorageUploadSourceBinary, "bytes" | "fileName">>,
@@ -219,7 +321,9 @@ const uploadViaTonStorageCli = async (
 
     const beforeBagIds = await listTonStorageBagIds();
     const createDescription = `C3K ${claimed.asset.releaseSlug || claimed.asset.id || claimed.job.id || "asset"}`;
-    const createOutput = await runDaemonCliCommand(`create ${quoteCli(sourcePath)} -d ${quoteCli(createDescription)}`);
+    const createOutput = await runDaemonCliCommand(
+      `create --copy --json ${quoteCli(sourcePath)} -d ${quoteCli(createDescription)}`,
+    );
     const afterBagIds = await listTonStorageBagIds();
     const createdBagId = afterBagIds.find((entry) => !beforeBagIds.includes(entry)) || parseBagIds(createOutput)[0];
 
@@ -367,6 +471,12 @@ export const completeTonStorageUploadJob = async (input: {
       failureMessage: "Asset not found during upload completion.",
       message: "Asset not found during upload completion.",
     });
+    await appendAssetRuntimeEvent({
+      assetId: job.assetId,
+      severity: "warning",
+      code: "upload_cycle_failed",
+      message: `Upload completion не нашёл asset ${job.assetId}.`,
+    });
     return { ok: false, reason: "asset_not_found", job: failedJob };
   }
 
@@ -400,6 +510,16 @@ export const completeTonStorageUploadJob = async (input: {
             replicasActual: existingBag.replicasActual,
           })
         : null;
+
+    await appendAssetRuntimeEvent({
+      assetId: asset.id,
+      severity: "warning",
+      code: mapUploadFailureToAssetEventCode(input.failureCode),
+      message:
+        input.failureMessage ??
+        input.message ??
+        `Upload cycle не завершился успешно для ${asset.id}.`,
+    });
 
     return { ok: true, job: failedJob, bag: failedBag };
   }
@@ -513,6 +633,16 @@ export const completeTonStorageUploadJob = async (input: {
     }).catch(() => null);
   }
 
+  await appendAssetRuntimeEvent({
+    assetId: asset.id,
+    severity: verification?.status === "failed" ? "warning" : "info",
+    code: verification?.status === "failed" ? "upload_cycle_failed" : "upload_cycle_completed",
+    message:
+      verification?.status === "failed"
+        ? `Upload завершён для ${asset.id}, но gateway verification пока не прошёл.`
+        : `Upload cycle завершён для ${asset.id}.`,
+  });
+
   return { ok: true, job: completedJob, bag: verifiedBag ?? bag };
 };
 
@@ -584,6 +714,175 @@ export const fetchTonStorageUploadSource = async (input: {
   return { ok: false, error: "missing_source_pointer" };
 };
 
+export const probeTonStorageUploadSourceForAsset = async (input: {
+  assetId: string;
+}): Promise<StorageUploadSourceProbeSummary> => {
+  const checkedAt = new Date().toISOString();
+  const assetId = String(input.assetId || "").trim();
+  const bridgeStatus = getTonStorageRuntimeBridgeStatus();
+  const assets = await listStorageAssets();
+  const asset = assets.find((entry) => entry.id === assetId) ?? null;
+
+  if (!asset) {
+    return {
+      checkedAt,
+      assetId,
+      ok: false,
+      bridgeUploadMode: bridgeStatus.uploadMode,
+      realUploadReady: bridgeStatus.realUploadReady,
+      gatewayRetrievalReady: bridgeStatus.gatewayRetrievalReady,
+      nextAction: "Такого asset нет в storage registry.",
+      error: "asset_not_found",
+    };
+  }
+
+  if (asset.sourceUrl) {
+    const sourceProbe = await probeHttpSource(asset.sourceUrl);
+    const summary: StorageUploadSourceProbeSummary = {
+      checkedAt,
+      assetId: asset.id,
+      ok: sourceProbe.ok,
+      sourceKind: "source_url",
+      sourcePointer: asset.sourceUrl,
+      fileName: asset.fileName,
+      mimeType: asset.mimeType,
+      httpStatus: sourceProbe.httpStatus,
+      contentLength: sourceProbe.contentLength,
+      bridgeUploadMode: bridgeStatus.uploadMode,
+      realUploadReady: bridgeStatus.realUploadReady,
+      gatewayRetrievalReady: bridgeStatus.gatewayRetrievalReady,
+      nextAction: !sourceProbe.ok
+        ? "Проверь доступность source URL и только потом запускай upload."
+        : bridgeStatus.uploadMode !== "tonstorage_cli"
+          ? "Источник доступен. Для живого TON Storage upload переключи bridge на tonstorage_cli."
+          : !bridgeStatus.realUploadReady
+            ? "Источник доступен. Дожми daemon CLI и worker secret, затем запускай upload."
+            : "Источник доступен. Можно запускать upload once или внешний worker.",
+      error: sourceProbe.error,
+    };
+
+    await appendAssetRuntimeEvent({
+      assetId: asset.id,
+      severity: summary.ok ? "info" : "warning",
+      code: summary.ok ? "asset_source_probe_ready" : "asset_source_probe_failed",
+      message: summary.ok
+        ? `Source URL подтверждён для ${asset.id}.`
+        : `Source URL недоступен для ${asset.id}: ${summary.error || "probe failed"}.`,
+    });
+
+    return summary;
+  }
+
+  if (asset.audioFileId) {
+    const botToken = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+
+    if (!botToken) {
+      const summary: StorageUploadSourceProbeSummary = {
+        checkedAt,
+        assetId: asset.id,
+        ok: false,
+        sourceKind: "telegram_file",
+        sourcePointer: asset.audioFileId,
+        fileName: asset.fileName,
+        mimeType: asset.mimeType,
+        bridgeUploadMode: bridgeStatus.uploadMode,
+        realUploadReady: bridgeStatus.realUploadReady,
+        gatewayRetrievalReady: bridgeStatus.gatewayRetrievalReady,
+        nextAction: "Задай TELEGRAM_BOT_TOKEN, чтобы worker мог получить исходный файл из Telegram.",
+        error: "telegram_bot_token_missing",
+      };
+
+      await appendAssetRuntimeEvent({
+        assetId: asset.id,
+        severity: "warning",
+        code: "asset_source_probe_failed",
+        message: "Для Telegram source не хватает TELEGRAM_BOT_TOKEN.",
+      });
+
+      return summary;
+    }
+
+    const fileInfo = await telegramBotRequest<TelegramFileInfo>("getFile", { file_id: asset.audioFileId });
+
+    if (!fileInfo.ok || !fileInfo.result?.file_path) {
+      const summary: StorageUploadSourceProbeSummary = {
+        checkedAt,
+        assetId: asset.id,
+        ok: false,
+        sourceKind: "telegram_file",
+        sourcePointer: asset.audioFileId,
+        fileName: asset.fileName,
+        mimeType: asset.mimeType,
+        bridgeUploadMode: bridgeStatus.uploadMode,
+        realUploadReady: bridgeStatus.realUploadReady,
+        gatewayRetrievalReady: bridgeStatus.gatewayRetrievalReady,
+        nextAction: "Проверь, что audioFileId ещё валиден и бот может вызвать getFile.",
+        error: "telegram_file_probe_failed",
+      };
+
+      await appendAssetRuntimeEvent({
+        assetId: asset.id,
+        severity: "warning",
+        code: "asset_source_probe_failed",
+        message: `Telegram source недоступен для ${asset.id}.`,
+      });
+
+      return summary;
+    }
+
+    const summary: StorageUploadSourceProbeSummary = {
+      checkedAt,
+      assetId: asset.id,
+      ok: true,
+      sourceKind: "telegram_file",
+      sourcePointer: asset.audioFileId,
+      fileName: asset.fileName,
+      mimeType: asset.mimeType,
+      telegramFilePath: fileInfo.result.file_path,
+      bridgeUploadMode: bridgeStatus.uploadMode,
+      realUploadReady: bridgeStatus.realUploadReady,
+      gatewayRetrievalReady: bridgeStatus.gatewayRetrievalReady,
+      nextAction:
+        bridgeStatus.uploadMode !== "tonstorage_cli"
+          ? "Источник доступен через Telegram. Для живого upload переключи bridge на tonstorage_cli."
+          : !bridgeStatus.realUploadReady
+            ? "Telegram source доступен. Дожми daemon CLI и worker secret, затем запускай upload."
+            : "Telegram source доступен. Можно запускать upload once или внешний worker.",
+    };
+
+    await appendAssetRuntimeEvent({
+      assetId: asset.id,
+      severity: "info",
+      code: "asset_source_probe_ready",
+      message: `Telegram source подтверждён для ${asset.id}.`,
+    });
+
+    return summary;
+  }
+
+  const summary: StorageUploadSourceProbeSummary = {
+    checkedAt,
+    assetId: asset.id,
+    ok: false,
+    fileName: asset.fileName,
+    mimeType: asset.mimeType,
+    bridgeUploadMode: bridgeStatus.uploadMode,
+    realUploadReady: bridgeStatus.realUploadReady,
+    gatewayRetrievalReady: bridgeStatus.gatewayRetrievalReady,
+    nextAction: "Укажи source URL или Telegram file id для этого asset перед живым upload.",
+    error: "missing_source_pointer",
+  };
+
+  await appendAssetRuntimeEvent({
+    assetId: asset.id,
+    severity: "warning",
+    code: "asset_source_probe_failed",
+    message: `У ${asset.id} нет source URL или Telegram file id для live upload.`,
+  });
+
+  return summary;
+};
+
 export const runSimulatedTonStorageUploadPass = async (
   limit = 5,
 ): Promise<SimulatedTonStorageUploadSummary> => {
@@ -643,8 +942,15 @@ export const runSingleTonStorageUploadCycle = async (input?: {
   jobId?: string;
 }): Promise<StorageUploadRunOnceSummary> => {
   const claimed = await claimTonStorageUploadJobTargeted(input);
+  const targetedAssetId = String(input?.assetId || "").trim() || claimed?.asset.id || "";
 
   if (!claimed) {
+    await appendAssetRuntimeEvent({
+      assetId: targetedAssetId,
+      severity: "warning",
+      code: "upload_cycle_not_found",
+      message: "Upload cycle не нашёл prepared job для выбранного asset.",
+    });
     const status = await getStorageUploadWorkerQueueStatus();
     return {
       processed: 0,

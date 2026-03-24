@@ -1,0 +1,17 @@
+{
+   "@type" : "storage.daemon.config",
+   "server_key" : {
+      "@type" : "pub.ed25519",
+      "key" : "rnD4elO0EgU0DSvydaQwni8K4sh2a+X60zA56akVX+M="
+   },
+   "cli_key_hash" : "KHw1WUay6VzodhrehE0hDFAvcXA7LHr8BDuxZIL4Mec=",
+   "provider_address" : "",
+   "adnl_id" : {
+      "@type" : "pub.ed25519",
+      "key" : "6qG6vWHJBQmvQuLUI4PhCcreU8VOdMj5q8h2nplGF1M="
+   },
+   "dht_id" : {
+      "@type" : "pub.ed25519",
+      "key" : "Uq3gRjDKdTvUiC1x74p86Hb+stMjkzFrQfYasD5vUZc="
+   }
+}

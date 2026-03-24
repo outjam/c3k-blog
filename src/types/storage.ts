@@ -189,7 +189,7 @@ export interface StorageProviderContract {
 
 export interface StorageHealthEvent {
   id: string;
-  entityType: "node" | "bag" | "provider";
+  entityType: "node" | "bag" | "provider" | "runtime";
   entityId: string;
   severity: "info" | "warning" | "critical";
   code: string;

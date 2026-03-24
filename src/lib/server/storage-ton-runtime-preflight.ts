@@ -5,6 +5,7 @@ import {
   getTonStorageBridgeEnvConfig,
   getTonStorageRuntimeBridgeStatus,
 } from "@/lib/server/storage-ton-runtime-bridge";
+import { appendStorageHealthEvent } from "@/lib/server/storage-registry-store";
 import type { StorageTonRuntimePreflightSnapshot } from "@/types/storage";
 
 const execFileAsync = promisify(execFile);
@@ -53,6 +54,37 @@ const probeGatewayBase = async (
     status: response.status,
     error: response.status < 500 ? undefined : `Gateway ответил HTTP ${response.status}.`,
   };
+};
+
+const appendPreflightHealthEvent = async (snapshot: StorageTonRuntimePreflightSnapshot) => {
+  const severity: "info" | "warning" | "critical" = snapshot.overallReady
+    ? "info"
+    : snapshot.uploadMode === "simulated"
+      ? "info"
+      : snapshot.cliChecked && !snapshot.cliOk && snapshot.gatewayChecked && !snapshot.gatewayOk
+        ? "critical"
+        : "warning";
+
+  const code = snapshot.overallReady
+    ? "bridge_preflight_ok"
+    : snapshot.uploadMode === "simulated"
+      ? "bridge_preflight_simulated"
+      : "bridge_preflight_failed";
+
+  const messageParts = [
+    `mode ${snapshot.uploadMode}`,
+    snapshot.cliChecked ? `cli ${snapshot.cliOk ? "ok" : "failed"}` : "cli skipped",
+    snapshot.gatewayChecked ? `gateway ${snapshot.gatewayOk ? "ok" : "failed"}` : "gateway skipped",
+    snapshot.nextActions[0] || snapshot.notes[0] || "",
+  ].filter(Boolean);
+
+  await appendStorageHealthEvent({
+    entityType: "runtime",
+    entityId: "tonstorage-bridge",
+    severity,
+    code,
+    message: messageParts.join(" · "),
+  }).catch(() => null);
 };
 
 export const runTonStorageRuntimePreflight = async (): Promise<StorageTonRuntimePreflightSnapshot> => {
@@ -152,6 +184,8 @@ export const runTonStorageRuntimePreflight = async (): Promise<StorageTonRuntime
   if (snapshot.nextActions.length === 0 && !snapshot.overallReady) {
     snapshot.nextActions.push("Проверь runtime probe конкретного asset после настройки CLI и gateway.");
   }
+
+  await appendPreflightHealthEvent(snapshot);
 
   return snapshot;
 };

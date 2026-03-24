@@ -234,7 +234,7 @@ Status: done
 
 ### Sprint 10 — Real TON Storage Test Runtime
 
-Status: current
+Status: done
 
 Цель:
 - перейти от test placeholders к реальному `TON Storage` на тестовом контуре
@@ -269,12 +269,21 @@ Status: current
 - [x] Для pointer-ready bags теперь есть bulk runtime reverify flow
 - [x] Внешний upload worker теперь можно таргетировать по `asset`, `bag` или `job`
 - [x] Storage admin теперь показывает готовые worker-команды для живого `tonstorage_cli` прогона
-- [ ] Реальный upload выбранных assets в `TON Storage` test environment
-- [ ] Реальные bag/storage pointer для delivery layer
+- [x] Storage admin теперь показывает runtime health events и next steps по bags после upload/verify/reverify
+- [x] Storage admin теперь подсказывает следующий шаг прямо на карточке asset
+- [x] Bridge preflight теперь тоже пишет runtime health events и остаётся в общей storage-истории
+- [x] Для конкретного asset теперь можно отдельно проверить source readiness перед живым upload
+- [x] Source/upload события теперь сохраняются и прямо на карточке asset
+- [x] Asset runtime history теперь одинаково покрывает и внешний worker completion path
+- [x] Для asset теперь есть единый live readiness verdict перед реальным tonstorage_cli upload
+- [x] После live readiness asset-карточка сразу даёт targeted worker-команды для живого прогона
+- [x] После source/prepare/upload/reverify asset-карточка автоматически обновляет live readiness и не оставляет устаревшие команды
+- [x] Реальный upload выбранных assets в `TON Storage` test environment
+- [x] Реальные bag/storage pointer для delivery layer
 
 ### Sprint 11 — Desktop Node Runtime and Storage Program Prep
 
-Status: queued
+Status: current
 
 Цель:
 - превратить desktop scaffold в реальный companion-клиент для `C3K Storage Node` и подготовки community storage program

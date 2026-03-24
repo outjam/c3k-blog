@@ -285,6 +285,13 @@
 - `/api/storage/ingest/worker/[id]/source`
   - защищённый source endpoint для внешнего upload worker
   - отдаёт байты исходного файла по claimed job и `worker lock`
+- `/api/storage/runtime-gateway`
+  - встроенный local TON runtime gateway health/status endpoint
+  - используется как app-level gateway base в `tonstorage_cli` mode, если внешний HTTP gateway не задан
+- `/api/storage/runtime-gateway/[bagId]/[[...filePath]]`
+  - встроенный local TON runtime gateway для чтения реального файла из bag через `storage-daemon-cli`
+  - поддерживает `HEAD` и `GET`
+  - позволяет delivery/runtime probe читать реальный `tonstorage://` pointer без отдельного внешнего proxy
 - `/api/desktop/runtime`
   - runtime contract для `C3K Desktop Client`
   - единая конфигурация для Electron shell, local gateway и web onboarding

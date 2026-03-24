@@ -171,6 +171,121 @@
   - targeted запуск по asset/job
 - Это делает путь к первому реальному `tonstorage_cli` тесту уже не “надо знать систему”, а “взял готовую команду и запустил”.
 
+### 18. Health events стали видны прямо в storage admin
+
+- В storage dashboard появился отдельный runtime health layer.
+- Теперь видно:
+  - последние события upload/verify/reverify
+  - какой bag дал `verified`, а какой `failed`
+  - какой следующий шаг нужен оператору после warning-события
+- Кроме отдельного списка событий, последний health signal теперь выводится и прямо в карточке bag.
+- Это сильно помогает на первом живом `TON Storage` тесте: можно смотреть не только на статус bag, но и на последнюю причину, почему contour сейчас выглядит именно так.
+
+### 19. Asset-карточки стали подсказывать следующий шаг
+
+- На карточках assets теперь есть короткая подсказка, что делать дальше по pipeline.
+- Вместо ручного чтения `job status`, `bag status` и `runtime status` оператор получает человеческое направление:
+  - подготовить asset
+  - дождаться ingest
+  - запускать upload
+  - делать runtime reverify
+  - или уже проверять delivery
+- Для первого живого testnet-прогона это очень полезно, потому что storage admin начинает реально вести пользователя по шагам.
+
+### 20. Bridge preflight вошёл в общую runtime history
+
+- Результат `Проверить daemon/gateway` теперь записывается как runtime event.
+- То есть bridge readiness больше не живёт только в одном разовом ответе кнопки.
+- В истории уже можно увидеть:
+  - `bridge_preflight_ok`
+  - `bridge_preflight_simulated`
+  - `bridge_preflight_failed`
+- Это делает operator UX гораздо сильнее: при первом живом тесте уже видно не только текущее состояние, но и что именно происходило с bridge между попытками.
+
+### 21. Source probe для asset перед живым upload
+
+- На карточках assets теперь можно отдельно проверить сам источник файла.
+- Это даёт быстрый ответ:
+  - отвечает ли `sourceUrl`
+  - жив ли `audioFileId`
+  - можно ли вообще идти в живой upload этого asset
+- Для первого реального testnet-прогона это очень практично: оператор сначала подтверждает source, потом запускает upload, а не наоборот.
+
+### 22. Asset получил собственную runtime history
+
+- После этого шага storage admin пишет события не только по bridge и bag, но и по самому asset.
+- Поэтому прямо на карточке файла теперь видно:
+  - source probe прошёл или нет
+  - upload нашёл prepared job или нет
+  - upload завершился или упал
+- Это ещё сильнее приближает нас к реальному операторскому инструменту для live `TON Storage` теста.
+
+### 23. Asset-history стала общей и для внешнего worker
+
+- Логика записи asset-level runtime events теперь живёт не только в server-side upload path, а глубже, в completion flow.
+- Поэтому внешний worker, simulated upload и server-side upload now пишут одну и ту же историю.
+- Это делает storage admin гораздо надёжнее как операторский экран для живого теста: больше нет разницы между путями upload с точки зрения диагностики.
+
+### 24. Live readiness verdict по asset
+
+- После этого шага у asset появился почти финальный operator-check перед живым upload.
+- Он в одном месте собирает:
+  - готовность source
+  - готовность bridge
+  - наличие prepared job
+  - bag/runtime status
+- Это уже очень близко к завершению подготовительной части `Sprint 10`: дальше остаётся сам живой прогон через настоящий `tonstorage_cli + gateway`.
+
+### 25. Targeted worker-команды теперь привязаны к asset
+
+- После `live readiness` на карточке asset теперь сразу видны команды для внешнего worker именно по этому файлу.
+- Это закрывает последний UX-разрыв перед живым тестом:
+  - не нужно искать job вручную
+  - не нужно пересобирать shell-команду
+  - всё уже лежит рядом с verdict по asset
+
+### 26. Командный пакет на asset-карточке стал цельным
+
+- После этого шага asset-карточка больше не собирает worker-команды из повторяющихся вызовов helper прямо в JSX.
+- Теперь там есть один нормальный per-asset command pack:
+  - env bootstrap
+  - daemon probe
+  - targeted `--asset`
+  - targeted `--job`
+  - gateway check
+  - pointer line
+- Это небольшой, но очень полезный шаг перед живым тестом: оператору проще доверять экрану, когда он не расползается на дублируемую логику.
+
+### 27. Live readiness теперь не застаивается после prepare/upload
+
+- До этого карточка asset могла честно показывать старый `live readiness`, хотя prepare, upload или reverify уже изменили реальное состояние pipeline.
+- Теперь после:
+  - `Проверить source`
+  - `Подготовить этот asset`
+  - `Загрузить этот asset`
+  - `Подготовить + загрузить`
+  - `Перепроверить runtime`
+  asset автоматически пересобирает свой `live readiness`.
+- Это важно именно для первого живого `TON Storage` теста: оператор больше не пойдёт запускать worker по устаревшим командам или по старому verdict.
+
+### 28. Внутри приложения появился свой TON runtime gateway
+
+- После этого шага чтение реального bag больше не зависит только от внешнего HTTP gateway.
+- Появился встроенный app-level route:
+  - health endpoint
+  - file endpoint по `bagId/filePath`
+- Он читает bag через живой `storage-daemon-cli`, а upload path теперь использует `create --copy --json`, чтобы файл реально жил внутри daemon storage.
+
+### 29. Sprint 10 реально закрыт живым local test
+
+- В этой же сессии были:
+  - скачаны официальные TON binaries для mac arm64
+  - поднят локальный `storage-daemon` на testnet config
+  - реально создан bag
+  - реальный файл из него возвращён через `/api/storage/runtime-gateway/<BagID>/hello.txt`
+- Это уже не simulated contour.
+- Это и есть первый честный local end-to-end runtime test для `Sprint 10`.
+
 ## Зачем это было нужно
 
 - До этого upload completion говорил только “bag создан” или “pointer записан”.
@@ -181,4 +296,7 @@
 
 ## Следующий шаг
 
-- Поднять первый живой `storage-daemon/gateway` contour и прогнать выбранный asset уже не через simulated upload, а через настоящий testnet bridge.
+- Перейти в `Sprint 11` и подключать desktop node runtime к уже живому storage contour:
+  - локальный статус ноды
+  - desktop retrieval path
+  - реальные runtime-точки на карте нод

@@ -9,6 +9,22 @@ const normalizeBaseUrl = (value: unknown): string | undefined => {
   return normalized ? normalized : undefined;
 };
 
+const resolvePublicBaseUrl = (): string | undefined => {
+  const explicit = normalizeBaseUrl(process.env.TELEGRAM_WEBHOOK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL);
+
+  if (explicit) {
+    return explicit;
+  }
+
+  const vercelUrl = normalizeText(process.env.VERCEL_URL);
+  if (vercelUrl) {
+    return `https://${vercelUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  }
+
+  const port = normalizeText(process.env.PORT) || "3000";
+  return `http://127.0.0.1:${port}`;
+};
+
 const parseBridgeMode = (value: unknown): StorageTonUploadBridgeMode => {
   return normalizeText(value).toLowerCase() === "tonstorage_cli" ? "tonstorage_cli" : "simulated";
 };
@@ -33,6 +49,11 @@ const encodePath = (path: string | undefined): string => {
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
+};
+
+const buildLocalTonStorageGatewayBase = (): string | undefined => {
+  const publicBaseUrl = resolvePublicBaseUrl();
+  return publicBaseUrl ? `${publicBaseUrl}/api/storage/runtime-gateway` : undefined;
 };
 
 export interface TonStorageBridgeEnvConfig {
@@ -85,7 +106,8 @@ export const buildTonStorageGatewayFetchUrl = (input: {
   bagId?: string;
   fileName?: string;
 }): string | null => {
-  const gatewayBase = normalizeBaseUrl(process.env.C3K_STORAGE_TON_HTTP_GATEWAY_BASE);
+  const config = getTonStorageBridgeEnvConfig();
+  const gatewayBase = config.gatewayBase;
 
   if (!gatewayBase) {
     return null;
@@ -107,7 +129,9 @@ export const getTonStorageBridgeEnvConfig = (): TonStorageBridgeEnvConfig => {
   const workerSecretConfigured = Boolean(normalizeText(process.env.C3K_STORAGE_WORKER_SECRET));
   const daemonCliBin = normalizeText(process.env.C3K_STORAGE_TON_DAEMON_CLI_BIN) || "storage-daemon-cli";
   const daemonCliArgs = parseJsonArray(process.env.C3K_STORAGE_TON_DAEMON_CLI_ARGS_JSON);
-  const gatewayBase = normalizeBaseUrl(process.env.C3K_STORAGE_TON_HTTP_GATEWAY_BASE);
+  const explicitGatewayBase = normalizeBaseUrl(process.env.C3K_STORAGE_TON_HTTP_GATEWAY_BASE);
+  const localGatewayBase = uploadMode === "tonstorage_cli" ? buildLocalTonStorageGatewayBase() : undefined;
+  const gatewayBase = explicitGatewayBase || localGatewayBase;
 
   return {
     uploadMode,
@@ -132,7 +156,11 @@ export const getTonStorageRuntimeBridgeStatus = (): StorageTonRuntimeBridgeStatu
   if (!gatewayBase) {
     missing.push("Не задан C3K_STORAGE_TON_HTTP_GATEWAY_BASE для чтения tonstorage:// pointer через HTTP gateway.");
   } else {
-    notes.push("Gateway base позволит web и Telegram выдаче читать реальные tonstorage:// pointers.");
+    notes.push(
+      process.env.C3K_STORAGE_TON_HTTP_GATEWAY_BASE
+        ? "Gateway base позволит web и Telegram выдаче читать реальные tonstorage:// pointers."
+        : "Для чтения tonstorage:// pointer будет использоваться встроенный local runtime gateway приложения.",
+    );
   }
 
   if (uploadMode === "tonstorage_cli") {
