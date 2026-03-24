@@ -27,6 +27,8 @@ export type StorageBagStatus =
   | "degraded"
   | "disabled";
 
+export type StorageBagRuntimeFetchStatus = "pending" | "verified" | "failed";
+
 export type StorageNodeType =
   | "owned_provider"
   | "partner_provider"
@@ -123,6 +125,11 @@ export interface StorageBag {
   status: StorageBagStatus;
   replicasTarget: number;
   replicasActual: number;
+  runtimeFetchStatus?: StorageBagRuntimeFetchStatus;
+  runtimeFetchCheckedAt?: string;
+  runtimeFetchVerifiedAt?: string;
+  runtimeFetchUrl?: string;
+  runtimeFetchError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,6 +148,11 @@ export interface StorageNode {
   userTelegramId?: number;
   walletAddress?: string;
   nodeLabel: string;
+  publicLabel?: string;
+  city?: string;
+  countryCode?: string;
+  latitude?: number;
+  longitude?: number;
   nodeType: StorageNodeType;
   platform: StorageNodePlatform;
   status: StorageNodeStatus;

@@ -89,6 +89,16 @@ const normalizeWalletAddress = (value: unknown): string | undefined => {
   return normalized || undefined;
 };
 
+const normalizeLatitude = (value: unknown): number | undefined => {
+  const parsed = Number(value ?? "");
+  return Number.isFinite(parsed) && parsed >= -90 && parsed <= 90 ? parsed : undefined;
+};
+
+const normalizeLongitude = (value: unknown): number | undefined => {
+  const parsed = Number(value ?? "");
+  return Number.isFinite(parsed) && parsed >= -180 && parsed <= 180 ? parsed : undefined;
+};
+
 const emptyState = (now = new Date().toISOString()): StorageRegistryState => ({
   assets: {},
   bags: {},
@@ -182,6 +192,20 @@ const normalizeBag = (id: string, value: unknown, now: string): StorageBag | nul
         : "draft",
     replicasTarget: normalizeNonNegativeInt(source.replicasTarget),
     replicasActual: normalizeNonNegativeInt(source.replicasActual),
+    runtimeFetchStatus:
+      source.runtimeFetchStatus === "pending" ||
+      source.runtimeFetchStatus === "verified" ||
+      source.runtimeFetchStatus === "failed"
+        ? source.runtimeFetchStatus
+        : undefined,
+    runtimeFetchCheckedAt: source.runtimeFetchCheckedAt
+      ? normalizeIsoDateTime(source.runtimeFetchCheckedAt, now)
+      : undefined,
+    runtimeFetchVerifiedAt: source.runtimeFetchVerifiedAt
+      ? normalizeIsoDateTime(source.runtimeFetchVerifiedAt, now)
+      : undefined,
+    runtimeFetchUrl: normalizeOptionalText(source.runtimeFetchUrl, 3000),
+    runtimeFetchError: normalizeOptionalText(source.runtimeFetchError, 500),
     createdAt: normalizeIsoDateTime(source.createdAt, now),
     updatedAt: normalizeIsoDateTime(source.updatedAt, now),
   };
@@ -227,6 +251,11 @@ const normalizeNode = (id: string, value: unknown, now: string): StorageNode | n
     userTelegramId: normalizeTelegramUserId(source.userTelegramId),
     walletAddress: normalizeWalletAddress(source.walletAddress),
     nodeLabel,
+    publicLabel: normalizeOptionalText(source.publicLabel, 120),
+    city: normalizeOptionalText(source.city, 120),
+    countryCode: normalizeOptionalText(source.countryCode, 8),
+    latitude: normalizeLatitude(source.latitude),
+    longitude: normalizeLongitude(source.longitude),
     nodeType:
       source.nodeType === "owned_provider" ||
       source.nodeType === "partner_provider" ||
@@ -826,6 +855,11 @@ export const upsertStorageBag = async (input: {
   status?: StorageBag["status"];
   replicasTarget?: number;
   replicasActual?: number;
+  runtimeFetchStatus?: StorageBag["runtimeFetchStatus"];
+  runtimeFetchCheckedAt?: string | null;
+  runtimeFetchVerifiedAt?: string | null;
+  runtimeFetchUrl?: string | null;
+  runtimeFetchError?: string | null;
 }): Promise<StorageBag | null> => {
   const assetId = normalizeSafeId(input.assetId, 120);
 
@@ -850,6 +884,27 @@ export const upsertStorageBag = async (input: {
       status: input.status ?? existing?.status ?? "draft",
       replicasTarget: normalizeNonNegativeInt(input.replicasTarget ?? existing?.replicasTarget ?? 0),
       replicasActual: normalizeNonNegativeInt(input.replicasActual ?? existing?.replicasActual ?? 0),
+      runtimeFetchStatus: input.runtimeFetchStatus ?? existing?.runtimeFetchStatus,
+      runtimeFetchCheckedAt:
+        input.runtimeFetchCheckedAt === null
+          ? undefined
+          : input.runtimeFetchCheckedAt
+            ? normalizeIsoDateTime(input.runtimeFetchCheckedAt, now)
+            : existing?.runtimeFetchCheckedAt,
+      runtimeFetchVerifiedAt:
+        input.runtimeFetchVerifiedAt === null
+          ? undefined
+          : input.runtimeFetchVerifiedAt
+            ? normalizeIsoDateTime(input.runtimeFetchVerifiedAt, now)
+            : existing?.runtimeFetchVerifiedAt,
+      runtimeFetchUrl:
+        input.runtimeFetchUrl === null
+          ? undefined
+          : normalizeOptionalText(input.runtimeFetchUrl, 3000) ?? existing?.runtimeFetchUrl,
+      runtimeFetchError:
+        input.runtimeFetchError === null
+          ? undefined
+          : normalizeOptionalText(input.runtimeFetchError, 500) ?? existing?.runtimeFetchError,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
@@ -907,6 +962,106 @@ export const upsertStorageBagFile = async (input: {
   });
 
   return next?.bagFiles[id] ?? null;
+};
+
+export const appendStorageHealthEvent = async (input: {
+  entityType: "node" | "bag" | "provider";
+  entityId: string;
+  severity: "info" | "warning" | "critical";
+  code: string;
+  message: string;
+}): Promise<StorageHealthEvent | null> => {
+  const entityId = normalizeSafeId(input.entityId, 120);
+  const code = normalizeSafeId(input.code, 120);
+  const message = normalizeText(input.message, 500);
+
+  if (!entityId || !code || !message) {
+    return null;
+  }
+
+  const event: StorageHealthEvent = {
+    id: normalizeSafeId(`${input.entityType}:${entityId}:${Date.now()}`, 120) || `healthevent-${Date.now()}`,
+    entityType: input.entityType,
+    entityId,
+    severity: input.severity,
+    code,
+    message,
+    createdAt: new Date().toISOString(),
+  };
+
+  const next = await mutateState((current) => ({
+    ...current,
+    healthEvents: [event, ...current.healthEvents].slice(0, 500),
+  }));
+
+  return next?.healthEvents.find((entry) => entry.id === event.id) ?? event;
+};
+
+export const upsertStorageNode = async (input: {
+  id?: string;
+  userTelegramId?: number;
+  walletAddress?: string;
+  nodeLabel: string;
+  publicLabel?: string;
+  city?: string;
+  countryCode?: string;
+  latitude?: number;
+  longitude?: number;
+  nodeType?: StorageNode["nodeType"];
+  platform?: StorageNode["platform"];
+  status?: StorageNode["status"];
+  diskAllocatedBytes?: number;
+  diskUsedBytes?: number;
+  bandwidthLimitKbps?: number;
+  lastSeenAt?: string | null;
+}): Promise<StorageNode | null> => {
+  const nodeLabel = normalizeText(input.nodeLabel, 120);
+
+  if (!nodeLabel) {
+    return null;
+  }
+
+  const id = normalizeSafeId(input.id ?? `node-${Date.now()}`, 120) || `node-${Date.now()}`;
+
+  const next = await mutateState((current) => {
+    const now = new Date().toISOString();
+    const existing = current.nodes[id];
+    const node: StorageNode = {
+      id,
+      userTelegramId: normalizeTelegramUserId(input.userTelegramId) ?? existing?.userTelegramId,
+      walletAddress: normalizeWalletAddress(input.walletAddress) ?? existing?.walletAddress,
+      nodeLabel,
+      publicLabel: normalizeOptionalText(input.publicLabel, 120) ?? existing?.publicLabel,
+      city: normalizeOptionalText(input.city, 120) ?? existing?.city,
+      countryCode: normalizeOptionalText(input.countryCode, 8) ?? existing?.countryCode,
+      latitude: normalizeLatitude(input.latitude) ?? existing?.latitude,
+      longitude: normalizeLongitude(input.longitude) ?? existing?.longitude,
+      nodeType: input.nodeType ?? existing?.nodeType ?? "community_node",
+      platform: input.platform ?? existing?.platform ?? "linux",
+      status: input.status ?? existing?.status ?? "candidate",
+      diskAllocatedBytes: normalizeNonNegativeInt(input.diskAllocatedBytes ?? existing?.diskAllocatedBytes ?? 0),
+      diskUsedBytes: normalizeNonNegativeInt(input.diskUsedBytes ?? existing?.diskUsedBytes ?? 0),
+      bandwidthLimitKbps: normalizeNonNegativeInt(input.bandwidthLimitKbps ?? existing?.bandwidthLimitKbps ?? 0),
+      lastSeenAt:
+        input.lastSeenAt === null
+          ? undefined
+          : input.lastSeenAt
+            ? normalizeIsoDateTime(input.lastSeenAt, now)
+            : existing?.lastSeenAt,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+
+    return {
+      ...current,
+      nodes: {
+        ...current.nodes,
+        [id]: node,
+      },
+    };
+  });
+
+  return next?.nodes[id] ?? null;
 };
 
 export const deleteStorageAssetsByIds = async (ids: string[]): Promise<string[]> => {

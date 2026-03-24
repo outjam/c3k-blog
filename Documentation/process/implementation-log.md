@@ -1,5 +1,83 @@
 # Implementation Log
 
+## 2026-03-24
+
+### Sprint 10 slice: runtime pointer verification and bag-file manifest
+
+- [storage upload completion](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) теперь не заканчивается просто записью `bagId/pointer`:
+  - после completion создаётся `bag file` запись
+  - runtime pointer пробуется через gateway
+  - bag получает статус `runtimeFetchStatus`
+  - в `healthEvents` пишется `verified` или `failed`
+- Для этого добавлен отдельный helper:
+  - [storage-ton-runtime-verification.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-verification.ts)
+- [storage registry](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts) расширен:
+  - `runtimeFetchStatus`
+  - `runtimeFetchCheckedAt`
+  - `runtimeFetchVerifiedAt`
+  - `runtimeFetchUrl`
+  - `runtimeFetchError`
+  - `appendStorageHealthEvent(...)`
+- [runtime diagnostics](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-diagnostics.ts) теперь считают:
+  - `realPointerBags`
+  - `verifiedPointerBags`
+  - `failedPointerBags`
+- [storage admin API](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/route.ts) и [client types](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) теперь отдают ещё и `bagFiles`
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) теперь показывает:
+  - verified/failed runtime pointers
+  - bag file manifest
+  - per-bag runtime fetch status и gateway URL
+- [external worker route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/ingest/worker/route.ts) и [local worker script](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/storage-testnet-worker.mjs) расширены полем `filePath`
+
+### Sprint 10 slice: verified runtime pointer wins in delivery
+
+- [storage-runtime-fetch.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-fetch.ts) теперь умеет:
+  - читать `bagFiles`
+  - выбирать основной путь файла внутри bag
+  - по флагу `preferRuntimePointer` отдавать `tonstorage gateway` раньше legacy `sourceUrl`
+- Это подключено в:
+  - [storage delivery service](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts)
+  - [web auth-proxy download route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/[id]/file/route.ts)
+  - [runtime probe](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-probe.ts)
+  - [runtime diagnostics](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-diagnostics.ts)
+- В результате verified bag теперь не просто отображается в админке, а реально начинает влиять на:
+  - web download
+  - Telegram delivery queue
+  - operator runtime checks
+
+### Зачем это сделано
+
+- раньше bag мог быть verified, но user-facing delivery всё равно продолжал брать старый `deliveryUrl`
+- это оставляло `TON Storage` рядом с продуктом, а не внутри самого delivery layer
+- теперь verified runtime действительно становится приоритетным источником выдачи
+
+### Sprint 10 slice: upload completion wakes pending delivery requests
+
+- [storage-delivery.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts) получил `reconcileStorageDeliveryRequestsForRuntimeAsset(...)`
+- [storage-upload-worker.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) теперь вызывает reconcile после upload completion
+- Это означает, что как только asset/bag становится delivery-ready, старые запросы по нему могут автоматически перейти:
+  - из `pending_asset_mapping` в `ready`
+  - из `pending_asset_mapping` в `processing` для Telegram
+
+### Зачем это сделано
+
+- раньше upload completion улучшал runtime state, но уже созданные user requests оставались в старом статусе до ручного retry
+- это создавало лишний разрыв между storage runtime и пользовательским опытом
+- теперь storage contour ведёт себя ближе к живой системе: runtime появился — ожидающие запросы ожили
+
+### Зачем это сделано
+
+- bag/pointer сам по себе ещё не доказывает, что пользователь реально сможет скачать файл
+- для delivery layer важно знать не только `BagID`, но и конкретный путь файла внутри bag
+- оператору нужен честный ответ:
+  - pointer уже реально читается через gateway
+  - или upload завершился, но runtime fetch ещё не подтверждён
+
+### Проверка
+
+- `npm run typecheck`
+- targeted `eslint` по storage registry/runtime/upload/admin файлам
+
 ## 2026-03-19
 
 ### Sprint 09 bugfix: batched admin storage sync
@@ -1683,3 +1761,28 @@
 - Важный эффект:
   - карта больше не живёт page-local hardcode
   - следующий шаг уже не UI refactor, а замена preview node points на реальные runtime данные
+
+### Desktop/runtime storage nodes slice
+
+- `StorageNode` расширен публичными geo-полями:
+  - `publicLabel`
+  - `city`
+  - `countryCode`
+  - `latitude`
+  - `longitude`
+  - это в [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts)
+- В storage registry добавлен `upsertStorageNode(...)`:
+  - [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts)
+- Добавлен admin route для нод:
+  - [src/app/api/admin/storage/nodes/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/nodes/route.ts)
+- Admin storage dashboard теперь умеет:
+  - создавать storage-ноду с координатами
+  - показывать текущий список нод
+  - это в [src/app/admin/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx)
+- `desktop runtime contract` переведён на async и теперь строит карту из реальных storage nodes, если они есть:
+  - [src/lib/server/desktop-runtime.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts)
+  - [src/app/api/desktop/runtime/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/desktop/runtime/route.ts)
+  - [src/types/desktop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/desktop.ts)
+- Важный эффект:
+  - карта нод в desktop больше не зависит только от preview-фолбэка
+  - как только в registry появляются реальные ноды с координатами, они автоматически попадают в runtime contract

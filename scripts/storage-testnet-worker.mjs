@@ -137,6 +137,7 @@ const uploadViaTonStorageCli = async (claim, source) => {
     return {
       bagExternalId: createdBagId,
       tonstorageUri: pointer,
+      filePath: safeFileName,
       replicasActual: 1,
       replicasTarget: 3,
       bagStatus: "uploaded",
@@ -226,6 +227,9 @@ const runOnce = async () => {
         : {
             bagExternalId: claimed.uploadTarget?.existingBagExternalId,
             tonstorageUri: toPointer(claimed, checksum),
+            filePath: sanitizeFileName(
+              claimed?.asset?.fileName || claimed?.uploadTarget?.fileName || `asset.${claimed?.asset?.format || "bin"}`,
+            ),
             replicasActual: 1,
             replicasTarget: 3,
             bagStatus: "uploaded",
@@ -240,6 +244,7 @@ const runOnce = async () => {
       bagExternalId: uploadResult.bagExternalId,
       tonstorageUri: uploadResult.tonstorageUri,
       metaFileUrl: claimed.uploadTarget?.sourceUrl,
+      filePath: uploadResult.filePath,
       replicasActual: uploadResult.replicasActual,
       replicasTarget: uploadResult.replicasTarget,
       bagStatus: uploadResult.bagStatus,

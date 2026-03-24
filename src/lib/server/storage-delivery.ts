@@ -45,6 +45,14 @@ export interface TelegramStorageDeliveryWorkerStats {
   remaining: number;
 }
 
+export interface StorageDeliveryReconcileSummary {
+  scanned: number;
+  updated: number;
+  ready: number;
+  processing: number;
+  pending: number;
+}
+
 const DELIVERY_WORKER_LOCK_STALE_MS = 15 * 60 * 1000;
 
 interface DeliveryAccessResolution {
@@ -373,6 +381,7 @@ const deliverToTelegram = async (input: {
     storagePointer: input.storagePointer,
     assetId: input.assetId,
     bagId: input.bagId,
+    preferRuntimePointer: true,
   });
 
   if (!resolved.ok || !resolved.bytes) {
@@ -632,6 +641,7 @@ const requestDelivery = async (input: {
       storagePointer: resolved.storagePointer,
       assetId: resolved.asset?.id,
       bagId: resolved.bag?.id,
+      preferRuntimePointer: true,
     });
 
     if (!canResolveTelegramPayload) {
@@ -672,6 +682,7 @@ const requestDelivery = async (input: {
           storagePointer: resolved.storagePointer,
           assetId: resolved.asset?.id,
           bagId: resolved.bag?.id,
+          preferRuntimePointer: true,
         });
 
   const readyRequest = await updateStorageDeliveryRequest(activeRequest.id, {
@@ -758,6 +769,103 @@ export const retryStorageDeliveryRequest = async (input: {
   });
 };
 
+export const reconcileStorageDeliveryRequestsForRuntimeAsset = async (input: {
+  assetId?: string;
+  bagId?: string;
+}): Promise<StorageDeliveryReconcileSummary> => {
+  const assetId = String(input.assetId ?? "").trim();
+  const bagId = String(input.bagId ?? "").trim();
+
+  if (!assetId && !bagId) {
+    return {
+      scanned: 0,
+      updated: 0,
+      ready: 0,
+      processing: 0,
+      pending: 0,
+    };
+  }
+
+  const requests = (await listStorageDeliveryRequests({
+    statuses: ["pending_asset_mapping", "processing", "ready"],
+    limit: 200,
+  })).filter((entry) => (assetId ? entry.resolvedAssetId === assetId : true)).filter((entry) => (bagId ? entry.resolvedBagId === bagId : true));
+
+  let updated = 0;
+  let ready = 0;
+  let processing = 0;
+  let pending = 0;
+
+  for (const request of requests) {
+    const isReadyForChannel =
+      request.channel === "desktop_download"
+        ? Boolean(request.deliveryUrl || request.storagePointer)
+        : await canResolveStorageRuntimeFetchTarget({
+            deliveryUrl: request.deliveryUrl,
+            resolvedSourceUrl: request.resolvedSourceUrl,
+            storagePointer: request.storagePointer,
+            assetId: request.resolvedAssetId,
+            bagId: request.resolvedBagId,
+            preferRuntimePointer: true,
+          });
+
+    const nextStatus =
+      request.channel === "telegram_bot"
+        ? isReadyForChannel
+          ? "processing"
+          : "pending_asset_mapping"
+        : isReadyForChannel
+          ? "ready"
+          : "pending_asset_mapping";
+
+    if (request.status === nextStatus) {
+      if (nextStatus === "ready") {
+        ready += 1;
+      } else if (nextStatus === "processing") {
+        processing += 1;
+      } else {
+        pending += 1;
+      }
+      continue;
+    }
+
+    const patched = await updateStorageDeliveryRequest(request.id, {
+      status: nextStatus,
+      failureCode: isReadyForChannel ? "" : "delivery_source_unavailable",
+      failureMessage:
+        isReadyForChannel
+          ? ""
+          : request.channel === "telegram_bot"
+            ? "Storage runtime пока не смог подготовить fetchable source для Telegram."
+            : request.channel === "desktop_download"
+              ? "Desktop storage pointer ещё не готов."
+              : "Storage runtime пока не смог подготовить fetchable source для web download.",
+      workerLockId: nextStatus === "processing" ? null : request.workerLockId ?? null,
+      workerLockedAt: nextStatus === "processing" ? null : request.workerLockedAt ?? null,
+    });
+
+    if (patched) {
+      updated += 1;
+    }
+
+    if (nextStatus === "ready") {
+      ready += 1;
+    } else if (nextStatus === "processing") {
+      processing += 1;
+    } else {
+      pending += 1;
+    }
+  }
+
+  return {
+    scanned: requests.length,
+    updated,
+    ready,
+    processing,
+    pending,
+  };
+};
+
 export const getTelegramStorageDeliveryQueueSize = async (): Promise<number> => {
   const requests = await listStorageDeliveryRequests({
     channel: "telegram_bot",
@@ -774,6 +882,7 @@ export const getTelegramStorageDeliveryQueueSize = async (): Promise<number> => 
       storagePointer: entry.storagePointer,
       assetId: entry.resolvedAssetId,
       bagId: entry.resolvedBagId,
+      preferRuntimePointer: true,
     });
 
     if (resolvable) {
@@ -836,6 +945,7 @@ export const processTelegramStorageDeliveryQueue = async (
       storagePointer: claimedRequest.storagePointer,
       assetId: claimedRequest.resolvedAssetId,
       bagId: claimedRequest.resolvedBagId,
+      preferRuntimePointer: true,
     });
 
     if (!claimedRequest.telegramChatId || !canResolveTelegramPayload) {

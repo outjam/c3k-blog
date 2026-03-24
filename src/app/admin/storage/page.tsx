@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createAdminStorageAsset,
   createAdminStorageBag,
+  createAdminStorageNode,
   fetchAdminSession,
   fetchAdminStorage,
   patchAdminStorageMembership,
@@ -46,6 +47,20 @@ export default function AdminStoragePage() {
     tonstorageUri: "",
     status: "draft",
     replicasTarget: "3",
+  });
+  const [nodeDraft, setNodeDraft] = useState({
+    nodeLabel: "",
+    publicLabel: "",
+    city: "",
+    countryCode: "",
+    latitude: "",
+    longitude: "",
+    nodeType: "community_node",
+    platform: "linux",
+    status: "candidate",
+    diskAllocatedBytes: "",
+    diskUsedBytes: "",
+    bandwidthLimitKbps: "",
   });
   const [membershipDrafts, setMembershipDrafts] = useState<
     Record<
@@ -145,6 +160,29 @@ export default function AdminStoragePage() {
     };
   }, [snapshot]);
 
+  const bagFilesByBagId = useMemo(() => {
+    return (snapshot?.bagFiles ?? []).reduce<Record<string, string[]>>((accumulator, entry) => {
+      if (!accumulator[entry.bagId]) {
+        accumulator[entry.bagId] = [];
+      }
+      accumulator[entry.bagId]?.push(entry.path);
+      return accumulator;
+    }, {});
+  }, [snapshot]);
+
+  const formatRuntimeFetchStatus = (value: string | undefined): string => {
+    switch (value) {
+      case "verified":
+        return "runtime verified";
+      case "failed":
+        return "runtime failed";
+      case "pending":
+        return "runtime pending";
+      default:
+        return "runtime unknown";
+    }
+  };
+
   const createAsset = async () => {
     const response = await createAdminStorageAsset({
       releaseSlug: assetDraft.releaseSlug || undefined,
@@ -222,6 +260,44 @@ export default function AdminStoragePage() {
       tonstorageUri: "",
       status: "draft",
       replicasTarget: "3",
+    });
+    await load();
+  };
+
+  const createNode = async () => {
+    const response = await createAdminStorageNode({
+      nodeLabel: nodeDraft.nodeLabel,
+      publicLabel: nodeDraft.publicLabel || undefined,
+      city: nodeDraft.city || undefined,
+      countryCode: nodeDraft.countryCode || undefined,
+      latitude: nodeDraft.latitude ? Number(nodeDraft.latitude) : undefined,
+      longitude: nodeDraft.longitude ? Number(nodeDraft.longitude) : undefined,
+      nodeType: nodeDraft.nodeType as "owned_provider" | "partner_provider" | "community_node",
+      platform: nodeDraft.platform as "macos" | "windows" | "linux",
+      status: nodeDraft.status as "candidate" | "active" | "degraded" | "suspended",
+      diskAllocatedBytes: nodeDraft.diskAllocatedBytes ? Number(nodeDraft.diskAllocatedBytes) : undefined,
+      diskUsedBytes: nodeDraft.diskUsedBytes ? Number(nodeDraft.diskUsedBytes) : undefined,
+      bandwidthLimitKbps: nodeDraft.bandwidthLimitKbps ? Number(nodeDraft.bandwidthLimitKbps) : undefined,
+    });
+
+    if (response.error) {
+      setError(response.error);
+      return;
+    }
+
+    setNodeDraft({
+      nodeLabel: "",
+      publicLabel: "",
+      city: "",
+      countryCode: "",
+      latitude: "",
+      longitude: "",
+      nodeType: "community_node",
+      platform: "linux",
+      status: "candidate",
+      diskAllocatedBytes: "",
+      diskUsedBytes: "",
+      bandwidthLimitKbps: "",
     });
     await load();
   };
@@ -493,6 +569,10 @@ export default function AdminStoragePage() {
                 {snapshot?.runtimeDiagnostics.bagsTotal || 0}
               </span>
               <span>pointer-ready bags: {snapshot?.runtimeDiagnostics.pointerReadyBags || 0}</span>
+              <span>real pointers: {snapshot?.runtimeDiagnostics.realPointerBags || 0}</span>
+              <span>verified pointers: {snapshot?.runtimeDiagnostics.verifiedPointerBags || 0}</span>
+              <span>failed pointers: {snapshot?.runtimeDiagnostics.failedPointerBags || 0}</span>
+              <span>bag files: {snapshot?.bagFiles.length || 0}</span>
             </div>
             <div className={styles.noteList}>
               <span>
@@ -914,8 +994,190 @@ export default function AdminStoragePage() {
                 </button>
               </div>
             </section>
+
+            <section className={styles.block}>
+              <div className={styles.blockHeading}>
+                <h2>Новая нода</h2>
+              </div>
+              <p className={styles.blockHint}>
+                Ноды нужны для desktop swarm и будущей реальной карты сети. Если указать `city` и координаты, точка сможет
+                появиться в `C3K Desktop Client` уже не как preview, а как реальная runtime-нода.
+              </p>
+              <div className={styles.formGrid}>
+                <input
+                  value={nodeDraft.nodeLabel}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      nodeLabel: event.target.value,
+                    }))
+                  }
+                  placeholder="node label"
+                />
+                <input
+                  value={nodeDraft.publicLabel}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      publicLabel: event.target.value,
+                    }))
+                  }
+                  placeholder="public label"
+                />
+                <input
+                  value={nodeDraft.city}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      city: event.target.value,
+                    }))
+                  }
+                  placeholder="city"
+                />
+                <input
+                  value={nodeDraft.countryCode}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      countryCode: event.target.value,
+                    }))
+                  }
+                  placeholder="country code"
+                />
+                <input
+                  value={nodeDraft.latitude}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      latitude: event.target.value,
+                    }))
+                  }
+                  placeholder="latitude"
+                />
+                <input
+                  value={nodeDraft.longitude}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      longitude: event.target.value,
+                    }))
+                  }
+                  placeholder="longitude"
+                />
+                <select
+                  value={nodeDraft.nodeType}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      nodeType: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="community_node">community_node</option>
+                  <option value="owned_provider">owned_provider</option>
+                  <option value="partner_provider">partner_provider</option>
+                </select>
+                <select
+                  value={nodeDraft.platform}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      platform: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="linux">linux</option>
+                  <option value="macos">macos</option>
+                  <option value="windows">windows</option>
+                </select>
+                <select
+                  value={nodeDraft.status}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      status: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="candidate">candidate</option>
+                  <option value="active">active</option>
+                  <option value="degraded">degraded</option>
+                  <option value="suspended">suspended</option>
+                </select>
+                <input
+                  value={nodeDraft.diskAllocatedBytes}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      diskAllocatedBytes: event.target.value,
+                    }))
+                  }
+                  placeholder="disk allocated bytes"
+                />
+                <input
+                  value={nodeDraft.diskUsedBytes}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      diskUsedBytes: event.target.value,
+                    }))
+                  }
+                  placeholder="disk used bytes"
+                />
+                <input
+                  value={nodeDraft.bandwidthLimitKbps}
+                  onChange={(event) =>
+                    setNodeDraft((current) => ({
+                      ...current,
+                      bandwidthLimitKbps: event.target.value,
+                    }))
+                  }
+                  placeholder="bandwidth kbps"
+                />
+                <button type="button" onClick={() => void createNode()}>
+                  Создать ноду
+                </button>
+              </div>
+            </section>
           </>
         ) : null}
+
+        <section className={styles.block}>
+          <div className={styles.blockHeading}>
+            <h2>Ноды</h2>
+          </div>
+          <p className={styles.blockHint}>
+            Это текущие runtime-точки storage сети. Ноды с координатами и не `suspended` попадают в desktop node map.
+          </p>
+
+          <div className={styles.list}>
+            {(snapshot?.nodes ?? []).map((node) => (
+              <article key={node.id} className={styles.itemCard}>
+                <div className={styles.itemRow}>
+                  <div>
+                    <strong>{node.publicLabel || node.city || node.nodeLabel}</strong>
+                    <span>{node.nodeType} · {node.platform} · {node.status}</span>
+                  </div>
+                  <span>{node.id}</span>
+                </div>
+                <div className={styles.itemMeta}>
+                  {node.city ? <span>{node.city}</span> : null}
+                  {node.countryCode ? <span>{node.countryCode}</span> : null}
+                  {typeof node.latitude === "number" && typeof node.longitude === "number" ? (
+                    <span>{node.latitude.toFixed(4)}, {node.longitude.toFixed(4)}</span>
+                  ) : (
+                    <span>Без координат</span>
+                  )}
+                  <span>disk: {node.diskUsedBytes} / {node.diskAllocatedBytes}</span>
+                  <span>bandwidth: {node.bandwidthLimitKbps} kbps</span>
+                </div>
+              </article>
+            ))}
+            {(snapshot?.nodes?.length ?? 0) === 0 ? (
+              <div className={styles.emptyState}>Пока нет ни одной storage-ноды.</div>
+            ) : null}
+          </div>
+        </section>
 
         <section className={styles.block}>
           <div className={styles.blockHeading}>
@@ -1035,7 +1297,8 @@ export default function AdminStoragePage() {
             <h2>Bags и контейнеры хранения</h2>
           </div>
           <p className={styles.blockHint}>
-            Здесь видно, какие assets уже упакованы в storage bags, в каком они статусе и сколько реплик планируется.
+            Здесь видно, какие assets уже упакованы в storage bags, в каком они статусе, сколько реплик планируется и
+            подтверждён ли runtime pointer через gateway.
           </p>
           <div className={styles.list}>
             {(snapshot?.bags ?? []).slice(0, 20).map((bag) => (
@@ -1051,9 +1314,50 @@ export default function AdminStoragePage() {
                   <span>
                     {bag.replicasActual} / {bag.replicasTarget}
                   </span>
+                  <span>{String(bag.tonstorageUri ?? "").trim() ? "pointer set" : "pointer pending"}</span>
+                  <span>{formatRuntimeFetchStatus(bag.runtimeFetchStatus)}</span>
+                  {bag.runtimeFetchUrl ? <span>{bag.runtimeFetchUrl}</span> : null}
+                  {bag.runtimeFetchError ? <span>{bag.runtimeFetchError}</span> : null}
+                  {(bagFilesByBagId[bag.id] ?? []).slice(0, 3).map((path) => (
+                    <span key={`${bag.id}:${path}`}>{path}</span>
+                  ))}
                 </div>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className={styles.block}>
+          <div className={styles.blockHeading}>
+            <h2>Bag files</h2>
+          </div>
+          <p className={styles.blockHint}>
+            Это уже не просто bag id, а конкретные пути файлов внутри bag. Именно их потом использует gateway, когда нужно
+            отдать пользователю купленный трек или релиз.
+          </p>
+          <div className={styles.list}>
+            {(snapshot?.bagFiles ?? []).slice(0, 20).map((entry) => (
+              <article key={entry.id} className={styles.itemCard}>
+                <div className={styles.itemRow}>
+                  <strong>{entry.bagId}</strong>
+                  <span>{entry.mimeType || "mime pending"}</span>
+                </div>
+                <div className={styles.itemMeta}>
+                  <span>{entry.path}</span>
+                  <span>{entry.sizeBytes} bytes</span>
+                  <span>priority: {entry.priority}</span>
+                </div>
+              </article>
+            ))}
+            {(snapshot?.bagFiles?.length ?? 0) === 0 ? (
+              <article className={styles.emptyState}>
+                <strong>Bag files пока не появились</strong>
+                <span>
+                  После prepare/upload система должна знать не только bag, но и путь файла внутри него. Без этого real pointer
+                  ещё не готов для delivery.
+                </span>
+              </article>
+            ) : null}
           </div>
         </section>
 

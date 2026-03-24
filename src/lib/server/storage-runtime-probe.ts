@@ -1,4 +1,4 @@
-import { listStorageAssets, listStorageBags } from "@/lib/server/storage-registry-store";
+import { listStorageAssets, listStorageBags, listStorageBagFiles } from "@/lib/server/storage-registry-store";
 import { resolveStorageRuntimeFetchTargetFromRegistry } from "@/lib/server/storage-runtime-fetch";
 import type { StorageAsset, StorageBag, StorageRuntimeFetchVia } from "@/types/storage";
 
@@ -97,7 +97,7 @@ export const probeStorageRuntime = async (input?: {
   assetId?: string;
   bagId?: string;
 }): Promise<StorageRuntimeProbeResult> => {
-  const [assets, bags] = await Promise.all([listStorageAssets(), listStorageBags()]);
+  const [assets, bags, bagFiles] = await Promise.all([listStorageAssets(), listStorageBags(), listStorageBagFiles()]);
   const explicitBag = input?.bagId ? bags.find((entry) => entry.id === input.bagId) ?? null : null;
   const explicitAsset = input?.assetId ? assets.find((entry) => entry.id === input.assetId) ?? null : null;
   const fallbackBag =
@@ -123,8 +123,9 @@ export const probeStorageRuntime = async (input?: {
       assetId: fallbackAsset?.id,
       bagId: fallbackBag?.id,
       storagePointer: fallbackBag?.tonstorageUri ?? fallbackBag?.bagId ?? fallbackAsset?.resourceKey,
+      preferRuntimePointer: true,
     },
-    { assets, bags },
+    { assets, bags, bagFiles },
   );
 
   if (!resolved.ok || !resolved.sourceUrl) {

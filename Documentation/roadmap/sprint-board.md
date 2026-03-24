@@ -255,6 +255,9 @@ Status: current
 - [x] Local external worker scaffold для `claim -> source -> complete`
 - [x] TON Storage bridge status: upload mode, CLI readiness и gateway retrieval readiness
 - [x] Runtime probe для конкретного asset/bag прямо из storage admin
+- [x] Runtime fetch verification и bag-file manifest после upload completion
+- [x] Verified runtime pointers начинают побеждать в web/Telegram delivery layer
+- [x] Upload completion умеет оживлять старые pending delivery requests для того же asset/bag
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 

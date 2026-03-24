@@ -2,6 +2,42 @@
 
 Этот файл хранит уже завершённые задачи проекта в более подробном виде, чем roadmap checklist.
 
+## 2026-03-24
+
+### Runtime pointer verification и bag-file manifest
+
+- После storage upload completion система теперь сохраняет не только `bagId` или `tonstorage:// pointer`, но и путь файла внутри bag.
+- Для bag появился отдельный runtime fetch state:
+  - `pending`
+  - `verified`
+  - `failed`
+- Если gateway уже может прочитать pointer, bag автоматически помечается как подтверждённый для runtime delivery.
+- Если gateway не отвечает, это теперь не скрытый технический факт, а видимая operational проблема:
+  - bag получает runtime fetch error
+  - в storage health events появляется warning
+- В storage dashboard теперь видно:
+  - сколько bags уже имеют real pointer
+  - сколько pointer уже verified
+  - у какого bag какой именно file path внутри него будет использоваться для delivery
+
+### Verified runtime pointer начинает побеждать в delivery
+
+- Если bag уже подтверждён через gateway, storage runtime теперь старается отдавать файл через `TON Storage`, а не через старый прямой `sourceUrl`.
+- Это уже влияет на:
+  - web download
+  - Telegram delivery
+  - runtime probe
+  - runtime diagnostics
+- То есть verified pointer перестал быть просто меткой в админке и начал реально участвовать в пользовательском пути скачивания файла.
+
+### Upload completion оживляет старые delivery requests
+
+- После завершения upload система теперь может автоматически пересмотреть старые `pending_asset_mapping` запросы на тот же asset/bag.
+- Если runtime уже стал рабочим, запросы переходят в:
+  - `ready` для web download
+  - `processing` для Telegram
+- Пользователю теперь реже нужен ручной retry после того, как storage runtime наконец догнал его купленный файл.
+
 ## 2026-03-19
 
 ### Batched sync для admin storage
@@ -496,3 +532,9 @@
 
 - исправлено растягивание карты по высоте
 - node map вынесена в `desktop runtime contract`, чтобы дальше подменять preview-точки реальными runtime данными
+
+### Storage nodes in registry and desktop runtime
+
+- у storage-ноды появились geo-поля и публичный label
+- в админке появилась возможность завести storage-ноду с координатами
+- desktop runtime начал строить карту из реальных registry-нod, если они уже есть

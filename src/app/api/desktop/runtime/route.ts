@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const webAppOrigin = resolvePublicBaseUrl(request);
-  const runtimeContract = getC3kDesktopRuntimeContract({ webAppOrigin });
+  const runtimeContract = await getC3kDesktopRuntimeContract({ webAppOrigin });
 
   return NextResponse.json({
     ok: true,

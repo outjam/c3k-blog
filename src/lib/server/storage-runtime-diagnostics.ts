@@ -1,5 +1,5 @@
 import { resolveStorageRuntimeFetchTargetFromRegistry } from "@/lib/server/storage-runtime-fetch";
-import type { StorageAsset, StorageBag, StorageRuntimeFetchVia } from "@/types/storage";
+import type { StorageAsset, StorageBag, StorageBagFile, StorageRuntimeFetchVia } from "@/types/storage";
 
 export interface StorageRuntimeDiagnosticsIssue {
   id: string;
@@ -14,6 +14,9 @@ export interface StorageRuntimeDiagnosticsSnapshot {
   bagsTotal: number;
   bagsResolvable: number;
   pointerReadyBags: number;
+  realPointerBags: number;
+  verifiedPointerBags: number;
+  failedPointerBags: number;
   viaCounts: Record<StorageRuntimeFetchVia, number>;
   unresolvedAssets: StorageRuntimeDiagnosticsIssue[];
   unresolvedBags: StorageRuntimeDiagnosticsIssue[];
@@ -35,6 +38,7 @@ const isPointerReadyBag = (bag: StorageBag): boolean => {
 export const buildStorageRuntimeDiagnostics = (input: {
   assets: StorageAsset[];
   bags: StorageBag[];
+  bagFiles?: StorageBagFile[];
 }): StorageRuntimeDiagnosticsSnapshot => {
   const { assets, bags } = input;
   const viaCounts = emptyViaCounts();
@@ -49,6 +53,7 @@ export const buildStorageRuntimeDiagnostics = (input: {
       {
         assetId: asset.id,
         storagePointer: asset.resourceKey,
+        preferRuntimePointer: true,
       },
       input,
     );
@@ -71,6 +76,7 @@ export const buildStorageRuntimeDiagnostics = (input: {
       {
         bagId: bag.id,
         storagePointer: bag.tonstorageUri || bag.bagId,
+        preferRuntimePointer: true,
       },
       input,
     );
@@ -84,7 +90,10 @@ export const buildStorageRuntimeDiagnostics = (input: {
     unresolvedBags.push({
       id: bag.id,
       label: `${bag.assetId} · ${bag.runtimeLabel || bag.runtimeMode || "runtime pending"} · ${bag.status}`,
-      reason: resolved.error ?? "У bag нет fetchable source для runtime.",
+      reason:
+        bag.runtimeFetchStatus === "failed" && bag.runtimeFetchError
+          ? bag.runtimeFetchError
+          : resolved.error ?? "У bag нет fetchable source для runtime.",
     });
   }
 
@@ -95,6 +104,9 @@ export const buildStorageRuntimeDiagnostics = (input: {
     bagsTotal: bags.length,
     bagsResolvable,
     pointerReadyBags: bags.filter((bag) => isPointerReadyBag(bag)).length,
+    realPointerBags: bags.filter((bag) => String(bag.tonstorageUri ?? "").trim().toLowerCase().startsWith("tonstorage://")).length,
+    verifiedPointerBags: bags.filter((bag) => bag.runtimeFetchStatus === "verified").length,
+    failedPointerBags: bags.filter((bag) => bag.runtimeFetchStatus === "failed").length,
     viaCounts,
     unresolvedAssets: unresolvedAssets.slice(0, 8),
     unresolvedBags: unresolvedBags.slice(0, 8),

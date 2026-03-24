@@ -244,6 +244,11 @@
   word-break: break-word;
 }
 
+.emptyState {
+  color: var(--tg-hint);
+  font-size: 0.8rem;
+}
+
 @media (max-width: 960px) {
   .guideGrid,
   .runtimeGrid,

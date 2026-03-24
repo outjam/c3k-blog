@@ -34,6 +34,7 @@ import type {
 import type {
   StorageAsset,
   StorageBag,
+  StorageBagFile,
   StorageDeliveryRequest,
   StorageHealthEvent,
   StorageIngestJob,
@@ -210,6 +211,9 @@ export interface AdminStorageSnapshot {
     bagsTotal: number;
     bagsResolvable: number;
     pointerReadyBags: number;
+    realPointerBags: number;
+    verifiedPointerBags: number;
+    failedPointerBags: number;
     viaCounts: Record<
       "delivery_url" | "resolved_source" | "bag_meta" | "asset_source" | "bag_http_pointer" | "tonstorage_gateway",
       number
@@ -227,6 +231,7 @@ export interface AdminStorageSnapshot {
   };
   assets: StorageAsset[];
   bags: StorageBag[];
+  bagFiles: StorageBagFile[];
   nodes: StorageNode[];
   memberships: StorageProgramMembership[];
   deliveryRequests: StorageDeliveryRequest[];
@@ -254,6 +259,25 @@ export interface AdminStorageRuntimeProbe {
   error?: string;
   assetLabel?: string;
   bagLabel?: string;
+}
+
+export interface AdminStorageNodeInput {
+  id?: string;
+  userTelegramId?: number;
+  walletAddress?: string;
+  nodeLabel: string;
+  publicLabel?: string;
+  city?: string;
+  countryCode?: string;
+  latitude?: number;
+  longitude?: number;
+  nodeType?: StorageNode["nodeType"];
+  platform?: StorageNode["platform"];
+  status?: StorageNode["status"];
+  diskAllocatedBytes?: number;
+  diskUsedBytes?: number;
+  bandwidthLimitKbps?: number;
+  lastSeenAt?: string | null;
 }
 
 export interface AdminStorageUploadSimulateSummary {
@@ -774,6 +798,31 @@ export const createAdminStorageBag = async (payload: {
     return { bag: data.bag ?? null };
   } catch {
     return { bag: null, error: "Network error" };
+  }
+};
+
+export const createAdminStorageNode = async (
+  payload: AdminStorageNodeInput,
+): Promise<{ node: StorageNode | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/nodes", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { node: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { node?: StorageNode | null };
+    return { node: data.node ?? null };
+  } catch {
+    return { node: null, error: "Network error" };
   }
 };
 

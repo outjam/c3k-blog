@@ -8,9 +8,10 @@ import {
   getDefaultDesktopGatewayConfig,
 } from "@/lib/desktop-runtime";
 import { getC3kStorageConfig } from "@/lib/storage-config";
+import { listStorageNodes } from "@/lib/server/storage-registry-store";
 import type { C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
 
-const buildDesktopNodeMap = (features: ReturnType<typeof getC3kStorageConfig>) => {
+const buildDesktopNodeMapFallback = (features: ReturnType<typeof getC3kStorageConfig>) => {
   const nodes: C3kDesktopNodeMapNode[] = [
     {
       id: "desktop-home",
@@ -68,6 +69,71 @@ const buildDesktopNodeMap = (features: ReturnType<typeof getC3kStorageConfig>) =
   };
 };
 
+const toDesktopNodeTone = (status: "candidate" | "active" | "degraded" | "suspended"): C3kDesktopNodeMapNode["tone"] => {
+  switch (status) {
+    case "active":
+      return "live";
+    case "degraded":
+      return "relay";
+    default:
+      return "ready";
+  }
+};
+
+const buildBoundsFromNodes = (nodes: C3kDesktopNodeMapNode[]): [[number, number], [number, number]] => {
+  const lons = nodes.map((entry) => entry.coordinates[0]);
+  const lats = nodes.map((entry) => entry.coordinates[1]);
+  const minLon = Math.min(...lons) - 8;
+  const maxLon = Math.max(...lons) + 8;
+  const minLat = Math.min(...lats) - 4;
+  const maxLat = Math.max(...lats) + 4;
+  return [
+    [minLon, minLat],
+    [maxLon, maxLat],
+  ];
+};
+
+const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConfig>) => {
+  const gateway = getDefaultDesktopGatewayConfig();
+  const registryNodes = await listStorageNodes();
+  const publicNodes: C3kDesktopNodeMapNode[] = registryNodes
+    .filter((entry) => typeof entry.latitude === "number" && typeof entry.longitude === "number")
+    .filter((entry) => entry.status !== "suspended")
+    .slice(0, 6)
+    .map((entry) => ({
+      id: entry.id,
+      city: entry.publicLabel || entry.city || entry.nodeLabel,
+      role: entry.nodeType === "owned_provider" ? "Owned provider" : entry.nodeType === "partner_provider" ? "Partner provider" : "Community node",
+      health: entry.status === "active" ? "Healthy" : entry.status === "degraded" ? "Degraded" : "Ready",
+      bags:
+        entry.diskAllocatedBytes > 0
+          ? `${Math.max(1, Math.round(entry.diskUsedBytes / Math.max(entry.diskAllocatedBytes / 12, 1)))} bags`
+          : `${Math.max(1, Math.round(entry.bandwidthLimitKbps / 1000) || 1)} peers`,
+      tone: toDesktopNodeTone(entry.status),
+      coordinates: [entry.longitude!, entry.latitude!],
+    }));
+
+  if (publicNodes.length === 0) {
+    return buildDesktopNodeMapFallback(features);
+  }
+
+  const gatewayNode: C3kDesktopNodeMapNode = {
+    id: "gateway-core",
+    city: "Desktop gateway",
+    role: "c3k.ton и runtime handoff",
+    health: features.tonSiteDesktopGatewayEnabled ? "Gateway ready" : "Gateway pending",
+    bags: `${gateway.host}:${gateway.port}`,
+    tone: features.tonSiteDesktopGatewayEnabled ? "relay" : "ready",
+    coordinates: publicNodes[0]?.coordinates ?? [4.9041, 52.3676],
+  };
+
+  const nodes = [gatewayNode, ...publicNodes];
+  return {
+    nodes,
+    bounds: buildBoundsFromNodes(nodes),
+  };
+};
+
 const readAppVersion = (): string => {
   try {
     const packageJsonPath = path.join(process.cwd(), "package.json");
@@ -89,9 +155,9 @@ const stripTrailingSlash = (value: string | null): string | null => {
   return value.replace(/\/+$/, "");
 };
 
-export const getC3kDesktopRuntimeContract = (options?: {
+export const getC3kDesktopRuntimeContract = async (options?: {
   webAppOrigin?: string | null;
-}): C3kDesktopRuntimeContract => {
+}): Promise<C3kDesktopRuntimeContract> => {
   const features = getC3kStorageConfig();
   const gateway = getDefaultDesktopGatewayConfig();
   const appScheme = getDefaultDesktopAppScheme();
@@ -102,6 +168,8 @@ export const getC3kDesktopRuntimeContract = (options?: {
   const storageProgramUrl = webAppOrigin ? `${webAppOrigin}/storage` : null;
   const downloadsUrl = webAppOrigin ? `${webAppOrigin}/downloads` : null;
   const runtimeUrl = webAppOrigin ? `${webAppOrigin}/api/desktop/runtime` : null;
+
+  const nodeMap = await buildDesktopNodeMap(features);
 
   return {
     appId: "culture3k.desktop",
@@ -148,7 +216,7 @@ export const getC3kDesktopRuntimeContract = (options?: {
         },
       ],
     },
-    nodeMap: buildDesktopNodeMap(features),
+    nodeMap,
     deepLinks: {
       openTonSite: buildDesktopTonSiteOpenUrl({ gateway, appScheme }).deepLink,
       openStorageExample: buildDesktopStorageOpenUrl(

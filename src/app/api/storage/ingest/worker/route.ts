@@ -18,6 +18,7 @@ interface CompleteBody {
   bagExternalId?: string;
   tonstorageUri?: string;
   metaFileUrl?: string;
+  filePath?: string;
   replicasActual?: number;
   replicasTarget?: number;
   bagStatus?: "created" | "uploaded" | "replicating" | "healthy" | "degraded" | "disabled" | "draft";
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
     bagExternalId: body.bagExternalId,
     tonstorageUri: body.tonstorageUri,
     metaFileUrl: body.metaFileUrl,
+    filePath: body.filePath,
     replicasActual: body.replicasActual,
     replicasTarget: body.replicasTarget,
     bagStatus: body.bagStatus,

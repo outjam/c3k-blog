@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   listStorageAssets,
   listStorageBags,
+  listStorageBagFiles,
   listStorageHealthEvents,
   listStorageMemberships,
   listStorageNodes,
@@ -33,9 +34,10 @@ export async function GET(request: Request) {
     return forbiddenResponse();
   }
 
-  const [assets, bags, nodes, memberships, deliveryRequests, ingestJobs, healthEvents] = await Promise.all([
+  const [assets, bags, bagFiles, nodes, memberships, deliveryRequests, ingestJobs, healthEvents] = await Promise.all([
     listStorageAssets(),
     listStorageBags(),
+    listStorageBagFiles(),
     listStorageNodes(),
     listStorageMemberships(),
     listStorageDeliveryRequests({ limit: 100 }),
@@ -43,7 +45,7 @@ export async function GET(request: Request) {
     listStorageHealthEvents(),
   ]);
   const runtimeStatus = getStorageRuntimeStatus();
-  const runtimeDiagnostics = buildStorageRuntimeDiagnostics({ assets, bags });
+  const runtimeDiagnostics = buildStorageRuntimeDiagnostics({ assets, bags, bagFiles });
   const runtimeBridge = getTonStorageRuntimeBridgeStatus();
 
   return NextResponse.json({
@@ -52,6 +54,7 @@ export async function GET(request: Request) {
     runtimeBridge,
     assets,
     bags,
+    bagFiles,
     nodes,
     memberships,
     deliveryRequests,

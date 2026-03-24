@@ -1,9 +1,10 @@
 import {
   listStorageAssets,
   listStorageBags,
+  listStorageBagFiles,
 } from "@/lib/server/storage-registry-store";
 import { buildTonStorageGatewayFetchUrl } from "@/lib/server/storage-ton-runtime-bridge";
-import type { StorageAsset, StorageBag, StorageRuntimeFetchVia } from "@/types/storage";
+import type { StorageAsset, StorageBag, StorageBagFile, StorageRuntimeFetchVia } from "@/types/storage";
 
 export interface StorageRuntimeFetchTarget {
   sourceUrl: string;
@@ -53,6 +54,18 @@ const findAssetByPointer = (assets: StorageAsset[], storagePointer: string): Sto
   return assets.find((entry) => normalizeText(entry.resourceKey) === storagePointer) ?? null;
 };
 
+const pickPrimaryBagFilePath = (bagFiles: StorageBagFile[], bagId: string, fallbackFileName?: string): string | undefined => {
+  const scoped = bagFiles
+    .filter((entry) => entry.bagId === bagId)
+    .sort((left, right) => left.priority - right.priority || left.path.localeCompare(right.path));
+
+  if (scoped[0]?.path) {
+    return scoped[0].path;
+  }
+
+  return normalizeText(fallbackFileName) || undefined;
+};
+
 const scoreBag = (bag: StorageBag): number => {
   switch (bag.status) {
     case "healthy":
@@ -87,27 +100,14 @@ export const resolveStorageRuntimeFetchTargetFromRegistry = (
     storagePointer?: string;
     assetId?: string;
     bagId?: string;
+    preferRuntimePointer?: boolean;
   },
-  registry: { assets: StorageAsset[]; bags: StorageBag[] },
+  registry: { assets: StorageAsset[]; bags: StorageBag[]; bagFiles?: StorageBagFile[] },
 ): StorageRuntimeFetchResult => {
   const { assets, bags } = registry;
+  const bagFiles = registry.bagFiles ?? [];
   const deliveryUrl = normalizeText(input.deliveryUrl);
-  if (isHttpUrl(deliveryUrl)) {
-    return {
-      ok: true,
-      sourceUrl: deliveryUrl,
-      via: "delivery_url",
-    };
-  }
-
   const resolvedSourceUrl = normalizeText(input.resolvedSourceUrl);
-  if (isHttpUrl(resolvedSourceUrl)) {
-    return {
-      ok: true,
-      sourceUrl: resolvedSourceUrl,
-      via: "resolved_source",
-    };
-  }
 
   const bagId = normalizeText(input.bagId);
   const assetId = normalizeText(input.assetId);
@@ -123,6 +123,39 @@ export const resolveStorageRuntimeFetchTargetFromRegistry = (
     (bagId ? bags.find((entry) => entry.id === bagId) ?? null : null) ??
     bagFromPointer ??
     (asset ? pickPreferredBagForAsset(bags, asset.id) : null);
+
+  const preferredBagFilePath = bag ? pickPrimaryBagFilePath(bagFiles, bag.id, asset?.fileName) : normalizeText(asset?.fileName) || undefined;
+  const tonstorageGatewayUrl = buildTonStorageGatewayFetchUrl({
+    storagePointer: bag?.tonstorageUri ?? storagePointer,
+    bagId: bag?.bagId,
+    fileName: preferredBagFilePath,
+  });
+
+  if (input.preferRuntimePointer && bag?.runtimeFetchStatus === "verified" && tonstorageGatewayUrl) {
+    return {
+      ok: true,
+      sourceUrl: tonstorageGatewayUrl,
+      via: "tonstorage_gateway",
+      bag,
+      asset,
+    };
+  }
+
+  if (isHttpUrl(deliveryUrl)) {
+    return {
+      ok: true,
+      sourceUrl: deliveryUrl,
+      via: "delivery_url",
+    };
+  }
+
+  if (isHttpUrl(resolvedSourceUrl)) {
+    return {
+      ok: true,
+      sourceUrl: resolvedSourceUrl,
+      via: "resolved_source",
+    };
+  }
 
   const bagMetaUrl = pickBagMetaUrl(bag);
   if (bagMetaUrl) {
@@ -146,11 +179,6 @@ export const resolveStorageRuntimeFetchTargetFromRegistry = (
     };
   }
 
-  const tonstorageGatewayUrl = buildTonStorageGatewayFetchUrl({
-    storagePointer: bag?.tonstorageUri ?? storagePointer,
-    bagId: bag?.bagId,
-    fileName: asset?.fileName,
-  });
   if (tonstorageGatewayUrl) {
     return {
       ok: true,
@@ -186,9 +214,10 @@ export const resolveStorageRuntimeFetchTarget = async (input: {
   storagePointer?: string;
   assetId?: string;
   bagId?: string;
+  preferRuntimePointer?: boolean;
 }): Promise<StorageRuntimeFetchResult> => {
-  const [assets, bags] = await Promise.all([listStorageAssets(), listStorageBags()]);
-  return resolveStorageRuntimeFetchTargetFromRegistry(input, { assets, bags });
+  const [assets, bags, bagFiles] = await Promise.all([listStorageAssets(), listStorageBags(), listStorageBagFiles()]);
+  return resolveStorageRuntimeFetchTargetFromRegistry(input, { assets, bags, bagFiles });
 };
 
 export const canResolveStorageRuntimeFetchTarget = async (input: {
@@ -197,6 +226,7 @@ export const canResolveStorageRuntimeFetchTarget = async (input: {
   storagePointer?: string;
   assetId?: string;
   bagId?: string;
+  preferRuntimePointer?: boolean;
 }): Promise<boolean> => {
   const resolved = await resolveStorageRuntimeFetchTarget(input);
   return resolved.ok;
@@ -208,6 +238,7 @@ export const fetchStorageRuntimeBinary = async (input: {
   storagePointer?: string;
   assetId?: string;
   bagId?: string;
+  preferRuntimePointer?: boolean;
 }): Promise<StorageRuntimeBinaryResult> => {
   const target = await resolveStorageRuntimeFetchTarget(input);
 

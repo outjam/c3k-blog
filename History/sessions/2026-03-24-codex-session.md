@@ -1,0 +1,75 @@
+# Session Summary — 2026-03-24
+
+## Основная тема
+
+Продолжение `Sprint 10 — Real TON Storage test runtime` с фокусом на том, чтобы storage contour стал не только умеющим upload pointer, но и умеющим проверять его пригодность для реальной выдачи файла.
+
+## Что было сделано
+
+### 1. Runtime pointer verification
+
+- После upload completion bag теперь получает runtime fetch state:
+  - `pending`
+  - `verified`
+  - `failed`
+- Верификация идёт через gateway probe для `tonstorage://` pointer.
+- Если pointer реально отвечает, bag автоматически становится ближе к состоянию реального delivery-ready runtime.
+
+### 2. Bag file manifest
+
+- Система теперь фиксирует не только сам bag, но и файл внутри bag.
+- Это важно, потому что пользователю нужно отдать не абстрактный контейнер, а конкретный трек или архив релиза.
+- Именно этот manifest потом нужен для:
+  - gateway retrieval
+  - web delivery
+  - Telegram delivery
+
+### 3. Storage health visibility
+
+- При успешной или неуспешной runtime verification в storage registry теперь пишутся health events.
+- Это превращает историю upload в операторски полезный контур:
+  - видно, что upload прошёл
+  - видно, что gateway реально подтверждает или не подтверждает pointer
+
+### 4. Admin storage dashboard
+
+- В storage dashboard теперь видно:
+  - сколько bags уже имеют `real pointer`
+  - сколько из них `verified`
+  - сколько `failed`
+  - какие file paths уже зафиксированы внутри bag
+- В карточках bags теперь выводятся:
+  - runtime fetch status
+  - gateway URL
+  - runtime fetch error, если есть
+  - первые file paths bag manifest
+
+### 5. Verified pointer вошёл в delivery layer
+
+- Если bag уже confirmed через gateway, runtime теперь старается использовать именно его для выдачи файла.
+- Это распространяется на:
+  - web download
+  - Telegram delivery
+  - operator runtime checks
+- То есть `TON Storage` перестаёт быть просто подготовленным рядом слоем и начинает реально участвовать в выдаче контента.
+
+### 6. Upload completion будит старые запросы на выдачу
+
+- После того как asset/bag стал runtime-ready, система теперь умеет пересматривать уже существующие запросы на delivery.
+- Это особенно важно для сценария:
+  - пользователь запросил файл слишком рано
+  - bag тогда ещё не был готов
+  - позже upload завершился и pointer стал рабочим
+- Теперь такие запросы могут автоматически перейти в рабочий статус без обязательного ручного retry.
+
+## Зачем это было нужно
+
+- До этого upload completion говорил только “bag создан” или “pointer записан”.
+- Но для реального `TON Storage` этого мало:
+  - нужно понимать, сможет ли runtime реально выдать файл
+  - по какому пути внутри bag он должен это сделать
+- После этого среза storage contour стал ближе к настоящему runtime, а не только к подготовке метаданных.
+
+## Следующий шаг
+
+- Поднять первый живой `storage-daemon/gateway` contour и прогнать выбранный asset уже не через simulated upload, а через настоящий testnet bridge.

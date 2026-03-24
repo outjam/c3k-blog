@@ -6,12 +6,16 @@ import {
   updateStorageIngestJob,
 } from "@/lib/server/storage-ingest-store";
 import { telegramBotRequest } from "@/lib/server/telegram-bot";
+import { verifyTonStorageRuntimePointer } from "@/lib/server/storage-ton-runtime-verification";
 import {
+  appendStorageHealthEvent,
   listStorageAssets,
   listStorageBags,
+  upsertStorageBagFile,
   upsertStorageBag,
 } from "@/lib/server/storage-registry-store";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
+import { reconcileStorageDeliveryRequestsForRuntimeAsset } from "@/lib/server/storage-delivery";
 import type { StorageAsset, StorageBag, StorageIngestJob } from "@/types/storage";
 
 const UPLOAD_WORKER_STALE_MS = 20 * 60 * 1000;
@@ -176,6 +180,7 @@ export const completeTonStorageUploadJob = async (input: {
   bagExternalId?: string;
   tonstorageUri?: string;
   metaFileUrl?: string;
+  filePath?: string;
   replicasActual?: number;
   replicasTarget?: number;
   bagStatus?: StorageBag["status"];
@@ -266,21 +271,102 @@ export const completeTonStorageUploadJob = async (input: {
       ((input.replicasActual ?? existingBag?.replicasActual ?? 1) > 0 ? "uploaded" : "created"),
     replicasTarget: input.replicasTarget ?? existingBag?.replicasTarget ?? 3,
     replicasActual: input.replicasActual ?? existingBag?.replicasActual ?? 1,
+    runtimeFetchStatus: "pending",
+    runtimeFetchCheckedAt: null,
+    runtimeFetchVerifiedAt: null,
+    runtimeFetchUrl: null,
+    runtimeFetchError: null,
   });
 
+  const bagFilePath =
+    String(input.filePath ?? "").trim() || asset.fileName || `${asset.id}.${asset.format}`;
+
+  if (bag) {
+    await upsertStorageBagFile({
+      id: `${bag.id}:${bagFilePath}`,
+      bagId: bag.id,
+      path: bagFilePath,
+      sizeBytes: asset.sizeBytes,
+      priority: 0,
+      mimeType: asset.mimeType,
+    });
+  }
+
+  const verification =
+    bag
+      ? await verifyTonStorageRuntimePointer({
+          bagId: bag.bagId,
+          storagePointer: input.tonstorageUri ?? bag.tonstorageUri,
+          filePath: bagFilePath,
+        })
+      : null;
+
+  const verifiedBag =
+    bag && verification
+      ? await upsertStorageBag({
+          id: bag.id,
+          assetId: bag.assetId,
+          bagId: bag.bagId,
+          description: bag.description,
+          tonstorageUri: bag.tonstorageUri,
+          metaFileUrl: bag.metaFileUrl,
+          runtimeMode: bag.runtimeMode,
+          runtimeLabel: bag.runtimeLabel,
+          status: verification.status === "verified" ? "healthy" : bag.status,
+          replicasTarget: bag.replicasTarget,
+          replicasActual: bag.replicasActual,
+          runtimeFetchStatus: verification.status,
+          runtimeFetchCheckedAt: verification.checkedAt,
+          runtimeFetchVerifiedAt: verification.verifiedAt ?? null,
+          runtimeFetchUrl: verification.gatewayUrl ?? null,
+          runtimeFetchError: verification.error ?? null,
+        })
+      : bag;
+
+  if (verifiedBag && verification?.status === "verified") {
+    await appendStorageHealthEvent({
+      entityType: "bag",
+      entityId: verifiedBag.id,
+      severity: "info",
+      code: "runtime_fetch_verified",
+      message: `Gateway подтвердил доступность ${verifiedBag.tonstorageUri || verifiedBag.bagId || verifiedBag.id}.`,
+    });
+  } else if (verifiedBag && verification?.status === "failed") {
+    await appendStorageHealthEvent({
+      entityType: "bag",
+      entityId: verifiedBag.id,
+      severity: "warning",
+      code: "runtime_fetch_failed",
+      message: verification.error || "Gateway пока не смог подтвердить runtime pointer.",
+    });
+  }
+
   const completedJob = await updateStorageIngestJob(job.id, {
-    bagId: bag?.id ?? job.bagId,
+    bagId: verifiedBag?.id ?? bag?.id ?? job.bagId,
     status: "uploaded",
-    storagePointer: input.tonstorageUri ?? bag?.tonstorageUri ?? input.bagExternalId ?? bag?.bagId ?? null,
+    storagePointer:
+      input.tonstorageUri ?? verifiedBag?.tonstorageUri ?? bag?.tonstorageUri ?? input.bagExternalId ?? verifiedBag?.bagId ?? bag?.bagId ?? null,
     workerLockId: null,
     workerLockedAt: null,
     completedAt: new Date().toISOString(),
     failureCode: null,
     failureMessage: null,
-    message: input.message ?? "TON Storage upload confirmed by external worker.",
+    message:
+      verification?.status === "verified"
+        ? input.message ?? "TON Storage upload confirmed and gateway-verified."
+        : verification?.status === "failed"
+          ? `${input.message ?? "TON Storage upload confirmed."} Gateway verification still failing.`
+        : input.message ?? "TON Storage upload confirmed by external worker.",
   });
 
-  return { ok: true, job: completedJob, bag };
+  if (verifiedBag) {
+    await reconcileStorageDeliveryRequestsForRuntimeAsset({
+      assetId: asset.id,
+      bagId: verifiedBag.id,
+    }).catch(() => null);
+  }
+
+  return { ok: true, job: completedJob, bag: verifiedBag ?? bag };
 };
 
 export const fetchTonStorageUploadSource = async (input: {
@@ -378,6 +464,7 @@ export const runSimulatedTonStorageUploadPass = async (
       bagExternalId: claimed.bag?.bagId,
       tonstorageUri: simulatedPointer,
       metaFileUrl: claimed.uploadTarget.sourceUrl ?? claimed.bag?.metaFileUrl,
+      filePath: claimed.asset.fileName,
       replicasActual: Math.max(1, claimed.bag?.replicasActual ?? 1),
       replicasTarget: Math.max(1, claimed.bag?.replicasTarget ?? 3),
       bagStatus: "uploaded",
