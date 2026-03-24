@@ -144,6 +144,16 @@ const normalizeRequest = (
     workerAttemptCount: normalizeNonNegativeInt(source.workerAttemptCount),
     failureCode: normalizeOptionalText(source.failureCode, 120),
     failureMessage: normalizeOptionalText(source.failureMessage, 500),
+    lastDeliveredVia:
+      source.lastDeliveredVia === "delivery_url" ||
+      source.lastDeliveredVia === "resolved_source" ||
+      source.lastDeliveredVia === "bag_meta" ||
+      source.lastDeliveredVia === "asset_source" ||
+      source.lastDeliveredVia === "bag_http_pointer" ||
+      source.lastDeliveredVia === "tonstorage_gateway"
+        ? source.lastDeliveredVia
+        : undefined,
+    lastDeliveredSourceUrl: normalizeOptionalText(source.lastDeliveredSourceUrl, 3000),
     createdAt: normalizeIsoDateTime(source.createdAt, now),
     updatedAt: normalizeIsoDateTime(source.updatedAt, now),
     deliveredAt: source.deliveredAt ? normalizeIsoDateTime(source.deliveredAt, now) : undefined,
@@ -417,6 +427,16 @@ export const createStorageDeliveryRequest = async (
       workerAttemptCount: normalizeNonNegativeInt(input.workerAttemptCount),
       failureCode: normalizeOptionalText(input.failureCode, 120),
       failureMessage: normalizeOptionalText(input.failureMessage, 500),
+      lastDeliveredVia:
+        input.lastDeliveredVia === "delivery_url" ||
+        input.lastDeliveredVia === "resolved_source" ||
+        input.lastDeliveredVia === "bag_meta" ||
+        input.lastDeliveredVia === "asset_source" ||
+        input.lastDeliveredVia === "bag_http_pointer" ||
+        input.lastDeliveredVia === "tonstorage_gateway"
+          ? input.lastDeliveredVia
+          : undefined,
+      lastDeliveredSourceUrl: normalizeOptionalText(input.lastDeliveredSourceUrl, 3000),
       createdAt: now,
       updatedAt: now,
       deliveredAt: input.deliveredAt ? normalizeIsoDateTime(input.deliveredAt, now) : undefined,
@@ -460,6 +480,8 @@ export const updateStorageDeliveryRequest = async (
       | "workerAttemptCount"
       | "failureCode"
       | "failureMessage"
+      | "lastDeliveredVia"
+      | "lastDeliveredSourceUrl"
       | "deliveredAt"
     >
   > & {
@@ -478,6 +500,8 @@ export const updateStorageDeliveryRequest = async (
     workerAttemptCount?: number;
     failureCode?: string | null;
     failureMessage?: string | null;
+    lastDeliveredVia?: StorageDeliveryRequest["lastDeliveredVia"] | null;
+    lastDeliveredSourceUrl?: string | null;
     deliveredAt?: string | null;
   },
 ): Promise<StorageDeliveryRequest | null> => {
@@ -602,6 +626,18 @@ export const updateStorageDeliveryRequest = async (
                 ? undefined
                 : normalizeOptionalText(patch.failureMessage, 500)
               : existing.failureMessage,
+          lastDeliveredVia:
+            patch.lastDeliveredVia !== undefined
+              ? patch.lastDeliveredVia === null
+                ? undefined
+                : patch.lastDeliveredVia
+              : existing.lastDeliveredVia,
+          lastDeliveredSourceUrl:
+            patch.lastDeliveredSourceUrl !== undefined
+              ? patch.lastDeliveredSourceUrl === null
+                ? undefined
+                : normalizeOptionalText(patch.lastDeliveredSourceUrl, 3000)
+              : existing.lastDeliveredSourceUrl,
           deliveredAt,
           updatedAt: now,
         },

@@ -133,6 +133,25 @@ const formatDeliveryChannel = (value: StorageDeliveryRequest["channel"]): string
   }
 };
 
+const formatDeliveryVia = (value: StorageDeliveryRequest["lastDeliveredVia"]): string | null => {
+  switch (value) {
+    case "tonstorage_gateway":
+      return "TON Storage gateway";
+    case "bag_meta":
+      return "Bag meta";
+    case "asset_source":
+      return "Asset source";
+    case "resolved_source":
+      return "Resolved source";
+    case "delivery_url":
+      return "Direct delivery";
+    case "bag_http_pointer":
+      return "Bag HTTP pointer";
+    default:
+      return null;
+  }
+};
+
 const formatShortWallet = (value: string | undefined): string => {
   const normalized = String(value ?? "").trim();
 
@@ -374,6 +393,11 @@ export default function StorageProgramPage() {
     void downloadStorageDeliveryRequestFile(request).then((result) => {
       if (!result.ok) {
         setError(result.error ?? "Не удалось скачать файл через storage runtime.");
+        return;
+      }
+
+      if (result.request) {
+        updateDeliveryRequest(result.request);
       }
     });
   };
@@ -725,6 +749,7 @@ export default function StorageProgramPage() {
                         <span>{formatDeliveryTarget(request)}</span>
                         <span>{formatDeliveryChannel(request.channel)}</span>
                         <span>{request.resolvedFormat || request.requestedFormat || "no format"}</span>
+                        {request.lastDeliveredVia ? <span>{formatDeliveryVia(request.lastDeliveredVia)}</span> : null}
                       </div>
                       {request.failureMessage ? <p className={styles.deliveryMessage}>{request.failureMessage}</p> : null}
                       {request.status === "ready" && (request.deliveryUrl || request.storagePointer) ? (

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fetchStorageRuntimeBinary } from "@/lib/server/storage-runtime-fetch";
-import { getStorageDeliveryRequest } from "@/lib/server/storage-delivery-store";
+import { getStorageDeliveryRequest, updateStorageDeliveryRequest } from "@/lib/server/storage-delivery-store";
 import {
   forbiddenResponse,
   getShopApiAccess,
@@ -63,6 +63,15 @@ export async function GET(
       { status: 409 },
     );
   }
+
+  await updateStorageDeliveryRequest(entry.id, {
+    status: "delivered",
+    deliveredAt: new Date().toISOString(),
+    failureCode: "",
+    failureMessage: "",
+    lastDeliveredVia: resolved.via ?? null,
+    lastDeliveredSourceUrl: resolved.sourceUrl ?? null,
+  }).catch(() => null);
 
   return new NextResponse(Buffer.from(resolved.bytes), {
     status: 200,

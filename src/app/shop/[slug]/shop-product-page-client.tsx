@@ -115,6 +115,25 @@ const formatDeliveryChannel = (value: StorageDeliveryRequest["channel"]): string
   }
 };
 
+const formatDeliveryVia = (value: StorageDeliveryRequest["lastDeliveredVia"]): string | null => {
+  switch (value) {
+    case "tonstorage_gateway":
+      return "TON Storage gateway";
+    case "bag_meta":
+      return "Bag meta";
+    case "asset_source":
+      return "Asset source";
+    case "resolved_source":
+      return "Resolved source";
+    case "delivery_url":
+      return "Direct delivery";
+    case "bag_http_pointer":
+      return "Bag HTTP pointer";
+    default:
+      return null;
+  }
+};
+
 function PlayIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
@@ -553,6 +572,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           hapticNotification("warning");
           return;
         }
+        if (downloadResult.request) {
+          upsertDeliveryRequest(downloadResult.request);
+        }
       }
       if (
         channel === "desktop_download" &&
@@ -620,6 +642,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           hapticNotification("warning");
           return;
         }
+        if (downloadResult.request) {
+          upsertDeliveryRequest(downloadResult.request);
+        }
       }
       if (
         channel === "desktop_download" &&
@@ -668,6 +693,9 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
           setWalletMessage(downloadResult.error ?? "Файл готов, но web download пока недоступен.");
           hapticNotification("warning");
           return;
+        }
+        if (downloadResult.request) {
+          upsertDeliveryRequest(downloadResult.request);
         }
       }
       if (
@@ -1319,6 +1347,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                         </div>
                         <p>
                           {formatDeliveryChannel(request.channel)} · {request.resolvedFormat || request.requestedFormat || "no format"}
+                          {request.lastDeliveredVia ? ` · ${formatDeliveryVia(request.lastDeliveredVia)}` : ""}
                         </p>
                         {(request.status === "failed" || request.status === "pending_asset_mapping") ? (
                           <button
@@ -1336,7 +1365,11 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                             onClick={() =>
                               request.channel === "desktop_download"
                                 ? openStorageDeliveryInDesktop(request)
-                                : void downloadStorageDeliveryRequestFile(request)
+                                : void downloadStorageDeliveryRequestFile(request).then((downloadResult) => {
+                                    if (downloadResult.request) {
+                                      upsertDeliveryRequest(downloadResult.request);
+                                    }
+                                  })
                             }
                           >
                             {request.channel === "desktop_download" ? "Открыть в Desktop" : "Открыть файл"}

@@ -12,6 +12,8 @@ import {
   patchAdminStorageMembership,
   probeAdminStorageRuntime,
   runAdminStorageIngest,
+  runAdminStorageUploadOnce,
+  runAdminStorageUploadOnceTargeted,
   runAdminStorageUploadSimulate,
   syncAdminStorageArtistTracks,
   type AdminStorageRuntimeProbe,
@@ -75,6 +77,8 @@ export default function AdminStoragePage() {
   const [syncingTracks, setSyncingTracks] = useState(false);
   const [ingestingAssets, setIngestingAssets] = useState(false);
   const [simulatingUpload, setSimulatingUpload] = useState(false);
+  const [runningUploadOnce, setRunningUploadOnce] = useState(false);
+  const [runningUploadTargetKey, setRunningUploadTargetKey] = useState("");
   const [ingestMode, setIngestMode] = useState<StorageIngestMode>("test_prepare");
   const [runtimeProbe, setRuntimeProbe] = useState<AdminStorageRuntimeProbe | null>(null);
   const [probingRuntime, setProbingRuntime] = useState(false);
@@ -452,6 +456,66 @@ export default function AdminStoragePage() {
     await load();
   };
 
+  const runUploadOnce = async () => {
+    setRunningUploadOnce(true);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await runAdminStorageUploadOnce();
+    setRunningUploadOnce(false);
+
+    if (response.error || !response.summary) {
+      setError(response.error ?? "Не удалось прогнать server-side upload cycle.");
+      return;
+    }
+
+    setIngestMessage(
+      [
+        `Upload once (${response.summary.mode})`,
+        `processed ${response.summary.processed}`,
+        `uploaded ${response.summary.uploaded}`,
+        `failed ${response.summary.failed}`,
+        `remaining prepared ${response.summary.remainingPrepared}`,
+        response.summary.bagExternalId ? `bag ${response.summary.bagExternalId}` : "",
+        response.summary.error ? `error ${response.summary.error}` : response.summary.message || "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    await load();
+  };
+
+  const runUploadForAsset = async (assetId: string) => {
+    setRunningUploadTargetKey(`asset:${assetId}`);
+    setError("");
+    setSyncMessage("");
+    setIngestMessage("");
+
+    const response = await runAdminStorageUploadOnceTargeted({ assetId });
+    setRunningUploadTargetKey("");
+
+    if (response.error || !response.summary) {
+      setError(response.error ?? "Не удалось прогнать targeted upload cycle.");
+      return;
+    }
+
+    setIngestMessage(
+      [
+        `Upload asset ${assetId}`,
+        `mode ${response.summary.mode}`,
+        `processed ${response.summary.processed}`,
+        `uploaded ${response.summary.uploaded}`,
+        `failed ${response.summary.failed}`,
+        response.summary.bagExternalId ? `bag ${response.summary.bagExternalId}` : "",
+        response.summary.error ? `error ${response.summary.error}` : response.summary.message || "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    await load();
+  };
+
   if (loading) {
     return <div className={styles.page}>Загрузка storage dashboard...</div>;
   }
@@ -501,6 +565,9 @@ export default function AdminStoragePage() {
                 </button>
                 <button type="button" onClick={() => void simulateUpload()} disabled={simulatingUpload}>
                   {simulatingUpload ? "Симулируем..." : "Симулировать upload"}
+                </button>
+                <button type="button" onClick={() => void runUploadOnce()} disabled={runningUploadOnce}>
+                  {runningUploadOnce ? "Гоним worker..." : "Прогнать upload once"}
                 </button>
               </>
             ) : null}
@@ -651,6 +718,10 @@ export default function AdminStoragePage() {
               <span>processing: {uploadQueue.processing}</span>
               <span>uploaded: {uploadQueue.uploaded}</span>
               <span>failed: {uploadQueue.failed}</span>
+            </div>
+            <div className={styles.noteList}>
+              <span>`Симулировать upload` нужен для бесплатного e2e теста без daemon bridge.</span>
+              <span>`Прогнать upload once` пытается выполнить один реальный server-side upload cycle через текущий bridge mode.</span>
             </div>
           </article>
           <article className={styles.runtimeCard}>
@@ -1287,6 +1358,17 @@ export default function AdminStoragePage() {
                   <span>{asset.resourceKey || "no key"}</span>
                   <span>{asset.sizeBytes} bytes</span>
                 </div>
+                {canManage ? (
+                  <div className={styles.controls}>
+                    <button
+                      type="button"
+                      onClick={() => void runUploadForAsset(asset.id)}
+                      disabled={runningUploadTargetKey === `asset:${asset.id}`}
+                    >
+                      {runningUploadTargetKey === `asset:${asset.id}` ? "Гоним..." : "Загрузить этот asset"}
+                    </button>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>

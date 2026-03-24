@@ -65,6 +65,60 @@
 - это создавало лишний разрыв между storage runtime и пользовательским опытом
 - теперь storage contour ведёт себя ближе к живой системе: runtime появился — ожидающие запросы ожили
 
+### Sprint 10 slice: delivery keeps runtime provenance
+
+- [storage delivery state](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery-store.ts) теперь хранит:
+  - `lastDeliveredVia`
+  - `lastDeliveredSourceUrl`
+- [web download route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/[id]/file/route.ts) после успешного fetch обновляет request как `delivered`
+- [Telegram delivery worker](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts) тоже сохраняет реальный runtime path отправки
+- [client delivery api](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/storage-delivery-api.ts) после скачивания подтягивает обновлённый request
+- User-facing экраны получили новый след доставки:
+  - [downloads](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.tsx)
+  - [storage](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx)
+  - [release page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/[slug]/shop-product-page-client.tsx)
+
+### Зачем это сделано
+
+- теперь видно не только что файл доставлен, но и как именно он был получен
+- это критично для переходного периода, где часть файлов ещё идёт через fallback, а часть уже через `TON Storage gateway`
+- user-facing история стала полезной и как UX, и как реальный runtime telemetry layer
+
+### Sprint 10 slice: server-side upload cycle from admin storage
+
+- [storage-upload-worker.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) получил `runSingleTonStorageUploadCycle()`
+- Новый admin route:
+  - [upload-run-once route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/upload-run-once/route.ts)
+- Новый client helper:
+  - [runAdminStorageUploadOnce](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) получил кнопку `Прогнать upload once`
+
+### Зачем это сделано
+
+- раньше для реального CLI-контура нужен был отдельный внешний процесс
+- это остаётся правильной моделью для постоянного runtime, но для локального теста слишком длинно
+- теперь в test-среде можно быстро проверить:
+  - есть ли prepared job
+  - может ли сервер получить source bytes
+  - отвечает ли текущий bridge mode
+  - может ли `storage-daemon-cli` создать реальный bag
+
+### Sprint 10 slice: targeted upload by asset
+
+- [storage ingest store](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ingest-store.ts) теперь умеет claim'ить job не только по mode, но и по:
+  - `assetId`
+  - `bagId`
+  - `jobId`
+- [storage-upload-worker.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-upload-worker.ts) расширен targeted-режимом для `claim/run once`
+- [upload-run-once route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/upload-run-once/route.ts) теперь принимает filters
+- [storage dashboard](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx) получил action `Загрузить этот asset`
+
+### Зачем это сделано
+
+- для первого живого testnet-прогона неудобно стрелять в “следующую prepared job”
+- оператору обычно нужно проверить конкретный релиз или конкретный track asset
+- targeted upload делает storage testing намного предсказуемее и короче по циклу
+
 ### Зачем это сделано
 
 - bag/pointer сам по себе ещё не доказывает, что пользователь реально сможет скачать файл

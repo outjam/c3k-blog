@@ -448,15 +448,24 @@ export const claimStorageIngestJob = async (input: {
   mode: StorageIngestMode;
   staleAfterMs?: number;
   lockId?: string;
+  assetId?: string;
+  bagId?: string;
+  jobId?: string;
 }): Promise<StorageIngestJob | null> => {
   const staleAfterMs = Math.max(60_000, normalizeNonNegativeInt(input.staleAfterMs ?? 15 * 60 * 1000));
   const lockId = normalizeOptionalText(input.lockId, 160) || `ingest-lock-${Date.now()}`;
+  const assetId = normalizeSafeId(input.assetId, 120);
+  const bagId = normalizeSafeId(input.bagId, 120);
+  const jobId = normalizeSafeId(input.jobId, 120);
   const next = await mutateState((current) => {
     const now = new Date();
     const nowIso = now.toISOString();
     const staleThreshold = now.getTime() - staleAfterMs;
     const jobs = Object.values(current.jobs)
       .filter((job) => job.mode === input.mode)
+      .filter((job) => (assetId ? job.assetId === assetId : true))
+      .filter((job) => (bagId ? job.bagId === bagId : true))
+      .filter((job) => (jobId ? job.id === jobId : true))
       .filter((job) => {
         if (job.status === "prepared") {
           return true;

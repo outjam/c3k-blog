@@ -258,6 +258,9 @@ Status: current
 - [x] Runtime fetch verification и bag-file manifest после upload completion
 - [x] Verified runtime pointers начинают побеждать в web/Telegram delivery layer
 - [x] Upload completion умеет оживлять старые pending delivery requests для того же asset/bag
+- [x] User-facing delivery history показывает реальный runtime path выдачи файла
+- [x] Admin storage dashboard умеет запускать один server-side upload cycle для локального bridge-теста
+- [x] Admin storage dashboard умеет запускать targeted upload cycle для конкретного asset
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 

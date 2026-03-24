@@ -261,6 +261,19 @@ export interface AdminStorageRuntimeProbe {
   bagLabel?: string;
 }
 
+export interface AdminStorageUploadRunOnceSummary {
+  processed: number;
+  uploaded: number;
+  failed: number;
+  remainingPrepared: number;
+  mode: string;
+  jobId?: string;
+  bagExternalId?: string;
+  tonstorageUri?: string;
+  message?: string;
+  error?: string;
+}
+
 export interface AdminStorageNodeInput {
   id?: string;
   userTelegramId?: number;
@@ -1004,6 +1017,62 @@ export const runAdminStorageUploadSimulate = async (payload?: {
     }
 
     const data = (await response.json()) as { summary?: AdminStorageUploadSimulateSummary };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
+  }
+};
+
+export const runAdminStorageUploadOnce = async (): Promise<{
+  summary: AdminStorageUploadRunOnceSummary | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/storage/upload-run-once", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify({}),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStorageUploadRunOnceSummary };
+    return { summary: data.summary ?? null };
+  } catch {
+    return { summary: null, error: "Network error" };
+  }
+};
+
+export const runAdminStorageUploadOnceTargeted = async (payload: {
+  assetId?: string;
+  bagId?: string;
+  jobId?: string;
+}): Promise<{
+  summary: AdminStorageUploadRunOnceSummary | null;
+  error?: string;
+}> => {
+  try {
+    const response = await fetch("/api/admin/storage/upload-run-once", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { summary: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { summary?: AdminStorageUploadRunOnceSummary };
     return { summary: data.summary ?? null };
   } catch {
     return { summary: null, error: "Network error" };

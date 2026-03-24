@@ -38,6 +38,35 @@
   - `processing` для Telegram
 - Пользователю теперь реже нужен ручной retry после того, как storage runtime наконец догнал его купленный файл.
 
+### User-facing delivery history теперь показывает реальный путь выдачи
+
+- В delivery state теперь сохраняется, через что файл реально был отдан:
+  - `TON Storage gateway`
+  - `asset source`
+  - `direct delivery`
+  - другие runtime paths
+- После web download и Telegram delivery эта информация попадает обратно в request history.
+- Пользователь уже видит не только факт скачивания, но и какой именно контур сработал на самом деле.
+
+### Server-side upload once из админки
+
+- В storage dashboard появилась возможность прогнать один upload cycle прямо из приложения.
+- Для локального test-mode это полезно тем, что не нужно каждый раз поднимать отдельный внешний worker, чтобы просто проверить:
+  - prepared job
+  - source retrieval
+  - bridge mode
+  - ответ `storage-daemon-cli`
+- Для постоянной работы по-прежнему нужен полноценный worker, но для первого живого testnet-прогона это сильно сокращает путь.
+
+### Targeted upload для конкретного asset
+
+- Оператор теперь может запустить upload не только для “следующей prepared job”, но и для конкретного asset из storage dashboard.
+- Это важно для реального теста, когда нужно проверить:
+  - конкретный релиз
+  - конкретный трек
+  - конкретный проблемный storage asset
+- Такой targeted flow делает первый живой тест через `storage-daemon` гораздо более управляемым.
+
 ## 2026-03-19
 
 ### Batched sync для admin storage

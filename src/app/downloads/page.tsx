@@ -50,6 +50,25 @@ const formatDeliveryChannel = (value: StorageDeliveryRequest["channel"]): string
   }
 };
 
+const formatDeliveryVia = (value: StorageDeliveryRequest["lastDeliveredVia"]): string | null => {
+  switch (value) {
+    case "tonstorage_gateway":
+      return "TON Storage gateway";
+    case "bag_meta":
+      return "Bag meta";
+    case "asset_source":
+      return "Asset source";
+    case "resolved_source":
+      return "Resolved source";
+    case "delivery_url":
+      return "Direct delivery";
+    case "bag_http_pointer":
+      return "Bag HTTP pointer";
+    default:
+      return null;
+  }
+};
+
 const getDeliveryTone = (
   value: StorageDeliveryRequest["status"],
 ): "success" | "warning" | "danger" | "default" => {
@@ -249,6 +268,11 @@ export default function DownloadsPage() {
     void downloadStorageDeliveryRequestFile(request).then((result) => {
       if (!result.ok) {
         setError(result.error ?? "Не удалось скачать файл через storage runtime.");
+        return;
+      }
+
+      if (result.request) {
+        updateRequest(result.request);
       }
     });
   };
@@ -375,6 +399,7 @@ export default function DownloadsPage() {
                         <span>{new Date(request.updatedAt || request.createdAt).toLocaleString("ru-RU")}</span>
                         {request.storagePointer ? <span>Storage pointer готов</span> : null}
                         {request.deliveryUrl ? <span>Есть прямая выдача</span> : null}
+                        {request.lastDeliveredVia ? <span>{formatDeliveryVia(request.lastDeliveredVia)}</span> : null}
                       </div>
 
                       {request.failureMessage ? (

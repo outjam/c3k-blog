@@ -255,6 +255,8 @@ export interface StorageDeliveryRequest {
   workerAttemptCount: number;
   failureCode?: string;
   failureMessage?: string;
+  lastDeliveredVia?: StorageRuntimeFetchVia;
+  lastDeliveredSourceUrl?: string;
   createdAt: string;
   updatedAt: string;
   deliveredAt?: string;

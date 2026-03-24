@@ -223,7 +223,7 @@ export const fetchMyStorageDeliveryRequests = async (
 
 export const downloadStorageDeliveryRequestFile = async (
   request: StorageDeliveryRequest,
-): Promise<{ ok: boolean; error?: string }> => {
+): Promise<{ ok: boolean; request?: StorageDeliveryRequest | null; error?: string }> => {
   try {
     const response = await fetch(`/api/storage/downloads/${encodeURIComponent(request.id)}/file`, {
       method: "GET",
@@ -234,16 +234,17 @@ export const downloadStorageDeliveryRequestFile = async (
     if (!response.ok) {
       try {
         const payload = (await response.json()) as StorageDeliveryResponseShape;
-        return { ok: false, error: payload.error ?? payload.message ?? `HTTP ${response.status}` };
+        return { ok: false, request: null, error: payload.error ?? payload.message ?? `HTTP ${response.status}` };
       } catch {
-        return { ok: false, error: `HTTP ${response.status}` };
+        return { ok: false, request: null, error: `HTTP ${response.status}` };
       }
     }
 
     const blob = await response.blob();
     triggerBlobDownload(blob, request.fileName);
-    return { ok: true };
+    const refreshed = await fetchStorageDeliveryRequest(request.id);
+    return { ok: true, request: refreshed.request };
   } catch {
-    return { ok: false, error: "Network error" };
+    return { ok: false, request: null, error: "Network error" };
   }
 };

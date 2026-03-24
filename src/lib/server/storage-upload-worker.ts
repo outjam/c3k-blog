@@ -1,3 +1,9 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+import { promisify } from "node:util";
+
 import { C3K_STORAGE_ENABLED } from "@/lib/storage-config";
 import {
   claimStorageIngestJob,
@@ -19,6 +25,28 @@ import { reconcileStorageDeliveryRequestsForRuntimeAsset } from "@/lib/server/st
 import type { StorageAsset, StorageBag, StorageIngestJob } from "@/types/storage";
 
 const UPLOAD_WORKER_STALE_MS = 20 * 60 * 1000;
+const execFileAsync = promisify(execFile);
+const STORAGE_DAEMON_CLI_BIN = String(process.env.C3K_STORAGE_TON_DAEMON_CLI_BIN || "storage-daemon-cli").trim();
+const STORAGE_UPLOAD_MODE = String(process.env.C3K_STORAGE_TON_UPLOAD_BRIDGE_MODE || "simulated")
+  .trim()
+  .toLowerCase();
+
+const parseCliArgs = (): string[] => {
+  const raw = String(process.env.C3K_STORAGE_TON_DAEMON_CLI_ARGS_JSON || "").trim();
+
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.map((entry) => String(entry)) : [];
+  } catch {
+    return [];
+  }
+};
+
+const STORAGE_DAEMON_CLI_ARGS = parseCliArgs();
 
 const pickPreferredBag = (bags: StorageBag[], assetId: string): StorageBag | null => {
   const candidates = bags.filter((entry) => entry.assetId === assetId);
@@ -101,9 +129,101 @@ export interface SimulatedTonStorageUploadSummary {
   remainingPrepared: number;
 }
 
+export interface StorageUploadRunOnceSummary {
+  processed: number;
+  uploaded: number;
+  failed: number;
+  remainingPrepared: number;
+  mode: string;
+  jobId?: string;
+  bagExternalId?: string;
+  tonstorageUri?: string;
+  message?: string;
+  error?: string;
+}
+
 interface TelegramFileInfo {
   file_path?: string;
 }
+
+const sanitizeFileName = (value: string | undefined): string => {
+  const base = String(value || "asset.bin")
+    .replace(/[/\\?%*:|"<>]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  return base || "asset.bin";
+};
+
+const quoteCli = (value: string): string => {
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+};
+
+const parseBagIds = (value: string): string[] => {
+  const matches = String(value || "").match(/\b[a-f0-9]{64}\b/gi) || [];
+  return [...new Set(matches.map((entry) => entry.toLowerCase()))];
+};
+
+const runDaemonCliCommand = async (command: string): Promise<string> => {
+  const { stdout, stderr } = await execFileAsync(
+    STORAGE_DAEMON_CLI_BIN,
+    [...STORAGE_DAEMON_CLI_ARGS, "-c", command],
+    {
+      maxBuffer: 20 * 1024 * 1024,
+    },
+  );
+
+  return [stdout, stderr].filter(Boolean).join("\n").trim();
+};
+
+const listTonStorageBagIds = async (): Promise<string[]> => {
+  const output = await runDaemonCliCommand("list --hashes");
+  return parseBagIds(output);
+};
+
+const uploadViaTonStorageCli = async (
+  claimed: ClaimedStorageUploadJob,
+  source: Required<Pick<StorageUploadSourceBinary, "bytes" | "fileName">>,
+): Promise<{
+  bagExternalId: string;
+  tonstorageUri: string;
+  filePath: string;
+  replicasActual: number;
+  replicasTarget: number;
+  bagStatus: StorageBag["status"];
+  message: string;
+}> => {
+  const tempDir = await mkdtemp(join(tmpdir(), "c3k-tonstorage-upload-"));
+  const safeFileName = sanitizeFileName(
+    claimed.asset.fileName || claimed.uploadTarget.fileName || source.fileName || basename(`asset.${claimed.asset.format || "bin"}`),
+  );
+  const sourcePath = join(tempDir, safeFileName);
+
+  try {
+    await writeFile(sourcePath, Buffer.from(source.bytes));
+
+    const beforeBagIds = await listTonStorageBagIds();
+    const createDescription = `C3K ${claimed.asset.releaseSlug || claimed.asset.id || claimed.job.id || "asset"}`;
+    const createOutput = await runDaemonCliCommand(`create ${quoteCli(sourcePath)} -d ${quoteCli(createDescription)}`);
+    const afterBagIds = await listTonStorageBagIds();
+    const createdBagId = afterBagIds.find((entry) => !beforeBagIds.includes(entry)) || parseBagIds(createOutput)[0];
+
+    if (!createdBagId) {
+      throw new Error("storage-daemon-cli did not return a BagID");
+    }
+
+    return {
+      bagExternalId: createdBagId,
+      tonstorageUri: `tonstorage://${createdBagId}/${safeFileName}`,
+      filePath: safeFileName,
+      replicasActual: 1,
+      replicasTarget: 3,
+      bagStatus: "uploaded",
+      message: `storage-daemon-cli created bag ${createdBagId}.`,
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => null);
+  }
+};
 
 export const getStorageUploadWorkerQueueStatus = async (): Promise<StorageUploadWorkerQueueStatus> => {
   const runtimeStatus = getStorageRuntimeStatus();
@@ -121,6 +241,14 @@ export const getStorageUploadWorkerQueueStatus = async (): Promise<StorageUpload
 };
 
 export const claimTonStorageUploadJob = async (): Promise<ClaimedStorageUploadJob | null> => {
+  return claimTonStorageUploadJobTargeted({});
+};
+
+export const claimTonStorageUploadJobTargeted = async (input?: {
+  assetId?: string;
+  bagId?: string;
+  jobId?: string;
+}): Promise<ClaimedStorageUploadJob | null> => {
   const runtimeStatus = getStorageRuntimeStatus();
 
   if (!C3K_STORAGE_ENABLED || runtimeStatus.mode !== "tonstorage_testnet") {
@@ -132,6 +260,9 @@ export const claimTonStorageUploadJob = async (): Promise<ClaimedStorageUploadJo
     mode: "tonstorage_testnet",
     staleAfterMs: UPLOAD_WORKER_STALE_MS,
     lockId,
+    assetId: input?.assetId,
+    bagId: input?.bagId,
+    jobId: input?.jobId,
   });
 
   if (!job) {
@@ -488,4 +619,119 @@ export const runSimulatedTonStorageUploadPass = async (
     failed,
     remainingPrepared: status.prepared,
   };
+};
+
+export const runSingleTonStorageUploadCycle = async (input?: {
+  assetId?: string;
+  bagId?: string;
+  jobId?: string;
+}): Promise<StorageUploadRunOnceSummary> => {
+  const claimed = await claimTonStorageUploadJobTargeted(input);
+
+  if (!claimed) {
+    const status = await getStorageUploadWorkerQueueStatus();
+    return {
+      processed: 0,
+      uploaded: 0,
+      failed: 0,
+      remainingPrepared: status.prepared,
+      mode: STORAGE_UPLOAD_MODE,
+      message: "Prepared jobs не найдены.",
+    };
+  }
+
+  const source = await fetchTonStorageUploadSource({
+    jobId: claimed.job.id,
+    workerLockId: claimed.job.workerLockId || "",
+  });
+
+  if (!source.ok || !source.bytes || !source.fileName) {
+    await completeTonStorageUploadJob({
+      jobId: claimed.job.id,
+      workerLockId: claimed.job.workerLockId || "",
+      ok: false,
+      failureCode: source.error || "source_fetch_failed",
+      failureMessage: source.error || "Не удалось получить исходный файл для upload.",
+      message: source.error || "Не удалось получить исходный файл для upload.",
+    }).catch(() => null);
+
+    const status = await getStorageUploadWorkerQueueStatus();
+    return {
+      processed: 1,
+      uploaded: 0,
+      failed: 1,
+      remainingPrepared: status.prepared,
+      mode: STORAGE_UPLOAD_MODE,
+      jobId: claimed.job.id,
+      error: source.error || "source_fetch_failed",
+    };
+  }
+
+  try {
+    const uploadResult =
+      STORAGE_UPLOAD_MODE === "tonstorage_cli"
+        ? await uploadViaTonStorageCli(claimed, {
+            bytes: source.bytes,
+            fileName: source.fileName,
+          })
+        : {
+            bagExternalId: claimed.bag?.bagId,
+            tonstorageUri:
+              claimed.bag?.tonstorageUri ??
+              `tonstorage://testnet/c3k-runtime/${claimed.bag?.bagId || claimed.job.bagId || claimed.asset.id}`,
+            filePath: sanitizeFileName(source.fileName),
+            replicasActual: Math.max(1, claimed.bag?.replicasActual ?? 1),
+            replicasTarget: Math.max(1, claimed.bag?.replicasTarget ?? 3),
+            bagStatus: "uploaded" as StorageBag["status"],
+            message: "Server-side simulated upload completed.",
+          };
+
+    const result = await completeTonStorageUploadJob({
+      jobId: claimed.job.id,
+      workerLockId: claimed.job.workerLockId || "",
+      ok: true,
+      bagExternalId: uploadResult.bagExternalId,
+      tonstorageUri: uploadResult.tonstorageUri,
+      metaFileUrl: claimed.uploadTarget.sourceUrl ?? claimed.bag?.metaFileUrl,
+      filePath: uploadResult.filePath,
+      replicasActual: uploadResult.replicasActual,
+      replicasTarget: uploadResult.replicasTarget,
+      bagStatus: uploadResult.bagStatus,
+      message: uploadResult.message,
+    });
+
+    const status = await getStorageUploadWorkerQueueStatus();
+    return {
+      processed: 1,
+      uploaded: result.ok && result.job?.status === "uploaded" ? 1 : 0,
+      failed: result.ok && result.job?.status === "uploaded" ? 0 : 1,
+      remainingPrepared: status.prepared,
+      mode: STORAGE_UPLOAD_MODE,
+      jobId: claimed.job.id,
+      bagExternalId: uploadResult.bagExternalId,
+      tonstorageUri: uploadResult.tonstorageUri,
+      message: uploadResult.message,
+      error: result.ok ? undefined : result.reason,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "upload_failed";
+    await completeTonStorageUploadJob({
+      jobId: claimed.job.id,
+      workerLockId: claimed.job.workerLockId || "",
+      ok: false,
+      failureCode: "server_upload_failed",
+      failureMessage: message,
+      message,
+    }).catch(() => null);
+    const status = await getStorageUploadWorkerQueueStatus();
+    return {
+      processed: 1,
+      uploaded: 0,
+      failed: 1,
+      remainingPrepared: status.prepared,
+      mode: STORAGE_UPLOAD_MODE,
+      jobId: claimed.job.id,
+      error: message,
+    };
+  }
 };

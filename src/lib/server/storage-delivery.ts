@@ -374,7 +374,11 @@ const deliverToTelegram = async (input: {
   assetId?: string;
   bagId?: string;
   caption: string;
-}): Promise<boolean> => {
+}): Promise<{
+  ok: boolean;
+  via?: StorageDeliveryRequest["lastDeliveredVia"];
+  sourceUrl?: string;
+}> => {
   const resolved = await fetchStorageRuntimeBinary({
     deliveryUrl: input.deliveryUrl,
     resolvedSourceUrl: input.resolvedSourceUrl,
@@ -385,17 +389,22 @@ const deliverToTelegram = async (input: {
   });
 
   if (!resolved.ok || !resolved.bytes) {
-    return false;
+    return { ok: false };
   }
 
   try {
-    return sendTelegramDocument(input.chatId, resolved.bytes, {
+    const sent = await sendTelegramDocument(input.chatId, resolved.bytes, {
       caption: input.caption,
       fileName: input.fileName,
       mimeType: input.mimeType,
     });
+    return {
+      ok: sent,
+      via: resolved.via ?? undefined,
+      sourceUrl: resolved.sourceUrl,
+    };
   } catch {
-    return false;
+    return { ok: false };
   }
 };
 
@@ -960,7 +969,7 @@ export const processTelegramStorageDeliveryQueue = async (
       continue;
     }
 
-    const deliveredOk = await deliverToTelegram({
+    const deliveredResult = await deliverToTelegram({
       chatId: claimedRequest.telegramChatId,
       fileName: claimedRequest.fileName || "c3k-file",
       mimeType: claimedRequest.mimeType || "application/octet-stream",
@@ -972,7 +981,7 @@ export const processTelegramStorageDeliveryQueue = async (
       caption: await buildDeliveryCaptionFromRequest(claimedRequest),
     });
 
-    if (!deliveredOk) {
+    if (!deliveredResult.ok) {
       await updateStorageDeliveryRequest(claimedRequest.id, {
         status: "failed",
         workerLockId: null,
@@ -991,6 +1000,8 @@ export const processTelegramStorageDeliveryQueue = async (
       deliveredAt: new Date().toISOString(),
       failureCode: "",
       failureMessage: "",
+      lastDeliveredVia: deliveredResult.via ?? null,
+      lastDeliveredSourceUrl: deliveredResult.sourceUrl ?? null,
     });
     delivered += 1;
   }
