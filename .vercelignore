@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+.local
+c3k
+desktop/node_modules
+desktop/package-lock.json
+tsconfig.tsbuildinfo
+*.log

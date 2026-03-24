@@ -11,6 +11,21 @@ interface DesktopRuntimeResponseShape {
   error?: string;
 }
 
+const isDesktopRuntimeContract = (value: unknown): value is C3kDesktopRuntimeContract => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<C3kDesktopRuntimeContract>;
+  return (
+    typeof candidate.appId === "string" &&
+    typeof candidate.appName === "string" &&
+    typeof candidate.appScheme === "string" &&
+    Boolean(candidate.gateway) &&
+    Boolean(candidate.features)
+  );
+};
+
 const openDesktopTarget = (target: { gatewayUrl: string; deepLink: string }) => {
   if (typeof window === "undefined") {
     return target;
@@ -39,6 +54,17 @@ export const fetchDesktopRuntimeContract = async (): Promise<{
   error?: string;
 }> => {
   try {
+    if (typeof window !== "undefined" && typeof window.c3kDesktop?.runtime === "function") {
+      try {
+        const payload = await window.c3kDesktop.runtime();
+        if (isDesktopRuntimeContract(payload)) {
+          return { runtime: payload };
+        }
+      } catch {
+        // Fall through to HTTP runtime fetch for browser mode and degraded desktop mode.
+      }
+    }
+
     const response = await fetch("/api/desktop/runtime", {
       method: "GET",
       cache: "no-store",
