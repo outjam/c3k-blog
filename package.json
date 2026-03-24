@@ -9,6 +9,8 @@
     "desktop:gateway": "npm run gateway --prefix desktop",
     "desktop:node": "node scripts/desktop-node-launcher.mjs",
     "desktop:node:headless": "node scripts/desktop-node-launcher.mjs --no-electron",
+    "storage:delivery:once": "node scripts/storage-delivery-local-worker.mjs --once",
+    "storage:delivery:loop": "node scripts/storage-delivery-local-worker.mjs",
     "storage:worker:once": "node scripts/storage-testnet-worker.mjs --once",
     "storage:worker:loop": "node scripts/storage-testnet-worker.mjs --loop",
     "build": "next build",

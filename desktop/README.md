@@ -132,6 +132,7 @@ C3K_DESKTOP_RUNTIME_URL=http://127.0.0.1:3000/api/desktop/runtime npm run deskto
 - локальный `storage-daemon`
 - локальный Next runtime control-plane
 - локальный runtime gateway
+- локальный Telegram delivery loop
 - Electron, который открывает продовый UI с Vercel
 
 используй из корня проекта:
@@ -154,4 +155,13 @@ npm run desktop:node -- --public-url=https://your-domain.com
 
 ```bash
 npm run desktop:node:headless
+```
+
+Если на машине уже есть `TELEGRAM_BOT_TOKEN`, launcher теперь также поднимает local loop, который обслуживает общую Telegram-очередь через локальный storage runtime.
+
+Ручные команды для этого слоя:
+
+```bash
+npm run storage:delivery:once
+npm run storage:delivery:loop
 ```

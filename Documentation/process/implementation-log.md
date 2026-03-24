@@ -52,6 +52,30 @@
   - пишет `lastDeliveredVia=bag_http_pointer`
 - Это нужно, чтобы desktop retrieval был виден не только в Electron, но и в общей истории выдач и будущем participant accounting
 
+### Sprint 11 slice: local Telegram delivery loop для storage-ноды
+
+- В [storage delivery](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts) Telegram worker теперь не валит очередь, если на текущем runtime не задан `TELEGRAM_BOT_TOKEN`: такой pass просто остаётся idle
+- Добавлен отдельный loop-скрипт:
+  - [scripts/storage-delivery-local-worker.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/storage-delivery-local-worker.mjs)
+- Новые root команды:
+  - `npm run storage:delivery:once`
+  - `npm run storage:delivery:loop`
+- [desktop node launcher](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/desktop-node-launcher.mjs) теперь:
+  - прокидывает `TELEGRAM_WORKER_SECRET`
+  - включает `C3K_STORAGE_LOCAL_DELIVERY_WORKER_ENABLED`
+  - поднимает local Telegram delivery loop автоматически, если на машине есть `TELEGRAM_BOT_TOKEN`
+  - строже проверяет reuse local runtime, чтобы не молча переиспользовать старый contour без delivery loop
+- [desktop runtime](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts) и [desktop page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) теперь показывают:
+  - включён ли local Telegram delivery loop
+  - есть ли bot token
+  - размер очереди
+  - статус и метрики последнего run
+
+### Зачем это сделано
+
+- до этого `Sprint 11` уже закрывал desktop retrieval внутри Electron, но не доводил локальную ноду до общей очереди выдач
+- после этого шага нода готова обслуживать не только свои desktop-download, но и shared Telegram delivery contour через реальный storage runtime
+
 ### Sprint 11 slice: production desktop boots from local node runtime
 
 - [desktop runtime client](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts) теперь в Electron сначала читает runtime через `window.c3kDesktop.runtime()`, а уже потом падает обратно на HTTP `/api/desktop/runtime`

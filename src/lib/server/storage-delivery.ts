@@ -906,6 +906,7 @@ export const processTelegramStorageDeliveryQueue = async (
   limit = 25,
 ): Promise<TelegramStorageDeliveryWorkerStats> => {
   const config = getC3kStorageConfig();
+  const telegramBotTokenConfigured = Boolean(String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim());
   const queue = (await listStorageDeliveryRequests({
     channel: "telegram_bot",
     statuses: ["processing"],
@@ -914,6 +915,18 @@ export const processTelegramStorageDeliveryQueue = async (
     .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
 
   if (!config.telegramBotDeliveryEnabled) {
+    return {
+      queueSize: queue.length,
+      processed: 0,
+      claimed: 0,
+      delivered: 0,
+      failed: 0,
+      skipped: queue.length,
+      remaining: queue.length,
+    };
+  }
+
+  if (!telegramBotTokenConfigured) {
     return {
       queueSize: queue.length,
       processed: 0,

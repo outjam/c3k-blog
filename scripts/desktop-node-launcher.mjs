@@ -369,6 +369,9 @@ const buildNextEnv = () => {
     C3K_STORAGE_TON_DAEMON_CLI_ARGS_JSON: JSON.stringify(daemonCliArgs()),
     C3K_STORAGE_TON_HTTP_GATEWAY_BASE: localGatewayUrl,
     C3K_STORAGE_LOCAL_NODE_STORAGE_ROOT: paths.storageDb,
+    TELEGRAM_WORKER_SECRET: process.env.TELEGRAM_WORKER_SECRET || "local-delivery-worker-secret",
+    C3K_STORAGE_LOCAL_DELIVERY_WORKER_ENABLED: "1",
+    C3K_LOCAL_RUNTIME_BASE_URL: localOrigin,
   };
 };
 
@@ -379,14 +382,15 @@ const ensureLocalRuntime = async () => {
     const matchesPublicUrl = runtime?.webAppOrigin === options.publicUrl;
     const matchesGateway = runtime?.localNode?.gatewayUrl === localGatewayUrl;
     const matchesMode = runtime?.localNode?.uploadMode === "tonstorage_cli";
+    const matchesDeliveryLoop = runtime?.localNode?.deliveryWorker?.enabled === true;
 
-    if (matchesPublicUrl && matchesGateway && matchesMode) {
+    if (matchesPublicUrl && matchesGateway && matchesMode && matchesDeliveryLoop) {
       log("Переиспользую уже поднятый local runtime.");
       return { reused: true, runtime };
     }
 
     throw new Error(
-      `Локальный runtime уже занят другой конфигурацией на ${localRuntimeUrl}. Останови его или используй matching --public-url.`,
+      `Локальный runtime уже занят другой конфигурацией на ${localRuntimeUrl}. Останови его и перезапусти launcher, чтобы обновить delivery/runtime contour.`,
     );
   }
 
@@ -429,6 +433,19 @@ const startElectron = () => {
   });
 };
 
+const startLocalDeliveryWorker = () => {
+  if (!String(process.env.TELEGRAM_BOT_TOKEN || "").trim()) {
+    log("TELEGRAM_BOT_TOKEN не задан. Local Telegram delivery loop не будет запущен.");
+    return;
+  }
+
+  log("Запускаю local Telegram delivery loop.");
+  spawnManaged("delivery-loop", process.execPath, [path.join(cwd, "scripts/storage-delivery-local-worker.mjs")], {
+    env: buildNextEnv(),
+    owned: true,
+  });
+};
+
 const main = async () => {
   ensurePrerequisites();
   await ensureDesktopInstall();
@@ -455,6 +472,7 @@ const main = async () => {
     return;
   }
 
+  startLocalDeliveryWorker();
   log("Opening prod desktop with local node runtime.");
   startElectron();
 };

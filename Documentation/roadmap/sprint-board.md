@@ -295,7 +295,7 @@ Status: current
 - [x] Desktop auth bridge для входа через основной браузер без ручного переноса сессии
 - [x] Базовая модель выделенного места, health и participation state
 - [x] Подготовка UI и backend к reward-layer для storage participants
-- [ ] Telegram/file delivery из реального storage runtime
+- [x] Telegram/file delivery из реального storage runtime
 - [x] Desktop retrieval по `storagePointer`
 
 ## Как обновлять sprint board

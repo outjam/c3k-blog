@@ -55,6 +55,17 @@ export interface C3kDesktopLocalNodeParticipationPreview {
   estimatedWeeklyCredits: number;
 }
 
+export interface C3kDesktopLocalDeliveryWorkerState {
+  enabled: boolean;
+  tokenConfigured: boolean;
+  queueSize: number;
+  lastRunAt?: string;
+  lastRunStatus?: "completed" | "partial" | "failed";
+  lastRunProcessed?: number;
+  lastRunDelivered?: number;
+  summary: string;
+}
+
 export interface C3kDesktopLocalNodeRuntime {
   checkedAt: string;
   deviceLabel: string;
@@ -72,6 +83,7 @@ export interface C3kDesktopLocalNodeRuntime {
   storage: C3kDesktopLocalNodeStorageState;
   health: C3kDesktopLocalNodeHealthState;
   participation: C3kDesktopLocalNodeParticipationPreview;
+  deliveryWorker: C3kDesktopLocalDeliveryWorkerState;
   nextAction: string;
   notes: string[];
 }

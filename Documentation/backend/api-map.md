@@ -273,6 +273,7 @@
 - `/api/storage/downloads/worker`
   - worker для Telegram delivery queue
   - `mode=status` возвращает размер очереди
+  - теперь может обслуживаться и local desktop-node loop, а не только админским/manual trigger
 - `/api/storage/ingest/worker`
   - внешний upload worker для `tonstorage_testnet`
   - умеет `claim` и `complete`

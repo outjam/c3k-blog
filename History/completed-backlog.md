@@ -818,3 +818,11 @@
 - после завершения локального desktop-download выдача теперь замыкается обратно в delivery history
 - добавлен отдельный `desktop-complete` route для delivery request
 - это позволяет видеть локальный desktop retrieval уже не только в окне Electron, но и в общей истории выдач
+
+### Sprint 11: local Telegram delivery loop
+
+- добавлен отдельный local worker loop для Telegram delivery:
+  - `npm run storage:delivery:once`
+  - `npm run storage:delivery:loop`
+- launcher ноды теперь может поднимать этот loop автоматически вместе с daemon/runtime/Electron
+- desktop runtime показывает queue size и last run для local Telegram delivery

@@ -670,6 +670,53 @@ export default function StorageDesktopPage() {
               </div>
             </section>
 
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Telegram delivery loop</h2>
+                <p>
+                  Этот блок показывает, обслуживает ли локальная нода общую Telegram-очередь выдачи,
+                  а не только desktop-download внутри Electron.
+                </p>
+              </div>
+
+              <div className={styles.infoGrid}>
+                <article className={styles.infoCard}>
+                  <span>Loop</span>
+                  <strong>{runtime.localNode.deliveryWorker.enabled ? "Enabled" : "Disabled"}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Bot token</span>
+                  <strong>{runtime.localNode.deliveryWorker.tokenConfigured ? "Configured" : "Missing"}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Queue size</span>
+                  <strong>{String(runtime.localNode.deliveryWorker.queueSize)}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Last run</span>
+                  <strong>{formatDateTime(runtime.localNode.deliveryWorker.lastRunAt)}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Last status</span>
+                  <strong>{runtime.localNode.deliveryWorker.lastRunStatus ?? "—"}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Delivered / processed</span>
+                  <strong>
+                    {runtime.localNode.deliveryWorker.lastRunDelivered ?? 0} / {runtime.localNode.deliveryWorker.lastRunProcessed ?? 0}
+                  </strong>
+                </article>
+              </div>
+
+              <div className={styles.runtimeNotes}>
+                <strong>{runtime.localNode.deliveryWorker.summary}</strong>
+                <span>
+                  Когда loop активен, локальная нода может сама забирать общую очередь и отправлять
+                  пользователю купленные файлы в Telegram через реальный storage runtime.
+                </span>
+              </div>
+            </section>
+
             {activeDesktopRequest ? (
               <section className={styles.group}>
                 <div className={styles.groupHeading}>

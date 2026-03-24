@@ -9,6 +9,7 @@ import {
   getDefaultDesktopGatewayConfig,
 } from "@/lib/desktop-runtime";
 import { getC3kStorageConfig } from "@/lib/storage-config";
+import { listAdminWorkerRuns } from "@/lib/server/admin-worker-run-store";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
 import {
   listStorageBagFiles,
@@ -18,6 +19,7 @@ import {
   upsertStorageNode,
 } from "@/lib/server/storage-registry-store";
 import { runTonStorageRuntimePreflight } from "@/lib/server/storage-ton-runtime-preflight";
+import { getTelegramStorageDeliveryQueueSize } from "@/lib/server/storage-delivery";
 import type { C3kDesktopLocalNodeRuntime, C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
 
 const GIGABYTE = 1024 * 1024 * 1024;
@@ -198,6 +200,38 @@ const buildLocalNodeParticipationPreview = (input: {
   };
 };
 
+const buildLocalDeliveryWorkerState = async (): Promise<C3kDesktopLocalNodeRuntime["deliveryWorker"]> => {
+  const enabled = normalizeText(process.env.C3K_STORAGE_LOCAL_DELIVERY_WORKER_ENABLED) === "1";
+  const tokenConfigured = Boolean(normalizeText(process.env.TELEGRAM_BOT_TOKEN));
+  const [queueSize, lastRun] = await Promise.all([
+    getTelegramStorageDeliveryQueueSize().catch(() => 0),
+    listAdminWorkerRuns({ workerId: "storage_delivery_telegram", limit: 1 })
+      .then((entries) => entries[0] ?? null)
+      .catch(() => null),
+  ]);
+
+  const summary = !enabled
+    ? "Локальный Telegram delivery loop пока не включён для этой ноды."
+    : !tokenConfigured
+      ? "Loop разрешён, но TELEGRAM_BOT_TOKEN не задан, поэтому нода не отправляет файлы в Telegram."
+      : queueSize > 0
+        ? `В очереди ${queueSize} request(s) на Telegram delivery.`
+        : lastRun
+          ? "Telegram delivery loop активен и очередь сейчас пуста."
+          : "Loop включён. Нода готова обслуживать Telegram delivery, как только появится очередь.";
+
+  return {
+    enabled,
+    tokenConfigured,
+    queueSize,
+    lastRunAt: lastRun?.completedAt,
+    lastRunStatus: lastRun?.status,
+    lastRunProcessed: lastRun?.processed,
+    lastRunDelivered: lastRun?.delivered,
+    summary,
+  };
+};
+
 const syncLocalNodeHeartbeat = async (
   localNode: Omit<C3kDesktopLocalNodeRuntime, "registryNodeId">,
 ): Promise<string | undefined> => {
@@ -245,10 +279,11 @@ const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime
   const runtimeStatus = getStorageRuntimeStatus();
   const preflight = await runTonStorageRuntimePreflight({ logHealthEvent: false }).catch(() => null);
   const storageRootPath = resolveLocalNodeStorageRoot();
-  const [bagFiles, bags, health] = await Promise.all([
+  const [bagFiles, bags, health, deliveryWorker] = await Promise.all([
     listStorageBagFiles(),
     listStorageBags(),
     buildLocalNodeHealthState(),
+    buildLocalDeliveryWorkerState(),
   ]);
   const bagCount = preflight?.cliKnownBagCount ?? 0;
   const daemonReady = preflight?.cliOk ?? false;
@@ -310,6 +345,7 @@ const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime
     },
     health,
     participation,
+    deliveryWorker,
     nextAction,
     notes,
   };

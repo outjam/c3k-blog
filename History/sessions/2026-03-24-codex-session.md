@@ -388,3 +388,21 @@
   - request переходит в `delivered`
   - в историю пишется `lastDeliveredVia=bag_http_pointer`
   - дальше это можно использовать и для user-facing истории, и для будущих participant/reward расчётов
+
+### 35. Локальная нода получила свой Telegram delivery loop
+
+- До этого `Sprint 11` уже позволял локально скачать файл через ноду, но shared Telegram delivery contour всё ещё требовал ручного прогона или внешней инфраструктуры.
+- Теперь добавлен отдельный local loop `scripts/storage-delivery-local-worker.mjs`.
+- Он умеет:
+  - смотреть queue size через local runtime route
+  - запускать worker-pass против `/api/storage/downloads/worker`
+  - жить в `once` и `loop` режимах
+- Launcher ноды теперь:
+  - прокидывает `TELEGRAM_WORKER_SECRET`
+  - включает `C3K_STORAGE_LOCAL_DELIVERY_WORKER_ENABLED`
+  - автоматически стартует этот loop, если на машине есть `TELEGRAM_BOT_TOKEN`
+- В desktop runtime и на desktop-экране теперь видны:
+  - включён ли local Telegram loop
+  - bot token configured / missing
+  - queue size
+  - last run status / processed / delivered
