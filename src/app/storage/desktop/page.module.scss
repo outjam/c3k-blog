@@ -410,6 +410,32 @@
   gap: 10px;
 }
 
+.formGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  color: var(--tg-hint);
+  font-size: 0.78rem;
+}
+
+.field input {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 34%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 82%, var(--tg-section-bg));
+  color: var(--tg-text);
+  font: inherit;
+  padding: 12px 14px;
+}
+
 .primaryButton {
   color: var(--tg-btn-text);
   background: var(--tg-btn);
@@ -472,7 +498,8 @@
   }
 
   .heroStats,
-  .statusList {
+  .statusList,
+  .formGrid {
     grid-template-columns: 1fr;
   }
 

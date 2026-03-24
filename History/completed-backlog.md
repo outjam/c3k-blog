@@ -826,3 +826,48 @@
   - `npm run storage:delivery:loop`
 - launcher ноды теперь может поднимать этот loop автоматически вместе с daemon/runtime/Electron
 - desktop runtime показывает queue size и last run для local Telegram delivery
+
+### Sprint 11: storage program self-service в desktop
+
+- desktop-экран теперь показывает membership текущего пользователя прямо внутри node runtime
+- добавлен route для привязки локальной ноды к storage account
+- heartbeat-созданную ноду теперь можно закрепить за своим аккаунтом без ручной админки
+
+### Sprint 11: публичный профиль своей desktop-ноды
+
+- владелец ноды теперь может прямо в desktop редактировать публичные поля своей ноды
+- добавлен self-service route для node profile
+- можно задать:
+  - публичное имя
+  - город
+  - код страны
+  - координаты
+- это готовит первую реальную точку для карты storage-сети без ручного захода в админку
+
+### Sprint 11: карта начала уважать реальную локальную ноду
+
+- desktop runtime теперь строит локальную точку карты из реальной registry-ноды пользователя, если у неё уже есть координаты
+- локальная нода больше не получает координаты первой чужой точки
+- локальная нода не дублируется в списке `publicNodes`
+
+### Sprint 11: storage program показывает реальные ноды сети
+
+- user-facing `/storage` теперь показывает:
+  - мои привязанные ноды
+  - первые публичные точки сети
+- snapshot участия в storage program расширен реальными `nodes/publicNodes`, а не только `nodeCount/nodeIds`
+
+### Sprint 11: user-facing сводка сети
+
+- `/storage` теперь показывает не только список peer-точек, но и summary сети:
+  - active/degraded
+  - community/provider split
+  - страны и города первых публичных нод
+
+### Sprint 11: user-facing peer-map
+
+- `/storage` теперь показывает реальную карту peer-сети
+- карта строится из:
+  - привязанных нод пользователя
+  - публичных peer-точек
+- сеть стала видна как география, а не только как набор карточек

@@ -447,7 +447,11 @@ const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConf
   const localNode = await buildLocalNodeRuntimeStatus();
   const gateway = getDefaultDesktopGatewayConfig();
   const registryNodes = await listStorageNodes();
+  const localRegistryNode = localNode.registryNodeId
+    ? registryNodes.find((entry) => entry.id === localNode.registryNodeId) ?? null
+    : null;
   const publicNodes: C3kDesktopNodeMapNode[] = registryNodes
+    .filter((entry) => entry.id !== localRegistryNode?.id)
     .filter((entry) => typeof entry.latitude === "number" && typeof entry.longitude === "number")
     .filter((entry) => entry.status !== "suspended")
     .slice(0, 6)
@@ -464,7 +468,12 @@ const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConf
       coordinates: [entry.longitude!, entry.latitude!],
     }));
 
-  if (publicNodes.length === 0) {
+  const localNodeCoordinates =
+    typeof localRegistryNode?.latitude === "number" && typeof localRegistryNode?.longitude === "number"
+      ? ([localRegistryNode.longitude, localRegistryNode.latitude] as [number, number])
+      : null;
+
+  if (publicNodes.length === 0 && !localNodeCoordinates) {
     return {
       localNode,
       ...buildDesktopNodeMapFallback(features, localNode),
@@ -472,13 +481,13 @@ const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConf
   }
 
   const localNodeMapEntry: C3kDesktopNodeMapNode = {
-    id: "desktop-home",
-    city: localNode.deviceLabel,
+    id: localRegistryNode?.id ?? "desktop-home",
+    city: localRegistryNode?.publicLabel || localRegistryNode?.city || localNode.deviceLabel,
     role: `Локальная нода · ${localNode.platformLabel}`,
     health: localNode.overallReady ? "Runtime ready" : localNode.daemonReady ? "Daemon online" : "Desktop beta",
     bags: localNode.bagCount > 0 ? `${localNode.bagCount} bags` : "0 bags",
     tone: localNode.tone,
-    coordinates: publicNodes[0]?.coordinates ?? [37.6176, 55.7558],
+    coordinates: localNodeCoordinates ?? [37.6176, 55.7558],
   };
 
   const gatewayNode: C3kDesktopNodeMapNode = {
@@ -488,10 +497,16 @@ const buildDesktopNodeMap = async (features: ReturnType<typeof getC3kStorageConf
     health: features.tonSiteDesktopGatewayEnabled ? "Gateway ready" : "Gateway pending",
     bags: `${gateway.host}:${gateway.port}`,
     tone: features.tonSiteDesktopGatewayEnabled ? "relay" : "ready",
-    coordinates: publicNodes[0]?.coordinates ?? [4.9041, 52.3676],
+    coordinates: [4.9041, 52.3676],
   };
 
-  const nodes = [localNodeMapEntry, gatewayNode, ...publicNodes];
+  const fallbackNetworkNodes =
+    publicNodes.length === 0
+      ? buildDesktopNodeMapFallback(features, localNode).nodes.filter(
+          (entry) => entry.id !== "desktop-home" && entry.id !== "gateway-core",
+        )
+      : [];
+  const nodes = [localNodeMapEntry, gatewayNode, ...publicNodes, ...fallbackNetworkNodes];
   return {
     localNode,
     nodes,

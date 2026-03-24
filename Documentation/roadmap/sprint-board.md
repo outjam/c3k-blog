@@ -297,6 +297,12 @@ Status: current
 - [x] Подготовка UI и backend к reward-layer для storage participants
 - [x] Telegram/file delivery из реального storage runtime
 - [x] Desktop retrieval по `storagePointer`
+- [x] Self-service storage program account и привязка локальной desktop-ноды к аккаунту
+- [x] Self-service публичный профиль desktop-ноды с городом и координатами
+- [x] Карта нод начинает уважать реальную локальную registry-ноду пользователя
+- [x] User-facing storage program показывает мои ноды и первые публичные peer-точки сети
+- [x] User-facing storage program показывает сводку public network по статусам, ролям и географии
+- [x] User-facing storage program показывает peer-map сети прямо на `/storage`
 
 ## Как обновлять sprint board
 

@@ -406,3 +406,17 @@
   - bot token configured / missing
   - queue size
   - last run status / processed / delivered
+
+### 36. Desktop-нода теперь связывается с storage program account
+
+- До этого local node heartbeat уже мог создавать registry-запись, но пользователь с desktop-экрана не видел своё membership state и не мог закрепить эту ноду за собой.
+- Теперь storage program snapshot возвращает `nodeIds` текущего участника.
+- Добавлен route `claim-local`, который позволяет:
+  - взять `registryNodeId` локальной ноды
+  - проверить membership текущего пользователя
+  - закрепить эту desktop-ноду за его Telegram account
+- На desktop-экране появился self-service слой:
+  - login state
+  - storage program membership
+  - вступление в программу
+  - привязка именно этой ноды к аккаунту

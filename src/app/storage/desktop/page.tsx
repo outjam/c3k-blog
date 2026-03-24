@@ -3,9 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 
 import { BackButtonController } from "@/components/back-button-controller";
+import {
+  claimMyLocalStorageNode,
+  fetchMyStorageNodeProfile,
+  fetchStorageProgramSnapshot,
+  joinMyStorageProgram,
+  updateMyStorageNodeProfile,
+} from "@/lib/admin-api";
+import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   fetchDesktopRuntimeContract,
   openTonSiteInDesktop,
@@ -14,7 +23,7 @@ import {
   completeDesktopStorageDeliveryRequestApi,
   fetchStorageDeliveryRequest,
 } from "@/lib/storage-delivery-api";
-import type { StorageDeliveryRequest } from "@/types/storage";
+import type { StorageDeliveryRequest, StorageNode, StorageProgramSnapshot } from "@/types/storage";
 import type { C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
 
 import styles from "./page.module.scss";
@@ -117,6 +126,14 @@ interface DesktopDownloadState {
   at?: string;
 }
 
+interface NodeProfileDraft {
+  publicLabel: string;
+  city: string;
+  countryCode: string;
+  latitude: string;
+  longitude: string;
+}
+
 const parseDesktopRequestFromSearch = (search: string): ActiveDesktopRequest | null => {
   const params = new URLSearchParams(search);
   const requestId = params.get("desktopRequestId") || "";
@@ -216,8 +233,17 @@ const formatDateTime = (value: string | undefined): string => {
   });
 };
 
+const buildNodeProfileDraft = (node: StorageNode | null): NodeProfileDraft => ({
+  publicLabel: node?.publicLabel ?? "",
+  city: node?.city ?? "",
+  countryCode: node?.countryCode ?? "",
+  latitude: node?.latitude === undefined ? "" : String(node.latitude),
+  longitude: node?.longitude === undefined ? "" : String(node.longitude),
+});
+
 export default function StorageDesktopPage() {
   const router = useRouter();
+  const { user, isSessionLoading, refreshSession } = useAppAuthUser();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
 
@@ -230,6 +256,14 @@ export default function StorageDesktopPage() {
   );
   const [downloadState, setDownloadState] = useState<DesktopDownloadState | null>(null);
   const [resolvedRequest, setResolvedRequest] = useState<StorageDeliveryRequest | null>(null);
+  const [programSnapshot, setProgramSnapshot] = useState<StorageProgramSnapshot | null>(null);
+  const [programLoading, setProgramLoading] = useState(false);
+  const [joiningProgram, setJoiningProgram] = useState(false);
+  const [claimingNode, setClaimingNode] = useState(false);
+  const [nodeProfile, setNodeProfile] = useState<StorageNode | null>(null);
+  const [nodeProfileDraft, setNodeProfileDraft] = useState<NodeProfileDraft>(() => buildNodeProfileDraft(null));
+  const [nodeProfileLoading, setNodeProfileLoading] = useState(false);
+  const [savingNodeProfile, setSavingNodeProfile] = useState(false);
   const nodeMap = useMemo(() => runtime?.nodeMap ?? buildDesktopNodeMapFallback(), [runtime]);
   const storageUsagePercent = runtime?.localNode.storage.totalBytes
     ? (runtime.localNode.storage.dataBytes / runtime.localNode.storage.totalBytes) * 100
@@ -245,6 +279,55 @@ export default function StorageDesktopPage() {
           ? "Desktop beta"
           : "Scaffold"
     : "—";
+  const localNodeClaimed = Boolean(
+    runtime?.localNode.registryNodeId &&
+      programSnapshot?.nodeIds?.includes(runtime.localNode.registryNodeId),
+  );
+  const localRegistryNodeId = runtime?.localNode.registryNodeId ?? "";
+  const nodeProfileMapReady = Boolean(
+    nodeProfile?.publicLabel &&
+      nodeProfile?.city &&
+      nodeProfile?.latitude !== undefined &&
+      nodeProfile?.longitude !== undefined,
+  );
+
+  const loadProgramSnapshot = useCallback(async () => {
+    if (!user?.id) {
+      setProgramSnapshot(null);
+      return;
+    }
+
+    setProgramLoading(true);
+    const response = await fetchStorageProgramSnapshot();
+    setProgramLoading(false);
+
+    if (response.error) {
+      setError(response.error);
+      return;
+    }
+
+    setProgramSnapshot(response.snapshot);
+  }, [user?.id]);
+
+  const loadNodeProfile = useCallback(async () => {
+    if (!user?.id || !localRegistryNodeId || !localNodeClaimed) {
+      setNodeProfile(null);
+      setNodeProfileDraft(buildNodeProfileDraft(null));
+      return;
+    }
+
+    setNodeProfileLoading(true);
+    const response = await fetchMyStorageNodeProfile(localRegistryNodeId);
+    setNodeProfileLoading(false);
+
+    if (response.error) {
+      setError(response.error);
+      return;
+    }
+
+    setNodeProfile(response.node);
+    setNodeProfileDraft(buildNodeProfileDraft(response.node));
+  }, [localNodeClaimed, localRegistryNodeId, user?.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -265,6 +348,34 @@ export default function StorageDesktopPage() {
       window.clearTimeout(timerId);
     };
   }, []);
+
+  useEffect(() => {
+    if (isSessionLoading) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      void loadProgramSnapshot();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [isSessionLoading, loadProgramSnapshot]);
+
+  useEffect(() => {
+    if (isSessionLoading) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      void loadNodeProfile();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [isSessionLoading, loadNodeProfile]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -449,6 +560,95 @@ export default function StorageDesktopPage() {
     setMessage(`Пытаемся открыть c3k.ton через ${target.deepLink}`);
   };
 
+  const handleJoinProgram = async () => {
+    setJoiningProgram(true);
+    setError("");
+    setMessage("");
+
+    const response = await joinMyStorageProgram({});
+    setJoiningProgram(false);
+
+    if (response.error || !response.membership) {
+      setError(response.error ?? "Не удалось вступить в storage program.");
+      return;
+    }
+
+    setMessage("Заявка в storage program отправлена.");
+    await loadProgramSnapshot();
+  };
+
+  const handleClaimLocalNode = async () => {
+    if (!runtime?.localNode.registryNodeId) {
+      setError("Локальная нода ещё не получила registry node id.");
+      return;
+    }
+
+    setClaimingNode(true);
+    setError("");
+    setMessage("");
+
+    const response = await claimMyLocalStorageNode({
+      nodeId: runtime.localNode.registryNodeId,
+    });
+
+    setClaimingNode(false);
+
+    if (!response.ok) {
+      setError(response.error ?? "Не удалось привязать локальную ноду к аккаунту.");
+      return;
+    }
+
+    setMessage("Локальная desktop-нода привязана к вашему storage account.");
+    await loadProgramSnapshot();
+  };
+
+  const handleNodeProfileDraftChange = (
+    field: keyof NodeProfileDraft,
+    value: string,
+  ) => {
+    setNodeProfileDraft((current) => ({
+      ...current,
+      [field]: field === "countryCode" ? value.toUpperCase() : value,
+    }));
+  };
+
+  const handleSaveNodeProfile = async () => {
+    if (!runtime?.localNode.registryNodeId) {
+      setError("У локальной ноды ещё нет registry node id.");
+      return;
+    }
+
+    setSavingNodeProfile(true);
+    setError("");
+    setMessage("");
+
+    const response = await updateMyStorageNodeProfile({
+      nodeId: runtime.localNode.registryNodeId,
+      publicLabel: nodeProfileDraft.publicLabel.trim() || null,
+      city: nodeProfileDraft.city.trim() || null,
+      countryCode: nodeProfileDraft.countryCode.trim() || null,
+      latitude: nodeProfileDraft.latitude.trim() || null,
+      longitude: nodeProfileDraft.longitude.trim() || null,
+    });
+
+    setSavingNodeProfile(false);
+
+    if (response.error || !response.node) {
+      setError(response.error ?? "Не удалось обновить публичный профиль ноды.");
+      return;
+    }
+
+    setNodeProfile(response.node);
+    setNodeProfileDraft(buildNodeProfileDraft(response.node));
+    setMessage("Публичный профиль ноды сохранён.");
+
+    const runtimeResponse = await fetchDesktopRuntimeContract();
+    setRuntime(runtimeResponse.runtime);
+    if (runtimeResponse.error) {
+      setError(runtimeResponse.error);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <BackButtonController onBack={handleBack} />
@@ -525,6 +725,111 @@ export default function StorageDesktopPage() {
 
             <section className={styles.group}>
               <div className={styles.groupHeading}>
+                <h2>Storage program account</h2>
+                <p>
+                  Здесь desktop-нода связывается уже не просто с устройством, а с вашим участием в
+                  программе: membership, число нод и привязка именно этого клиента к аккаунту.
+                </p>
+              </div>
+
+              {isSessionLoading ? (
+                <div className={styles.runtimeNotes}>
+                  <strong>Проверяем desktop session…</strong>
+                  <span>После авторизации здесь появится статус участия и связь локальной ноды с аккаунтом.</span>
+                </div>
+              ) : !user?.id ? (
+                <div className={styles.stepList}>
+                  <article className={styles.stepCard}>
+                    <span className={styles.stepIndex}>1</span>
+                    <div>
+                      <strong>Войти в desktop через Telegram</strong>
+                      <p>
+                        Для привязки ноды к участнику сети нужен Telegram-login внутри desktop-клиента.
+                      </p>
+                    </div>
+                  </article>
+                  <TelegramLoginWidget onAuthorized={() => void refreshSession()} />
+                </div>
+              ) : (
+                <>
+                  <div className={styles.infoGrid}>
+                    <article className={styles.infoCard}>
+                      <span>Аккаунт</span>
+                      <strong>{user.username ? `@${user.username}` : user.first_name ?? String(user.id)}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Membership</span>
+                      <strong>{programSnapshot?.membership ? programSnapshot.membership.status : "not joined"}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Tier</span>
+                      <strong>{programSnapshot?.membership?.tier ?? "supporter"}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Claimed nodes</span>
+                      <strong>{String(programSnapshot?.nodeCount ?? 0)}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Эта нода</span>
+                      <strong>{localNodeClaimed ? "Привязана" : "Ещё не привязана"}</strong>
+                    </article>
+                  </div>
+
+                  <div className={styles.runtimeNotes}>
+                    <strong>
+                      {programSnapshot?.membership
+                        ? localNodeClaimed
+                          ? "Эта desktop-нода уже закреплена за вашим storage account."
+                          : "Аккаунт уже в программе. Следующий шаг — привязать именно эту desktop-ноду."
+                        : "Аккаунт ещё не вступил в storage program. Сначала создаём membership, потом привязываем ноду."}
+                    </strong>
+                    <span>
+                      {programSnapshot?.membership
+                        ? programLoading
+                          ? "Обновляем program snapshot…"
+                          : `Registry nodes: ${(programSnapshot.nodeIds ?? []).join(", ") || "пока нет привязанных нод"}.`
+                        : "После вступления программа начнёт видеть эту машину как отдельную storage-ноду участника."}
+                    </span>
+                  </div>
+
+                  <div className={styles.actions}>
+                    {!programSnapshot?.membership ? (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={() => void handleJoinProgram()}
+                        disabled={joiningProgram || programLoading}
+                      >
+                        {joiningProgram ? "Отправляем заявку..." : "Вступить в storage program"}
+                      </button>
+                    ) : !localNodeClaimed ? (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={() => void handleClaimLocalNode()}
+                        disabled={claimingNode || programLoading || !runtime?.localNode.registryNodeId}
+                      >
+                        {claimingNode ? "Привязываем ноду..." : "Привязать эту ноду к аккаунту"}
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      className={styles.secondaryLink}
+                      onClick={() => void loadProgramSnapshot()}
+                    >
+                      Обновить статус программы
+                    </button>
+                    <Link href="/storage" className={styles.secondaryLink}>
+                      Storage program
+                    </Link>
+                  </div>
+                </>
+              )}
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
                 <h2>Локальная нода</h2>
                 <p>
                   Этот блок уже показывает не только product preview, а реальное состояние
@@ -569,6 +874,145 @@ export default function StorageDesktopPage() {
                   <span key={note}>{note}</span>
                 ))}
               </div>
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Публичный профиль ноды</h2>
+                <p>
+                  Этот блок управляет тем, как ваша desktop-нода будет выглядеть в сети: на карте,
+                  в desktop client и в будущей публичной витрине storage-узлов.
+                </p>
+              </div>
+
+              {!user?.id ? (
+                <div className={styles.runtimeNotes}>
+                  <strong>Сначала войдите в desktop через Telegram.</strong>
+                  <span>После авторизации здесь появится профиль именно вашей локальной ноды.</span>
+                </div>
+              ) : !programSnapshot?.membership ? (
+                <div className={styles.runtimeNotes}>
+                  <strong>Сначала вступите в storage program.</strong>
+                  <span>Публичный профиль доступен только для нод, связанных с участником программы.</span>
+                </div>
+              ) : !localNodeClaimed ? (
+                <div className={styles.runtimeNotes}>
+                  <strong>Сначала привяжите эту ноду к своему аккаунту.</strong>
+                  <span>
+                    Как только локальная нода будет закреплена за вашим storage account, здесь
+                    можно будет указать публичное имя, город и координаты.
+                  </span>
+                </div>
+              ) : nodeProfileLoading ? (
+                <div className={styles.runtimeNotes}>
+                  <strong>Загружаем профиль ноды…</strong>
+                  <span>Подтягиваем текущие публичные поля из storage registry.</span>
+                </div>
+              ) : (
+                <>
+                  <div className={styles.infoGrid}>
+                    <article className={styles.infoCard}>
+                      <span>Registry node</span>
+                      <strong>{nodeProfile?.id ?? runtime.localNode.registryNodeId ?? "—"}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Публичное имя</span>
+                      <strong>{nodeProfile?.publicLabel ?? nodeProfile?.nodeLabel ?? "Пока не задано"}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Гео-статус</span>
+                      <strong>{nodeProfileMapReady ? "Готова для карты" : "Нужно заполнить профиль"}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Последнее обновление</span>
+                      <strong>{formatDateTime(nodeProfile?.updatedAt)}</strong>
+                    </article>
+                  </div>
+
+                  <div className={styles.formGrid}>
+                    <label className={styles.field}>
+                      <span>Публичное имя</span>
+                      <input
+                        type="text"
+                        value={nodeProfileDraft.publicLabel}
+                        onChange={(event) => handleNodeProfileDraftChange("publicLabel", event.target.value)}
+                        placeholder="Roman desktop node"
+                        maxLength={120}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Город</span>
+                      <input
+                        type="text"
+                        value={nodeProfileDraft.city}
+                        onChange={(event) => handleNodeProfileDraftChange("city", event.target.value)}
+                        placeholder="Moscow"
+                        maxLength={120}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Код страны</span>
+                      <input
+                        type="text"
+                        value={nodeProfileDraft.countryCode}
+                        onChange={(event) => handleNodeProfileDraftChange("countryCode", event.target.value)}
+                        placeholder="RU"
+                        maxLength={8}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Широта</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={nodeProfileDraft.latitude}
+                        onChange={(event) => handleNodeProfileDraftChange("latitude", event.target.value)}
+                        placeholder="55.7558"
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Долгота</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={nodeProfileDraft.longitude}
+                        onChange={(event) => handleNodeProfileDraftChange("longitude", event.target.value)}
+                        placeholder="37.6176"
+                      />
+                    </label>
+                  </div>
+
+                  <div className={styles.runtimeNotes}>
+                    <strong>
+                      {nodeProfileMapReady
+                        ? "Профиль уже готов для реальной точки на карте нод."
+                        : "Чтобы нода появилась на карте как реальная точка, добавьте публичное имя, город и координаты."}
+                    </strong>
+                    <span>
+                      После сохранения desktop runtime перечитает registry, и карта в этом окне
+                      сможет перейти с preview-точки на вашу реальную ноду.
+                    </span>
+                  </div>
+
+                  <div className={styles.actions}>
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      onClick={() => void handleSaveNodeProfile()}
+                      disabled={savingNodeProfile}
+                    >
+                      {savingNodeProfile ? "Сохраняем профиль..." : "Сохранить профиль ноды"}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondaryLink}
+                      onClick={() => void loadNodeProfile()}
+                    >
+                      Обновить профиль ноды
+                    </button>
+                  </div>
+                </>
+              )}
             </section>
 
             <section className={styles.group}>

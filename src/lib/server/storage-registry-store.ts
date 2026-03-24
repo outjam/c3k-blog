@@ -8,6 +8,8 @@ import type {
   StorageNode,
   StorageNodeAssignment,
   StorageProgramMembership,
+  StorageProgramNetworkSummary,
+  StorageProgramNodeSummary,
   StorageProgramSnapshot,
   StorageProviderContract,
   StorageRegistryState,
@@ -651,6 +653,24 @@ export const getStorageProgramMembership = async (
   return snapshot.memberships[String(telegramUserId)] ?? null;
 };
 
+export const getStorageNode = async (
+  id: string,
+): Promise<StorageNode | null> => {
+  const normalizedId = normalizeSafeId(id, 120);
+
+  if (!normalizedId) {
+    return null;
+  }
+
+  const snapshot = await getStorageRegistrySnapshot();
+
+  if (!snapshot) {
+    return null;
+  }
+
+  return snapshot.nodes[normalizedId] ?? null;
+};
+
 export const joinStorageProgram = async (input: {
   telegramUserId: number;
   walletAddress?: string;
@@ -698,9 +718,61 @@ export const buildStorageProgramSnapshot = async (
   const runtimeStatus = getStorageRuntimeStatus();
   const snapshot = await getStorageRegistrySnapshot();
   const membership = snapshot?.memberships[String(telegramUserId)] ?? null;
-  const nodeCount = snapshot
-    ? Object.values(snapshot.nodes).filter((entry) => entry.userTelegramId === telegramUserId).length
-    : 0;
+  const toNodeSummary = (entry: StorageNode): StorageProgramNodeSummary => ({
+    id: entry.id,
+    nodeLabel: entry.nodeLabel,
+    publicLabel: entry.publicLabel,
+    city: entry.city,
+    countryCode: entry.countryCode,
+    latitude: entry.latitude,
+    longitude: entry.longitude,
+    status: entry.status,
+    nodeType: entry.nodeType,
+    platform: entry.platform,
+    diskAllocatedBytes: entry.diskAllocatedBytes,
+    diskUsedBytes: entry.diskUsedBytes,
+    bandwidthLimitKbps: entry.bandwidthLimitKbps,
+    lastSeenAt: entry.lastSeenAt,
+    updatedAt: entry.updatedAt,
+    mapReady: typeof entry.latitude === "number" && typeof entry.longitude === "number",
+  });
+  const userNodes = snapshot
+    ? Object.values(snapshot.nodes)
+        .filter((entry) => entry.userTelegramId === telegramUserId)
+        .sort((a, b) => {
+          const left = new Date(a.updatedAt || a.createdAt).getTime();
+          const right = new Date(b.updatedAt || b.createdAt).getTime();
+          return right - left;
+        })
+    : [];
+  const publicNodes = snapshot
+    ? Object.values(snapshot.nodes)
+        .filter((entry) => entry.status !== "suspended")
+        .filter((entry) => typeof entry.latitude === "number" && typeof entry.longitude === "number")
+        .sort((a, b) => {
+          const left = new Date(a.updatedAt || a.createdAt).getTime();
+          const right = new Date(b.updatedAt || b.createdAt).getTime();
+          return right - left;
+        })
+        .slice(0, 6)
+    : [];
+  const publicCountries = Array.from(
+    new Set(publicNodes.map((entry) => normalizeText(entry.countryCode, 8).toUpperCase()).filter(Boolean)),
+  ).slice(0, 8);
+  const publicCities = Array.from(
+    new Set(publicNodes.map((entry) => normalizeText(entry.city, 120)).filter(Boolean)),
+  ).slice(0, 8);
+  const networkSummary: StorageProgramNetworkSummary = {
+    totalNodes: publicNodes.length,
+    activeNodes: publicNodes.filter((entry) => entry.status === "active").length,
+    degradedNodes: publicNodes.filter((entry) => entry.status === "degraded").length,
+    communityNodes: publicNodes.filter((entry) => entry.nodeType === "community_node").length,
+    providerNodes: publicNodes.filter((entry) => entry.nodeType !== "community_node").length,
+    countries: publicCountries,
+    cities: publicCities,
+  };
+  const nodeIds = userNodes.map((entry) => entry.id);
+  const nodeCount = nodeIds.length;
 
   return {
     enabled: config.enabled,
@@ -711,6 +783,11 @@ export const buildStorageProgramSnapshot = async (
     runtimeStatus,
     membership,
     nodeCount,
+    nodeIds,
+    nodes: userNodes.map(toNodeSummary),
+    publicNodeCount: publicNodes.length,
+    publicNodes: publicNodes.map(toNodeSummary),
+    networkSummary,
   };
 };
 
@@ -1005,11 +1082,11 @@ export const upsertStorageNode = async (input: {
   userTelegramId?: number;
   walletAddress?: string;
   nodeLabel: string;
-  publicLabel?: string;
-  city?: string;
-  countryCode?: string;
-  latitude?: number;
-  longitude?: number;
+  publicLabel?: string | null;
+  city?: string | null;
+  countryCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   nodeType?: StorageNode["nodeType"];
   platform?: StorageNode["platform"];
   status?: StorageNode["status"];
@@ -1034,11 +1111,26 @@ export const upsertStorageNode = async (input: {
       userTelegramId: normalizeTelegramUserId(input.userTelegramId) ?? existing?.userTelegramId,
       walletAddress: normalizeWalletAddress(input.walletAddress) ?? existing?.walletAddress,
       nodeLabel,
-      publicLabel: normalizeOptionalText(input.publicLabel, 120) ?? existing?.publicLabel,
-      city: normalizeOptionalText(input.city, 120) ?? existing?.city,
-      countryCode: normalizeOptionalText(input.countryCode, 8) ?? existing?.countryCode,
-      latitude: normalizeLatitude(input.latitude) ?? existing?.latitude,
-      longitude: normalizeLongitude(input.longitude) ?? existing?.longitude,
+      publicLabel:
+        input.publicLabel === null
+          ? undefined
+          : normalizeOptionalText(input.publicLabel, 120) ?? existing?.publicLabel,
+      city:
+        input.city === null
+          ? undefined
+          : normalizeOptionalText(input.city, 120) ?? existing?.city,
+      countryCode:
+        input.countryCode === null
+          ? undefined
+          : normalizeOptionalText(input.countryCode, 8) ?? existing?.countryCode,
+      latitude:
+        input.latitude === null
+          ? undefined
+          : normalizeLatitude(input.latitude) ?? existing?.latitude,
+      longitude:
+        input.longitude === null
+          ? undefined
+          : normalizeLongitude(input.longitude) ?? existing?.longitude,
       nodeType: input.nodeType ?? existing?.nodeType ?? "community_node",
       platform: input.platform ?? existing?.platform ?? "linux",
       status: input.status ?? existing?.status ?? "candidate",

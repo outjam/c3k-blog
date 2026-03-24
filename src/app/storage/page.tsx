@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import maplibregl from "maplibre-gl";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TonConnectButton, useTonWallet } from "@tonconnect/ui-react";
 
 import { BackButtonController } from "@/components/back-button-controller";
@@ -18,6 +19,8 @@ import {
 import type { StorageDeliveryRequest, StorageProgramMembership, StorageProgramSnapshot } from "@/types/storage";
 
 import styles from "./page.module.scss";
+
+const NODE_MAP_STYLE = "https://demotiles.maplibre.org/style.json";
 
 type TierMeta = {
   label: string;
@@ -43,6 +46,15 @@ interface SeedPreviewItem {
   health: string;
   peers: string;
   payout: string;
+}
+
+interface StoragePeerMapNode {
+  id: string;
+  label: string;
+  role: string;
+  health: string;
+  tone: "live" | "ready" | "pending";
+  coordinates: [number, number];
 }
 
 const TIER_META: Record<StorageProgramMembership["tier"], TierMeta> = {
@@ -162,6 +174,134 @@ const formatShortWallet = (value: string | undefined): string => {
   return `${normalized.slice(0, 5)}…${normalized.slice(-5)}`;
 };
 
+const formatNodePlatform = (value: "macos" | "windows" | "linux"): string => {
+  switch (value) {
+    case "macos":
+      return "macOS";
+    case "windows":
+      return "Windows";
+    default:
+      return "Linux";
+  }
+};
+
+const formatNodeStatus = (value: "candidate" | "active" | "degraded" | "suspended"): string => {
+  switch (value) {
+    case "active":
+      return "Active";
+    case "degraded":
+      return "Degraded";
+    case "suspended":
+      return "Suspended";
+    default:
+      return "Candidate";
+  }
+};
+
+const formatNodeType = (value: "owned_provider" | "partner_provider" | "community_node"): string => {
+  switch (value) {
+    case "owned_provider":
+      return "Owned provider";
+    case "partner_provider":
+      return "Partner provider";
+    default:
+      return "Community node";
+  }
+};
+
+const formatDateTime = (value: string | undefined): string => {
+  if (!value) {
+    return "—";
+  }
+
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return "—";
+  }
+
+  return new Date(timestamp).toLocaleString("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+};
+
+const formatStorageSize = (value: number): string => {
+  if (value >= 1024 * 1024 * 1024) {
+    return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  return `${value} B`;
+};
+
+const toPeerTone = (status: "candidate" | "active" | "degraded" | "suspended"): StoragePeerMapNode["tone"] => {
+  switch (status) {
+    case "active":
+      return "live";
+    case "degraded":
+      return "ready";
+    default:
+      return "pending";
+  }
+};
+
+const buildPeerMapNodes = (snapshot: StorageProgramSnapshot | null): StoragePeerMapNode[] => {
+  if (!snapshot) {
+    return [];
+  }
+
+  const nodes = [
+    ...snapshot.nodes.map((entry) => ({
+      ...entry,
+      rolePrefix: "Моя нода",
+    })),
+    ...snapshot.publicNodes.map((entry) => ({
+      ...entry,
+      rolePrefix: entry.nodeType === "community_node" ? "Community node" : "Provider node",
+    })),
+  ];
+
+  const deduped = new Map<string, StoragePeerMapNode>();
+
+  nodes.forEach((entry) => {
+    if (typeof entry.latitude !== "number" || typeof entry.longitude !== "number") {
+      return;
+    }
+
+    deduped.set(entry.id, {
+      id: entry.id,
+      label: entry.publicLabel || entry.city || entry.nodeLabel,
+      role: `${entry.rolePrefix} · ${formatNodeType(entry.nodeType)}`,
+      health: formatNodeStatus(entry.status),
+      tone: toPeerTone(entry.status),
+      coordinates: [entry.longitude, entry.latitude],
+    });
+  });
+
+  return Array.from(deduped.values()).slice(0, 12);
+};
+
+const buildBoundsFromMapNodes = (nodes: StoragePeerMapNode[]): [[number, number], [number, number]] | null => {
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  const lons = nodes.map((entry) => entry.coordinates[0]);
+  const lats = nodes.map((entry) => entry.coordinates[1]);
+
+  return [
+    [Math.min(...lons) - 8, Math.min(...lats) - 4],
+    [Math.max(...lons) + 8, Math.max(...lats) + 4],
+  ];
+};
+
 const resolveNodeState = (
   membership: StorageProgramMembership | null,
   snapshot: StorageProgramSnapshot | null,
@@ -257,6 +397,8 @@ export default function StorageProgramPage() {
   const router = useRouter();
   const tonWallet = useTonWallet();
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -289,6 +431,64 @@ export default function StorageProgramPage() {
   const runtimeModeLabel =
     snapshot?.runtimeStatus.mode === "tonstorage_testnet" ? "TON Storage testnet" : "Local test prepare";
   const runtimePointerLabel = snapshot?.runtimeStatus.supportsRealPointers ? "Real pointers" : "Placeholder only";
+  const networkNodeCountLabel = snapshot?.publicNodeCount ? String(snapshot.publicNodeCount) : "preview";
+  const networkSummary = snapshot?.networkSummary;
+  const peerMapNodes = useMemo(() => buildPeerMapNodes(snapshot), [snapshot]);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || peerMapNodes.length === 0) {
+      return;
+    }
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: NODE_MAP_STYLE,
+      attributionControl: false,
+      dragRotate: false,
+      touchPitch: false,
+      pitchWithRotate: false,
+      cooperativeGestures: true,
+    });
+
+    mapRef.current = map;
+    map.on("load", () => {
+      const bounds = buildBoundsFromMapNodes(peerMapNodes);
+
+      if (bounds) {
+        map.fitBounds(bounds, {
+          padding: 42,
+          duration: 0,
+        });
+      }
+
+      map.resize();
+
+      peerMapNodes.forEach((node) => {
+        const markerEl = document.createElement("div");
+        markerEl.className = `${styles.mapMarker} ${styles[`mapMarker${node.tone.charAt(0).toUpperCase()}${node.tone.slice(1)}`]}`;
+        markerEl.innerHTML = `<span class="${styles.mapMarkerDot}"></span><div class="${styles.mapMarkerLabel}"><strong>${node.label}</strong><small>${node.health}</small></div>`;
+
+        new maplibregl.Marker({
+          element: markerEl,
+          anchor: "bottom",
+        })
+          .setLngLat(node.coordinates)
+          .setPopup(
+            new maplibregl.Popup({
+              offset: 20,
+              closeButton: false,
+              className: styles.mapPopup,
+            }).setHTML(`<strong>${node.label}</strong><br/>${node.role}<br/>${node.health}`),
+          )
+          .addTo(map);
+      });
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [peerMapNodes]);
 
   useEffect(() => {
     if (!connectedWalletAddress || connectedWalletAddress === walletAddress) {
@@ -476,6 +676,11 @@ export default function StorageProgramPage() {
                   <strong>{bagsInFocus}</strong>
                   <small>Целевой пул раздачи для вашего tier</small>
                 </article>
+                <article className={styles.metricTile}>
+                  <span>Сеть</span>
+                  <strong>{networkNodeCountLabel}</strong>
+                  <small>{snapshot?.publicNodeCount ? "Публичные точки на карте" : "Пока сеть ещё в preview-режиме"}</small>
+                </article>
               </div>
             </div>
 
@@ -633,6 +838,108 @@ export default function StorageProgramPage() {
 
             <section className={styles.sectionCard}>
               <div className={styles.sectionHead}>
+                <h2>Состояние сети сейчас</h2>
+                <p>
+                  Это уже не абстрактная идея storage-сети. Здесь видно, сколько публичных точек
+                  реально есть сейчас, сколько из них активны и как выглядит география первых peers.
+                </p>
+              </div>
+
+              <div className={styles.networkGrid}>
+                <article className={styles.networkCard}>
+                  <span>Публичные ноды</span>
+                  <strong>{networkSummary?.totalNodes ?? 0}</strong>
+                  <small>Точки, которые уже можно показывать пользователю вне desktop.</small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Active / degraded</span>
+                  <strong>
+                    {networkSummary?.activeNodes ?? 0} / {networkSummary?.degradedNodes ?? 0}
+                  </strong>
+                  <small>Живые runtime-точки и ноды, которым ещё нужен recovery.</small>
+                </article>
+                <article className={styles.networkCard}>
+                  <span>Community / provider</span>
+                  <strong>
+                    {networkSummary?.communityNodes ?? 0} / {networkSummary?.providerNodes ?? 0}
+                  </strong>
+                  <small>Баланс между пользовательскими нодами и инфраструктурными точками.</small>
+                </article>
+              </div>
+
+              {networkSummary?.countries?.length || networkSummary?.cities?.length ? (
+                <div className={styles.networkMeta}>
+                  {networkSummary.countries.length ? (
+                    <div className={styles.networkMetaBlock}>
+                      <span>Страны</span>
+                      <div className={styles.heroPills}>
+                        {networkSummary.countries.map((country) => (
+                          <span key={country} className={styles.controlPill}>
+                            {country}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {networkSummary.cities.length ? (
+                    <div className={styles.networkMetaBlock}>
+                      <span>Города</span>
+                      <div className={styles.heroPills}>
+                        {networkSummary.cities.map((city) => (
+                          <span key={city} className={styles.controlPill}>
+                            {city}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  География сети ещё не собрана. Как только ноды начнут получать публичный профиль и
+                  координаты, здесь появится уже живая карта городов и стран.
+                </div>
+              )}
+            </section>
+
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Карта peer-сети</h2>
+                <p>
+                  Здесь уже видно, как выглядит живая география storage-сети: ваши ноды и первые
+                  публичные peers на одной карте, а не только в списке.
+                </p>
+              </div>
+
+              {peerMapNodes.length ? (
+                <div className={styles.peerMapLayout}>
+                  <div ref={mapContainerRef} className={styles.peerMapCanvas} />
+                  <div className={styles.peerMapLegend}>
+                    {peerMapNodes.map((node) => (
+                      <article key={`${node.id}-legend`} className={styles.peerMapLegendCard}>
+                        <div className={styles.peerMapLegendHead}>
+                          <span
+                            className={`${styles.peerMapLegendTone} ${styles[`peerMapLegendTone${node.tone.charAt(0).toUpperCase()}${node.tone.slice(1)}`]}`}
+                          />
+                          <strong>{node.label}</strong>
+                        </div>
+                        <span>{node.role}</span>
+                        <b>{node.health}</b>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  Для карты пока не хватает нод с координатами. Как только у desktop-ноды появится
+                  публичный профиль с геоточкой, сеть начнёт появляться здесь автоматически.
+                </div>
+              )}
+            </section>
+
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
                 <h2>Как начисляется C3K Credit</h2>
                 <p>Будущая reward-логика уже заложена в интерфейсе, чтобы было видно, к чему идём в следующем storage sprint.</p>
               </div>
@@ -729,6 +1036,108 @@ export default function StorageProgramPage() {
                   </div>
                 </article>
               </div>
+            </section>
+
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Мои ноды в сети</h2>
+                <p>
+                  Здесь уже не только membership, а сами runtime-точки, которые принадлежат вашему
+                  аккаунту. Это мост между desktop-клиентом и будущей публичной storage-сетью.
+                </p>
+              </div>
+
+              {snapshot?.nodes?.length ? (
+                <div className={styles.nodeGrid}>
+                  {snapshot.nodes.map((node) => (
+                    <article key={node.id} className={styles.nodeCard}>
+                      <div className={styles.nodeCardHead}>
+                        <div>
+                          <strong>{node.publicLabel || node.city || node.nodeLabel}</strong>
+                          <p>{formatNodeType(node.nodeType)}</p>
+                        </div>
+                        <span
+                          className={`${styles.statusPill} ${styles[`statusPill${(node.status === "active" ? "Live" : node.status === "degraded" ? "Ready" : node.status === "suspended" ? "Locked" : "Pending")}`]}`}
+                        >
+                          {formatNodeStatus(node.status)}
+                        </span>
+                      </div>
+
+                      <div className={styles.nodeMeta}>
+                        <span>{formatNodePlatform(node.platform)}</span>
+                        <span>{node.city || "Город не указан"}</span>
+                        <span>{node.mapReady ? "Есть координаты" : "Нужны координаты"}</span>
+                      </div>
+
+                      <div className={styles.nodeRows}>
+                        <div>
+                          <span>Storage</span>
+                          <b>{formatStorageSize(node.diskUsedBytes)} / {formatStorageSize(node.diskAllocatedBytes)}</b>
+                        </div>
+                        <div>
+                          <span>Bandwidth</span>
+                          <b>{node.bandwidthLimitKbps > 0 ? `${Math.round(node.bandwidthLimitKbps / 1000)} Mbps` : "—"}</b>
+                        </div>
+                        <div>
+                          <span>Последний heartbeat</span>
+                          <b>{formatDateTime(node.lastSeenAt)}</b>
+                        </div>
+                      </div>
+
+                      <div className={styles.panelActions}>
+                        <Link href="/storage/desktop" className={styles.secondaryLink}>
+                          Открыть desktop-ноду
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  Пока у аккаунта нет ни одной привязанной ноды. Откройте desktop-клиент, привяжите
+                  локальную ноду к аккаунту и задайте ей публичный профиль.
+                </div>
+              )}
+            </section>
+
+            <section className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <h2>Публичные точки сети</h2>
+                <p>
+                  Это уже не только ваша нода, а первые реальные точки будущей storage-сети, которые
+                  можно показать пользователю вне desktop-клиента.
+                </p>
+              </div>
+
+              {snapshot?.publicNodes?.length ? (
+                <div className={styles.peerGrid}>
+                  {snapshot.publicNodes.map((node) => (
+                    <article key={`public-${node.id}`} className={styles.peerCard}>
+                      <div className={styles.nodeCardHead}>
+                        <div>
+                          <strong>{node.publicLabel || node.city || node.nodeLabel}</strong>
+                          <p>{formatNodeType(node.nodeType)}</p>
+                        </div>
+                        <span
+                          className={`${styles.statusPill} ${styles[`statusPill${(node.status === "active" ? "Live" : node.status === "degraded" ? "Ready" : node.status === "suspended" ? "Locked" : "Pending")}`]}`}
+                        >
+                          {formatNodeStatus(node.status)}
+                        </span>
+                      </div>
+                      <div className={styles.nodeMeta}>
+                        <span>{node.city || "Unknown city"}</span>
+                        <span>{node.countryCode || "—"}</span>
+                        <span>{formatNodePlatform(node.platform)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  Публичных точек сети пока нет. Как только ноды начнут получать координаты и heartbeat,
+                  здесь появится уже живая peer-картина, а не только preview.
+                </div>
+              )}
             </section>
 
             <section className={styles.sectionCard}>

@@ -253,8 +253,20 @@
 - `/api/storage/program/me`
   - snapshot участия в `C3K Storage`
   - включает активный `runtimeStatus` для user-facing storage dashboard
+  - теперь также возвращает:
+    - `nodes` текущего участника
+    - `publicNodeCount`
+    - `publicNodes` для user-facing peer preview
+    - `networkSummary` с активными/degraded/community/provider counts и географией сети
+    - координаты `nodes/publicNodes` для user-facing peer-map
 - `/api/storage/program/join`
   - подача заявки в storage program
+- `/api/storage/program/nodes/claim-local`
+  - привязка локальной desktop-ноды к текущему storage account
+  - использует `registryNodeId`, созданный local runtime heartbeat
+- `/api/storage/program/nodes/[id]`
+  - self-service чтение и обновление публичного профиля своей desktop-ноды
+  - позволяет задать `publicLabel`, `city`, `countryCode`, `latitude`, `longitude`
 - `/api/storage/downloads`
   - список собственных delivery requests пользователя
 - `/api/storage/downloads/release`

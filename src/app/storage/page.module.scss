@@ -300,7 +300,10 @@
 .membershipGrid,
 .rewardRuleGrid,
 .seedGrid,
-.deliveryList {
+.deliveryList,
+.nodeGrid,
+.peerGrid,
+.networkGrid {
   display: grid;
   gap: 0.72rem;
 }
@@ -324,14 +327,229 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.nodeGrid,
+.peerGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.networkGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.networkCard {
+  padding: 0.88rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 82%, var(--tg-section-bg));
+  display: grid;
+  gap: 0.28rem;
+}
+
+.networkCard span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.networkCard strong {
+  color: var(--tg-text);
+  font-size: 1.05rem;
+}
+
+.networkCard small {
+  color: var(--tg-subtitle-text);
+  line-height: 1.45;
+}
+
+.networkMeta {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.networkMetaBlock {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.networkMetaBlock > span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.peerMapLayout {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.peerMapCanvas {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border-radius: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
+}
+
+.peerMapCanvas :global(.maplibregl-map),
+.peerMapCanvas :global(.maplibregl-canvas-container),
+.peerMapCanvas :global(.maplibregl-canvas) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.peerMapLegend {
+  display: grid;
+  gap: 0.72rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.peerMapLegendCard {
+  padding: 0.88rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 82%, var(--tg-section-bg));
+  display: grid;
+  gap: 0.32rem;
+}
+
+.peerMapLegendHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.peerMapLegendTone {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.peerMapLegendCard span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.peerMapLegendCard b {
+  color: var(--tg-text);
+}
+
+.peerMapLegendToneLive {
+  color: #2ea84f;
+}
+
+.peerMapLegendToneReady {
+  color: var(--tg-link-color, var(--tg-btn));
+}
+
+.peerMapLegendTonePending {
+  color: #ff9f0a;
+}
+
+.mapMarker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.58rem;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px color-mix(in srgb, #000 18%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, var(--tg-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 22%, transparent);
+}
+
+.mapMarkerDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.mapMarkerLabel {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.mapMarkerLabel strong {
+  color: var(--tg-text);
+  font-size: 0.74rem;
+  line-height: 1.1;
+}
+
+.mapMarkerLabel small {
+  color: var(--tg-subtitle-text);
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.mapMarkerLive {
+  color: #2ea84f;
+}
+
+.mapMarkerReady {
+  color: var(--tg-link-color, var(--tg-btn));
+}
+
+.mapMarkerPending {
+  color: #ff9f0a;
+}
+
 .seedCardHead,
 .deliveryTopline,
-.deliveryMeta {
+.deliveryMeta,
+.nodeCardHead {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.55rem;
+}
+
+.nodeCard,
+.peerCard {
+  padding: 0.88rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 82%, var(--tg-section-bg));
+  display: grid;
+  gap: 0.72rem;
+}
+
+.nodeCardHead p {
+  margin: 0.18rem 0 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+}
+
+.nodeMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.nodeRows {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.nodeRows div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.72rem 0.78rem;
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 76%, transparent);
+}
+
+.nodeRows span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+}
+
+.nodeRows b {
+  color: var(--tg-text);
 }
 
 .seedHealthPill {
@@ -457,7 +675,11 @@
   .controlGrid,
   .membershipGrid,
   .rewardRuleGrid,
-  .deliveryList {
+  .deliveryList,
+  .nodeGrid,
+  .peerGrid,
+  .networkGrid,
+  .peerMapLegend {
     grid-template-columns: 1fr;
   }
 
@@ -489,6 +711,10 @@
   .rewardRuleGrid,
   .seedGrid {
     grid-template-columns: 1fr;
+  }
+
+  .peerMapCanvas {
+    min-height: 360px;
   }
 
   .heroMain,

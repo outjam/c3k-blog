@@ -76,6 +76,26 @@
 - до этого `Sprint 11` уже закрывал desktop retrieval внутри Electron, но не доводил локальную ноду до общей очереди выдач
 - после этого шага нода готова обслуживать не только свои desktop-download, но и shared Telegram delivery contour через реальный storage runtime
 
+### Sprint 11 slice: storage program self-service прямо на desktop-экране
+
+- [storage program snapshot](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts) теперь возвращает не только `nodeCount`, но и список `nodeIds` для текущего участника
+- Добавлен route для привязки локальной desktop-ноды к аккаунту:
+  - [claim-local route](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/program/nodes/claim-local/route.ts)
+- В [client helper](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts) появился `claimMyLocalStorageNode(...)`
+- [desktop page](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) теперь умеет:
+  - показывать login state пользователя
+  - подтягивать storage program snapshot
+  - предлагать вступить в программу прямо из desktop
+  - привязывать именно эту desktop-ноду к аккаунту, если heartbeat уже создал `registryNodeId`
+
+### Зачем это сделано
+
+- до этого local node уже была технически жива, но сама программа участия на desktop-экране ещё не сходилась с реальным аккаунтом пользователя
+- после этого шага desktop уже не только node runtime, но и точка self-service для storage participant:
+  - видно membership
+  - видно, сколько нод уже связано с аккаунтом
+  - именно эту машину можно закрепить за собой без ручного админского обхода
+
 ### Sprint 11 slice: production desktop boots from local node runtime
 
 - [desktop runtime client](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts) теперь в Electron сначала читает runtime через `window.c3kDesktop.runtime()`, а уже потом падает обратно на HTTP `/api/desktop/runtime`
@@ -2324,3 +2344,79 @@
   - desktop login теперь идёт через основной браузер пользователя
   - сессия возвращается обратно в Electron без ручного копирования токенов
   - built-in auth popup перестаёт быть главным путём входа в desktop
+
+### Desktop node public-profile slice
+
+- Для уже привязанной desktop-ноды добавлен self-service route:
+  - [src/app/api/storage/program/nodes/[id]/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/program/nodes/%5Bid%5D/route.ts)
+- Он позволяет владельцу ноды читать и обновлять безопасные публичные поля:
+  - `publicLabel`
+  - `city`
+  - `countryCode`
+  - `latitude`
+  - `longitude`
+- В [src/app/storage/desktop/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) появился отдельный блок `Публичный профиль ноды`
+- Пользователь теперь прямо в desktop может:
+  - увидеть, привязана ли эта нода к аккаунту
+  - заполнить публичное имя и гео-данные
+  - сохранить профиль и сразу обновить runtime contract
+- Важный эффект:
+  - карта нод перестаёт быть только preview-слоем
+  - первая реальная точка сети теперь может рождаться из самой desktop-ноды пользователя, а не только из админки
+
+### Desktop node map real-point slice
+
+- `desktop runtime` теперь строит локальную точку карты из реальной registry-ноды пользователя, если у неё уже есть координаты:
+  - [src/lib/server/desktop-runtime.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts)
+- Что изменилось:
+  - локальная нода больше не получает координаты первой чужой точки
+  - локальная нода не дублируется в `publicNodes`
+  - если публичных peers ещё нет, карта всё равно может показать одну реальную пользовательскую ноду и остальную preview-сеть вокруг неё
+- Важный эффект:
+  - сохранённый профиль ноды сразу начинает влиять на реальную карту сети
+  - карта ближе к будущему peer-map, а не только к демонстрационному overlay
+
+### User-facing storage network presence slice
+
+- `StorageProgramSnapshot` расширен реальными node-данными:
+  - [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts)
+  - [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts)
+- Snapshot теперь отдаёт:
+  - `nodes` участника
+  - `publicNodeCount`
+  - `publicNodes`
+- На [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx) появились новые user-facing блоки:
+  - `Мои ноды в сети`
+  - `Публичные точки сети`
+- Важный эффект:
+  - storage program теперь показывает не только заявку и будущий reward-layer
+  - пользователь уже видит свои реальные runtime-точки и первые public peers вне desktop-клиента
+
+### User-facing network summary slice
+
+- `StorageProgramSnapshot` теперь также отдаёт `networkSummary`:
+  - active nodes
+  - degraded nodes
+  - community/provider split
+  - страны и города первых публичных peers
+- Это в:
+  - [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts)
+  - [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts)
+- На [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx) добавлен новый блок `Состояние сети сейчас`
+- Важный эффект:
+  - `/storage` начинает показывать не только отдельные карточки peers
+  - пользователь уже видит масштаб и состав будущей storage-сети в одном месте
+
+### User-facing peer-map slice
+
+- `StorageProgramNodeSummary` теперь включает координаты, если нода уже map-ready:
+  - [src/types/storage.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/storage.ts)
+  - [src/lib/server/storage-registry-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-registry-store.ts)
+- На [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx) добавлена реальная карта peer-сети через `MapLibre`
+- Карта показывает:
+  - привязанные ноды пользователя
+  - публичные peer-точки сети
+  - их health/status прямо на карте и в легенде
+- Важный эффект:
+  - storage-сеть видна уже не только как список карточек и summary
+  - `/storage` начинает выглядеть как настоящий network surface, а не только как onboarding-программа

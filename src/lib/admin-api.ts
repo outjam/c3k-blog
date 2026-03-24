@@ -762,6 +762,87 @@ export const joinMyStorageProgram = async (payload: {
   }
 };
 
+export const claimMyLocalStorageNode = async (payload: {
+  nodeId: string;
+}): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const response = await fetch("/api/storage/program/nodes/claim-local", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: await parseApiError(response) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+};
+
+export const fetchMyStorageNodeProfile = async (
+  nodeId: string,
+): Promise<{ node: StorageNode | null; error?: string }> => {
+  try {
+    const response = await fetch(`/api/storage/program/nodes/${encodeURIComponent(nodeId)}`, {
+      method: "GET",
+      headers: adminHeaders(),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { node: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { node?: StorageNode | null };
+    return { node: data.node ?? null };
+  } catch {
+    return { node: null, error: "Network error" };
+  }
+};
+
+export const updateMyStorageNodeProfile = async (payload: {
+  nodeId: string;
+  publicLabel?: string | null;
+  city?: string | null;
+  countryCode?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
+}): Promise<{ node: StorageNode | null; error?: string }> => {
+  try {
+    const response = await fetch(`/api/storage/program/nodes/${encodeURIComponent(payload.nodeId)}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify({
+        publicLabel: payload.publicLabel,
+        city: payload.city,
+        countryCode: payload.countryCode,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+      }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { node: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { node?: StorageNode | null };
+    return { node: data.node ?? null };
+  } catch {
+    return { node: null, error: "Network error" };
+  }
+};
+
 export const fetchAdminStorage = async (): Promise<{ data: AdminStorageSnapshot | null; error?: string }> => {
   try {
     const response = await fetch("/api/admin/storage", {

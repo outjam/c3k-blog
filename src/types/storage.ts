@@ -208,6 +208,35 @@ export interface StorageProgramMembership {
   updatedAt: string;
 }
 
+export interface StorageProgramNodeSummary {
+  id: string;
+  nodeLabel: string;
+  publicLabel?: string;
+  city?: string;
+  countryCode?: string;
+  latitude?: number;
+  longitude?: number;
+  status: StorageNodeStatus;
+  nodeType: StorageNodeType;
+  platform: StorageNodePlatform;
+  diskAllocatedBytes: number;
+  diskUsedBytes: number;
+  bandwidthLimitKbps: number;
+  lastSeenAt?: string;
+  updatedAt: string;
+  mapReady: boolean;
+}
+
+export interface StorageProgramNetworkSummary {
+  totalNodes: number;
+  activeNodes: number;
+  degradedNodes: number;
+  communityNodes: number;
+  providerNodes: number;
+  countries: string[];
+  cities: string[];
+}
+
 export interface StorageRuntimeStatusSnapshot {
   mode: StorageRuntimeMode;
   label: string;
@@ -365,4 +394,9 @@ export interface StorageProgramSnapshot {
   runtimeStatus: StorageRuntimeStatusSnapshot;
   membership: StorageProgramMembership | null;
   nodeCount: number;
+  nodeIds: string[];
+  nodes: StorageProgramNodeSummary[];
+  publicNodeCount: number;
+  publicNodes: StorageProgramNodeSummary[];
+  networkSummary: StorageProgramNetworkSummary;
 }
