@@ -1604,3 +1604,70 @@
 - Важный эффект:
   - storage contour теперь можно гонять не только через admin simulation, но и отдельным внешним процессом
   - это максимально близкий к реальному worker опыт без отдельной инфраструктуры и без боевого `TON Storage daemon`
+
+### Sprint 10 slice: TON Storage bridge status and CLI mode
+
+- Добавлен server-side bridge helper:
+  - [src/lib/server/storage-ton-runtime-bridge.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-ton-runtime-bridge.ts)
+- В `.env.example` добавлены env для реального testnet bridge:
+  - `C3K_STORAGE_TON_UPLOAD_BRIDGE_MODE`
+  - `C3K_STORAGE_TON_DAEMON_CLI_BIN`
+  - `C3K_STORAGE_TON_DAEMON_CLI_ARGS_JSON`
+  - `C3K_STORAGE_TON_HTTP_GATEWAY_BASE`
+  - это в [\.env.example](/Users/culture3k/Documents/GitHub/c3k-blog/.env.example)
+- Storage runtime fetch теперь умеет резолвить `tonstorage://<BagID>/...` через настроенный HTTP gateway:
+  - [src/lib/server/storage-runtime-fetch.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-fetch.ts)
+  - [src/lib/server/storage-runtime-diagnostics.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-diagnostics.ts)
+- Storage admin route/dashboard теперь показывают:
+  - upload mode
+  - real upload readiness
+  - gateway retrieval readiness
+  - CLI bin и gateway base
+  - это подключено в:
+    - [src/app/api/admin/storage/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/route.ts)
+    - [src/app/admin/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx)
+- Локальный worker script получил режим `tonstorage_cli`:
+  - [scripts/storage-testnet-worker.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/scripts/storage-testnet-worker.mjs)
+  - теперь он может:
+    - забрать claimed source
+    - вызвать `storage-daemon-cli`
+    - создать реальный BagID
+    - вернуть в приложение настоящий `tonstorage://<BagID>/...` pointer
+- Важный эффект:
+  - между simulated contour и реальным `TON Storage` появился честный bridge layer
+  - следующий шаг уже не переписывание storage-кода, а подключение рабочего daemon/gateway конфига
+
+### Sprint 10 slice: runtime probe for concrete bag/asset
+
+- Добавлен probe helper:
+  - [src/lib/server/storage-runtime-probe.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-probe.ts)
+- Добавлен admin route:
+  - [src/app/api/admin/storage/runtime-probe/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/storage/runtime-probe/route.ts)
+- Admin API и storage dashboard получили операторский `Runtime probe`:
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+  - [src/app/admin/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/admin/storage/page.tsx)
+- Probe умеет:
+  - выбрать конкретный `assetId` или `bagId`
+  - резолвить fetch target через runtime
+  - проверить HTTP-доступность через `HEAD`, а при необходимости через короткий `GET`
+  - показать `via`, `HTTP status`, `content-type`, `content-length`
+- Важный эффект:
+  - operator больше не ограничен общими readiness-счётчиками
+  - переход к реальному `TON Storage` теперь можно валидировать на уровне конкретного релиза/файла
+
+### Desktop node map preview slice
+
+- Desktop screen получил визуальную карту нод:
+  - [src/app/storage/desktop/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx)
+  - [src/app/storage/desktop/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.module.scss)
+- Desktop node map переведена на реальную open-source геокарту через `maplibre-gl`:
+  - [package.json](/Users/culture3k/Documents/GitHub/c3k-blog/package.json)
+  - [package-lock.json](/Users/culture3k/Documents/GitHub/c3k-blog/package-lock.json)
+- Теперь `C3K Desktop Client` показывает:
+  - локальную desktop-ноду пользователя
+  - gateway для `c3k.ton`
+  - archive/collector/site cache точки
+  - реальные координаты на карте вместо условной схемы
+- Важный эффект:
+  - storage node в desktop больше не выглядит как чисто технический onboarding screen
+  - пользователь уже видит, к какой сети он подключается и как будет выглядеть swarm-раздача на настоящей географии

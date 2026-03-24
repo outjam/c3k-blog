@@ -464,3 +464,30 @@
   - download source
   - complete upload result
 - добавлены npm scripts для single-run и loop режима
+
+### Sprint 10: TON Storage bridge status и CLI mode
+
+- появился отдельный bridge layer между simulated contour и реальным `TON Storage`
+- storage admin теперь показывает:
+  - upload mode
+  - готовность `storage-daemon-cli`
+  - готовность HTTP gateway для чтения `tonstorage://`
+- runtime fetch теперь умеет резолвить реальные `tonstorage://<BagID>/...` pointers через gateway
+- локальный worker получил режим `tonstorage_cli`, который может создавать настоящий BagID через `storage-daemon-cli`
+
+### Sprint 10: runtime probe
+
+- в storage admin появился `Runtime probe`
+- теперь можно проверить конкретный asset или bag и увидеть:
+  - какой runtime target выбрался
+  - доступен ли он по HTTP
+  - какой статус/тип контента вернулся
+
+### Desktop node map preview
+
+- desktop-экран `C3K Storage Node` получил реальную open-source карту swarm на `MapLibre`
+- теперь пользователь видит:
+  - свою desktop-ноду
+  - gateway для `c3k.ton`
+  - archive и collector точки
+  - связи между ними

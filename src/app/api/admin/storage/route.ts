@@ -11,6 +11,7 @@ import { listStorageDeliveryRequests } from "@/lib/server/storage-delivery-store
 import { listStorageIngestJobs } from "@/lib/server/storage-ingest-store";
 import { buildStorageRuntimeDiagnostics } from "@/lib/server/storage-runtime-diagnostics";
 import { getStorageRuntimeStatus } from "@/lib/server/storage-runtime";
+import { getTonStorageRuntimeBridgeStatus } from "@/lib/server/storage-ton-runtime-bridge";
 import {
   forbiddenResponse,
   getShopApiAccess,
@@ -43,10 +44,12 @@ export async function GET(request: Request) {
   ]);
   const runtimeStatus = getStorageRuntimeStatus();
   const runtimeDiagnostics = buildStorageRuntimeDiagnostics({ assets, bags });
+  const runtimeBridge = getTonStorageRuntimeBridgeStatus();
 
   return NextResponse.json({
     runtimeStatus,
     runtimeDiagnostics,
+    runtimeBridge,
     assets,
     bags,
     nodes,

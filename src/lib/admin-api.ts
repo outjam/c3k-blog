@@ -41,6 +41,7 @@ import type {
   StorageNode,
   StorageProgramMembership,
   StorageProgramSnapshot,
+  StorageTonRuntimeBridgeStatus,
   StorageRuntimeStatusSnapshot,
 } from "@/types/storage";
 
@@ -201,6 +202,7 @@ export interface AdminSession {
 
 export interface AdminStorageSnapshot {
   runtimeStatus: StorageRuntimeStatusSnapshot;
+  runtimeBridge: StorageTonRuntimeBridgeStatus;
   runtimeDiagnostics: {
     generatedAt: string;
     assetsTotal: number;
@@ -208,7 +210,10 @@ export interface AdminStorageSnapshot {
     bagsTotal: number;
     bagsResolvable: number;
     pointerReadyBags: number;
-    viaCounts: Record<"delivery_url" | "resolved_source" | "bag_meta" | "asset_source" | "bag_http_pointer", number>;
+    viaCounts: Record<
+      "delivery_url" | "resolved_source" | "bag_meta" | "asset_source" | "bag_http_pointer" | "tonstorage_gateway",
+      number
+    >;
     unresolvedAssets: Array<{
       id: string;
       label: string;
@@ -227,6 +232,28 @@ export interface AdminStorageSnapshot {
   deliveryRequests: StorageDeliveryRequest[];
   ingestJobs: StorageIngestJob[];
   healthEvents: StorageHealthEvent[];
+}
+
+export interface AdminStorageRuntimeProbe {
+  checkedAt: string;
+  ok: boolean;
+  assetId?: string;
+  bagId?: string;
+  sourceUrl?: string;
+  via?:
+    | "delivery_url"
+    | "resolved_source"
+    | "bag_meta"
+    | "asset_source"
+    | "bag_http_pointer"
+    | "tonstorage_gateway";
+  probeMethod?: "HEAD" | "GET";
+  httpStatus?: number;
+  contentType?: string;
+  contentLength?: number;
+  error?: string;
+  assetLabel?: string;
+  bagLabel?: string;
 }
 
 export interface AdminStorageUploadSimulateSummary {
@@ -651,6 +678,32 @@ export const fetchAdminStorage = async (): Promise<{ data: AdminStorageSnapshot 
     return { data: (await response.json()) as AdminStorageSnapshot };
   } catch {
     return { data: null, error: "Network error" };
+  }
+};
+
+export const probeAdminStorageRuntime = async (payload?: {
+  assetId?: string;
+  bagId?: string;
+}): Promise<{ probe: AdminStorageRuntimeProbe | null; error?: string }> => {
+  try {
+    const response = await fetch("/api/admin/storage/runtime-probe", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...adminHeaders(),
+      },
+      body: JSON.stringify(payload ?? {}),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { probe: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as { probe?: AdminStorageRuntimeProbe | null };
+    return { probe: data.probe ?? null };
+  } catch {
+    return { probe: null, error: "Network error" };
   }
 };
 

@@ -66,6 +66,14 @@ export type StorageDeliveryChannel =
 export type StorageDeliveryTargetType = "release" | "track";
 
 export type StorageRuntimeMode = "test_prepare" | "tonstorage_testnet";
+export type StorageTonUploadBridgeMode = "simulated" | "tonstorage_cli";
+export type StorageRuntimeFetchVia =
+  | "delivery_url"
+  | "resolved_source"
+  | "bag_meta"
+  | "asset_source"
+  | "bag_http_pointer"
+  | "tonstorage_gateway";
 
 export type StorageIngestMode = StorageRuntimeMode;
 
@@ -196,6 +204,19 @@ export interface StorageRuntimeStatusSnapshot {
   enabled: boolean;
   supportsRealPointers: boolean;
   requiresExternalUploadWorker: boolean;
+  notes: string[];
+}
+
+export interface StorageTonRuntimeBridgeStatus {
+  generatedAt: string;
+  uploadMode: StorageTonUploadBridgeMode;
+  workerSecretConfigured: boolean;
+  daemonCliBin?: string;
+  daemonCliArgsConfigured: boolean;
+  gatewayBase?: string;
+  realUploadReady: boolean;
+  gatewayRetrievalReady: boolean;
+  missing: string[];
   notes: string[];
 }
 

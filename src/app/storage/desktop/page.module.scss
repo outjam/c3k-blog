@@ -160,6 +160,127 @@
   margin-bottom: 6px;
 }
 
+.nodeMap {
+  display: grid;
+  gap: 14px;
+}
+
+.nodeMapCanvas {
+  position: relative;
+  min-height: 340px;
+  overflow: hidden;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 18% 72%, color-mix(in srgb, var(--tg-accent) 24%, transparent), transparent 24%),
+    radial-gradient(circle at 78% 34%, color-mix(in srgb, #ffc535 24%, transparent), transparent 22%),
+    radial-gradient(circle at 70% 72%, color-mix(in srgb, var(--tg-section-separator) 22%, transparent), transparent 28%),
+    linear-gradient(160deg, color-mix(in srgb, var(--tg-section-bg) 88%, transparent), color-mix(in srgb, var(--tg-bg) 92%, transparent));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+}
+
+.mapMarker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(-8px);
+}
+
+.mapMarkerDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 8px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.mapMarkerLabel {
+  display: grid;
+  gap: 2px;
+  min-width: 126px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, transparent);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.16);
+}
+
+.mapMarkerLabel strong {
+  color: var(--tg-text);
+  font-size: 0.9rem;
+  line-height: 1.15;
+}
+
+.mapMarkerLabel small {
+  color: var(--tg-hint);
+  line-height: 1.25;
+}
+
+.mapMarkerLive,
+.nodeLegendToneLive {
+  color: var(--tg-accent);
+}
+
+.mapMarkerReady,
+.nodeLegendToneReady {
+  color: #ffc535;
+}
+
+.mapMarkerRelay,
+.nodeLegendToneRelay {
+  color: color-mix(in srgb, var(--tg-link-color, var(--tg-text)) 82%, white 18%);
+}
+
+.mapPopup :global(.maplibregl-popup-content) {
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, transparent);
+  color: var(--tg-text);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
+}
+
+.mapPopup :global(.maplibregl-popup-tip) {
+  border-top-color: color-mix(in srgb, var(--tg-section-bg) 92%, transparent);
+}
+
+.nodeLegend {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.nodeLegendCard {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--tg-section-bg) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+}
+
+.nodeLegendHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nodeLegendTone {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.nodeLegendCard span,
+.nodeLegendCard small {
+  color: var(--tg-hint);
+}
+
+.nodeLegendCard b {
+  color: var(--tg-text);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -233,6 +354,14 @@
   }
 
   .skeletonGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .nodeMapCanvas {
+    min-height: 460px;
+  }
+
+  .nodeLegend {
     grid-template-columns: 1fr;
   }
 }

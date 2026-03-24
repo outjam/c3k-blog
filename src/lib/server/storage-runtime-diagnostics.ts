@@ -1,9 +1,5 @@
 import { resolveStorageRuntimeFetchTargetFromRegistry } from "@/lib/server/storage-runtime-fetch";
-import type { StorageAsset, StorageBag } from "@/types/storage";
-
-type RuntimeVia = NonNullable<
-  ReturnType<typeof resolveStorageRuntimeFetchTargetFromRegistry>["via"]
->;
+import type { StorageAsset, StorageBag, StorageRuntimeFetchVia } from "@/types/storage";
 
 export interface StorageRuntimeDiagnosticsIssue {
   id: string;
@@ -18,17 +14,18 @@ export interface StorageRuntimeDiagnosticsSnapshot {
   bagsTotal: number;
   bagsResolvable: number;
   pointerReadyBags: number;
-  viaCounts: Record<RuntimeVia, number>;
+  viaCounts: Record<StorageRuntimeFetchVia, number>;
   unresolvedAssets: StorageRuntimeDiagnosticsIssue[];
   unresolvedBags: StorageRuntimeDiagnosticsIssue[];
 }
 
-const emptyViaCounts = (): Record<RuntimeVia, number> => ({
+const emptyViaCounts = (): Record<StorageRuntimeFetchVia, number> => ({
   delivery_url: 0,
   resolved_source: 0,
   bag_meta: 0,
   asset_source: 0,
   bag_http_pointer: 0,
+  tonstorage_gateway: 0,
 });
 
 const isPointerReadyBag = (bag: StorageBag): boolean => {

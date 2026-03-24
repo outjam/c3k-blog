@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import maplibregl from "maplibre-gl";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BackButtonController } from "@/components/back-button-controller";
 import {
@@ -12,6 +13,79 @@ import {
 import type { C3kDesktopRuntimeContract } from "@/types/desktop";
 
 import styles from "./page.module.scss";
+
+type DesktopNodeTone = "live" | "ready" | "relay";
+
+interface DesktopNodeMarker {
+  id: string;
+  city: string;
+  role: string;
+  health: string;
+  bags: string;
+  tone: DesktopNodeTone;
+  coordinates: [number, number];
+}
+
+const NODE_MAP_STYLE = "https://demotiles.maplibre.org/style.json";
+
+const buildDesktopNodeMap = (runtime: C3kDesktopRuntimeContract | null): { nodes: DesktopNodeMarker[]; bounds: [[number, number], [number, number]] } => {
+  const desktopTone: DesktopNodeTone = runtime?.features.desktopClientEnabled ? "live" : "ready";
+  const gatewayTone: DesktopNodeTone = runtime?.features.tonSiteDesktopGatewayEnabled ? "relay" : "ready";
+
+  return {
+    nodes: [
+      {
+        id: "desktop-home",
+        city: "Ваш desktop",
+        role: "Локальная нода и storage cache",
+        health: runtime?.features.desktopClientEnabled ? "Ready to seed" : "Beta scaffold",
+        bags: runtime?.features.desktopClientEnabled ? "6 bags" : "Target 6 bags",
+        tone: desktopTone,
+        coordinates: [37.6176, 55.7558],
+      },
+      {
+        id: "gateway-core",
+        city: "Amsterdam gateway",
+        role: "c3k.ton и runtime handoff",
+        health: runtime?.features.tonSiteDesktopGatewayEnabled ? "Gateway ready" : "Gateway pending",
+        bags: `${runtime?.gateway.host ?? "127.0.0.1"}:${runtime?.gateway.port ?? 3467}`,
+        tone: gatewayTone,
+        coordinates: [4.9041, 52.3676],
+      },
+      {
+        id: "archive-helsinki",
+        city: "Helsinki archive",
+        role: "Lossless release mirror",
+        health: "Healthy",
+        bags: "18 peers",
+        tone: "live",
+        coordinates: [24.9384, 60.1699],
+      },
+      {
+        id: "collector-almaty",
+        city: "Almaty collector",
+        role: "NFT media + booklet",
+        health: "Replicating",
+        bags: "9 peers",
+        tone: "ready",
+        coordinates: [76.886, 43.2389],
+      },
+      {
+        id: "site-belgrade",
+        city: "Belgrade site cache",
+        role: "Desktop site bundle",
+        health: runtime?.features.storageProgramEnabled ? "Standby" : "Preview",
+        bags: "4 peers",
+        tone: "relay",
+        coordinates: [20.4489, 44.7866],
+      },
+    ],
+    bounds: [
+      [0, 35],
+      [85, 62],
+    ],
+  };
+};
 
 function DesktopRuntimeSkeleton() {
   return (
@@ -34,11 +108,14 @@ function DesktopRuntimeSkeleton() {
 
 export default function StorageDesktopPage() {
   const router = useRouter();
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
 
   const [runtime, setRuntime] = useState<C3kDesktopRuntimeContract | null>(null);
   const [bootLoading, setBootLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const nodeMap = useMemo(() => buildDesktopNodeMap(runtime), [runtime]);
 
   useEffect(() => {
     let mounted = true;
@@ -59,6 +136,92 @@ export default function StorageDesktopPage() {
       window.clearTimeout(timerId);
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || bootLoading || !runtime) {
+      return;
+    }
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: NODE_MAP_STYLE,
+      attributionControl: false,
+      dragRotate: false,
+      touchPitch: false,
+      pitchWithRotate: false,
+      cooperativeGestures: true,
+    });
+
+    mapRef.current = map;
+    map.on("load", () => {
+      map.fitBounds(nodeMap.bounds, {
+        padding: 44,
+        duration: 0,
+      });
+
+      map.addSource("c3k-node-links", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates: [nodeMap.nodes[0].coordinates, nodeMap.nodes[1].coordinates, nodeMap.nodes[2].coordinates],
+              },
+            },
+            {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates: [nodeMap.nodes[1].coordinates, nodeMap.nodes[4].coordinates, nodeMap.nodes[3].coordinates],
+              },
+            },
+          ],
+        },
+      });
+
+      map.addLayer({
+        id: "c3k-node-links-layer",
+        type: "line",
+        source: "c3k-node-links",
+        paint: {
+          "line-color": "#2f7df6",
+          "line-width": 2,
+          "line-opacity": 0.62,
+          "line-dasharray": [2, 2],
+        },
+      });
+
+      nodeMap.nodes.forEach((node) => {
+        const markerEl = document.createElement("div");
+        markerEl.className = `${styles.mapMarker} ${styles[`mapMarker${node.tone.charAt(0).toUpperCase()}${node.tone.slice(1)}`]}`;
+        markerEl.innerHTML = `<span class="${styles.mapMarkerDot}"></span><div class="${styles.mapMarkerLabel}"><strong>${node.city}</strong><small>${node.health}</small></div>`;
+
+        new maplibregl.Marker({
+          element: markerEl,
+          anchor: "bottom",
+        })
+          .setLngLat(node.coordinates)
+          .setPopup(
+            new maplibregl.Popup({
+              offset: 20,
+              closeButton: false,
+              className: styles.mapPopup,
+            }).setHTML(`<strong>${node.city}</strong><br/>${node.role}<br/>${node.health} · ${node.bags}`),
+          )
+          .addTo(map);
+      });
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [bootLoading, runtime, nodeMap]);
 
   const handleBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -167,6 +330,34 @@ export default function StorageDesktopPage() {
                     </div>
                   </article>
                 ))}
+              </div>
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Карта нод</h2>
+                <p>
+                  Так будет выглядеть живая сеть раздачи в desktop-клиенте: ваша нода, gateway для <code>c3k.ton</code>,
+                  archive bags и соседние точки, которые держат реплики рядом с пользователем.
+                </p>
+              </div>
+
+              <div className={styles.nodeMap}>
+                <div ref={mapContainerRef} className={styles.nodeMapCanvas} />
+
+                <div className={styles.nodeLegend}>
+                  {nodeMap.nodes.map((node) => (
+                    <article key={`${node.id}-legend`} className={styles.nodeLegendCard}>
+                      <div className={styles.nodeLegendHead}>
+                        <span className={`${styles.nodeLegendTone} ${styles[`nodeLegendTone${node.tone.charAt(0).toUpperCase()}${node.tone.slice(1)}`]}`} />
+                        <strong>{node.city}</strong>
+                      </div>
+                      <span>{node.role}</span>
+                      <b>{node.health}</b>
+                      <small>{node.bags}</small>
+                    </article>
+                  ))}
+                </div>
               </div>
             </section>
 

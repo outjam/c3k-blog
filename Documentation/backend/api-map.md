@@ -182,6 +182,9 @@
 - `/api/admin/storage/upload-simulate`
   - test-only simulated upload pass для `tonstorage_testnet`
   - позволяет прогнать внешний upload stage без реального daemon bridge
+- `/api/admin/storage/runtime-probe`
+  - точечная проверка конкретного asset/bag через storage runtime
+  - показывает `via`, HTTP status и фактическую доступность fetch target
 - `/api/admin/ton/status`
   - snapshot active TON environment
   - active network, collection source, relay readiness и runtime/env drift warnings
@@ -260,6 +263,9 @@
   - `GET`: status или claim следующего prepared upload job
   - `POST action=claim`: забрать следующий prepared job
   - `POST action=complete`: подтвердить upload, bag pointer и replicas
+  - локальный worker теперь поддерживает:
+    - `simulated` mode
+    - `tonstorage_cli` mode через `storage-daemon-cli`
 - `/api/storage/ingest/worker/[id]/source`
   - защищённый source endpoint для внешнего upload worker
   - отдаёт байты исходного файла по claimed job и `worker lock`

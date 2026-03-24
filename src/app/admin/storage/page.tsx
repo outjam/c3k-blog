@@ -9,9 +9,11 @@ import {
   fetchAdminSession,
   fetchAdminStorage,
   patchAdminStorageMembership,
+  probeAdminStorageRuntime,
   runAdminStorageIngest,
   runAdminStorageUploadSimulate,
   syncAdminStorageArtistTracks,
+  type AdminStorageRuntimeProbe,
   type AdminSession,
   type AdminStorageSnapshot,
 } from "@/lib/admin-api";
@@ -59,6 +61,12 @@ export default function AdminStoragePage() {
   const [ingestingAssets, setIngestingAssets] = useState(false);
   const [simulatingUpload, setSimulatingUpload] = useState(false);
   const [ingestMode, setIngestMode] = useState<StorageIngestMode>("test_prepare");
+  const [runtimeProbe, setRuntimeProbe] = useState<AdminStorageRuntimeProbe | null>(null);
+  const [probingRuntime, setProbingRuntime] = useState(false);
+  const [probeDraft, setProbeDraft] = useState({
+    assetId: "",
+    bagId: "",
+  });
 
   const canView = Boolean(session?.permissions.includes("storage:view"));
   const canManage = Boolean(session?.permissions.includes("storage:manage"));
@@ -216,6 +224,26 @@ export default function AdminStoragePage() {
       replicasTarget: "3",
     });
     await load();
+  };
+
+  const runRuntimeProbe = async () => {
+    setProbingRuntime(true);
+    setError("");
+
+    const response = await probeAdminStorageRuntime({
+      assetId: probeDraft.assetId || undefined,
+      bagId: probeDraft.bagId || undefined,
+    });
+
+    if (response.error || !response.probe) {
+      setRuntimeProbe(null);
+      setError(response.error ?? "Не удалось выполнить runtime probe.");
+      setProbingRuntime(false);
+      return;
+    }
+
+    setRuntimeProbe(response.probe);
+    setProbingRuntime(false);
   };
 
   const saveMembership = async (telegramUserId: number) => {
@@ -477,8 +505,39 @@ export default function AdminStoragePage() {
                 bag http pointer: {snapshot?.runtimeDiagnostics.viaCounts.bag_http_pointer || 0}
               </span>
               <span>
+                tonstorage gateway: {snapshot?.runtimeDiagnostics.viaCounts.tonstorage_gateway || 0}
+              </span>
+              <span>
                 resolved source: {snapshot?.runtimeDiagnostics.viaCounts.resolved_source || 0}
               </span>
+            </div>
+          </article>
+          <article className={styles.runtimeCard}>
+            <div className={styles.blockHeading}>
+              <h2>TON Storage bridge</h2>
+            </div>
+            <p className={styles.blockHint}>
+              Этот блок показывает, можно ли уже перейти от локальной симуляции к настоящему testnet upload через
+              `storage-daemon` и сможет ли приложение потом читать `tonstorage://` pointer обратно.
+            </p>
+            <div className={styles.itemMeta}>
+              <span>upload mode: {snapshot?.runtimeBridge.uploadMode || "simulated"}</span>
+              <span>
+                real upload: {snapshot?.runtimeBridge.realUploadReady ? "ready" : "not ready"}
+              </span>
+              <span>
+                gateway retrieval: {snapshot?.runtimeBridge.gatewayRetrievalReady ? "ready" : "not ready"}
+              </span>
+              {snapshot?.runtimeBridge.daemonCliBin ? <span>cli: {snapshot.runtimeBridge.daemonCliBin}</span> : null}
+              {snapshot?.runtimeBridge.gatewayBase ? <span>{snapshot.runtimeBridge.gatewayBase}</span> : null}
+            </div>
+            <div className={styles.noteList}>
+              {(snapshot?.runtimeBridge.notes ?? []).map((note) => (
+                <span key={note}>{note}</span>
+              ))}
+              {(snapshot?.runtimeBridge.missing ?? []).map((item) => (
+                <span key={item}>{item}</span>
+              ))}
             </div>
           </article>
           <article className={styles.runtimeCard}>
@@ -487,7 +546,8 @@ export default function AdminStoragePage() {
             </div>
             <p className={styles.blockHint}>
               Если `assets ready` или `bags ready` заметно отстают, значит sync или ingest уже создали записи, но delivery ещё
-              не сможет честно достать файл из runtime. Это сигнал проверить source URLs, bag metadata и pointer mapping.
+              не сможет честно достать файл из runtime. Это сигнал проверить source URLs, bag metadata, pointer mapping и
+              gateway bridge для реальных `tonstorage://` URI.
             </p>
             <div className={styles.noteList}>
               <span>После sync должны появиться source URLs или resource keys у assets.</span>
@@ -529,6 +589,57 @@ export default function AdminStoragePage() {
               <span>Симуляция позволяет прогнать этот этап локально и бесплатно до реального daemon bridge.</span>
             </div>
           </article>
+        </section>
+
+        <section className={styles.block}>
+          <div className={styles.blockHeading}>
+            <h2>Runtime probe</h2>
+          </div>
+          <p className={styles.blockHint}>
+            Это точечная проверка конкретного asset или bag. Она показывает, какой fetch target реально выбрал runtime и
+            отвечает ли он уже как файл, а не только как запись в registry.
+          </p>
+          <div className={styles.formGrid}>
+            <input
+              value={probeDraft.assetId}
+              onChange={(event) =>
+                setProbeDraft((current) => ({
+                  ...current,
+                  assetId: event.target.value,
+                }))
+              }
+              placeholder="asset id (необязательно)"
+            />
+            <input
+              value={probeDraft.bagId}
+              onChange={(event) =>
+                setProbeDraft((current) => ({
+                  ...current,
+                  bagId: event.target.value,
+                }))
+              }
+              placeholder="bag id (необязательно)"
+            />
+            <button type="button" onClick={() => void runRuntimeProbe()} disabled={probingRuntime}>
+              {probingRuntime ? "Проверяем..." : "Проверить runtime fetch"}
+            </button>
+          </div>
+          {runtimeProbe ? (
+            <div className={styles.noteList}>
+              <span>{runtimeProbe.ok ? "Runtime fetch доступен" : "Runtime fetch пока не доступен"}</span>
+              {runtimeProbe.assetLabel ? <span>{runtimeProbe.assetLabel}</span> : null}
+              {runtimeProbe.bagLabel ? <span>{runtimeProbe.bagLabel}</span> : null}
+              {runtimeProbe.via ? <span>via: {runtimeProbe.via}</span> : null}
+              {runtimeProbe.probeMethod ? <span>probe: {runtimeProbe.probeMethod}</span> : null}
+              {typeof runtimeProbe.httpStatus === "number" ? <span>HTTP {runtimeProbe.httpStatus}</span> : null}
+              {runtimeProbe.contentType ? <span>{runtimeProbe.contentType}</span> : null}
+              {typeof runtimeProbe.contentLength === "number" ? (
+                <span>content-length: {runtimeProbe.contentLength}</span>
+              ) : null}
+              {runtimeProbe.sourceUrl ? <span>{runtimeProbe.sourceUrl}</span> : null}
+              {runtimeProbe.error ? <span>{runtimeProbe.error}</span> : null}
+            </div>
+          ) : null}
         </section>
 
         <section className={styles.guideGrid}>

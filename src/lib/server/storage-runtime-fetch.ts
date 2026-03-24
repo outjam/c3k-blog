@@ -2,11 +2,12 @@ import {
   listStorageAssets,
   listStorageBags,
 } from "@/lib/server/storage-registry-store";
-import type { StorageAsset, StorageBag } from "@/types/storage";
+import { buildTonStorageGatewayFetchUrl } from "@/lib/server/storage-ton-runtime-bridge";
+import type { StorageAsset, StorageBag, StorageRuntimeFetchVia } from "@/types/storage";
 
 export interface StorageRuntimeFetchTarget {
   sourceUrl: string;
-  via: "delivery_url" | "resolved_source" | "bag_meta" | "asset_source" | "bag_http_pointer";
+  via: StorageRuntimeFetchVia;
   asset?: StorageAsset | null;
   bag?: StorageBag | null;
 }
@@ -140,6 +141,21 @@ export const resolveStorageRuntimeFetchTargetFromRegistry = (
       ok: true,
       sourceUrl: assetSourceUrl,
       via: "asset_source",
+      bag,
+      asset,
+    };
+  }
+
+  const tonstorageGatewayUrl = buildTonStorageGatewayFetchUrl({
+    storagePointer: bag?.tonstorageUri ?? storagePointer,
+    bagId: bag?.bagId,
+    fileName: asset?.fileName,
+  });
+  if (tonstorageGatewayUrl) {
+    return {
+      ok: true,
+      sourceUrl: tonstorageGatewayUrl,
+      via: "tonstorage_gateway",
       bag,
       asset,
     };

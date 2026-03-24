@@ -253,6 +253,8 @@ Status: current
 - [x] Simulated upload pass для бесплатного end-to-end теста storage contour
 - [x] Protected source endpoint для внешнего upload worker
 - [x] Local external worker scaffold для `claim -> source -> complete`
+- [x] TON Storage bridge status: upload mode, CLI readiness и gateway retrieval readiness
+- [x] Runtime probe для конкретного asset/bag прямо из storage admin
 - [ ] Реальный upload выбранных assets в `TON Storage` test environment
 - [ ] Реальные bag/storage pointer для delivery layer
 
