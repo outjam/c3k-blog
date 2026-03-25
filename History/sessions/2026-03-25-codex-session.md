@@ -374,3 +374,27 @@
   - какие handoff-сессии уже идут
   - что реально лежит у него в storage inventory
 - это заметно ближе к целевой модели `простая торрент-нода для раздатчика`, где не нужно разбираться в внутренних storage-терминах
+
+## Следующий slice Sprint 13 — studio release flow без ручной ловушки с demo preview
+
+### Что изменено
+
+- Upload helper студии теперь поддерживает `autoPreview` и возвращает `generatedPreview`:
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- Artist studio переработана под более линейный flow:
+  - при загрузке `master-файла трека` студия автоматически просит собрать demo preview MP3
+  - manual preview upload теперь остаётся как замена, а не как обязательный отдельный шаг
+  - для single-релиза с одним треком demo может подхватиться прямо из общего master upload
+  - per-track status в форме теперь явно показывает `master готов / demo готов`
+  - ошибки submit теперь называют конкретный незавершённый трек
+  - [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx)
+  - [src/app/studio/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.module.scss)
+
+### Что это даёт
+
+- раньше артист доходил до конца формы и только там видел общую ошибку про missing demo preview
+- теперь форма ведёт его правильно:
+  - загрузи master
+  - demo создастся само
+  - если авто-генерация не удалась, это видно сразу на строке трека
+- сценарий создания релиза стал ближе к целевой простой цепочке без скрытого ручного шага

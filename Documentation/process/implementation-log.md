@@ -2724,3 +2724,18 @@
   - живые сессии раздачи
   - inventory bags в хранилище
   - более прямой язык про swarm, handoff и storage participation
+
+### Sprint 13 studio fix: demo preview больше не ломает создание релиза
+
+- Upload helper студии теперь умеет просить auto-generated preview и получать его в ответ:
+  - [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- Artist studio переведена на более линейный flow:
+  - после загрузки `master-файла трека` студия автоматически пытается создать demo preview MP3
+  - отдельная загрузка preview теперь подана как ручная замена, а не как основной обязательный шаг
+  - single-релиз с одним треком может подхватить demo прямо из общего master upload
+  - ошибки при создании релиза теперь называют конкретный трек, который ещё не готов
+  - [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx)
+  - [src/app/studio/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.module.scss)
+- Backend validation не ослаблялась:
+  - demo preview по-прежнему обязателен для каждого трека
+  - но UI теперь ведёт артиста к этому состоянию автоматически, а не оставляет ошибку только на финальном submit

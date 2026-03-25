@@ -2144,6 +2144,7 @@ export const createMyArtistTrack = async (payload: {
 export const uploadMyArtistAudioFile = async (payload: {
   kind: "master" | "preview";
   file: File;
+  autoPreview?: boolean;
 }): Promise<{
   upload: {
     kind: "master" | "preview";
@@ -2154,12 +2155,25 @@ export const uploadMyArtistAudioFile = async (payload: {
     sizeBytes: number;
     previewUrl?: string;
   } | null;
+  generatedPreview?: {
+    kind: "master" | "preview";
+    fileId: string;
+    fileName: string;
+    mimeType: string;
+    detectedFormat: ArtistTrack["formats"][number]["format"];
+    sizeBytes: number;
+    previewUrl?: string;
+  } | null;
+  generatedPreviewError?: string;
   error?: string;
 }> => {
   try {
     const formData = new FormData();
     formData.append("kind", payload.kind);
     formData.append("file", payload.file);
+    if (payload.autoPreview) {
+      formData.append("autoPreview", "1");
+    }
 
     const response = await fetch("/api/shop/artists/me/uploads/audio", {
       method: "POST",
@@ -2184,9 +2198,23 @@ export const uploadMyArtistAudioFile = async (payload: {
         sizeBytes: number;
         previewUrl?: string;
       } | null;
+      generatedPreview?: {
+        kind: "master" | "preview";
+        fileId: string;
+        fileName: string;
+        mimeType: string;
+        detectedFormat: ArtistTrack["formats"][number]["format"];
+        sizeBytes: number;
+        previewUrl?: string;
+      } | null;
+      generatedPreviewError?: string;
     };
 
-    return { upload: data.upload ?? null };
+    return {
+      upload: data.upload ?? null,
+      generatedPreview: data.generatedPreview ?? null,
+      generatedPreviewError: data.generatedPreviewError,
+    };
   } catch {
     return { upload: null, error: "Network error" };
   }

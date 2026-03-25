@@ -36,6 +36,7 @@ interface TrackRowDraft {
   title: string;
   previewUrl: string;
   previewFileName: string;
+  previewGenerated: boolean;
   audioFileId: string;
   audioFormat: ArtistTrack["formats"][number]["format"];
   audioFileName: string;
@@ -48,12 +49,17 @@ const createTrackRowDraft = (index: number): TrackRowDraft => ({
   title: "",
   previewUrl: "",
   previewFileName: "",
+  previewGenerated: false,
   audioFileId: "",
   audioFormat: "mp3",
   audioFileName: "",
   durationSec: "30",
   priceStarsCents: "",
 });
+
+const formatTrackDraftLabel = (row: TrackRowDraft, index: number): string => {
+  return row.title.trim() || `Трек #${index + 1}`;
+};
 
 const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTrackItem[] => {
   return rows.reduce<ArtistReleaseTrackItem[]>((acc, row, index) => {
@@ -381,6 +387,8 @@ export default function StudioPage() {
       return;
     }
 
+    const shouldAutoPreviewFromPackage = releaseDraft.releaseTracklist.length === 1;
+
     setMasterUploadPending(true);
     setError("");
     setMessage("");
@@ -388,6 +396,7 @@ export default function StudioPage() {
     const response = await uploadMyArtistAudioFile({
       kind: "master",
       file,
+      autoPreview: shouldAutoPreviewFromPackage,
     });
 
     setMasterUploadPending(false);
@@ -407,6 +416,9 @@ export default function StudioPage() {
                     audioFileId: response.upload?.fileId ?? "",
                     audioFormat: response.upload?.detectedFormat ?? row.audioFormat,
                     audioFileName: response.upload?.fileName ?? "",
+                    previewUrl: response.generatedPreview?.previewUrl ?? row.previewUrl,
+                    previewFileName: response.generatedPreview?.fileName ?? row.previewFileName,
+                    previewGenerated: Boolean(response.generatedPreview?.previewUrl) || row.previewGenerated,
                   }
                 : row,
             )
@@ -420,6 +432,16 @@ export default function StudioPage() {
         releaseTracklist: nextTracklist,
       };
     });
+    if (response.generatedPreview?.previewUrl) {
+      setMessage(`Master-файл загружен, demo preview создан автоматически: ${response.generatedPreview.fileName}`);
+      return;
+    }
+
+    if (response.generatedPreviewError) {
+      setMessage(`Master-файл загружен. Demo preview не создался автоматически: ${response.generatedPreviewError}`);
+      return;
+    }
+
     setMessage(`Master-файл загружен: ${response.upload.fileName}`);
   };
 
@@ -448,6 +470,7 @@ export default function StudioPage() {
     updateTrackRow(index, {
       previewUrl: response.upload.previewUrl,
       previewFileName: response.upload.fileName,
+      previewGenerated: false,
       durationSec: "30",
     });
     setMessage(`Demo preview загружен: ${response.upload.fileName}`);
@@ -466,6 +489,7 @@ export default function StudioPage() {
     const response = await uploadMyArtistAudioFile({
       kind: "master",
       file,
+      autoPreview: true,
     });
 
     setPreviewUploadPendingKey("");
@@ -475,11 +499,36 @@ export default function StudioPage() {
       return;
     }
 
-    updateTrackRow(index, {
-      audioFileId: response.upload.fileId,
-      audioFormat: response.upload.detectedFormat,
-      audioFileName: response.upload.fileName,
-    });
+    const uploadedTrackMaster = response.upload;
+
+    setReleaseDraft((current) => ({
+      ...current,
+      releaseTracklist: current.releaseTracklist.map((row, rowIndex) =>
+        rowIndex === index
+          ? {
+              ...row,
+              audioFileId: uploadedTrackMaster.fileId,
+              audioFormat: uploadedTrackMaster.detectedFormat,
+              audioFileName: uploadedTrackMaster.fileName,
+              previewUrl: response.generatedPreview?.previewUrl ?? row.previewUrl,
+              previewFileName: response.generatedPreview?.fileName ?? row.previewFileName,
+              previewGenerated: response.generatedPreview?.previewUrl ? true : row.previewGenerated,
+              durationSec: "30",
+            }
+          : row,
+      ),
+    }));
+
+    if (response.generatedPreview?.previewUrl) {
+      setMessage(`Файл трека загружен, demo preview создан автоматически: ${response.generatedPreview.fileName}`);
+      return;
+    }
+
+    if (response.generatedPreviewError) {
+      setError(`Файл трека загружен, но demo preview не создался автоматически. ${response.generatedPreviewError}`);
+      return;
+    }
+
     setMessage(`Файл трека загружен: ${response.upload.fileName}`);
   };
 
@@ -538,14 +587,14 @@ export default function StudioPage() {
     const missingPreview = normalizedTracklist.find((track) => !track.previewUrl);
     if (missingPreview) {
       setReleaseSaving(false);
-      setError("У каждого трека должен быть demo preview в MP3.");
+      setError(`Для "${missingPreview.title}" ещё нет demo preview. Загрузите master-файл трека, и preview создастся автоматически, либо добавьте MP3 вручную.`);
       return;
     }
 
     const missingTrackMaster = normalizedTracklist.find((track) => !track.audioFileId || !track.audioFormat);
     if (missingTrackMaster) {
       setReleaseSaving(false);
-      setError("У каждого трека должен быть master-файл через проводник.");
+      setError(`Для "${missingTrackMaster.title}" ещё не загружен master-файл через проводник.`);
       return;
     }
 
@@ -1269,6 +1318,15 @@ export default function StudioPage() {
                 <p>{releaseDraft.releaseTracklist.length}</p>
               </div>
 
+              <div className={styles.infoBanner}>
+                <strong>Как это работает сейчас</strong>
+                <span>
+                  Для каждого трека сначала загрузите master-файл через проводник. Студия сама
+                  попробует создать demo preview MP3 до 30 секунд. Отдельный preview-файл нужен
+                  только если хотите заменить автогенерированное демо вручную.
+                </span>
+              </div>
+
               <div className={styles.trackDraftList}>
                 {releaseDraft.releaseTracklist.map((row, index) => (
                   <article key={`${row.id}-${index}`} className={styles.trackDraftRow}>
@@ -1287,11 +1345,11 @@ export default function StudioPage() {
                         onChange={(event) => void uploadTrackMasterFile(index, event.target.files?.[0] ?? null)}
                       />
                       <small className={styles.fieldHint}>
-                        Именно этот файл потом попадёт в storage-сеть и будет выдаваться при покупке отдельного трека.
+                        Именно этот файл попадёт в storage-сеть и будет выдаваться при покупке отдельного трека. После загрузки студия автоматически попробует собрать MP3 demo.
                       </small>
                       <small className={styles.fieldValue}>
                         {previewUploadPendingKey === `track-master-${index}`
-                          ? "Загружаем файл трека..."
+                          ? "Загружаем master и собираем demo..."
                           : row.audioFileName
                             ? `${row.audioFileName} · ${row.audioFormat.toUpperCase()}`
                             : "Файл трека ещё не выбран"}
@@ -1305,12 +1363,16 @@ export default function StudioPage() {
                         onChange={(event) => void uploadTrackPreviewFile(index, event.target.files?.[0] ?? null)}
                       />
                       <small className={styles.fieldHint}>
-                        На релизе слушатель слышит только демо-версию трека до 30 секунд в MP3.
+                        Это ручная замена demo preview. Обычно сюда уже автоматически подставляется MP3 после загрузки master-файла.
                       </small>
                       <small className={styles.fieldValue}>
                         {previewUploadPendingKey === `track-preview-${index}`
-                          ? "Загружаем demo preview..."
-                          : row.previewFileName || "Demo preview ещё не выбран"}
+                          ? "Загружаем manual demo preview..."
+                          : row.previewFileName
+                            ? row.previewGenerated
+                              ? `${row.previewFileName} · создан автоматически`
+                              : `${row.previewFileName} · загружен вручную`
+                            : "Demo preview появится после загрузки master-файла"}
                       </small>
                     </label>
                     <label className={styles.field}>
@@ -1331,7 +1393,23 @@ export default function StudioPage() {
                         value={row.durationSec}
                         onChange={() => updateTrackRow(index, { durationSec: "30" })}
                       />
+                      <small className={styles.fieldHint}>
+                        Для всех demo сейчас жёсткий лимит 30 секунд.
+                      </small>
                     </label>
+                    <div className={styles.trackDraftMeta}>
+                      <span className={`${styles.statusBadge} ${row.audioFileId ? styles.toneSuccess : styles.toneWarning}`}>
+                        {row.audioFileId ? "Master готов" : "Нужен master"}
+                      </span>
+                      <span className={`${styles.statusBadge} ${row.previewUrl ? styles.toneSuccess : styles.toneWarning}`}>
+                        {row.previewUrl
+                          ? row.previewGenerated
+                            ? "Demo создан автоматически"
+                            : "Demo загружен вручную"
+                          : "Demo ещё не готов"}
+                      </span>
+                      <small className={styles.trackDraftMetaLabel}>{formatTrackDraftLabel(row, index)}</small>
+                    </div>
                     <button type="button" className={styles.secondaryButton} onClick={() => removeTrackRow(index)}>
                       Удалить
                     </button>
