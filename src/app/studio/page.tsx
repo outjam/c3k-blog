@@ -61,6 +61,31 @@ const formatTrackDraftLabel = (row: TrackRowDraft, index: number): string => {
   return row.title.trim() || `Трек #${index + 1}`;
 };
 
+const buildTrackPreviewProxyUrl = (input: {
+  fileId?: string;
+  fileName?: string;
+}): string => {
+  const fileId = String(input.fileId ?? "").trim();
+  const fileName = String(input.fileName ?? "demo-preview.mp3").trim() || "demo-preview.mp3";
+  return `/api/media/telegram-preview?fileId=${encodeURIComponent(fileId)}&format=mp3&name=${encodeURIComponent(fileName)}`;
+};
+
+const resolveTrackPreviewFallback = (row: Pick<TrackRowDraft, "previewUrl" | "audioFileId" | "audioFormat" | "audioFileName">): string => {
+  const explicitPreviewUrl = String(row.previewUrl || "").trim();
+  if (explicitPreviewUrl) {
+    return explicitPreviewUrl;
+  }
+
+  if (String(row.audioFileId || "").trim() && row.audioFormat === "mp3") {
+    return buildTrackPreviewProxyUrl({
+      fileId: row.audioFileId,
+      fileName: row.audioFileName || "demo-preview.mp3",
+    });
+  }
+
+  return "";
+};
+
 const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTrackItem[] => {
   return rows.reduce<ArtistReleaseTrackItem[]>((acc, row, index) => {
     const title = row.title.trim();
@@ -81,7 +106,7 @@ const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTra
       position: index + 1,
     };
 
-    const previewUrl = row.previewUrl.trim();
+    const previewUrl = resolveTrackPreviewFallback(row);
     const durationSec = Math.min(30, Math.round(Number(row.durationSec || "30")));
     const priceStarsCents = Math.round(Number(row.priceStarsCents || "0"));
 
@@ -406,6 +431,27 @@ export default function StudioPage() {
       return;
     }
 
+    const resolvedPreview =
+      response.generatedPreview?.previewUrl
+        ? response.generatedPreview
+        : response.upload.detectedFormat === "mp3"
+          ? {
+              kind: "preview" as const,
+              fileId: response.upload.fileId,
+              fileName: response.upload.fileName,
+              mimeType: "audio/mpeg",
+              detectedFormat: "mp3" as const,
+              sizeBytes: response.upload.sizeBytes,
+              previewUrl: buildTrackPreviewProxyUrl({
+                fileId: response.upload.fileId,
+                fileName: response.upload.fileName,
+              }),
+            }
+          : null;
+    const previewReusedMaster = Boolean(
+      resolvedPreview?.previewUrl && resolvedPreview.fileId === response.upload.fileId,
+    );
+
     setReleaseDraft((current) => {
       const nextTracklist =
         current.releaseTracklist.length === 1 && !current.releaseTracklist[0]?.audioFileId
@@ -416,9 +462,9 @@ export default function StudioPage() {
                     audioFileId: response.upload?.fileId ?? "",
                     audioFormat: response.upload?.detectedFormat ?? row.audioFormat,
                     audioFileName: response.upload?.fileName ?? "",
-                    previewUrl: response.generatedPreview?.previewUrl ?? row.previewUrl,
-                    previewFileName: response.generatedPreview?.fileName ?? row.previewFileName,
-                    previewGenerated: Boolean(response.generatedPreview?.previewUrl) || row.previewGenerated,
+                    previewUrl: resolvedPreview?.previewUrl ?? row.previewUrl,
+                    previewFileName: resolvedPreview?.fileName ?? row.previewFileName,
+                    previewGenerated: resolvedPreview?.previewUrl ? !previewReusedMaster : row.previewGenerated,
                   }
                 : row,
             )
@@ -432,8 +478,13 @@ export default function StudioPage() {
         releaseTracklist: nextTracklist,
       };
     });
-    if (response.generatedPreview?.previewUrl) {
-      setMessage(`Master-файл загружен, demo preview создан автоматически: ${response.generatedPreview.fileName}`);
+
+    if (resolvedPreview?.previewUrl) {
+      setMessage(
+        previewReusedMaster
+          ? `Master-файл загружен, demo preview подставлен из MP3 master: ${resolvedPreview.fileName}`
+          : `Master-файл загружен, demo preview готов: ${resolvedPreview.fileName}`,
+      );
       return;
     }
 
@@ -500,6 +551,26 @@ export default function StudioPage() {
     }
 
     const uploadedTrackMaster = response.upload;
+    const resolvedPreview =
+      response.generatedPreview?.previewUrl
+        ? response.generatedPreview
+        : uploadedTrackMaster.detectedFormat === "mp3"
+          ? {
+              kind: "preview" as const,
+              fileId: uploadedTrackMaster.fileId,
+              fileName: uploadedTrackMaster.fileName,
+              mimeType: "audio/mpeg",
+              detectedFormat: "mp3" as const,
+              sizeBytes: uploadedTrackMaster.sizeBytes,
+              previewUrl: buildTrackPreviewProxyUrl({
+                fileId: uploadedTrackMaster.fileId,
+                fileName: uploadedTrackMaster.fileName,
+              }),
+            }
+          : null;
+    const previewReusedMaster = Boolean(
+      resolvedPreview?.previewUrl && resolvedPreview.fileId === uploadedTrackMaster.fileId,
+    );
 
     setReleaseDraft((current) => ({
       ...current,
@@ -510,17 +581,21 @@ export default function StudioPage() {
               audioFileId: uploadedTrackMaster.fileId,
               audioFormat: uploadedTrackMaster.detectedFormat,
               audioFileName: uploadedTrackMaster.fileName,
-              previewUrl: response.generatedPreview?.previewUrl ?? row.previewUrl,
-              previewFileName: response.generatedPreview?.fileName ?? row.previewFileName,
-              previewGenerated: response.generatedPreview?.previewUrl ? true : row.previewGenerated,
+              previewUrl: resolvedPreview?.previewUrl ?? row.previewUrl,
+              previewFileName: resolvedPreview?.fileName ?? row.previewFileName,
+              previewGenerated: resolvedPreview?.previewUrl ? !previewReusedMaster : row.previewGenerated,
               durationSec: "30",
             }
           : row,
       ),
     }));
 
-    if (response.generatedPreview?.previewUrl) {
-      setMessage(`Файл трека загружен, demo preview создан автоматически: ${response.generatedPreview.fileName}`);
+    if (resolvedPreview?.previewUrl) {
+      setMessage(
+        previewReusedMaster
+          ? `Файл трека загружен, demo preview подставлен из MP3 master: ${resolvedPreview.fileName}`
+          : `Файл трека загружен, demo preview готов: ${resolvedPreview.fileName}`,
+      );
       return;
     }
 
@@ -1370,8 +1445,10 @@ export default function StudioPage() {
                           ? "Загружаем manual demo preview..."
                           : row.previewFileName
                             ? row.previewGenerated
-                              ? `${row.previewFileName} · создан автоматически`
-                              : `${row.previewFileName} · загружен вручную`
+                              ? `${row.previewFileName} · demo готов`
+                              : row.audioFormat === "mp3" && row.previewFileName === row.audioFileName
+                                ? `${row.previewFileName} · взят из MP3 master`
+                                : `${row.previewFileName} · загружен вручную`
                             : "Demo preview появится после загрузки master-файла"}
                       </small>
                     </label>
@@ -1404,8 +1481,10 @@ export default function StudioPage() {
                       <span className={`${styles.statusBadge} ${row.previewUrl ? styles.toneSuccess : styles.toneWarning}`}>
                         {row.previewUrl
                           ? row.previewGenerated
-                            ? "Demo создан автоматически"
-                            : "Demo загружен вручную"
+                            ? "Demo готов"
+                            : row.audioFormat === "mp3" && row.previewFileName === row.audioFileName
+                              ? "Demo взят из MP3 master"
+                              : "Demo загружен вручную"
                           : "Demo ещё не готов"}
                       </span>
                       <small className={styles.trackDraftMetaLabel}>{formatTrackDraftLabel(row, index)}</small>

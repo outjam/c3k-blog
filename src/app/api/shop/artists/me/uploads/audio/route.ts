@@ -32,6 +32,10 @@ interface UploadedAudioDescriptor {
   previewUrl?: string;
 }
 
+const buildTelegramPreviewProxyUrl = (fileId: string, fileName: string): string => {
+  return `/api/media/telegram-preview?fileId=${encodeURIComponent(fileId)}&format=mp3&name=${encodeURIComponent(fileName)}`;
+};
+
 const normalizeText = (value: unknown, maxLength: number): string => {
   return String(value ?? "").trim().slice(0, maxLength);
 };
@@ -150,10 +154,7 @@ const uploadDocumentToTelegram = async (input: {
       mimeType: input.mimeType,
       detectedFormat: input.kind === "preview" ? "mp3" : inferAudioFormat(input.fileName, input.mimeType) ?? "mp3",
       sizeBytes: input.sizeBytes,
-      previewUrl:
-        input.kind === "preview"
-          ? `/api/media/telegram-preview?fileId=${encodeURIComponent(fileId)}&format=mp3&name=${encodeURIComponent(input.fileName)}`
-          : undefined,
+      previewUrl: input.kind === "preview" ? buildTelegramPreviewProxyUrl(fileId, input.fileName) : undefined,
     },
   };
 };
@@ -249,6 +250,18 @@ export async function POST(request: Request) {
     } catch (error) {
       generatedPreviewError = error instanceof Error ? error.message : "auto_preview_failed";
     }
+  }
+
+  if (!generatedPreview && kind === "master" && uploaded.upload.detectedFormat === "mp3") {
+    generatedPreview = {
+      kind: "preview",
+      fileId: uploaded.upload.fileId,
+      fileName: uploaded.upload.fileName,
+      mimeType: "audio/mpeg",
+      detectedFormat: "mp3",
+      sizeBytes: uploaded.upload.sizeBytes,
+      previewUrl: buildTelegramPreviewProxyUrl(uploaded.upload.fileId, uploaded.upload.fileName),
+    };
   }
 
   return NextResponse.json({
