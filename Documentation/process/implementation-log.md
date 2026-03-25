@@ -2705,3 +2705,22 @@
   - админ опубликовал
   - storage pipeline стартовал сам
   - покупатель с большей вероятностью получает уже подготовленный файл из storage-сети без дополнительного ручного операционного шага
+
+### Sprint 13 desktop node pass: понятная torrent-нода для раздатчика
+
+- Local desktop runtime contract расширен под живую ноду, а не только под beta status:
+  - добавлены `settings`, `ingestQueue`, `transferSessions`, `bagInventory`
+  - обновлены [src/types/desktop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/desktop.ts) и [src/lib/server/desktop-runtime.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts)
+- Появилось локальное хранилище настроек ноды:
+  - [src/lib/server/desktop-local-node-config.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-local-node-config.ts)
+  - local CORS route для изменения лимитов: [src/app/api/desktop/node-settings/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/desktop/node-settings/route.ts)
+- Desktop client теперь прокидывает в remote UI не только `desktopGatewayBase`, но и `desktopRuntimeBase`, чтобы страница могла менять local node settings и брать живой local runtime даже с удалённого origin:
+  - [desktop/main.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs)
+  - [src/lib/desktop-runtime-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts)
+- Экран [src/app/storage/desktop/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) переработан в более понятный `torrent/swarm dashboard`:
+  - настройка места и bandwidth
+  - переключатели поведения ноды
+  - очередь новых bags
+  - живые сессии раздачи
+  - inventory bags в хранилище
+  - более прямой язык про swarm, handoff и storage participation

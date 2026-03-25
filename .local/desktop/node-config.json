@@ -1,0 +1,7 @@
+{
+  "storageQuotaBytes": 53687091200,
+  "bandwidthLimitKbps": 25000,
+  "autoAcceptNewBags": true,
+  "prioritizeTelegramDelivery": true,
+  "seedingStrategy": "throughput"
+}

@@ -340,3 +340,37 @@
   - админ опубликовал
   - storage runtime стартовал сам
   - покупатель приходит уже к более готовому storage contour
+
+## Следующий slice Sprint 13 — desktop node как понятная torrent/swarm программа
+
+### Что изменено
+
+- Local desktop runtime contract расширен:
+  - `settings`
+  - `ingestQueue`
+  - `transferSessions`
+  - `bagInventory`
+  в [src/types/desktop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/desktop.ts) и [src/lib/server/desktop-runtime.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-runtime.ts)
+- Добавлен local config store для лимитов ноды:
+  - [src/lib/server/desktop-local-node-config.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/desktop-local-node-config.ts)
+  - [src/app/api/desktop/node-settings/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/desktop/node-settings/route.ts)
+- Desktop client теперь передаёт в remote UI `desktopRuntimeBase` вместе с `desktopGatewayBase`, чтобы экран мог менять local node settings и работать как живой node dashboard:
+  - [desktop/main.mjs](/Users/culture3k/Documents/GitHub/c3k-blog/desktop/main.mjs)
+  - [src/lib/desktop-runtime-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/desktop-runtime-api.ts)
+- Экран desktop-ноды переработан под более понятный torrent/swarm UX:
+  - лимиты места и bandwidth
+  - переключатели поведения ноды
+  - очередь новых bags
+  - живые сессии раздачи
+  - inventory bags
+  в [src/app/storage/desktop/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx) и [src/app/storage/desktop/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.module.scss)
+
+### Что это даёт
+
+- desktop-нода перестаёт выглядеть как техдемо и начинает походить на реальный node client
+- раздатчик видит:
+  - сколько места отдаёт сети
+  - какие новые bags пришли
+  - какие handoff-сессии уже идут
+  - что реально лежит у него в storage inventory
+- это заметно ближе к целевой модели `простая торрент-нода для раздатчика`, где не нужно разбираться в внутренних storage-терминах
