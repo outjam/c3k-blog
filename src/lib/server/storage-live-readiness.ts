@@ -14,6 +14,8 @@ export interface StorageAssetLiveReadinessSummary {
   bridgeUploadMode: string;
   bridgeReady: boolean;
   gatewayReady: boolean;
+  serverUploadReady: boolean;
+  nodeUploadReady: boolean;
   preparedJobId?: string;
   latestJobId?: string;
   latestJobStatus?: string;
@@ -55,20 +57,27 @@ export const buildStorageAssetLiveReadiness = async (input: {
     null;
 
   const endToEndReady = bag?.runtimeFetchStatus === "verified";
-  const readyForLiveUpload =
+  const serverUploadReady =
     sourceProbe.ok &&
     preflight.overallReady &&
     Boolean(preparedJob || latestJob?.status === "prepared");
+  const nodeUploadReady =
+    sourceProbe.ok &&
+    preflight.gatewayOk &&
+    Boolean(preparedJob || latestJob?.status === "prepared");
+  const readyForLiveUpload = serverUploadReady || nodeUploadReady;
 
   const nextAction = endToEndReady
     ? "Asset уже delivery-ready через runtime. Проверяй web или Telegram delivery."
     : !sourceProbe.ok
       ? sourceProbe.nextAction
-      : !preflight.overallReady
-        ? preflight.nextActions[0] || "Дожми bridge preflight перед живым upload."
-        : !preparedJob
+      : !preparedJob
           ? "Подготовь runtime bags именно для этого asset, затем запускай живой upload."
-          : "Asset готов к живому upload. Запускай upload once или внешний worker.";
+          : serverUploadReady
+            ? "Asset готов к живому upload. Можно запускать upload once на этом runtime или внешний worker."
+            : nodeUploadReady
+              ? "Asset готов к живому upload с локальной ноды. На Vercel bridge остаётся simulated, поэтому запускай desktop node или внешний worker, а не server-side upload once."
+              : preflight.nextActions[0] || "Дожми bridge preflight перед живым upload.";
 
   const notes = [
     sourceProbe.sourceKind ? `source ${sourceProbe.sourceKind}` : "",
@@ -76,6 +85,7 @@ export const buildStorageAssetLiveReadiness = async (input: {
     preparedJob ? `prepared job ${preparedJob.id}` : "prepared job пока нет",
     bag ? `bag ${bag.status}` : "bag пока нет",
     bag?.runtimeFetchStatus ? `runtime ${bag.runtimeFetchStatus}` : "runtime ещё не подтверждён",
+    nodeUploadReady && !serverUploadReady ? "живой upload должен идти с локальной ноды, а не с Vercel runtime" : "",
   ].filter(Boolean);
 
   const summary: StorageAssetLiveReadinessSummary = {
@@ -86,6 +96,8 @@ export const buildStorageAssetLiveReadiness = async (input: {
     bridgeUploadMode: preflight.uploadMode,
     bridgeReady: preflight.overallReady,
     gatewayReady: preflight.gatewayOk,
+    serverUploadReady,
+    nodeUploadReady,
     preparedJobId: preparedJob?.id,
     latestJobId: latestJob?.id,
     latestJobStatus: latestJob?.status,
@@ -105,7 +117,13 @@ export const buildStorageAssetLiveReadiness = async (input: {
     entityType: "runtime",
     entityId: buildAssetRuntimeEntityId(assetId),
     severity: summary.endToEndReady || summary.readyForLiveUpload ? "info" : "warning",
-    code: summary.endToEndReady ? "asset_live_ready" : summary.readyForLiveUpload ? "asset_live_upload_ready" : "asset_live_blocked",
+    code: summary.endToEndReady
+      ? "asset_live_ready"
+      : summary.serverUploadReady
+        ? "asset_live_upload_ready"
+        : summary.nodeUploadReady
+          ? "asset_live_node_upload_ready"
+          : "asset_live_blocked",
     message: nextAction,
   }).catch(() => null);
 

@@ -427,7 +427,7 @@ export default function AdminStoragePage() {
       case "bridge_preflight_ok":
         return "Bridge готов. Следующий шаг: запускай upload once или внешний worker на конкретный asset.";
       case "bridge_preflight_simulated":
-        return "Сейчас bridge в simulated-режиме. Переключи upload mode на tonstorage_cli для живого testnet upload.";
+        return "На этом runtime bridge остаётся simulated. Это нормально для Vercel UI, если живой upload делает локальная нода или внешний worker.";
       case "bridge_preflight_failed":
         return "Открой bridge preflight, проверь CLI, gateway и затем повтори проверку перед upload.";
       case "runtime_fetch_verified":
@@ -453,6 +453,8 @@ export default function AdminStoragePage() {
         return "Asset уже end-to-end готов. Проверяй реальную выдачу файла пользователю.";
       case "asset_live_upload_ready":
         return "Все проверки пройдены. Можно запускать живой upload через tonstorage_cli.";
+      case "asset_live_node_upload_ready":
+        return "Asset готов к живому upload с локальной ноды. На Vercel жать server-side upload once не нужно.";
       case "asset_live_blocked":
         return "Сначала закрой блокирующие проверки source, bridge или prepared job.";
       default:
@@ -615,7 +617,13 @@ export default function AdminStoragePage() {
       setIngestMessage(
         [
           `Live readiness ${assetId}`,
-          summary.endToEndReady ? "runtime ready" : summary.readyForLiveUpload ? "upload ready" : "blocked",
+          summary.endToEndReady
+            ? "runtime ready"
+            : summary.serverUploadReady
+              ? "server upload ready"
+              : summary.nodeUploadReady
+                ? "node upload ready"
+                : "blocked",
           summary.preparedJobId ? `prepared ${summary.preparedJobId}` : "",
           summary.bagId ? `bag ${summary.bagId}` : "",
           summary.runtimeFetchStatus ? `runtime ${summary.runtimeFetchStatus}` : "",
@@ -2037,8 +2045,12 @@ export default function AdminStoragePage() {
                         live ready:{" "}
                         {liveReadiness.endToEndReady
                           ? "runtime ready"
-                          : liveReadiness.readyForLiveUpload
-                            ? "upload ready"
+                          : liveReadiness.serverUploadReady
+                            ? "server upload ready"
+                            : liveReadiness.nodeUploadReady
+                              ? "node upload ready"
+                              : liveReadiness.readyForLiveUpload
+                                ? "upload ready"
                             : "blocked"}{" "}
                         · {liveReadiness.nextAction}
                       </span>

@@ -169,7 +169,11 @@ export const getTonStorageRuntimeBridgeStatus = (): StorageTonRuntimeBridgeStatu
       missing.push("Не задан путь к storage-daemon-cli.");
     }
   } else {
-    notes.push("Сейчас upload bridge остаётся в simulated-режиме. Это подходит для test UX, но ещё не публикует bag в TON Storage.");
+    notes.push(
+      gatewayBase
+        ? "На этом runtime upload bridge остаётся simulated. Это нормально для Vercel UI, если живой upload делает локальная нода или внешний worker через gateway."
+        : "Сейчас upload bridge остаётся в simulated-режиме. Это подходит для test UX, но ещё не публикует bag в TON Storage.",
+    );
   }
 
   if (daemonCliArgs.length > 0) {

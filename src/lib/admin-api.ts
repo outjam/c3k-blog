@@ -321,6 +321,8 @@ export interface AdminStorageAssetLiveReadinessSummary {
   bridgeUploadMode: string;
   bridgeReady: boolean;
   gatewayReady: boolean;
+  serverUploadReady: boolean;
+  nodeUploadReady: boolean;
   preparedJobId?: string;
   latestJobId?: string;
   latestJobStatus?: string;

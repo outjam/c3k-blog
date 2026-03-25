@@ -131,13 +131,17 @@ export const runTonStorageRuntimePreflight = async (options?: {
           ? `CLI видит ${snapshot.cliKnownBagCount} bag id и готов к list-команде.`
           : "CLI ответил успешно. Даже если bag list пуст, daemon-контур уже доступен.",
       );
-    } catch (error) {
+  } catch (error) {
       snapshot.cliOk = false;
       snapshot.cliError = shorten(error instanceof Error ? error.message : "CLI probe failed.");
       snapshot.nextActions.push("Проверь локальный запуск storage-daemon и доступность storage-daemon-cli с теми же аргументами.");
     }
   } else if (config.uploadMode === "simulated") {
-    snapshot.nextActions.push("Переключи bridge mode на tonstorage_cli, если хочешь реальный testnet upload вместо симуляции.");
+    snapshot.nextActions.push(
+      config.gatewayBase
+        ? "На этом Vercel runtime bridge остаётся simulated. Это нормально, если живой upload делает локальная нода или внешний worker. Переключай bridge mode на tonstorage_cli только там, где реально запущен storage-daemon."
+        : "Переключи bridge mode на tonstorage_cli, если хочешь реальный testnet upload вместо симуляции.",
+    );
   }
 
   if (config.gatewayBase) {

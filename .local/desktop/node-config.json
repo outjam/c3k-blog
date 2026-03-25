@@ -3,5 +3,5 @@
   "bandwidthLimitKbps": 25000,
   "autoAcceptNewBags": true,
   "prioritizeTelegramDelivery": true,
-  "seedingStrategy": "throughput"
+  "seedingStrategy": "balanced"
 }
