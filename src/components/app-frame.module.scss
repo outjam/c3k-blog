@@ -18,8 +18,10 @@
 }
 
 .header {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
   position: fixed;
   top: 0;
   right: 0;
@@ -31,6 +33,12 @@
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid color-mix(in srgb, var(--tg-section-separator) 25%, transparent);
+  gap: 0.18rem;
+}
+
+.headerCopy {
+  display: grid;
+  place-items: center;
   gap: 0.1rem;
 }
 
@@ -49,6 +57,23 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.86;
+}
+
+.buildBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.15rem;
+  padding: 0.14rem 0.52rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tg-accent) 24%, transparent);
+  background: color-mix(in srgb, var(--tg-accent) 10%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 66%, var(--tg-text));
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
 }
 
 .content {
@@ -200,10 +225,18 @@
     top: 0.9rem;
     width: calc(100% - 240px - 2.8rem);
     border-radius: 1rem;
+    flex-direction: row;
+    justify-content: space-between;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
   .headerNoNav {
     width: calc(100% - 1.8rem);
+  }
+
+  .headerCopy {
+    place-items: start;
   }
 
   .content {

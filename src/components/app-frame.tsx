@@ -54,6 +54,7 @@ function ShopIcon() {
 }
 
 export function AppFrame({ children }: AppFrameProps) {
+  const buildNumber = process.env.NEXT_PUBLIC_BUILD_NUMBER || "0.1.0+local";
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAppAuthUser();
@@ -152,8 +153,13 @@ export function AppFrame({ children }: AppFrameProps) {
         <header
           className={`${styles.header} ${showNavigation ? "" : styles.headerNoNav}`}
         >
-          <p className={styles.brand}>Culture3k Network</p>
-          <p className={styles.title}>Elite Music Community</p>
+          <div className={styles.headerCopy}>
+            <p className={styles.brand}>Culture3k Network</p>
+            <p className={styles.title}>Elite Music Community</p>
+          </div>
+          <span className={styles.buildBadge} aria-label={`Build ${buildNumber}`}>
+            build {buildNumber}
+          </span>
         </header>
 
         <main
