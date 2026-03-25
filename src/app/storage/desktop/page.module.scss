@@ -214,6 +214,161 @@
   font-size: 0.82rem;
 }
 
+.torrentGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.torrentPanel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--tg-accent) 12%, transparent), transparent 28%),
+    color-mix(in srgb, var(--tg-section-bg) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+}
+
+.torrentPanelHead {
+  display: grid;
+  gap: 6px;
+}
+
+.torrentPanelHead strong {
+  color: var(--tg-text);
+}
+
+.torrentPanelHead span {
+  color: var(--tg-hint);
+  line-height: 1.45;
+}
+
+.optionGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.optionCard {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--tg-bg) 80%, var(--tg-section-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+}
+
+.optionCard input {
+  margin-top: 4px;
+}
+
+.optionCard strong {
+  color: var(--tg-text);
+}
+
+.optionCard span {
+  color: var(--tg-hint);
+  line-height: 1.4;
+}
+
+.strategyRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.strategyButton,
+.strategyButtonActive {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font: inherit;
+}
+
+.strategyButton {
+  color: var(--tg-text);
+  background: color-mix(in srgb, var(--tg-bg) 80%, var(--tg-section-bg));
+}
+
+.strategyButtonActive {
+  color: var(--tg-btn-text);
+  background: var(--tg-btn);
+}
+
+.torrentList {
+  display: grid;
+  gap: 12px;
+}
+
+.torrentItem {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tg-section-bg) 90%, transparent), color-mix(in srgb, var(--tg-bg) 84%, transparent));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 22%, transparent);
+}
+
+.torrentItemHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.torrentItemHead strong {
+  display: block;
+  color: var(--tg-text);
+  margin-bottom: 4px;
+}
+
+.torrentItemHead span {
+  color: var(--tg-hint);
+  line-height: 1.4;
+}
+
+.torrentItemHead b {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.torrentMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.torrentMeta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--tg-hint);
+  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
+}
+
+.toneLive {
+  color: var(--tg-accent);
+}
+
+.toneReady {
+  color: #ffc535;
+}
+
+.toneRelay {
+  color: color-mix(in srgb, var(--tg-link-color, var(--tg-text)) 84%, white 16%);
+}
+
 .downloadCard {
   display: grid;
   gap: 12px;
@@ -497,6 +652,7 @@
     padding-inline: 14px;
   }
 
+  .torrentGrid,
   .heroStats,
   .statusList,
   .formGrid {

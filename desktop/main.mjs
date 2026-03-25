@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const runtimeUrl =
   process.env.C3K_DESKTOP_RUNTIME_URL || "http://127.0.0.1:3000/api/desktop/runtime";
+const localRuntimeBase = runtimeUrl.replace(/\/api\/desktop\/runtime\/?$/, "");
 
 const fetchRuntimeContract = async () => {
   const response = await fetch(runtimeUrl, {
@@ -95,6 +96,29 @@ const applyDesktopTheme = (theme) => {
 
 const normalizeText = (value) => String(value ?? "").trim();
 
+const appendDesktopRuntimeParams = (targetUrl, { gatewayBase, runtimeBase }) => {
+  const normalizedTarget = normalizeText(targetUrl);
+  const normalizedGatewayBase = normalizeText(gatewayBase);
+  const normalizedRuntimeBase = normalizeText(runtimeBase);
+
+  if (!normalizedTarget) {
+    return normalizedTarget;
+  }
+
+  try {
+    const url = new URL(normalizedTarget);
+    if (normalizedGatewayBase) {
+      url.searchParams.set("desktopGatewayBase", normalizedGatewayBase);
+    }
+    if (normalizedRuntimeBase) {
+      url.searchParams.set("desktopRuntimeBase", normalizedRuntimeBase);
+    }
+    return url.toString();
+  } catch {
+    return normalizedTarget;
+  }
+};
+
 const encodePath = (value) =>
   normalizeText(value)
     .split("/")
@@ -167,6 +191,14 @@ const buildDesktopStorageContextUrl = (runtime, payload, sourceMode) => {
       url.searchParams.set(key, normalized);
     }
   });
+
+  const gatewayBase = normalizeText(runtime?.gateway?.baseUrl);
+  if (gatewayBase) {
+    url.searchParams.set("desktopGatewayBase", gatewayBase);
+  }
+  if (localRuntimeBase) {
+    url.searchParams.set("desktopRuntimeBase", localRuntimeBase);
+  }
 
   return url.toString();
 };
@@ -390,7 +422,7 @@ const createMainWindow = async () => {
       console.log("[c3k-desktop] telegram auth session applied");
     },
   });
-  await gateway.start();
+  const gatewayInfo = await gateway.start();
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isTrustedDesktopPopupUrl(url, runtime)) {
@@ -425,7 +457,14 @@ const createMainWindow = async () => {
   });
 
   mainWindow = window;
-  await window.loadURL(runtime.startUrl || runtime.webAppOrigin || "http://127.0.0.1:3000/storage/desktop");
+  const startUrl = appendDesktopRuntimeParams(
+    runtime.startUrl || runtime.webAppOrigin || "http://127.0.0.1:3000/storage/desktop",
+    {
+      gatewayBase: gatewayInfo?.baseUrl || runtime.gateway?.baseUrl,
+      runtimeBase: localRuntimeBase,
+    },
+  );
+  await window.loadURL(startUrl);
 };
 
 app.whenReady().then(async () => {

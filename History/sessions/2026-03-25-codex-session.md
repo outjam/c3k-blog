@@ -320,3 +320,23 @@
 - теперь отдельный трек — это действительно отдельный файл в бизнес-логике, а не только строка в треклисте
 - full release и single-track delivery разведены заметно честнее
 - storage registry начинает видеть и готовить реальные track assets под покупку одного трека
+
+## Следующий slice Sprint 13 — publish-time storage automation
+
+### Что изменено
+
+- Добавлен automation helper [src/lib/server/storage-release-automation.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-release-automation.ts)
+- В [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts) publish moderation теперь после `published` автоматически:
+  - запускает `syncStorageAssetsForArtistTrack(...)`
+  - запускает ingest по upserted assets
+  - в `tonstorage_testnet` пытается сразу выполнить upload cycle по этим же assets
+  - возвращает `storageAutomation` summary
+
+### Что это даёт
+
+- исчезает главный ручной разрыв между `релиз опубликован` и `storage pipeline стартовал`
+- сценарий становится ближе к целевому:
+  - артист загрузил
+  - админ опубликовал
+  - storage runtime стартовал сам
+  - покупатель приходит уже к более готовому storage contour

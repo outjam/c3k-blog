@@ -18,13 +18,18 @@ import { useAppAuthUser } from "@/hooks/use-app-auth-user";
 import {
   fetchDesktopRuntimeContract,
   openTonSiteInDesktop,
+  updateDesktopLocalNodeSettingsApi,
 } from "@/lib/desktop-runtime-api";
 import {
   completeDesktopStorageDeliveryRequestApi,
   fetchStorageDeliveryRequest,
 } from "@/lib/storage-delivery-api";
 import type { StorageDeliveryRequest, StorageNode, StorageProgramSnapshot } from "@/types/storage";
-import type { C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
+import type {
+  C3kDesktopLocalNodeSettings,
+  C3kDesktopNodeMapNode,
+  C3kDesktopRuntimeContract,
+} from "@/types/desktop";
 
 import styles from "./page.module.scss";
 
@@ -134,6 +139,14 @@ interface NodeProfileDraft {
   longitude: string;
 }
 
+interface NodeSettingsDraft {
+  storageQuotaGb: string;
+  bandwidthMbps: string;
+  autoAcceptNewBags: boolean;
+  prioritizeTelegramDelivery: boolean;
+  seedingStrategy: C3kDesktopLocalNodeSettings["seedingStrategy"];
+}
+
 const parseDesktopRequestFromSearch = (search: string): ActiveDesktopRequest | null => {
   const params = new URLSearchParams(search);
   const requestId = params.get("desktopRequestId") || "";
@@ -241,6 +254,25 @@ const buildNodeProfileDraft = (node: StorageNode | null): NodeProfileDraft => ({
   longitude: node?.longitude === undefined ? "" : String(node.longitude),
 });
 
+const buildNodeSettingsDraft = (settings: C3kDesktopLocalNodeSettings | undefined): NodeSettingsDraft => ({
+  storageQuotaGb: settings ? String(Math.max(10, Math.round(settings.storageQuotaBytes / (1024 * 1024 * 1024)))) : "50",
+  bandwidthMbps: settings ? String(Math.max(1, Math.round(settings.bandwidthLimitKbps / 1000))) : "25",
+  autoAcceptNewBags: settings?.autoAcceptNewBags ?? true,
+  prioritizeTelegramDelivery: settings?.prioritizeTelegramDelivery ?? true,
+  seedingStrategy: settings?.seedingStrategy ?? "balanced",
+});
+
+const formatStrategyLabel = (value: C3kDesktopLocalNodeSettings["seedingStrategy"]): string => {
+  switch (value) {
+    case "throughput":
+      return "Скорость";
+    case "conservative":
+      return "Экономно";
+    default:
+      return "Баланс";
+  }
+};
+
 export default function StorageDesktopPage() {
   const router = useRouter();
   const { user, isSessionLoading, refreshSession } = useAppAuthUser();
@@ -264,6 +296,8 @@ export default function StorageDesktopPage() {
   const [nodeProfileDraft, setNodeProfileDraft] = useState<NodeProfileDraft>(() => buildNodeProfileDraft(null));
   const [nodeProfileLoading, setNodeProfileLoading] = useState(false);
   const [savingNodeProfile, setSavingNodeProfile] = useState(false);
+  const [nodeSettingsDraft, setNodeSettingsDraft] = useState<NodeSettingsDraft>(() => buildNodeSettingsDraft(undefined));
+  const [savingNodeSettings, setSavingNodeSettings] = useState(false);
   const nodeMap = useMemo(() => runtime?.nodeMap ?? buildDesktopNodeMapFallback(), [runtime]);
   const storageUsagePercent = runtime?.localNode.storage.totalBytes
     ? (runtime.localNode.storage.dataBytes / runtime.localNode.storage.totalBytes) * 100
@@ -290,6 +324,11 @@ export default function StorageDesktopPage() {
       nodeProfile?.latitude !== undefined &&
       nodeProfile?.longitude !== undefined,
   );
+  const liveQueueCount = runtime?.localNode.ingestQueue.length ?? 0;
+  const activeTransferCount = runtime?.localNode.transferSessions.filter(
+    (entry) => entry.status === "processing" || entry.status === "ready" || entry.status === "requested",
+  ).length ?? 0;
+  const liveBagInventoryCount = runtime?.localNode.bagInventory.length ?? 0;
 
   const loadProgramSnapshot = useCallback(async () => {
     if (!user?.id) {
@@ -338,6 +377,7 @@ export default function StorageDesktopPage() {
         }
 
         setRuntime(response.runtime);
+        setNodeSettingsDraft(buildNodeSettingsDraft(response.runtime?.localNode.settings));
         setError(response.error ?? "");
         setBootLoading(false);
       });
@@ -612,6 +652,25 @@ export default function StorageDesktopPage() {
     }));
   };
 
+  const handleNodeSettingsDraftChange = (
+    field: keyof NodeSettingsDraft,
+    value: string | boolean,
+  ) => {
+    setNodeSettingsDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const refreshRuntime = useCallback(async () => {
+    const runtimeResponse = await fetchDesktopRuntimeContract();
+    setRuntime(runtimeResponse.runtime);
+    setNodeSettingsDraft(buildNodeSettingsDraft(runtimeResponse.runtime?.localNode.settings));
+    if (runtimeResponse.error) {
+      setError(runtimeResponse.error);
+    }
+  }, []);
+
   const handleSaveNodeProfile = async () => {
     if (!runtime?.localNode.registryNodeId) {
       setError("У локальной ноды ещё нет registry node id.");
@@ -642,11 +701,33 @@ export default function StorageDesktopPage() {
     setNodeProfileDraft(buildNodeProfileDraft(response.node));
     setMessage("Публичный профиль ноды сохранён.");
 
-    const runtimeResponse = await fetchDesktopRuntimeContract();
-    setRuntime(runtimeResponse.runtime);
-    if (runtimeResponse.error) {
-      setError(runtimeResponse.error);
+    await refreshRuntime();
+  };
+
+  const handleSaveNodeSettings = async () => {
+    setSavingNodeSettings(true);
+    setError("");
+    setMessage("");
+
+    const storageQuotaGb = Math.max(10, Math.round(Number(nodeSettingsDraft.storageQuotaGb || "50")));
+    const bandwidthMbps = Math.max(1, Math.round(Number(nodeSettingsDraft.bandwidthMbps || "25")));
+    const response = await updateDesktopLocalNodeSettingsApi({
+      storageQuotaBytes: storageQuotaGb * 1024 * 1024 * 1024,
+      bandwidthLimitKbps: bandwidthMbps * 1000,
+      autoAcceptNewBags: nodeSettingsDraft.autoAcceptNewBags,
+      prioritizeTelegramDelivery: nodeSettingsDraft.prioritizeTelegramDelivery,
+      seedingStrategy: nodeSettingsDraft.seedingStrategy,
+    });
+
+    setSavingNodeSettings(false);
+
+    if (response.error) {
+      setError(response.error);
+      return;
     }
+
+    setMessage("Настройки локальной ноды сохранены.");
+    await refreshRuntime();
   };
 
   return (
@@ -659,15 +740,16 @@ export default function StorageDesktopPage() {
             <button type="button" className={styles.backButton} onClick={handleBack}>
               Назад
             </button>
-            <span className={styles.heroChip}>Desktop beta</span>
+            <span className={styles.heroChip}>Torrent node beta</span>
           </div>
 
           <div className={styles.heroBody}>
             <div className={styles.heroMeta}>
               <h1>C3K Desktop Client</h1>
               <p>
-                Простая нода для раздатчика: подключились, выбрали сколько места отдаёте сети,
-                держите приложение онлайн и получаете <code>C3K Credit</code> за storage-участие.
+                Простая нода для раздатчика: выбрали сколько места и канала отдаёте сети,
+                смотрите новые загрузки для хранения, видите живые сессии раздачи и получаете
+                <code>C3K Credit</code> за storage-участие.
               </p>
             </div>
 
@@ -687,6 +769,14 @@ export default function StorageDesktopPage() {
               <article>
                 <span>Статус</span>
                 <strong>{localNodeStatusLabel}</strong>
+              </article>
+              <article>
+                <span>Новые bags</span>
+                <strong>{String(liveQueueCount)}</strong>
+              </article>
+              <article>
+                <span>Сессии раздачи</span>
+                <strong>{String(activeTransferCount)}</strong>
               </article>
             </div>
           </div>
@@ -936,6 +1026,256 @@ export default function StorageDesktopPage() {
                 {runtime.localNode.notes.map((note) => (
                   <span key={note}>{note}</span>
                 ))}
+              </div>
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Настройки торрент-ноды</h2>
+                <p>
+                  Здесь уже можно управлять тем, сколько места и канала вы отдаёте сети, и как
+                  агрессивно нода принимает новые bags и Telegram-выдачи.
+                </p>
+              </div>
+
+              <div className={styles.torrentGrid}>
+                <article className={styles.torrentPanel}>
+                  <div className={styles.torrentPanelHead}>
+                    <strong>Лимиты ноды</strong>
+                    <span>Применяются к локальному runtime preview и heartbeat этой ноды.</span>
+                  </div>
+
+                  <div className={styles.formGrid}>
+                    <label className={styles.field}>
+                      <span>Место под раздачу, GB</span>
+                      <input
+                        type="number"
+                        min={10}
+                        max={2048}
+                        value={nodeSettingsDraft.storageQuotaGb}
+                        onChange={(event) => handleNodeSettingsDraftChange("storageQuotaGb", event.target.value)}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Канал для swarm, Mbps</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10000}
+                        value={nodeSettingsDraft.bandwidthMbps}
+                        onChange={(event) => handleNodeSettingsDraftChange("bandwidthMbps", event.target.value)}
+                      />
+                    </label>
+                  </div>
+
+                  <div className={styles.optionGrid}>
+                    <label className={styles.optionCard}>
+                      <input
+                        type="checkbox"
+                        checked={nodeSettingsDraft.autoAcceptNewBags}
+                        onChange={(event) => handleNodeSettingsDraftChange("autoAcceptNewBags", event.target.checked)}
+                      />
+                      <div>
+                        <strong>Автоматически брать новые bags</strong>
+                        <span>Нода сама подхватывает новые подготовленные загрузки и включает их в swarm contour.</span>
+                      </div>
+                    </label>
+
+                    <label className={styles.optionCard}>
+                      <input
+                        type="checkbox"
+                        checked={nodeSettingsDraft.prioritizeTelegramDelivery}
+                        onChange={(event) =>
+                          handleNodeSettingsDraftChange("prioritizeTelegramDelivery", event.target.checked)
+                        }
+                      />
+                      <div>
+                        <strong>Приоритет Telegram-выдаче</strong>
+                        <span>Сначала отдавать очередь покупок и handoff в Telegram, потом догонять фоновую репликацию.</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className={styles.strategyRow}>
+                    {(["balanced", "throughput", "conservative"] as const).map((strategy) => (
+                      <button
+                        key={strategy}
+                        type="button"
+                        className={strategy === nodeSettingsDraft.seedingStrategy ? styles.strategyButtonActive : styles.strategyButton}
+                        onClick={() => handleNodeSettingsDraftChange("seedingStrategy", strategy)}
+                      >
+                        {formatStrategyLabel(strategy)}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={styles.actions}>
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      onClick={() => void handleSaveNodeSettings()}
+                      disabled={savingNodeSettings}
+                    >
+                      {savingNodeSettings ? "Сохраняем лимиты..." : "Сохранить настройки ноды"}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondaryLink}
+                      onClick={() => setNodeSettingsDraft(buildNodeSettingsDraft(runtime.localNode.settings))}
+                    >
+                      Вернуть текущие
+                    </button>
+                  </div>
+                </article>
+
+                <article className={styles.torrentPanel}>
+                  <div className={styles.torrentPanelHead}>
+                    <strong>Текущее состояние swarm</strong>
+                    <span>Наглядно показывает, сколько контента нода уже держит и сколько handoff идёт прямо сейчас.</span>
+                  </div>
+
+                  <div className={styles.infoGrid}>
+                    <article className={styles.infoCard}>
+                      <span>Storage лимит</span>
+                      <strong>{formatBytes(runtime.localNode.settings.storageQuotaBytes)}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Bandwidth лимит</span>
+                      <strong>{Math.round(runtime.localNode.settings.bandwidthLimitKbps / 1000)} Mbps</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Стратегия</span>
+                      <strong>{formatStrategyLabel(runtime.localNode.settings.seedingStrategy)}</strong>
+                    </article>
+                    <article className={styles.infoCard}>
+                      <span>Inventory bags</span>
+                      <strong>{String(liveBagInventoryCount)}</strong>
+                    </article>
+                  </div>
+
+                  <div className={styles.runtimeNotes}>
+                    <strong>
+                      {runtime.localNode.settings.autoAcceptNewBags
+                        ? "Нода автоматически забирает новые bags в очередь хранения."
+                        : "Автоподхват новых bags выключен. Нода пока работает более ручным и безопасным режимом."}
+                    </strong>
+                    <span>
+                      {runtime.localNode.settings.prioritizeTelegramDelivery
+                        ? "Telegram handoff сейчас приоритетнее фоновой репликации."
+                        : "Сейчас нода в первую очередь гонит общий swarm contour, а Telegram-выдача не форсируется."}
+                    </span>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Новые загрузки для хранения</h2>
+                <p>
+                  Это очередь контента, который уже пришёл в storage pipeline и ждёт, пока эта нода
+                  заберёт его в swarm или подтвердит bag/runtime состояние.
+                </p>
+              </div>
+
+              <div className={styles.torrentList}>
+                {runtime.localNode.ingestQueue.length > 0 ? (
+                  runtime.localNode.ingestQueue.map((entry) => (
+                    <article key={entry.id} className={styles.torrentItem}>
+                      <div className={styles.torrentItemHead}>
+                        <div>
+                          <strong>{entry.title}</strong>
+                          <span>{entry.summary}</span>
+                        </div>
+                        <b className={styles[`tone${entry.tone.charAt(0).toUpperCase()}${entry.tone.slice(1)}`]}>{entry.statusLabel}</b>
+                      </div>
+                      <div className={styles.torrentMeta}>
+                        <span>{entry.format?.toUpperCase() ?? "FILE"}</span>
+                        <span>{entry.sizeBytes ? formatBytes(entry.sizeBytes) : "Размер уточняется"}</span>
+                        <span>{formatDateTime(entry.updatedAt)}</span>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className={styles.runtimeNotes}>
+                    <strong>Очередь новых bags сейчас пуста.</strong>
+                    <span>Как только появятся новые релизы для хранения, они начнут отображаться здесь как incoming swarm jobs.</span>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Сессии раздачи</h2>
+                <p>
+                  Здесь уже видно, кому и через какой канал нода помогает отдавать купленные файлы:
+                  desktop, web или Telegram handoff.
+                </p>
+              </div>
+
+              <div className={styles.torrentList}>
+                {runtime.localNode.transferSessions.length > 0 ? (
+                  runtime.localNode.transferSessions.map((entry) => (
+                    <article key={entry.id} className={styles.torrentItem}>
+                      <div className={styles.torrentItemHead}>
+                        <div>
+                          <strong>{entry.title}</strong>
+                          <span>{entry.routeLabel}</span>
+                        </div>
+                        <b className={styles[`tone${entry.tone.charAt(0).toUpperCase()}${entry.tone.slice(1)}`]}>{entry.statusLabel}</b>
+                      </div>
+                      <div className={styles.torrentMeta}>
+                        <span>{entry.channelLabel}</span>
+                        <span>{entry.format?.toUpperCase() ?? "FILE"}</span>
+                        <span>{entry.fileName ?? "Имя файла появится после handoff"}</span>
+                        <span>{formatDateTime(entry.updatedAt)}</span>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className={styles.runtimeNotes}>
+                    <strong>Живых раздач пока нет.</strong>
+                    <span>Когда покупатели начнут забирать контент, здесь появятся реальные upload/handoff сессии этой ноды.</span>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Bags в хранилище</h2>
+                <p>
+                  Это уже не просто число bags, а конкретный инвентарь того, что лежит на ноде и что
+                  она может сидировать для сети.
+                </p>
+              </div>
+
+              <div className={styles.torrentList}>
+                {runtime.localNode.bagInventory.length > 0 ? (
+                  runtime.localNode.bagInventory.map((entry) => (
+                    <article key={entry.id} className={styles.torrentItem}>
+                      <div className={styles.torrentItemHead}>
+                        <div>
+                          <strong>{entry.title}</strong>
+                          <span>{entry.filePath ?? "Путь внутри bag уточняется"}</span>
+                        </div>
+                        <b className={styles[`tone${entry.tone.charAt(0).toUpperCase()}${entry.tone.slice(1)}`]}>{entry.statusLabel}</b>
+                      </div>
+                      <div className={styles.torrentMeta}>
+                        <span>{entry.format?.toUpperCase() ?? "FILE"}</span>
+                        <span>{entry.sizeBytes ? formatBytes(entry.sizeBytes) : "Размер уточняется"}</span>
+                        <span>{entry.replicasActual} / {entry.replicasTarget} replicas</span>
+                        <span>{formatDateTime(entry.updatedAt)}</span>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className={styles.runtimeNotes}>
+                    <strong>Локальный inventory ещё пустой.</strong>
+                    <span>Когда нода реально примет bags в storage contour, они начнут появляться здесь списком.</span>
+                  </div>
+                )}
               </div>
             </section>
 

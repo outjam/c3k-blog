@@ -16,14 +16,17 @@ import {
   listStorageBags,
   listStorageHealthEvents,
   listStorageNodes,
+  listStorageAssets,
   upsertStorageNode,
 } from "@/lib/server/storage-registry-store";
+import { listStorageDeliveryRequests } from "@/lib/server/storage-delivery-store";
+import { listStorageIngestJobs } from "@/lib/server/storage-ingest-store";
+import { getDesktopLocalNodeSettings } from "@/lib/server/desktop-local-node-config";
 import { runTonStorageRuntimePreflight } from "@/lib/server/storage-ton-runtime-preflight";
 import { getTelegramStorageDeliveryQueueSize } from "@/lib/server/storage-delivery";
 import type { C3kDesktopLocalNodeRuntime, C3kDesktopNodeMapNode, C3kDesktopRuntimeContract } from "@/types/desktop";
 
 const GIGABYTE = 1024 * 1024 * 1024;
-const LOCAL_NODE_TARGET_BYTES = 50 * GIGABYTE;
 const LOCAL_NODE_RECENT_HEALTH_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
 const toPlatformLabel = (): string => {
@@ -54,6 +57,11 @@ const normalizeSafeId = (value: unknown, maxLength: number): string => {
 const parseOptionalNumber = (value: string | undefined): number | undefined => {
   const parsed = Number(value ?? "");
   return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const parseIsoTimestamp = (value: string | undefined): number => {
+  const parsed = Date.parse(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const toStorageNodePlatform = (): "macos" | "windows" | "linux" => {
@@ -142,6 +150,180 @@ const buildLocalNodeHealthState = async (): Promise<C3kDesktopLocalNodeRuntime["
     criticalCount: events.filter((entry) => entry.severity === "critical").length,
     lastEventAt: events[0]?.createdAt,
     lastEventMessage: events[0]?.message,
+  };
+};
+
+const formatAssetTitle = (input: {
+  releaseSlug?: string;
+  trackId?: string;
+  fileName?: string;
+  assetId?: string;
+}): string => {
+  return (
+    normalizeText(input.trackId) ||
+    normalizeText(input.releaseSlug) ||
+    normalizeText(input.fileName) ||
+    normalizeText(input.assetId) ||
+    "storage-asset"
+  );
+};
+
+const toQueueTone = (status: string): "live" | "ready" | "relay" => {
+  if (status === "uploaded" || status === "healthy" || status === "delivered") {
+    return "live";
+  }
+
+  if (status === "processing" || status === "replicating" || status === "ready") {
+    return "relay";
+  }
+
+  return "ready";
+};
+
+const buildQueueStatusLabel = (status: string): string => {
+  switch (status) {
+    case "queued":
+      return "Ждёт добавления в swarm";
+    case "processing":
+      return "Готовится к загрузке";
+    case "prepared":
+      return "Готов к загрузке в storage";
+    case "uploaded":
+      return "Уже загружен";
+    case "failed":
+      return "Требует внимания";
+    case "ready":
+      return "Готов к выдаче";
+    case "delivered":
+      return "Уже раздавался";
+    case "healthy":
+      return "Стабильно сидируется";
+    case "replicating":
+      return "Размножается по сети";
+    default:
+      return status;
+  }
+};
+
+const buildDeliveryChannelLabel = (channel: "telegram_bot" | "web_download" | "desktop_download"): string => {
+  switch (channel) {
+    case "telegram_bot":
+      return "Telegram";
+    case "desktop_download":
+      return "Desktop";
+    default:
+      return "Web";
+  }
+};
+
+const buildLocalNodeSwarmData = async (): Promise<
+  Pick<C3kDesktopLocalNodeRuntime, "ingestQueue" | "transferSessions" | "bagInventory">
+> => {
+  const [assets, bags, bagFiles, jobs, requests] = await Promise.all([
+    listStorageAssets().catch(() => []),
+    listStorageBags().catch(() => []),
+    listStorageBagFiles().catch(() => []),
+    listStorageIngestJobs({ limit: 24 }).catch(() => []),
+    listStorageDeliveryRequests({ limit: 24 }).catch(() => []),
+  ]);
+
+  const assetsById = new Map(assets.map((entry) => [entry.id, entry]));
+  const filesByBagId = new Map<string, typeof bagFiles>();
+  bagFiles.forEach((entry) => {
+    const current = filesByBagId.get(entry.bagId) ?? [];
+    current.push(entry);
+    filesByBagId.set(entry.bagId, current);
+  });
+
+  const ingestQueue = jobs.slice(0, 8).map((job) => {
+    const asset = assetsById.get(job.assetId);
+    const bag = job.bagId ? bags.find((entry) => entry.id === job.bagId) : undefined;
+    return {
+      id: job.id,
+      assetId: job.assetId,
+      bagId: job.bagId,
+      title: formatAssetTitle({
+        releaseSlug: asset?.releaseSlug,
+        trackId: asset?.trackId,
+        fileName: asset?.fileName,
+        assetId: job.assetId,
+      }),
+      format: asset?.format,
+      sizeBytes: asset?.sizeBytes,
+      status: job.status,
+      statusLabel: buildQueueStatusLabel(job.status),
+      summary:
+        job.message ||
+        bag?.runtimeLabel ||
+        (job.status === "prepared"
+          ? "Файл уже собран в bag и ждёт upload/репликацию."
+          : "Очередь автоматически ведёт новый контент к storage swarm."),
+      updatedAt: job.updatedAt,
+      tone: toQueueTone(job.status),
+    };
+  });
+
+  const transferSessions = requests.slice(0, 8).map((request) => ({
+    id: request.id,
+    title: formatAssetTitle({
+      releaseSlug: request.releaseSlug,
+      trackId: request.trackId,
+      fileName: request.fileName,
+      assetId: request.resolvedAssetId,
+    }),
+    channel: request.channel,
+    channelLabel: buildDeliveryChannelLabel(request.channel),
+    routeLabel:
+      request.lastDeliveredVia === "tonstorage_gateway"
+        ? "Через storage swarm"
+        : request.channel === "desktop_download"
+          ? "Через desktop node"
+          : request.channel === "telegram_bot"
+            ? "Через Telegram handoff"
+            : "Через web handoff",
+    status: request.status,
+    statusLabel: buildQueueStatusLabel(request.status),
+    fileName: request.fileName,
+    format: request.resolvedFormat || request.requestedFormat,
+    updatedAt: request.updatedAt,
+    tone: toQueueTone(request.status),
+  }));
+
+  const bagInventory = bags
+    .slice()
+    .sort((left, right) => parseIsoTimestamp(right.updatedAt) - parseIsoTimestamp(left.updatedAt))
+    .slice(0, 8)
+    .map((bag) => {
+      const asset = assetsById.get(bag.assetId);
+      const primaryFile = (filesByBagId.get(bag.id) ?? []).sort((left, right) => left.priority - right.priority)[0];
+      return {
+        id: bag.id,
+        assetId: bag.assetId,
+        title: formatAssetTitle({
+          releaseSlug: asset?.releaseSlug,
+          trackId: asset?.trackId,
+          fileName: primaryFile?.path || asset?.fileName,
+          assetId: bag.assetId,
+        }),
+        filePath: primaryFile?.path,
+        format: asset?.format,
+        sizeBytes: primaryFile?.sizeBytes || asset?.sizeBytes,
+        replicasActual: bag.replicasActual,
+        replicasTarget: bag.replicasTarget,
+        status: bag.status,
+        statusLabel:
+          bag.runtimeFetchStatus === "verified"
+            ? "Готов к честной раздаче"
+            : buildQueueStatusLabel(bag.status),
+        updatedAt: bag.updatedAt,
+        tone: bag.runtimeFetchStatus === "verified" ? "live" : toQueueTone(bag.status),
+      };
+    });
+
+  return {
+    ingestQueue,
+    transferSessions,
+    bagInventory,
   };
 };
 
@@ -249,11 +431,6 @@ const syncLocalNodeHeartbeat = async (
   const nodeId =
     normalizeSafeId(`desktop-node:${localNode.deviceLabel}`, 120) ||
     `desktop-node:${Date.now()}`;
-  const bandwidthLimitKbps = Math.max(
-    1_000,
-    Math.round(parseOptionalNumber(process.env.C3K_STORAGE_LOCAL_NODE_BANDWIDTH_KBPS) ?? 25_000),
-  );
-
   const node = await upsertStorageNode({
     id: nodeId,
     nodeLabel: localNode.deviceLabel,
@@ -265,9 +442,9 @@ const syncLocalNodeHeartbeat = async (
     nodeType: "community_node",
     platform: toStorageNodePlatform(),
     status: localNode.overallReady ? "active" : localNode.daemonReady || localNode.gatewayReady ? "degraded" : "candidate",
-    diskAllocatedBytes: localNode.storage.targetBytes,
+    diskAllocatedBytes: localNode.settings.storageQuotaBytes,
     diskUsedBytes: localNode.storage.dataBytes,
-    bandwidthLimitKbps,
+    bandwidthLimitKbps: localNode.settings.bandwidthLimitKbps,
     lastSeenAt: localNode.checkedAt,
   }).catch(() => null);
 
@@ -279,11 +456,13 @@ const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime
   const runtimeStatus = getStorageRuntimeStatus();
   const preflight = await runTonStorageRuntimePreflight({ logHealthEvent: false }).catch(() => null);
   const storageRootPath = resolveLocalNodeStorageRoot();
-  const [bagFiles, bags, health, deliveryWorker] = await Promise.all([
+  const [settings, bagFiles, bags, health, deliveryWorker, swarmData] = await Promise.all([
+    getDesktopLocalNodeSettings(),
     listStorageBagFiles(),
     listStorageBags(),
     buildLocalNodeHealthState(),
     buildLocalDeliveryWorkerState(),
+    buildLocalNodeSwarmData(),
   ]);
   const bagCount = preflight?.cliKnownBagCount ?? 0;
   const daemonReady = preflight?.cliOk ?? false;
@@ -339,13 +518,17 @@ const buildLocalNodeRuntimeStatus = async (): Promise<C3kDesktopLocalNodeRuntime
       dataBytes: storageDataBytes,
       freeBytes: storageSpace.freeBytes,
       totalBytes: storageSpace.totalBytes,
-      targetBytes: LOCAL_NODE_TARGET_BYTES,
+      targetBytes: settings.storageQuotaBytes,
       bagFileCount: bagFiles.length,
       verifiedBagCount,
     },
     health,
     participation,
     deliveryWorker,
+    settings,
+    ingestQueue: swarmData.ingestQueue,
+    transferSessions: swarmData.transferSessions,
+    bagInventory: swarmData.bagInventory,
     nextAction,
     notes,
   };

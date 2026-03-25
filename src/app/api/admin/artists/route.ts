@@ -16,6 +16,10 @@ import {
 import { readArtistFinanceSnapshot } from "@/lib/server/artist-finance-store";
 import { applyArtistFinanceOverlay, hydrateArtistFinanceStateInConfig } from "@/lib/server/shop-artist-studio";
 import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
+import {
+  automatePublishedReleaseStorage,
+  type ReleaseStorageAutomationSummary,
+} from "@/lib/server/storage-release-automation";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
 import type { ArtistProfile, ArtistTrack } from "@/types/shop";
 
@@ -349,6 +353,16 @@ export async function PUT(request: Request) {
         error: string;
       }
     | null = null;
+  let storageAutomation:
+    | {
+        ok: true;
+        summary: ReleaseStorageAutomationSummary;
+      }
+    | {
+        ok: false;
+        error: string;
+      }
+    | null = null;
 
   if (nextTrack) {
     try {
@@ -362,8 +376,27 @@ export async function PUT(request: Request) {
     }
   }
 
+  if (status === "published" && storageSync?.ok && storageSync.summary.upsertedAssetIds.length > 0) {
+    try {
+      const automated = await automatePublishedReleaseStorage({
+        assetIds: storageSync.summary.upsertedAssetIds,
+        requestedByTelegramUserId: auth.telegramUserId,
+      });
+
+      storageAutomation = automated.ok
+        ? { ok: true, summary: automated.summary }
+        : { ok: false, error: automated.error };
+    } catch (error) {
+      storageAutomation = {
+        ok: false,
+        error: error instanceof Error ? error.message : "storage_automation_failed",
+      };
+    }
+  }
+
   return NextResponse.json({
     track: nextTrack,
     storageSync,
+    storageAutomation,
   });
 }

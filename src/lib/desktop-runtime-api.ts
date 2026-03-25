@@ -2,7 +2,7 @@ import {
   buildDesktopStorageOpenUrl,
   buildDesktopTonSiteOpenUrl,
 } from "@/lib/desktop-runtime";
-import type { C3kDesktopRuntimeContract } from "@/types/desktop";
+import type { C3kDesktopLocalNodeSettings, C3kDesktopRuntimeContract } from "@/types/desktop";
 import type { StorageDeliveryRequest } from "@/types/storage";
 
 interface DesktopRuntimeResponseShape {
@@ -10,6 +10,56 @@ interface DesktopRuntimeResponseShape {
   runtime?: C3kDesktopRuntimeContract;
   error?: string;
 }
+
+interface DesktopLocalNodeSettingsResponseShape {
+  ok?: boolean;
+  settings?: C3kDesktopLocalNodeSettings;
+  error?: string;
+}
+
+const getDesktopGatewayRuntimeBase = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const url = new URL(window.location.href);
+    const explicit = url.searchParams.get("desktopGatewayBase");
+    if (explicit?.trim()) {
+      return explicit.trim().replace(/\/+$/, "");
+    }
+  } catch {
+    // Ignore malformed location.
+  }
+
+  if (!window.navigator.userAgent.includes("Electron")) {
+    return null;
+  }
+
+  return "http://127.0.0.1:3467";
+};
+
+const getDesktopLocalRuntimeBase = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const url = new URL(window.location.href);
+    const explicit = url.searchParams.get("desktopRuntimeBase");
+    if (explicit?.trim()) {
+      return explicit.trim().replace(/\/+$/, "");
+    }
+  } catch {
+    // Ignore malformed location.
+  }
+
+  if (!window.navigator.userAgent.includes("Electron")) {
+    return null;
+  }
+
+  return "http://127.0.0.1:3000";
+};
 
 const isDesktopRuntimeContract = (value: unknown): value is C3kDesktopRuntimeContract => {
   if (!value || typeof value !== "object") {
@@ -65,6 +115,29 @@ export const fetchDesktopRuntimeContract = async (): Promise<{
       }
     }
 
+    const gatewayRuntimeBase = getDesktopGatewayRuntimeBase();
+    if (gatewayRuntimeBase) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 1200);
+        const response = await fetch(`${gatewayRuntimeBase}/runtime`, {
+          method: "GET",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        window.clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const payload = (await response.json()) as DesktopRuntimeResponseShape;
+          if (isDesktopRuntimeContract(payload.runtime)) {
+            return { runtime: payload.runtime };
+          }
+        }
+      } catch {
+        // Ignore local gateway fetch failures and fall back to web runtime.
+      }
+    }
+
     const response = await fetch("/api/desktop/runtime", {
       method: "GET",
       cache: "no-store",
@@ -97,6 +170,50 @@ export const openTonSiteInDesktop = (
 ): { gatewayUrl: string; deepLink: string } => {
   const target = buildDesktopTonSiteOpenUrl(runtime ?? undefined);
   return openDesktopTarget(target);
+};
+
+export const updateDesktopLocalNodeSettingsApi = async (
+  payload: Partial<C3kDesktopLocalNodeSettings>,
+): Promise<{
+  settings: C3kDesktopLocalNodeSettings | null;
+  error?: string;
+}> => {
+  const localRuntimeBase = getDesktopLocalRuntimeBase();
+
+  if (!localRuntimeBase) {
+    return {
+      settings: null,
+      error: "Local desktop runtime is not available in this context.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${localRuntimeBase}/api/desktop/node-settings`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = (await response.json().catch(() => ({}))) as DesktopLocalNodeSettingsResponseShape;
+
+    if (!response.ok) {
+      return {
+        settings: null,
+        error: result.error ?? `HTTP ${response.status}`,
+      };
+    }
+
+    return {
+      settings: result.settings ?? null,
+    };
+  } catch {
+    return {
+      settings: null,
+      error: "Network error",
+    };
+  }
 };
 
 export const openStorageDeliveryInDesktop = (

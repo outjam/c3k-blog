@@ -2687,3 +2687,21 @@
   - каждый трек действительно имеет свой master-файл
   - full release и single-track delivery разведены
   - storage registry начинает видеть реальные track assets, а не только release package
+
+### Sprint 13 automation pass: publish -> storage pipeline
+
+- Добавлен publish-time automation helper [src/lib/server/storage-release-automation.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-release-automation.ts)
+- Admin publish route теперь после `published` автоматически:
+  - синхронизирует storage assets
+  - запускает ingest для выбранных assets
+  - в `tonstorage_testnet` пытается сразу выполнить upload cycle по этим же assets
+  - возвращает `storageAutomation` summary из [src/app/api/admin/artists/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/admin/artists/route.ts)
+
+### Зачем это сделано
+
+- раньше после публикации релиза оставался ручной обязательный шаг в `/admin/storage`
+- теперь сценарий стал ближе к линейному:
+  - артист загрузил и отправил релиз
+  - админ опубликовал
+  - storage pipeline стартовал сам
+  - покупатель с большей вероятностью получает уже подготовленный файл из storage-сети без дополнительного ручного операционного шага

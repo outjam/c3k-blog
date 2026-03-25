@@ -1,18 +1,30 @@
 import http from "node:http";
 
+const buildResponseHeaders = (extraHeaders = {}) => ({
+  "cache-control": "no-store",
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET,POST,OPTIONS",
+  "access-control-allow-headers": "content-type",
+  ...extraHeaders,
+});
+
 const writeJson = (response, statusCode, payload) => {
-  response.writeHead(statusCode, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-  });
+  response.writeHead(
+    statusCode,
+    buildResponseHeaders({
+      "content-type": "application/json; charset=utf-8",
+    }),
+  );
   response.end(JSON.stringify(payload, null, 2));
 };
 
 const writeHtml = (response, statusCode, html) => {
-  response.writeHead(statusCode, {
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store",
-  });
+  response.writeHead(
+    statusCode,
+    buildResponseHeaders({
+      "content-type": "text/html; charset=utf-8",
+    }),
+  );
   response.end(html);
 };
 
@@ -27,6 +39,12 @@ export const createGatewayServer = ({
 } = {}) => {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, buildResponseHeaders());
+      response.end();
+      return;
+    }
 
     if (url.pathname === "/health") {
       writeJson(response, 200, {

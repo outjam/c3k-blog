@@ -29,6 +29,7 @@
     "@ton/ton": "^15.4.0",
     "@tonconnect/ui": "^2.4.2",
     "@tonconnect/ui-react": "^2.4.2",
+    "ffmpeg-static": "^5.3.0",
     "maath": "^0.10.8",
     "maplibre-gl": "^5.21.0",
     "motion": "^12.34.3",

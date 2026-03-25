@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getShopApiAuth, unauthorizedResponse } from "@/lib/server/shop-api-auth";
+import { generateDemoPreviewMp3 } from "@/lib/server/audio-demo-preview";
 import type { ArtistAudioFormat } from "@/types/shop";
 
 export const runtime = "nodejs";
@@ -19,6 +20,16 @@ interface TelegramMultipartResponse {
       file_size?: number;
     };
   };
+}
+
+interface UploadedAudioDescriptor {
+  kind: UploadKind;
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  detectedFormat: ArtistAudioFormat;
+  sizeBytes: number;
+  previewUrl?: string;
 }
 
 const normalizeText = (value: unknown, maxLength: number): string => {
@@ -95,6 +106,58 @@ const sendTelegramDocumentMultipart = async (formData: FormData): Promise<Telegr
   }
 };
 
+const uploadDocumentToTelegram = async (input: {
+  chatId: number;
+  caption: string;
+  file: Blob;
+  fileName: string;
+  mimeType: string;
+  kind: UploadKind;
+  sizeBytes: number;
+}): Promise<
+  | { ok: true; upload: UploadedAudioDescriptor }
+  | { ok: false; error: string }
+> => {
+  const telegramForm = new FormData();
+  telegramForm.append("chat_id", String(input.chatId));
+  telegramForm.append("disable_notification", "true");
+  telegramForm.append("caption", input.caption);
+  telegramForm.append("document", input.file, input.fileName);
+
+  const uploaded = await sendTelegramDocumentMultipart(telegramForm);
+
+  if (!uploaded.ok) {
+    return {
+      ok: false,
+      error: uploaded.description ?? "Failed to upload file to Telegram.",
+    };
+  }
+
+  const fileId = normalizeText(uploaded.result?.document?.file_id, 1024);
+  if (!fileId) {
+    return {
+      ok: false,
+      error: "Telegram did not return a file_id.",
+    };
+  }
+
+  return {
+    ok: true,
+    upload: {
+      kind: input.kind,
+      fileId,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      detectedFormat: input.kind === "preview" ? "mp3" : inferAudioFormat(input.fileName, input.mimeType) ?? "mp3",
+      sizeBytes: input.sizeBytes,
+      previewUrl:
+        input.kind === "preview"
+          ? `/api/media/telegram-preview?fileId=${encodeURIComponent(fileId)}&format=mp3&name=${encodeURIComponent(input.fileName)}`
+          : undefined,
+    },
+  };
+};
+
 export async function POST(request: Request) {
   const auth = getShopApiAuth(request);
 
@@ -111,6 +174,7 @@ export async function POST(request: Request) {
   }
 
   const kind = normalizeText(formData.get("kind"), 16) as UploadKind;
+  const autoPreview = /^(1|true|yes|on)$/i.test(normalizeText(formData.get("autoPreview"), 16));
   const file = formData.get("file");
 
   if (kind !== "master" && kind !== "preview") {
@@ -143,41 +207,54 @@ export async function POST(request: Request) {
     );
   }
 
-  const telegramForm = new FormData();
-  telegramForm.append("chat_id", String(auth.telegramUserId));
-  telegramForm.append("disable_notification", "true");
-  telegramForm.append("caption", kind === "preview" ? "C3K demo preview upload" : "C3K release master upload");
-  telegramForm.append("document", file, fileName);
-
-  const uploaded = await sendTelegramDocumentMultipart(telegramForm);
+  const uploaded = await uploadDocumentToTelegram({
+    chatId: auth.telegramUserId,
+    caption: kind === "preview" ? "C3K demo preview upload" : "C3K release master upload",
+    file,
+    fileName,
+    mimeType,
+    kind,
+    sizeBytes: file.size,
+  });
 
   if (!uploaded.ok) {
-    return NextResponse.json(
-      { error: uploaded.description ?? "Failed to upload file to Telegram." },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: uploaded.error }, { status: 502 });
   }
 
-  const fileId = normalizeText(uploaded.result?.document?.file_id, 1024);
-  if (!fileId) {
-    return NextResponse.json({ error: "Telegram did not return a file_id." }, { status: 502 });
-  }
+  let generatedPreview: UploadedAudioDescriptor | undefined;
+  let generatedPreviewError: string | undefined;
 
-  const previewUrl =
-    kind === "preview"
-      ? `/api/media/telegram-preview?fileId=${encodeURIComponent(fileId)}&format=mp3&name=${encodeURIComponent(fileName)}`
-      : undefined;
+  if (kind === "master" && autoPreview) {
+    try {
+      const sourceBytes = new Uint8Array(await file.arrayBuffer());
+      const preview = await generateDemoPreviewMp3({
+        bytes: sourceBytes,
+        fileName,
+      });
+      const previewUpload = await uploadDocumentToTelegram({
+        chatId: auth.telegramUserId,
+        caption: "C3K auto-generated demo preview",
+        file: new Blob([Buffer.from(preview.bytes)], { type: preview.mimeType }),
+        fileName: preview.fileName,
+        mimeType: preview.mimeType,
+        kind: "preview",
+        sizeBytes: preview.bytes.byteLength,
+      });
+
+      if (previewUpload.ok) {
+        generatedPreview = previewUpload.upload;
+      } else {
+        generatedPreviewError = previewUpload.error;
+      }
+    } catch (error) {
+      generatedPreviewError = error instanceof Error ? error.message : "auto_preview_failed";
+    }
+  }
 
   return NextResponse.json({
     ok: true,
-    upload: {
-      kind,
-      fileId,
-      fileName,
-      mimeType,
-      detectedFormat,
-      sizeBytes: file.size,
-      previewUrl,
-    },
+    upload: uploaded.upload,
+    generatedPreview,
+    generatedPreviewError,
   });
 }

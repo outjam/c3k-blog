@@ -1003,3 +1003,12 @@
   - demo preview отдельного трека
 - storage sync теперь создаёт отдельные storage assets для track delivery, а не только для whole-release package
 - delivery отдельного трека теперь берёт именно track-level file, а не fallback на release-level master
+
+### Sprint 13: публикация сама запускает storage pipeline
+
+- после `published` релиз больше не ждёт обязательного ручного шага в `/admin/storage`
+- publish moderation теперь автоматически:
+  - синхронизирует storage assets
+  - запускает ingest
+  - в `tonstorage_testnet` пытается сразу пройти upload cycle
+- сценарий стал ближе к целевой прямой цепочке: публикация -> storage -> покупка -> выдача

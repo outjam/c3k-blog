@@ -66,6 +66,57 @@ export interface C3kDesktopLocalDeliveryWorkerState {
   summary: string;
 }
 
+export interface C3kDesktopLocalNodeSettings {
+  storageQuotaBytes: number;
+  bandwidthLimitKbps: number;
+  autoAcceptNewBags: boolean;
+  prioritizeTelegramDelivery: boolean;
+  seedingStrategy: "balanced" | "throughput" | "conservative";
+}
+
+export interface C3kDesktopSwarmQueueItem {
+  id: string;
+  assetId?: string;
+  bagId?: string;
+  title: string;
+  format?: string;
+  sizeBytes?: number;
+  status: string;
+  statusLabel: string;
+  summary: string;
+  updatedAt: string;
+  tone: "live" | "ready" | "relay";
+}
+
+export interface C3kDesktopTransferSession {
+  id: string;
+  title: string;
+  channel: "telegram_bot" | "web_download" | "desktop_download";
+  channelLabel: string;
+  routeLabel: string;
+  status: string;
+  statusLabel: string;
+  fileName?: string;
+  format?: string;
+  updatedAt: string;
+  tone: "live" | "ready" | "relay";
+}
+
+export interface C3kDesktopBagInventoryItem {
+  id: string;
+  assetId: string;
+  title: string;
+  filePath?: string;
+  format?: string;
+  sizeBytes?: number;
+  replicasActual: number;
+  replicasTarget: number;
+  status: string;
+  statusLabel: string;
+  updatedAt: string;
+  tone: "live" | "ready" | "relay";
+}
+
 export interface C3kDesktopLocalNodeRuntime {
   checkedAt: string;
   deviceLabel: string;
@@ -84,6 +135,10 @@ export interface C3kDesktopLocalNodeRuntime {
   health: C3kDesktopLocalNodeHealthState;
   participation: C3kDesktopLocalNodeParticipationPreview;
   deliveryWorker: C3kDesktopLocalDeliveryWorkerState;
+  settings: C3kDesktopLocalNodeSettings;
+  ingestQueue: C3kDesktopSwarmQueueItem[];
+  transferSessions: C3kDesktopTransferSession[];
+  bagInventory: C3kDesktopBagInventoryItem[];
   nextAction: string;
   notes: string[];
 }
