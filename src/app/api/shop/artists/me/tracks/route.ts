@@ -205,7 +205,7 @@ const hasValidDemoPreviewUrl = (value: unknown): boolean => {
   const normalized = normalizeOptionalText(value, 3000);
 
   if (!normalized) {
-    return false;
+    return true;
   }
 
   return inferStorageAudioFormatFromUrl(normalized) === "mp3";
@@ -304,7 +304,7 @@ export async function POST(request: Request) {
 
   if (!releaseTracklist.every((entry) => hasValidDemoPreviewUrl(entry.previewUrl))) {
     return NextResponse.json(
-      { error: "Каждый трек должен иметь demo preview в MP3 до 30 секунд." },
+      { error: "Если для трека задан demo preview, он должен быть в MP3 до 30 секунд." },
       { status: 400 },
     );
   }
@@ -508,7 +508,7 @@ export async function PATCH(request: Request) {
         : nextReleaseTracklist[0]?.previewUrl ?? existing.previewUrl;
 
     if (!nextReleaseTracklist.every((entry) => hasValidDemoPreviewUrl(entry.previewUrl))) {
-      throw new Error("preview_demo_required");
+      throw new Error("preview_demo_invalid");
     }
     if (!nextReleaseTracklist.every((entry) => hasValidTrackAudio(entry))) {
       throw new Error("track_audio_required");
@@ -533,7 +533,7 @@ export async function PATCH(request: Request) {
     if (message === "track_not_found") {
       return message;
     }
-    if (message === "preview_demo_required") {
+    if (message === "preview_demo_invalid") {
       return message;
     }
     if (message === "track_audio_required") {
@@ -547,9 +547,9 @@ export async function PATCH(request: Request) {
     if (updated === "track_not_found") {
       return NextResponse.json({ error: "Track not found" }, { status: 404 });
     }
-    if (updated === "preview_demo_required") {
+    if (updated === "preview_demo_invalid") {
       return NextResponse.json(
-        { error: "Каждый трек должен иметь demo preview в MP3 до 30 секунд." },
+        { error: "Если для трека задан demo preview, он должен быть в MP3 до 30 секунд." },
         { status: 400 },
       );
     }

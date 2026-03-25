@@ -655,14 +655,7 @@ export default function StudioPage() {
     const normalizedTracklist = normalizeReleaseTracklistDraft(releaseDraft.releaseTracklist);
     if (normalizedTracklist.length === 0) {
       setReleaseSaving(false);
-      setError("Добавьте хотя бы один трек с demo preview.");
-      return;
-    }
-
-    const missingPreview = normalizedTracklist.find((track) => !track.previewUrl);
-    if (missingPreview) {
-      setReleaseSaving(false);
-      setError(`Для "${missingPreview.title}" ещё нет demo preview. Загрузите master-файл трека, и preview создастся автоматически, либо добавьте MP3 вручную.`);
+      setError("Добавьте хотя бы один трек.");
       return;
     }
 
@@ -1398,7 +1391,8 @@ export default function StudioPage() {
                 <span>
                   Для каждого трека сначала загрузите master-файл через проводник. Студия сама
                   попробует создать demo preview MP3 до 30 секунд. Отдельный preview-файл нужен
-                  только если хотите заменить автогенерированное демо вручную.
+                  только если хотите заменить автогенерированное демо вручную. Сам demo preview
+                  теперь необязателен и не блокирует публикацию релиза.
                 </span>
               </div>
 
@@ -1438,7 +1432,7 @@ export default function StudioPage() {
                         onChange={(event) => void uploadTrackPreviewFile(index, event.target.files?.[0] ?? null)}
                       />
                       <small className={styles.fieldHint}>
-                        Это ручная замена demo preview. Обычно сюда уже автоматически подставляется MP3 после загрузки master-файла.
+                        Это ручная замена demo preview. Обычно сюда уже автоматически подставляется MP3 после загрузки master-файла, но релиз можно сохранить и без demo.
                       </small>
                       <small className={styles.fieldValue}>
                         {previewUploadPendingKey === `track-preview-${index}`
@@ -1449,7 +1443,7 @@ export default function StudioPage() {
                               : row.audioFormat === "mp3" && row.previewFileName === row.audioFileName
                                 ? `${row.previewFileName} · взят из MP3 master`
                                 : `${row.previewFileName} · загружен вручную`
-                            : "Demo preview появится после загрузки master-файла"}
+                            : "Demo preview необязателен"}
                       </small>
                     </label>
                     <label className={styles.field}>
@@ -1478,14 +1472,14 @@ export default function StudioPage() {
                       <span className={`${styles.statusBadge} ${row.audioFileId ? styles.toneSuccess : styles.toneWarning}`}>
                         {row.audioFileId ? "Master готов" : "Нужен master"}
                       </span>
-                      <span className={`${styles.statusBadge} ${row.previewUrl ? styles.toneSuccess : styles.toneWarning}`}>
+                      <span className={`${styles.statusBadge} ${row.previewUrl ? styles.toneSuccess : styles.toneDefault}`}>
                         {row.previewUrl
                           ? row.previewGenerated
                             ? "Demo готов"
                             : row.audioFormat === "mp3" && row.previewFileName === row.audioFileName
                               ? "Demo взят из MP3 master"
                               : "Demo загружен вручную"
-                          : "Demo ещё не готов"}
+                          : "Demo необязателен"}
                       </span>
                       <small className={styles.trackDraftMetaLabel}>{formatTrackDraftLabel(row, index)}</small>
                     </div>
