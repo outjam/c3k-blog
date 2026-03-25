@@ -892,36 +892,47 @@ export const runSimulatedTonStorageUploadPass = async (
   let failed = 0;
 
   for (let index = 0; index < safeLimit; index += 1) {
-    const claimed = await claimTonStorageUploadJob();
+    let claimed: ClaimedStorageUploadJob | null = null;
+
+    try {
+      claimed = await claimTonStorageUploadJob();
+    } catch {
+      failed += 1;
+      continue;
+    }
 
     if (!claimed) {
       break;
     }
 
     processed += 1;
-    const simulatedPointer =
-      claimed.bag?.tonstorageUri ??
-      `tonstorage://testnet/c3k-runtime/${claimed.bag?.bagId || claimed.job.bagId || claimed.asset.id}`;
+    try {
+      const simulatedPointer =
+        claimed.bag?.tonstorageUri ??
+        `tonstorage://testnet/c3k-runtime/${claimed.bag?.bagId || claimed.job.bagId || claimed.asset.id}`;
 
-    const result = await completeTonStorageUploadJob({
-      jobId: claimed.job.id,
-      workerLockId: claimed.job.workerLockId || "",
-      ok: Boolean(claimed.uploadTarget.sourceUrl || claimed.uploadTarget.audioFileId),
-      bagExternalId: claimed.bag?.bagId,
-      tonstorageUri: simulatedPointer,
-      metaFileUrl: claimed.uploadTarget.sourceUrl ?? claimed.bag?.metaFileUrl,
-      filePath: claimed.asset.fileName,
-      replicasActual: Math.max(1, claimed.bag?.replicasActual ?? 1),
-      replicasTarget: Math.max(1, claimed.bag?.replicasTarget ?? 3),
-      bagStatus: "uploaded",
-      message: "Simulated TON Storage upload completed in test mode.",
-      failureCode: "missing_source_pointer",
-      failureMessage: "Simulated upload could not proceed without sourceUrl or audioFileId.",
-    });
+      const result = await completeTonStorageUploadJob({
+        jobId: claimed.job.id,
+        workerLockId: claimed.job.workerLockId || "",
+        ok: Boolean(claimed.uploadTarget.sourceUrl || claimed.uploadTarget.audioFileId),
+        bagExternalId: claimed.bag?.bagId,
+        tonstorageUri: simulatedPointer,
+        metaFileUrl: claimed.uploadTarget.sourceUrl ?? claimed.bag?.metaFileUrl,
+        filePath: claimed.asset.fileName,
+        replicasActual: Math.max(1, claimed.bag?.replicasActual ?? 1),
+        replicasTarget: Math.max(1, claimed.bag?.replicasTarget ?? 3),
+        bagStatus: "uploaded",
+        message: "Simulated TON Storage upload completed in test mode.",
+        failureCode: "missing_source_pointer",
+        failureMessage: "Simulated upload could not proceed without sourceUrl or audioFileId.",
+      });
 
-    if (result.ok && result.job?.status === "uploaded") {
-      uploaded += 1;
-    } else {
+      if (result.ok && result.job?.status === "uploaded") {
+        uploaded += 1;
+      } else {
+        failed += 1;
+      }
+    } catch {
       failed += 1;
     }
   }

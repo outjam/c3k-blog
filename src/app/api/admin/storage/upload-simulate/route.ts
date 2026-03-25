@@ -30,6 +30,16 @@ export async function POST(request: Request) {
     body = {};
   }
 
-  const summary = await runSimulatedTonStorageUploadPass(body.limit ?? 5);
-  return NextResponse.json({ ok: true, summary });
+  try {
+    const summary = await runSimulatedTonStorageUploadPass(body.limit ?? 5);
+    return NextResponse.json({ ok: true, summary });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Failed to execute simulated upload pass.",
+      },
+      { status: 500 },
+    );
+  }
 }
