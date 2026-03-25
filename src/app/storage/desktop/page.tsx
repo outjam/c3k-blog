@@ -666,8 +666,8 @@ export default function StorageDesktopPage() {
             <div className={styles.heroMeta}>
               <h1>C3K Desktop Client</h1>
               <p>
-                Единый desktop runtime для storage node, локального gateway и
-                открытия <code>c3k.ton</code>.
+                Простая нода для раздатчика: подключились, выбрали сколько места отдаёте сети,
+                держите приложение онлайн и получаете <code>C3K Credit</code> за storage-участие.
               </p>
             </div>
 
@@ -698,6 +698,69 @@ export default function StorageDesktopPage() {
 
         {!bootLoading && runtime ? (
           <>
+            <section className={styles.group}>
+              <div className={styles.groupHeading}>
+                <h2>Простой режим для раздатчика</h2>
+                <p>
+                  Здесь не нужно разбираться в daemon и bridge-терминах. Смысл простой:
+                  входите, привязываете эту ноду к аккаунту, оставляете её онлайн и сеть
+                  начинает использовать ваше устройство для раздачи купленных файлов.
+                </p>
+              </div>
+
+              <div className={styles.infoGrid}>
+                <article className={styles.infoCard}>
+                  <span>Отдаёте сети</span>
+                  <strong>{formatBytes(runtime.localNode.storage.targetBytes)}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Уже занято данными</span>
+                  <strong>{formatBytes(runtime.localNode.storage.dataBytes)}</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Preview в неделю</span>
+                  <strong>{runtime.localNode.participation.estimatedWeeklyCredits} C3K Credit</strong>
+                </article>
+                <article className={styles.infoCard}>
+                  <span>Следующий шаг</span>
+                  <strong>{runtime.localNode.nextAction}</strong>
+                </article>
+              </div>
+
+              <div className={styles.stepList}>
+                <article className={styles.stepCard}>
+                  <span className={styles.stepIndex}>1</span>
+                  <div>
+                    <strong>Войти и привязать ноду</strong>
+                    <p>
+                      Один раз связываете эту desktop-ноду со своим storage account, чтобы
+                      сеть знала, кому начислять участие и rewards.
+                    </p>
+                  </div>
+                </article>
+                <article className={styles.stepCard}>
+                  <span className={styles.stepIndex}>2</span>
+                  <div>
+                    <strong>Оставить приложение онлайн</strong>
+                    <p>
+                      После этого нода начинает держать bags, подтверждённые pointers и
+                      обслуживать выдачу файлов через storage-сеть.
+                    </p>
+                  </div>
+                </article>
+                <article className={styles.stepCard}>
+                  <span className={styles.stepIndex}>3</span>
+                  <div>
+                    <strong>Получать C3K Credit</strong>
+                    <p>
+                      Чем стабильнее health ноды и чем больше подтверждённых bags она обслуживает,
+                      тем сильнее её reward preview и будущий payout layer.
+                    </p>
+                  </div>
+                </article>
+              </div>
+            </section>
+
             <section className={styles.group}>
               <div className={styles.groupHeading}>
                 <h2>Что уже зафиксировано</h2>

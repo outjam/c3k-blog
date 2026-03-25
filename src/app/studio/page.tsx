@@ -12,6 +12,7 @@ import {
   createMyArtistTrack,
   fetchMyArtistProfile,
   requestMyArtistPayout,
+  uploadMyArtistAudioFile,
   upsertMyArtistProfile,
 } from "@/lib/admin-api";
 import { formatStarsFromCents } from "@/lib/stars-format";
@@ -34,6 +35,10 @@ interface TrackRowDraft {
   id: string;
   title: string;
   previewUrl: string;
+  previewFileName: string;
+  audioFileId: string;
+  audioFormat: ArtistTrack["formats"][number]["format"];
+  audioFileName: string;
   durationSec: string;
   priceStarsCents: string;
 }
@@ -42,7 +47,11 @@ const createTrackRowDraft = (index: number): TrackRowDraft => ({
   id: `track-${index}`,
   title: "",
   previewUrl: "",
-  durationSec: "",
+  previewFileName: "",
+  audioFileId: "",
+  audioFormat: "mp3",
+  audioFileName: "",
+  durationSec: "30",
   priceStarsCents: "",
 });
 
@@ -67,11 +76,20 @@ const normalizeReleaseTracklistDraft = (rows: TrackRowDraft[]): ArtistReleaseTra
     };
 
     const previewUrl = row.previewUrl.trim();
-    const durationSec = Math.round(Number(row.durationSec || "0"));
+    const durationSec = Math.min(30, Math.round(Number(row.durationSec || "30")));
     const priceStarsCents = Math.round(Number(row.priceStarsCents || "0"));
 
     if (previewUrl) {
       item.previewUrl = previewUrl;
+    }
+
+    if (row.audioFileId.trim()) {
+      item.audioFileId = row.audioFileId.trim();
+      item.audioFormat = row.audioFormat;
+    }
+
+    if (row.audioFileName.trim()) {
+      item.audioFileName = row.audioFileName.trim();
     }
 
     if (Number.isFinite(durationSec) && durationSec > 0) {
@@ -241,12 +259,15 @@ export default function StudioPage() {
     description: "",
     coverImage: "",
     audioFileId: "",
-    previewUrl: "",
+    audioFormat: "mp3" as ArtistTrack["formats"][number]["format"],
+    audioFileName: "",
     genre: "",
     priceStarsCents: "100",
     isMintable: true,
     releaseTracklist: [createTrackRowDraft(1)],
   });
+  const [masterUploadPending, setMasterUploadPending] = useState(false);
+  const [previewUploadPendingKey, setPreviewUploadPendingKey] = useState("");
   const [payoutDraft, setPayoutDraft] = useState({
     amountStars: "",
     note: "",
@@ -355,6 +376,113 @@ export default function StudioPage() {
     });
   };
 
+  const uploadMasterFile = async (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    setMasterUploadPending(true);
+    setError("");
+    setMessage("");
+
+    const response = await uploadMyArtistAudioFile({
+      kind: "master",
+      file,
+    });
+
+    setMasterUploadPending(false);
+
+    if (response.error || !response.upload) {
+      setError(response.error ?? "Не удалось загрузить master-файл.");
+      return;
+    }
+
+    setReleaseDraft((current) => {
+      const nextTracklist =
+        current.releaseTracklist.length === 1 && !current.releaseTracklist[0]?.audioFileId
+          ? current.releaseTracklist.map((row, index) =>
+              index === 0
+                ? {
+                    ...row,
+                    audioFileId: response.upload?.fileId ?? "",
+                    audioFormat: response.upload?.detectedFormat ?? row.audioFormat,
+                    audioFileName: response.upload?.fileName ?? "",
+                  }
+                : row,
+            )
+          : current.releaseTracklist;
+
+      return {
+        ...current,
+        audioFileId: response.upload?.fileId ?? "",
+        audioFormat: response.upload?.detectedFormat ?? current.audioFormat,
+        audioFileName: response.upload?.fileName ?? "",
+        releaseTracklist: nextTracklist,
+      };
+    });
+    setMessage(`Master-файл загружен: ${response.upload.fileName}`);
+  };
+
+  const uploadTrackPreviewFile = async (index: number, file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    const uploadKey = `track-preview-${index}`;
+    setPreviewUploadPendingKey(uploadKey);
+    setError("");
+    setMessage("");
+
+    const response = await uploadMyArtistAudioFile({
+      kind: "preview",
+      file,
+    });
+
+    setPreviewUploadPendingKey("");
+
+    if (response.error || !response.upload?.previewUrl) {
+      setError(response.error ?? "Не удалось загрузить demo preview.");
+      return;
+    }
+
+    updateTrackRow(index, {
+      previewUrl: response.upload.previewUrl,
+      previewFileName: response.upload.fileName,
+      durationSec: "30",
+    });
+    setMessage(`Demo preview загружен: ${response.upload.fileName}`);
+  };
+
+  const uploadTrackMasterFile = async (index: number, file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    const uploadKey = `track-master-${index}`;
+    setPreviewUploadPendingKey(uploadKey);
+    setError("");
+    setMessage("");
+
+    const response = await uploadMyArtistAudioFile({
+      kind: "master",
+      file,
+    });
+
+    setPreviewUploadPendingKey("");
+
+    if (response.error || !response.upload) {
+      setError(response.error ?? "Не удалось загрузить master-файл трека.");
+      return;
+    }
+
+    updateTrackRow(index, {
+      audioFileId: response.upload.fileId,
+      audioFormat: response.upload.detectedFormat,
+      audioFileName: response.upload.fileName,
+    });
+    setMessage(`Файл трека загружен: ${response.upload.fileName}`);
+  };
+
   const saveArtistProfile = async () => {
     if (!profile) {
       return;
@@ -391,11 +519,37 @@ export default function StudioPage() {
       return;
     }
 
+    if (!releaseDraft.audioFileId.trim()) {
+      setError("Сначала загрузите пакет полного релиза через проводник.");
+      return;
+    }
+
     setReleaseSaving(true);
     setError("");
     setMessage("");
 
     const normalizedTracklist = normalizeReleaseTracklistDraft(releaseDraft.releaseTracklist);
+    if (normalizedTracklist.length === 0) {
+      setReleaseSaving(false);
+      setError("Добавьте хотя бы один трек с demo preview.");
+      return;
+    }
+
+    const missingPreview = normalizedTracklist.find((track) => !track.previewUrl);
+    if (missingPreview) {
+      setReleaseSaving(false);
+      setError("У каждого трека должен быть demo preview в MP3.");
+      return;
+    }
+
+    const missingTrackMaster = normalizedTracklist.find((track) => !track.audioFileId || !track.audioFormat);
+    if (missingTrackMaster) {
+      setReleaseSaving(false);
+      setError("У каждого трека должен быть master-файл через проводник.");
+      return;
+    }
+
+    const releasePrice = Math.max(1, Math.round(Number(releaseDraft.priceStarsCents || "1")));
     const response = await createMyArtistTrack({
       title: releaseDraft.title.trim(),
       releaseType: releaseDraft.releaseType,
@@ -403,10 +557,19 @@ export default function StudioPage() {
       description: releaseDraft.description.trim() || undefined,
       coverImage: releaseDraft.coverImage.trim() || undefined,
       audioFileId: releaseDraft.audioFileId.trim(),
-      previewUrl: releaseDraft.previewUrl.trim() || normalizedTracklist[0]?.previewUrl || undefined,
+      previewUrl: normalizedTracklist[0]?.previewUrl || undefined,
       genre: releaseDraft.genre.trim() || undefined,
-      priceStarsCents: Math.max(1, Math.round(Number(releaseDraft.priceStarsCents || "1"))),
+      priceStarsCents: releasePrice,
       isMintable: releaseDraft.isMintable,
+      formats: [
+        {
+          format: releaseDraft.audioFormat,
+          audioFileId: releaseDraft.audioFileId.trim(),
+          priceStarsCents: releasePrice,
+          label: releaseDraft.audioFormat.toUpperCase(),
+          isDefault: true,
+        },
+      ],
       releaseTracklist: normalizedTracklist.length > 0 ? normalizedTracklist : undefined,
     });
 
@@ -425,7 +588,8 @@ export default function StudioPage() {
       description: "",
       coverImage: "",
       audioFileId: "",
-      previewUrl: "",
+      audioFormat: "mp3",
+      audioFileName: "",
       genre: "",
       priceStarsCents: "100",
       isMintable: true,
@@ -1051,18 +1215,22 @@ export default function StudioPage() {
                 />
               </label>
               <label className={styles.field}>
-                <span>Audio file id</span>
+                <span>Пакет полного релиза</span>
                 <input
-                  value={releaseDraft.audioFileId}
-                  onChange={(event) => setReleaseDraft((current) => ({ ...current, audioFileId: event.target.value }))}
+                  type="file"
+                  accept=".mp3,.ogg,.wav,.flac,.aac,.m4a,.alac,audio/*"
+                  onChange={(event) => void uploadMasterFile(event.target.files?.[0] ?? null)}
                 />
-              </label>
-              <label className={styles.field}>
-                <span>Общее превью</span>
-                <input
-                  value={releaseDraft.previewUrl}
-                  onChange={(event) => setReleaseDraft((current) => ({ ...current, previewUrl: event.target.value }))}
-                />
+                <small className={styles.fieldHint}>
+                  Полный файл релиза загружается через проводник и потом раздаётся только через storage-сеть.
+                </small>
+                <small className={styles.fieldValue}>
+                        {masterUploadPending
+                          ? "Загружаем пакет релиза..."
+                          : releaseDraft.audioFileName
+                            ? `${releaseDraft.audioFileName} · ${releaseDraft.audioFormat.toUpperCase()}`
+                            : "Пакет полного релиза ещё не выбран"}
+                </small>
               </label>
               <label className={styles.field}>
                 <span>Цена релиза</span>
@@ -1112,11 +1280,38 @@ export default function StudioPage() {
                       />
                     </label>
                     <label className={styles.field}>
-                      <span>Превью</span>
+                      <span>Master-файл трека</span>
                       <input
-                        value={row.previewUrl}
-                        onChange={(event) => updateTrackRow(index, { previewUrl: event.target.value })}
+                        type="file"
+                        accept=".mp3,.ogg,.wav,.flac,.aac,.m4a,.alac,audio/*"
+                        onChange={(event) => void uploadTrackMasterFile(index, event.target.files?.[0] ?? null)}
                       />
+                      <small className={styles.fieldHint}>
+                        Именно этот файл потом попадёт в storage-сеть и будет выдаваться при покупке отдельного трека.
+                      </small>
+                      <small className={styles.fieldValue}>
+                        {previewUploadPendingKey === `track-master-${index}`
+                          ? "Загружаем файл трека..."
+                          : row.audioFileName
+                            ? `${row.audioFileName} · ${row.audioFormat.toUpperCase()}`
+                            : "Файл трека ещё не выбран"}
+                      </small>
+                    </label>
+                    <label className={styles.field}>
+                      <span>Demo preview MP3</span>
+                      <input
+                        type="file"
+                        accept=".mp3,audio/mpeg"
+                        onChange={(event) => void uploadTrackPreviewFile(index, event.target.files?.[0] ?? null)}
+                      />
+                      <small className={styles.fieldHint}>
+                        На релизе слушатель слышит только демо-версию трека до 30 секунд в MP3.
+                      </small>
+                      <small className={styles.fieldValue}>
+                        {previewUploadPendingKey === `track-preview-${index}`
+                          ? "Загружаем demo preview..."
+                          : row.previewFileName || "Demo preview ещё не выбран"}
+                      </small>
                     </label>
                     <label className={styles.field}>
                       <span>Цена трека</span>
@@ -1128,12 +1323,13 @@ export default function StudioPage() {
                       />
                     </label>
                     <label className={styles.field}>
-                      <span>Длительность</span>
+                      <span>Лимит демо</span>
                       <input
                         type="number"
-                        min={0}
+                        min={30}
+                        max={30}
                         value={row.durationSec}
-                        onChange={(event) => updateTrackRow(index, { durationSec: event.target.value })}
+                        onChange={() => updateTrackRow(index, { durationSec: "30" })}
                       />
                     </label>
                     <button type="button" className={styles.secondaryButton} onClick={() => removeTrackRow(index)}>

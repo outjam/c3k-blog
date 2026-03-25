@@ -2141,6 +2141,57 @@ export const createMyArtistTrack = async (payload: {
   }
 };
 
+export const uploadMyArtistAudioFile = async (payload: {
+  kind: "master" | "preview";
+  file: File;
+}): Promise<{
+  upload: {
+    kind: "master" | "preview";
+    fileId: string;
+    fileName: string;
+    mimeType: string;
+    detectedFormat: ArtistTrack["formats"][number]["format"];
+    sizeBytes: number;
+    previewUrl?: string;
+  } | null;
+  error?: string;
+}> => {
+  try {
+    const formData = new FormData();
+    formData.append("kind", payload.kind);
+    formData.append("file", payload.file);
+
+    const response = await fetch("/api/shop/artists/me/uploads/audio", {
+      method: "POST",
+      headers: {
+        ...adminHeaders(),
+      },
+      body: formData,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { upload: null, error: await parseApiError(response) };
+    }
+
+    const data = (await response.json()) as {
+      upload?: {
+        kind: "master" | "preview";
+        fileId: string;
+        fileName: string;
+        mimeType: string;
+        detectedFormat: ArtistTrack["formats"][number]["format"];
+        sizeBytes: number;
+        previewUrl?: string;
+      } | null;
+    };
+
+    return { upload: data.upload ?? null };
+  } catch {
+    return { upload: null, error: "Network error" };
+  }
+};
+
 export const fetchAdminArtists = async (): Promise<{
   profiles: ArtistProfile[];
   tracks: ArtistTrack[];

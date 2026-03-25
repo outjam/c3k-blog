@@ -56,6 +56,27 @@ const formatStorageLabel = (value: ShopProduct["storageSummary"]): string | null
   return value.label;
 };
 
+const formatStorageNarrative = (value: ShopProduct["storageSummary"]): string | null => {
+  if (!value) {
+    return "Релиз ещё не попал в storage archive и пока живёт в обычном digital contour.";
+  }
+
+  switch (value.status) {
+    case "verified":
+      return "Archive уже подтверждён и готов к runtime-выдаче.";
+    case "archived":
+      return "Релиз уже упакован в archive contour и готов к устойчивой раздаче.";
+    case "prepared":
+      return "Archive bag подготовлен, но часть выдач ещё может идти через fallback.";
+    case "syncing":
+      return "Storage pipeline ещё собирает assets и runtime mapping.";
+    case "attention":
+      return "Runtime отметил релиз как требующий внимания.";
+    default:
+      return "Релиз пока ждёт синхронизации с storage layer.";
+  }
+};
+
 function PlayIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
@@ -209,6 +230,41 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
       artist?.subscriptionEnabled ? "Подписка доступна" : "Подписка выключена",
     ];
   }, [artist?.donationEnabled, artist?.subscriptionEnabled]);
+  const catalogStorageSummary = useMemo(() => {
+    return tracks.reduce(
+      (summary, track) => {
+        const storage = track.storageSummary;
+
+        if (!storage) {
+          summary.unsynced += 1;
+          return summary;
+        }
+
+        if (storage.status === "verified") {
+          summary.verified += 1;
+        } else if (storage.status === "archived" || storage.status === "prepared") {
+          summary.archived += 1;
+        } else if (storage.status === "attention") {
+          summary.attention += 1;
+        } else {
+          summary.unsynced += 1;
+        }
+
+        if (storage.pointerReadyCount > 0 || storage.verifiedBagCount > 0) {
+          summary.runtimeReady += 1;
+        }
+
+        return summary;
+      },
+      {
+        verified: 0,
+        archived: 0,
+        attention: 0,
+        runtimeReady: 0,
+        unsynced: 0,
+      },
+    );
+  }, [tracks]);
 
   const runWalletSupport = async (kind: "donation" | "subscription") => {
     if (!artist) {
@@ -578,8 +634,25 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
         </div>
         <p className={styles.sectionLead}>
           Здесь собраны все опубликованные релизы артиста. Можно сразу открыть релиз, включить
-          превью или добавить его в очередь без лишних промежуточных экранов.
+          превью, добавить его в очередь и увидеть, как он уже чувствует себя в storage/archive contour.
         </p>
+        <div className={styles.catalogSignals}>
+          <article className={styles.catalogSignalCard}>
+            <span>Storage-ready</span>
+            <strong>{catalogStorageSummary.runtimeReady}</strong>
+            <small>релизов уже имеют pointer-ready или verified runtime</small>
+          </article>
+          <article className={styles.catalogSignalCard}>
+            <span>Archive в работе</span>
+            <strong>{catalogStorageSummary.archived}</strong>
+            <small>релизов уже дошли до prepared или archived статуса</small>
+          </article>
+          <article className={styles.catalogSignalCard}>
+            <span>Нужно внимание</span>
+            <strong>{catalogStorageSummary.attention}</strong>
+            <small>релизов сейчас отмечены runtime как attention</small>
+          </article>
+        </div>
         {tracks.length === 0 ? (
           <p className={styles.empty}>Пока нет опубликованных треков.</p>
         ) : (
@@ -590,6 +663,10 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
                   <Image src={track.image} alt={track.title} width={90} height={64} />
                 </Link>
                 <div className={styles.trackMeta}>
+                  <div className={styles.trackEyebrow}>
+                    <span>{track.artistName || artist.displayName}</span>
+                    <span>{track.storageSummary?.runtimeMode === "tonstorage_testnet" ? "TON Storage testnet" : "Digital release"}</span>
+                  </div>
                   <div className={styles.trackHeader}>
                     <div>
                       <h3>{track.title}</h3>
@@ -606,6 +683,15 @@ export function ShopArtistPageClient({ slug }: { slug: string }) {
                     <span>{Math.max(1, track.formats?.length ?? 1)} форматов</span>
                     {track.isMintable ? <span>NFT доступен</span> : <span>NFT выключен</span>}
                     {formatStorageLabel(track.storageSummary) ? <span>{formatStorageLabel(track.storageSummary)}</span> : null}
+                  </div>
+                  <div className={styles.trackStorage}>
+                    <strong>{formatStorageLabel(track.storageSummary) || "Storage ещё не синхронизирован"}</strong>
+                    <span>
+                      {formatStorageNarrative(track.storageSummary)}
+                      {track.storageSummary?.pointerReadyCount
+                        ? ` ${track.storageSummary.pointerReadyCount} pointer ready.`
+                        : ""}
+                    </span>
                   </div>
                 </div>
                 <div className={styles.trackActions}>

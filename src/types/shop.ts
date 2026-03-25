@@ -184,6 +184,9 @@ export interface ArtistReleaseTrackItem {
   title: string;
   durationSec?: number;
   previewUrl?: string;
+  audioFileId?: string;
+  audioFormat?: ArtistAudioFormat;
+  audioFileName?: string;
   priceStarsCents?: number;
   position: number;
 }

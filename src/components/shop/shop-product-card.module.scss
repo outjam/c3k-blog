@@ -5,6 +5,11 @@
   grid-template-columns: 124px minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
+  padding: 0.72rem;
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--tg-section-bg) 90%, var(--tg-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  box-shadow: 0 12px 30px color-mix(in srgb, #000 7%, transparent);
 }
 
 .mediaWrap {
@@ -32,7 +37,8 @@
 }
 
 .kindBadge,
-.stateBadge {
+.stateBadge,
+.storageBadge {
   min-height: 1.34rem;
   display: inline-flex;
   align-items: center;
@@ -44,6 +50,11 @@
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.storageBadge {
+  background: color-mix(in srgb, var(--tg-accent) 16%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 88%, var(--tg-text));
 }
 
 .favoriteButton {
@@ -74,7 +85,7 @@
 .body {
   min-width: 0;
   display: grid;
-  gap: 0.38rem;
+  gap: 0.46rem;
   padding-top: 0.12rem;
 }
 
@@ -110,6 +121,11 @@
   color: var(--tg-accent) !important;
 }
 
+.infoChipStorage {
+  background: color-mix(in srgb, var(--tg-accent) 14%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 88%, var(--tg-text)) !important;
+}
+
 .title {
   margin: 0;
   color: var(--tg-text);
@@ -117,11 +133,23 @@
   line-height: 1.16;
 }
 
+.supportingStack {
+  display: grid;
+  gap: 0.18rem;
+}
+
 .supportingLine {
   margin: 0;
   color: var(--tg-subtitle-text);
   font-size: 0.8rem;
   line-height: 1.4;
+}
+
+.storageLine {
+  margin: 0;
+  color: color-mix(in srgb, var(--tg-accent) 78%, var(--tg-text));
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .metaRow strong {

@@ -24,6 +24,16 @@
   gap: 0.85rem;
 }
 
+.hero {
+  padding: 1.05rem;
+  border-radius: 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 28%, transparent);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--tg-accent) 18%, transparent), transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--tg-section-bg) 94%, var(--tg-bg)), color-mix(in srgb, var(--tg-bg) 90%, var(--tg-section-bg)));
+  box-shadow: 0 18px 42px color-mix(in srgb, #000 10%, transparent);
+}
+
 .heroTop {
   display: flex;
   align-items: center;
@@ -87,6 +97,10 @@
   gap: 0.2rem;
 }
 
+.heroBody {
+  gap: 0.9rem;
+}
+
 .heroMeta h1,
 .groupHeading h2 {
   margin: 0;
@@ -109,7 +123,7 @@
 
 .heroStats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.7rem;
 }
 
@@ -164,9 +178,88 @@
   gap: 0.7rem;
 }
 
+.groupTopline {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.heroSignals,
+.cardEyebrow,
+.cardNarrative {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.heroSignals {
+  align-items: center;
+}
+
+.signalPill {
+  min-height: 1.85rem;
+  padding: 0 0.72rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 24%, transparent);
+  background: color-mix(in srgb, var(--tg-bg) 74%, var(--tg-section-bg));
+  color: var(--tg-subtitle-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
 .card {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.75rem;
+}
+
+.cardShell {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.cardMediaWrap {
+  width: 112px;
+  min-height: 112px;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 22%, transparent);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--tg-accent) 16%, var(--tg-section-bg)), color-mix(in srgb, var(--tg-bg) 86%, var(--tg-section-bg)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent);
+}
+
+.cardMedia {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.cardMediaFallback {
+  width: 100%;
+  min-height: 112px;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--tg-accent) 82%, var(--tg-text));
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.cardMediaFallback span {
+  opacity: 0.85;
+}
+
+.cardContent {
+  min-width: 0;
+  display: grid;
+  gap: 0.65rem;
 }
 
 .cardTopline,
@@ -181,11 +274,20 @@
 
 .cardTopline {
   justify-content: space-between;
+  gap: 0.8rem;
 }
 
 .cardMeta {
   color: var(--tg-subtitle-text);
   font-size: 0.76rem;
+}
+
+.cardEyebrow {
+  color: var(--tg-subtitle-text);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .cardPills {
@@ -204,6 +306,32 @@
   justify-content: center;
   font-size: 0.74rem;
   font-weight: 600;
+}
+
+.metaPillRuntime {
+  background: color-mix(in srgb, var(--tg-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--tg-accent) 26%, transparent);
+  color: color-mix(in srgb, var(--tg-accent) 84%, var(--tg-text));
+}
+
+.cardNarrative {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.78rem 0.82rem;
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--tg-bg) 78%, var(--tg-section-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 20%, transparent);
+}
+
+.cardNarrative strong {
+  color: var(--tg-text);
+  font-size: 0.84rem;
+}
+
+.cardNarrative span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .primaryButton,
@@ -272,6 +400,31 @@
 }
 
 @media (max-width: 760px) {
+  .heroStats,
+  .skeletonMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .groupTopline,
+  .cardShell {
+    grid-template-columns: 1fr;
+  }
+
+  .groupTopline {
+    align-items: start;
+  }
+
+  .cardMediaWrap {
+    width: 100%;
+    min-height: 168px;
+  }
+
+  .cardMediaFallback {
+    min-height: 168px;
+  }
+}
+
+@media (max-width: 560px) {
   .heroStats,
   .skeletonMetrics {
     grid-template-columns: 1fr;

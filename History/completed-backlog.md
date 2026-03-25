@@ -970,3 +970,36 @@
 - профиль получил более сильный collector-dashboard вид
 - релиз получил более спокойную иерархию вокруг storage/delivery/NFT
 - новые runtime и collection states теперь выглядят как часть зрелого UI, а не как технические врезки
+
+### Sprint 13: Downloads UI под post-purchase flow
+
+- `Downloads` больше не выглядит как технический список storage requests
+- экран теперь показывает:
+  - обложку релиза
+  - маршрут выдачи
+  - storage/runtime контекст
+  - состояние retry и готовности файла
+- hero на `/downloads` теперь яснее показывает split по `runtime / desktop / telegram / web`
+
+### Sprint 13: каталог и artist page под storage/archive
+
+- карточки релизов в каталоге теперь показывают storage/archive hint и runtime fact прямо в витрине
+- страница артиста получила summary по `storage-ready / archive / attention`
+- карточки релизов артиста теперь показывают не только label, но и narrative про состояние archive/runtime
+
+### Sprint 13: новая бизнес-логика upload / preview / storage delivery
+
+- студия переведена с ручного `audioFileId` на file-picker upload для master и demo preview
+- релизные preview теперь считаются только как demo MP3 до 30 секунд
+- full download path переведён в storage-only модель без обычного direct-download контура
+- node desktop теперь ещё понятнее объясняет модель раздатчика: подключился, оставил ноду онлайн, получаешь `C3K Credit`
+
+### Sprint 13: per-track master files и storage-aware трековая выдача
+
+- у каждого трека внутри релиза теперь может быть собственный master-файл
+- студия разводит:
+  - пакет полного релиза
+  - master-файл отдельного трека
+  - demo preview отдельного трека
+- storage sync теперь создаёт отдельные storage assets для track delivery, а не только для whole-release package
+- delivery отдельного трека теперь берёт именно track-level file, а не fallback на release-level master

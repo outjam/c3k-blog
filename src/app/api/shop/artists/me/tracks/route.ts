@@ -4,6 +4,7 @@ import { getShopApiAuth, requireJsonRequest, unauthorizedResponse } from "@/lib/
 import { readArtistCatalogSnapshot, hydrateArtistCatalogStateInConfig, upsertArtistTracks } from "@/lib/server/artist-catalog-store";
 import { syncStorageAssetsForArtistTrack } from "@/lib/server/storage-asset-sync";
 import { mutateShopAdminConfig, readShopAdminConfig } from "@/lib/server/shop-admin-config-store";
+import { inferStorageAudioFormatFromUrl } from "@/lib/storage-resource-key";
 import type { ArtistTrack } from "@/types/shop";
 
 export const runtime = "nodejs";
@@ -157,14 +158,19 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
           }
 
           const id = normalizeSafeId(source.id ?? `track-${index + 1}`, 80) || `track-${index + 1}`;
+          const audioFileId = normalizeOptionalText(source.audioFileId, 1024);
+          const audioFormat = audioFileId ? normalizeFormat(source.audioFormat) : undefined;
           return {
             id,
             title,
             durationSec:
               typeof source.durationSec === "number" && Number.isFinite(source.durationSec)
-                ? clampNumber(source.durationSec, 0, 60 * 60 * 12)
-                : undefined,
+                ? clampNumber(source.durationSec, 1, 30)
+                : 30,
             previewUrl: normalizeOptionalText(source.previewUrl, 3000),
+            audioFileId,
+            audioFormat,
+            audioFileName: normalizeOptionalText(source.audioFileName, 220),
             priceStarsCents:
               typeof source.priceStarsCents === "number" && Number.isFinite(source.priceStarsCents)
                 ? clampNumber(source.priceStarsCents, 1, 200000)
@@ -190,6 +196,48 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
       id: "track-1",
       title: fallbackTitle,
       position: 1,
+      durationSec: 30,
+    },
+  ];
+};
+
+const hasValidDemoPreviewUrl = (value: unknown): boolean => {
+  const normalized = normalizeOptionalText(value, 3000);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return inferStorageAudioFormatFromUrl(normalized) === "mp3";
+};
+
+const hasValidTrackAudio = (entry: ArtistTrack["releaseTracklist"][number]): boolean => {
+  return Boolean(entry.audioFileId && entry.audioFormat);
+};
+
+const hydrateSingleTrackAudioFallback = (
+  releaseTracklist: ArtistTrack["releaseTracklist"],
+  defaultFormat: ArtistTrack["formats"][number],
+): ArtistTrack["releaseTracklist"] => {
+  if (releaseTracklist.length !== 1) {
+    return releaseTracklist;
+  }
+
+  const [firstTrack] = releaseTracklist;
+  if (!firstTrack) {
+    return releaseTracklist;
+  }
+
+  if (firstTrack.audioFileId && firstTrack.audioFormat) {
+    return releaseTracklist;
+  }
+
+  return [
+    {
+      ...firstTrack,
+      audioFileId: defaultFormat.audioFileId,
+      audioFormat: defaultFormat.format,
+      audioFileName: firstTrack.audioFileName || undefined,
     },
   ];
 };
@@ -248,7 +296,25 @@ export async function POST(request: Request) {
   const fallbackPrice = clampNumber(payload.priceStarsCents, 1, 200000);
   const formats = normalizeFormats(payload.formats, audioFileId, fallbackPrice);
   const defaultFormat = formats.find((item) => item.isDefault) ?? formats[0];
-  const releaseTracklist = normalizeReleaseTracklist(payload.releaseTracklist, title);
+  const releaseTracklist = hydrateSingleTrackAudioFallback(
+    normalizeReleaseTracklist(payload.releaseTracklist, title),
+    defaultFormat,
+  );
+  const resolvedPreviewUrl = normalizeOptionalText(payload.previewUrl, 3000) ?? releaseTracklist[0]?.previewUrl;
+
+  if (!releaseTracklist.every((entry) => hasValidDemoPreviewUrl(entry.previewUrl))) {
+    return NextResponse.json(
+      { error: "Каждый трек должен иметь demo preview в MP3 до 30 секунд." },
+      { status: 400 },
+    );
+  }
+
+  if (!releaseTracklist.every((entry) => hasValidTrackAudio(entry))) {
+    return NextResponse.json(
+      { error: "У каждого трека должен быть загружен master-файл через проводник." },
+      { status: 400 },
+    );
+  }
 
   const config = await readShopAdminConfig();
   const artistCatalog = await readArtistCatalogSnapshot({
@@ -283,7 +349,7 @@ export async function POST(request: Request) {
       formats,
       releaseTracklist,
       audioFileId: defaultFormat.audioFileId,
-      previewUrl: normalizeOptionalText(payload.previewUrl, 3000),
+      previewUrl: resolvedPreviewUrl,
       durationSec: clampNumber(payload.durationSec, 0, 60 * 60 * 12),
       genre: normalizeOptionalText(payload.genre, 64),
       tags: normalizeTags(payload.tags),
@@ -430,13 +496,29 @@ export async function PATCH(request: Request) {
       ? normalizeFormats(payload.formats, fallbackAudio, fallbackPrice)
       : existing.formats;
     const defaultFormat = nextFormats.find((item) => item.isDefault) ?? nextFormats[0];
+    const nextReleaseTracklist = hydrateSingleTrackAudioFallback(
+      payload.releaseTracklist !== undefined
+        ? normalizeReleaseTracklist(payload.releaseTracklist, next.title)
+        : existing.releaseTracklist,
+      defaultFormat,
+    );
+    const nextPreviewUrl =
+      payload.previewUrl !== undefined
+        ? normalizeOptionalText(payload.previewUrl, 3000)
+        : nextReleaseTracklist[0]?.previewUrl ?? existing.previewUrl;
+
+    if (!nextReleaseTracklist.every((entry) => hasValidDemoPreviewUrl(entry.previewUrl))) {
+      throw new Error("preview_demo_required");
+    }
+    if (!nextReleaseTracklist.every((entry) => hasValidTrackAudio(entry))) {
+      throw new Error("track_audio_required");
+    }
 
     next.formats = nextFormats;
     next.audioFileId = defaultFormat.audioFileId;
     next.priceStarsCents = defaultFormat.priceStarsCents;
-    next.releaseTracklist = payload.releaseTracklist !== undefined
-      ? normalizeReleaseTracklist(payload.releaseTracklist, next.title)
-      : existing.releaseTracklist;
+    next.releaseTracklist = nextReleaseTracklist;
+    next.previewUrl = nextPreviewUrl;
 
     return {
       ...hydratedCurrent,
@@ -451,6 +533,12 @@ export async function PATCH(request: Request) {
     if (message === "track_not_found") {
       return message;
     }
+    if (message === "preview_demo_required") {
+      return message;
+    }
+    if (message === "track_audio_required") {
+      return message;
+    }
 
     throw error;
   });
@@ -458,6 +546,18 @@ export async function PATCH(request: Request) {
   if (typeof updated === "string") {
     if (updated === "track_not_found") {
       return NextResponse.json({ error: "Track not found" }, { status: 404 });
+    }
+    if (updated === "preview_demo_required") {
+      return NextResponse.json(
+        { error: "Каждый трек должен иметь demo preview в MP3 до 30 секунд." },
+        { status: 400 },
+      );
+    }
+    if (updated === "track_audio_required") {
+      return NextResponse.json(
+        { error: "У каждого трека должен быть загружен master-файл через проводник." },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json({ error: "Failed to update track" }, { status: 500 });

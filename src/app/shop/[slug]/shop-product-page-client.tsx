@@ -676,7 +676,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       }
       if (
         channel === "desktop_download" &&
-        (result.request.storagePointer || result.request.deliveryUrl)
+        result.request.storagePointer
       ) {
         openStorageDeliveryInDesktop(result.request);
       }
@@ -684,10 +684,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       setWalletMessage(
         result.message ??
           (channel === "telegram_bot"
-            ? "Файл релиза отправлен в Telegram."
+            ? "Файл релиза поставлен на выдачу через storage-сеть в Telegram."
             : channel === "desktop_download"
-              ? "Файл релиза передан в C3K Desktop."
-            : "Файл релиза подготовлен к скачиванию."),
+              ? "Файл релиза передан в C3K Desktop Node."
+            : "Файл релиза подготовлен для получения из storage-сети."),
       );
       hapticNotification("success");
     },
@@ -712,7 +712,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
         return;
       }
 
-      const trackFormat = ownsWholeRelease ? selectedFormat : getDefaultTrackFormat(product);
+      const trackFormat = track.audioFormat ?? (ownsWholeRelease ? selectedFormat : getDefaultTrackFormat(product));
       const pendingKey = `track:${track.id}:${channel}`;
       setDeliveryPendingKey(pendingKey);
       const result = await requestTrackDownload({
@@ -746,7 +746,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       }
       if (
         channel === "desktop_download" &&
-        (result.request.storagePointer || result.request.deliveryUrl)
+        result.request.storagePointer
       ) {
         openStorageDeliveryInDesktop(result.request);
       }
@@ -754,10 +754,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       setWalletMessage(
         result.message ??
           (channel === "telegram_bot"
-            ? `Трек «${track.title}» отправлен в Telegram.`
+            ? `Трек «${track.title}» поставлен на выдачу через storage-сеть в Telegram.`
             : channel === "desktop_download"
-              ? `Трек «${track.title}» передан в C3K Desktop.`
-            : `Трек «${track.title}» подготовлен к скачиванию.`),
+              ? `Трек «${track.title}» передан в C3K Desktop Node.`
+            : `Трек «${track.title}» подготовлен для получения из storage-сети.`),
       );
       hapticNotification("success");
     },
@@ -799,7 +799,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
       if (
         result.request.channel === "desktop_download" &&
         result.request.status === "ready" &&
-        (result.request.storagePointer || result.request.deliveryUrl)
+        result.request.storagePointer
       ) {
         openStorageDeliveryInDesktop(result.request);
       }
@@ -1321,12 +1321,13 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
               </div>
 
               <p className={styles.trackListHint}>
-                Треки можно покупать по одному. После покупки каждый трек можно забрать через web, Telegram или Desktop, а полный релиз открывает NFT upgrade.
+                На этой странице доступны только demo preview в MP3 до 30 секунд. Полные файлы после покупки выдаются только через storage-сеть C3K и ноды пользователей.
               </p>
 
               <ol className={styles.trackList}>
                 {releaseTracklist.map((track, index) => {
                   const trackOwned = isTrackOwned(track.id);
+                  const trackFormatLabel = getFormatLabel(track.audioFormat ?? selectedFormat);
                   const trackPrice = getReleaseTrackPrice(
                     product,
                     track.id,
@@ -1351,7 +1352,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                       <div className={styles.trackMeta}>
                         <strong>{track.title}</strong>
                         <small>
-                          {formatTrackDuration(track.durationSec)}
+                          demo {formatTrackDuration(track.durationSec)}
                           {trackOwned
                             ? trackDeliverySummary
                               ? ` · ${trackDeliverySummary.ready} ready · ${trackDeliverySummary.active} в работе`
@@ -1370,7 +1371,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                           ) : (
                             <span className={styles.statusBadge}>Можно купить отдельно</span>
                           )}
-                          <span className={styles.statusBadge}>{selectedFormatLabel}</span>
+                          <span className={styles.statusBadge}>{trackFormatLabel}</span>
                         </div>
                       </div>
 
@@ -1390,7 +1391,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                               <DownloadIcon className={styles.buttonIcon} />
                               {deliveryPendingKey === `track:${track.id}:web_download`
                                 ? "..."
-                                : "Файл"}
+                                : "Из сети"}
                             </button>
                             <button
                               type="button"
@@ -1445,8 +1446,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                 </div>
 
                 <p className={styles.panelText}>
-                  Полная покупка собирает весь релиз в коллекции, открывает выдачу через web,
-                  Telegram и Desktop и подготавливает релиз к NFT upgrade.
+                  Полная покупка собирает релиз в коллекции и открывает выдачу только через storage-сеть C3K: web runtime, Telegram handoff и Desktop Node. Прямой обычной загрузки больше нет.
                 </p>
 
                 {product.storageSummary ? (
@@ -1484,7 +1484,7 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                       <DownloadIcon className={styles.buttonIcon} />
                       {deliveryPendingKey === "release:web_download"
                         ? "Готовим..."
-                        : "Скачать релиз"}
+                        : "Получить из сети"}
                     </button>
                     <button
                       type="button"
@@ -1555,7 +1555,10 @@ export function ShopProductPageClient({ product }: { product: ShopProduct }) {
                           >
                             {retryingDeliveryId === request.id ? "Повторяем..." : "Повторить выдачу"}
                           </button>
-                        ) : request.status === "ready" && (request.deliveryUrl || request.storagePointer) ? (
+                        ) : request.status === "ready" &&
+                          (request.channel === "desktop_download"
+                            ? Boolean(request.storagePointer)
+                            : Boolean(request.deliveryUrl || request.storagePointer)) ? (
                           <button
                             type="button"
                             className={styles.inlineAction}

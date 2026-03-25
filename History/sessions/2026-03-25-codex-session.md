@@ -217,3 +217,106 @@
 - [src/app/profile/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/profile/page.module.scss) усилен как collector dashboard
 - [src/app/shop/[slug]/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/%5Bslug%5D/page.module.scss) собран в более спокойную product hierarchy
 - визуальный слой теперь лучше соответствует уже реализованной storage/delivery/NFT логике
+
+## Следующий slice Sprint 13 — Downloads как post-purchase экран
+
+### Что изменено
+
+- На [src/app/downloads/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.tsx):
+  - hero теперь яснее показывает split по `runtime / desktop / telegram / web`
+  - появился более сильный section `Post-purchase выдача`
+  - карточки выдач получили:
+    - обложки релизов
+    - artist/context eyebrow
+    - route summary
+    - storage/archive hint по релизу
+    - более понятный narrative-слой про текущий delivery path
+- На [src/app/downloads/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.module.scss):
+  - собран более выразительный hero
+  - добавлены полноценные media-card layouts
+  - появился более зрелый visual language для runtime/delivery карточек
+
+### Что это даёт
+
+- экран `Downloads` теперь лучше соответствует уже реализованному storage/delivery функционалу
+- post-purchase путь стал последовательнее:
+  - пользователь видит релиз как объект коллекции
+  - понимает, через какой route идёт файл
+  - видит, когда нужен retry и когда storage runtime уже реально использовался
+
+## Следующий slice Sprint 13 — каталог и страница артиста под storage/archive
+
+### Что изменено
+
+- На [src/components/shop/shop-product-card.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/shop/shop-product-card.tsx):
+  - карточки релизов теперь показывают storage label прямо на обложке
+  - появился storage hint под title
+  - появился archive/runtime fact в info chips
+- На [src/app/shop/artist/[slug]/shop-artist-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/artist/%5Bslug%5D/shop-artist-page-client.tsx):
+  - секция каталога получила summary по `storage-ready / archive in work / attention`
+  - у каждой карточки релиза появился storage narrative block
+- Под это обновлены:
+  - [src/components/shop/shop-product-card.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/shop/shop-product-card.module.scss)
+  - [src/app/shop/artist/[slug]/page.module.scss](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/artist/%5Bslug%5D/page.module.scss)
+
+### Что это даёт
+
+- storage/archive виден уже не только на detail-screen релиза
+- пользователь быстрее понимает:
+  - какой релиз уже в archive contour
+  - где storage runtime уже ближе к ready
+  - какие релизы артиста требуют внимания
+
+## Следующий slice Sprint 13 — новая бизнес-логика upload / preview / storage-only delivery
+
+### Что изменено
+
+- Для артистов:
+  - добавлен upload route [src/app/api/shop/artists/me/uploads/audio/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/uploads/audio/route.ts)
+  - студия теперь использует file picker для master-файла и demo preview вместо ручного `audioFileId`: [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx)
+  - client helper добавлен в [src/lib/admin-api.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/admin-api.ts)
+- Для preview:
+  - preview теперь должен быть MP3
+  - duration demo ограничен 30 секундами в artist route и player-layer
+  - добавлен proxy route [src/app/api/media/telegram-preview/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/media/telegram-preview/route.ts)
+  - обновлены [src/app/api/shop/artists/me/tracks/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/tracks/route.ts), [src/lib/player-release-queue.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/player-release-queue.ts), [src/components/player/global-player-provider.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/components/player/global-player-provider.tsx)
+- Для delivery:
+  - runtime fetch получил `storageOnly` gate: [src/lib/server/storage-runtime-fetch.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-runtime-fetch.ts)
+  - user delivery теперь больше не должна считаться готовой только по fallback/direct source: [src/lib/server/storage-delivery.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts), [src/app/api/storage/downloads/[id]/file/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/storage/downloads/%5Bid%5D/file/route.ts)
+- Для user-facing экранов:
+  - релиз теперь честнее говорит про demo preview и получение файла из storage-сети: [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/%5Bslug%5D/shop-product-page-client.tsx)
+  - `Downloads` и `/storage` выровнены под storage-only desktop handoff: [src/app/downloads/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/downloads/page.tsx), [src/app/storage/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/page.tsx)
+  - desktop client стал проще объяснять роль раздатчика: [src/app/storage/desktop/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/storage/desktop/page.tsx)
+
+### Что это даёт
+
+- теперь продукт ближе к целевой модели:
+  - артист загружает файлы как файлы
+  - пользователь слушает только demo preview
+  - полный контент идёт только через storage/network contour
+  - нода для раздатчика подаётся как простая программа с reward-preview, а не как техдемо
+
+## Следующий slice Sprint 13 — per-track master files и track-aware storage delivery
+
+### Что изменено
+
+- Доменные типы релиза расширены под отдельные master-файлы треков:
+  - `releaseTracklist` теперь несёт `audioFileId`, `audioFormat`, `audioFileName`
+  - обновлены [src/types/shop.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/types/shop.ts), [src/lib/server/artist-catalog-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/artist-catalog-store.ts), [src/lib/server/shop-admin-config-store.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/shop-admin-config-store.ts), [src/app/api/shop/artists/me/tracks/route.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/api/shop/artists/me/tracks/route.ts)
+- Студия теперь разводит:
+  - `пакет полного релиза`
+  - `master-файл трека`
+  - `demo preview MP3`
+  в [src/app/studio/page.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/studio/page.tsx)
+- Storage sync теперь создаёт per-track assets:
+  - добавлены `track` asset ids/resource keys в [src/lib/storage-resource-key.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/storage-resource-key.ts)
+  - sync обновлён в [src/lib/server/storage-asset-sync.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-asset-sync.ts)
+- Delivery отдельного трека теперь резолвит track-level master и format, а не пытается брать release-level файл:
+  - [src/lib/server/storage-delivery.ts](/Users/culture3k/Documents/GitHub/c3k-blog/src/lib/server/storage-delivery.ts)
+  - [src/app/shop/[slug]/shop-product-page-client.tsx](/Users/culture3k/Documents/GitHub/c3k-blog/src/app/shop/%5Bslug%5D/shop-product-page-client.tsx)
+
+### Что это даёт
+
+- теперь отдельный трек — это действительно отдельный файл в бизнес-логике, а не только строка в треклисте
+- full release и single-track delivery разведены заметно честнее
+- storage registry начинает видеть и готовить реальные track assets под покупку одного трека

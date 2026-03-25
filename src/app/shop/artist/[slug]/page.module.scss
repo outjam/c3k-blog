@@ -213,6 +213,43 @@
   gap: 0.82rem;
 }
 
+.catalogSignals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.catalogSignalCard {
+  padding: 0.85rem;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--tg-bg) 76%, var(--tg-section-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 22%, transparent);
+  display: grid;
+  gap: 0.18rem;
+}
+
+.catalogSignalCard span,
+.catalogSignalCard small {
+  color: var(--tg-subtitle-text);
+}
+
+.catalogSignalCard span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.catalogSignalCard strong {
+  color: var(--tg-text);
+  font-size: 1rem;
+}
+
+.catalogSignalCard small {
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
 .sectionHeader {
   display: flex;
   align-items: flex-start;
@@ -335,6 +372,17 @@
   gap: 0.48rem;
 }
 
+.trackEyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .trackHeader {
   display: flex;
   align-items: flex-start;
@@ -365,6 +413,26 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+}
+
+.trackStorage {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.72rem 0.78rem;
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--tg-bg) 78%, var(--tg-section-bg));
+  border: 1px solid color-mix(in srgb, var(--tg-section-separator) 20%, transparent);
+}
+
+.trackStorage strong {
+  color: var(--tg-text);
+  font-size: 0.82rem;
+}
+
+.trackStorage span {
+  color: var(--tg-subtitle-text);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .trackActions {
@@ -479,6 +547,7 @@
 }
 
 @media (max-width: 720px) {
+  .catalogSignals,
   .supportGrid,
   .skeletonSupport,
   .skeletonGrid {

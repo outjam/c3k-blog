@@ -214,6 +214,8 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
           }
 
           const id = normalizeSafeId(source.id ?? `track-${index + 1}`, 80) || `track-${index + 1}`;
+          const audioFileId = normalizeOptionalText(source.audioFileId, 1024);
+          const audioFormat = audioFileId ? normalizeArtistAudioFormat(source.audioFormat) : undefined;
 
           return {
             id,
@@ -223,6 +225,9 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
                 ? clampInt(source.durationSec, 0, 60 * 60 * 12)
                 : undefined,
             previewUrl: normalizeOptionalText(source.previewUrl, 3000),
+            audioFileId,
+            audioFormat,
+            audioFileName: normalizeOptionalText(source.audioFileName, 220),
             priceStarsCents:
               typeof source.priceStarsCents === "number" && Number.isFinite(source.priceStarsCents)
                 ? clampIntMin(source.priceStarsCents, 1)

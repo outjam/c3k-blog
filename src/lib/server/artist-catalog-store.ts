@@ -191,12 +191,17 @@ const normalizeReleaseTracklist = (value: unknown, fallbackTitle: string): Artis
           const durationSec = Math.round(Number(source.durationSec ?? 0));
           const priceStarsCents = Math.round(Number(source.priceStarsCents ?? 0));
           const position = Math.round(Number(source.position ?? index + 1));
+          const audioFileId = normalizeOptionalText(source.audioFileId, 1024);
+          const audioFormat = audioFileId ? normalizeFormat(source.audioFormat) : undefined;
 
           return {
             id,
             title,
             durationSec: Number.isFinite(durationSec) && durationSec > 0 ? durationSec : undefined,
             previewUrl: normalizeOptionalText(source.previewUrl, 3000),
+            audioFileId,
+            audioFormat,
+            audioFileName: normalizeOptionalText(source.audioFileName, 220),
             priceStarsCents: Number.isFinite(priceStarsCents) && priceStarsCents > 0 ? priceStarsCents : undefined,
             position: Number.isFinite(position) && position > 0 ? position : index + 1,
           } satisfies ArtistTrack["releaseTracklist"][number];

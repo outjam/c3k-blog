@@ -38,6 +38,17 @@ export const buildReleaseStorageAssetId = (
   return normalizeSafeId(`release-asset:${trackId}:${format}`, 120) || `release-asset-${Date.now()}`;
 };
 
+export const buildTrackStorageAssetId = (
+  releaseTrackId: string,
+  itemTrackId: string,
+  format: ArtistAudioFormat,
+): string => {
+  return (
+    normalizeSafeId(`track-asset:${releaseTrackId}:${itemTrackId}:${format}`, 120) ||
+    `track-asset-${Date.now()}`
+  );
+};
+
 export const buildPreviewStorageAssetId = (trackId: string): string => {
   return normalizeSafeId(`preview-asset:${trackId}`, 120) || `preview-asset-${Date.now()}`;
 };
@@ -93,6 +104,17 @@ export const inferStorageAudioFormatFromUrl = (
 
   if (clean.endsWith(".mp3")) {
     return "mp3";
+  }
+
+  try {
+    const parsed = new URL(normalized, "https://c3k.local");
+    const explicitFormat = parsed.searchParams.get("format")?.trim().toLowerCase();
+
+    if (explicitFormat === "aac" || explicitFormat === "alac" || explicitFormat === "flac" || explicitFormat === "ogg" || explicitFormat === "wav" || explicitFormat === "mp3") {
+      return explicitFormat;
+    }
+  } catch {
+    return null;
   }
 
   return null;

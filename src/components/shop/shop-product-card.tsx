@@ -22,6 +22,55 @@ interface ShopProductCardProps {
   ownership?: ReleaseOwnershipViewModel | null;
 }
 
+const formatStorageCardHint = (product: ShopProduct): string | null => {
+  const summary = product.storageSummary;
+
+  if (!summary) {
+    return null;
+  }
+
+  switch (summary.status) {
+    case "verified":
+      return "Archive уже подтверждён и готов к runtime-выдаче.";
+    case "archived":
+      return "Релиз уже в archive contour и готовится к более устойчивой раздаче.";
+    case "prepared":
+      return "Bag уже подготовлен, часть выдач ещё может идти через fallback.";
+    case "syncing":
+      return "Storage pipeline ещё собирает assets и runtime mapping.";
+    case "attention":
+      return "Runtime отметил релиз как требующий внимания.";
+    default:
+      return "Релиз пока ещё не попал в storage archive.";
+  }
+};
+
+const formatStorageCardFact = (product: ShopProduct): string | null => {
+  const summary = product.storageSummary;
+
+  if (!summary) {
+    return null;
+  }
+
+  if (summary.verifiedBagCount > 0) {
+    return `${summary.verifiedBagCount} verified bag`;
+  }
+
+  if (summary.pointerReadyCount > 0) {
+    return `${summary.pointerReadyCount} pointer ready`;
+  }
+
+  if (summary.preparedJobCount > 0) {
+    return `${summary.preparedJobCount} prepared job`;
+  }
+
+  if (summary.pendingJobCount > 0) {
+    return `${summary.pendingJobCount} в очереди`;
+  }
+
+  return `${summary.assetCount} assets`;
+};
+
 function HeartIcon({ filled }: { filled?: boolean }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden>
@@ -102,6 +151,9 @@ export function ShopProductCard({
     : ownership && ownership.ownedTrackCount > 0
       ? "Можно докупить релиз целиком"
       : "Доступен полный релиз";
+  const storageLabel = product.storageSummary?.label ?? null;
+  const storageHint = formatStorageCardHint(product);
+  const storageFact = formatStorageCardFact(product);
 
   const handleFavorite: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
@@ -155,6 +207,7 @@ export function ShopProductCard({
             <span className={styles.kindBadge}>{releaseTypeLabel}</span>
             {product.isNew ? <span className={styles.stateBadge}>NEW</span> : null}
             {product.isHit ? <span className={styles.stateBadge}>HIT</span> : null}
+            {storageLabel ? <span className={styles.storageBadge}>{storageLabel}</span> : null}
           </div>
 
           <button
@@ -174,15 +227,28 @@ export function ShopProductCard({
           </div>
 
           <h3 className={styles.title}>{product.title}</h3>
-          <p className={styles.supportingLine}>
-            {releaseContext} · {trackCount} треков
-          </p>
+          <div className={styles.supportingStack}>
+            <p className={styles.supportingLine}>
+              {releaseContext} · {trackCount} треков
+            </p>
+            {storageHint ? (
+              <p className={styles.storageLine}>
+                {storageHint}
+                {storageFact ? ` ${storageFact}.` : null}
+              </p>
+            ) : null}
+          </div>
 
           <div className={styles.metaRow}>
             <span className={styles.infoChip}>{ownershipSummary}</span>
             <span className={styles.infoChip}>{formatSummary}</span>
             {ownership?.isMinted ? (
               <span className={`${styles.infoChip} ${styles.infoChipAccent}`}>NFT</span>
+            ) : null}
+            {storageLabel ? (
+              <span className={`${styles.infoChip} ${styles.infoChipStorage}`}>
+                {storageLabel}
+              </span>
             ) : null}
           </div>
 

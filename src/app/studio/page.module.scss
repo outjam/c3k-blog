@@ -309,6 +309,18 @@
   font-weight: 700;
 }
 
+.fieldHint,
+.fieldValue {
+  margin: 0;
+  color: var(--tg-subtitle-text);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.fieldValue {
+  color: var(--tg-text);
+}
+
 .field input,
 .field textarea,
 .field select {

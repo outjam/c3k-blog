@@ -86,6 +86,41 @@ export function GlobalPlayerProvider({
     return queue[currentIndex] ?? null;
   }, [currentIndex, queue]);
 
+  function startPlayback(
+    tracks: GlobalPlayerTrack[],
+    index: number,
+    immediate = true,
+  ) {
+    const nextTrack = tracks[index];
+    if (!nextTrack) {
+      return;
+    }
+
+    setQueue(tracks);
+    setCurrentIndex(index);
+    setCurrentTimeSec(0);
+    setDurationSec(nextTrack.durationSec ?? 0);
+    setIsPlaying(true);
+
+    const audio = audioRef.current;
+    if (!audio || !immediate) {
+      shouldAutoplayRef.current = true;
+      return;
+    }
+
+    shouldAutoplayRef.current = false;
+
+    const resolvedSourceUrl = resolveTrackSourceUrl(nextTrack.sourceUrl);
+    if (audio.src !== resolvedSourceUrl) {
+      audio.src = resolvedSourceUrl;
+      audio.load();
+    }
+
+    void audio.play().catch(() => {
+      setIsPlaying(false);
+    });
+  }
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -93,6 +128,25 @@ export function GlobalPlayerProvider({
     }
 
     const onTimeUpdate = () => {
+      const previewLimitSec = currentTrack?.durationSec ?? 0;
+
+      if (previewLimitSec > 0 && audio.currentTime >= previewLimitSec) {
+        audio.pause();
+        audio.currentTime = 0;
+        setCurrentTimeSec(0);
+
+        const nextIndex = currentIndex + 1;
+        if (nextIndex < queue.length) {
+          shouldAutoplayRef.current = true;
+          setCurrentIndex(nextIndex);
+          return;
+        }
+
+        shouldAutoplayRef.current = false;
+        setIsPlaying(false);
+        return;
+      }
+
       setCurrentTimeSec(audio.currentTime || 0);
     };
 
@@ -140,7 +194,7 @@ export function GlobalPlayerProvider({
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("ended", onEnded);
     };
-  }, [queue.length]);
+  }, [currentIndex, currentTrack?.durationSec, queue.length]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -179,41 +233,6 @@ export function GlobalPlayerProvider({
       });
     }
   }, [currentTrack]);
-
-  const startPlayback = (
-    tracks: GlobalPlayerTrack[],
-    index: number,
-    immediate = true,
-  ) => {
-    const nextTrack = tracks[index];
-    if (!nextTrack) {
-      return;
-    }
-
-    setQueue(tracks);
-    setCurrentIndex(index);
-    setCurrentTimeSec(0);
-    setDurationSec(nextTrack.durationSec ?? 0);
-    setIsPlaying(true);
-
-    const audio = audioRef.current;
-    if (!audio || !immediate) {
-      shouldAutoplayRef.current = true;
-      return;
-    }
-
-    shouldAutoplayRef.current = false;
-
-    const resolvedSourceUrl = resolveTrackSourceUrl(nextTrack.sourceUrl);
-    if (audio.src !== resolvedSourceUrl) {
-      audio.src = resolvedSourceUrl;
-      audio.load();
-    }
-
-    void audio.play().catch(() => {
-      setIsPlaying(false);
-    });
-  };
 
   const playQueue = (tracks: GlobalPlayerTrack[], startIndex = 0) => {
     const normalizedTracks = tracks.filter((track) =>

@@ -180,6 +180,35 @@ const resolveTrackAccess = (
   purchasedTrackKeys: string[],
   requestedFormat?: ArtistAudioFormat,
 ): DeliveryAccessResolution => {
+  if (track.audioFormat) {
+    const releaseResolution = resolveReleaseAccess(
+      product,
+      purchasedReleaseSlugs,
+      purchasedReleaseFormatKeys,
+      undefined,
+    );
+    const ownsTrack = purchasedTrackKeys.includes(buildTrackKey(product.slug, track.id));
+
+    if (!releaseResolution.allowed && !ownsTrack) {
+      return {
+        allowed: false,
+        reason: "not_purchased",
+      };
+    }
+
+    if (requestedFormat && requestedFormat !== track.audioFormat) {
+      return {
+        allowed: false,
+        reason: "format_not_owned",
+      };
+    }
+
+    return {
+      allowed: true,
+      resolvedFormat: track.audioFormat,
+    };
+  }
+
   const releaseResolution = resolveReleaseAccess(
     product,
     purchasedReleaseSlugs,
@@ -199,7 +228,7 @@ const resolveTrackAccess = (
     };
   }
 
-  const defaultFormat = getDefaultTrackFormat(product);
+  const defaultFormat = track.audioFormat ?? getDefaultTrackFormat(product);
 
   if (requestedFormat && requestedFormat !== defaultFormat) {
     return {
@@ -295,13 +324,14 @@ const resolveTrackAudioFileId = (
   track: ArtistReleaseTrackItem,
   resolvedFormat: ArtistAudioFormat,
 ): string | undefined => {
-  const formatEntry = getTrackFormats(product).find((entry) => entry.format === resolvedFormat);
-
-  if (Array.isArray(product.releaseTracklist) && product.releaseTracklist.some((entry) => entry.id === track.id)) {
-    return formatEntry?.format === resolvedFormat ? product.formats?.find((entry) => entry.format === resolvedFormat)?.audioFileId : undefined;
+  if (track.audioFileId && track.audioFormat === resolvedFormat) {
+    return track.audioFileId;
   }
 
-  return formatEntry?.format === resolvedFormat ? product.formats?.find((entry) => entry.format === resolvedFormat)?.audioFileId : undefined;
+  const formatEntry = getTrackFormats(product).find((entry) => entry.format === resolvedFormat);
+  return formatEntry?.format === resolvedFormat
+    ? product.formats?.find((entry) => entry.format === resolvedFormat)?.audioFileId
+    : undefined;
 };
 
 const resolveAssetForRequest = async (input: {
@@ -386,6 +416,7 @@ const deliverToTelegram = async (input: {
     assetId: input.assetId,
     bagId: input.bagId,
     preferRuntimePointer: true,
+    storageOnly: true,
   });
 
   if (!resolved.ok || !resolved.bytes) {
@@ -651,19 +682,20 @@ const requestDelivery = async (input: {
       assetId: resolved.asset?.id,
       bagId: resolved.bag?.id,
       preferRuntimePointer: true,
+      storageOnly: true,
     });
 
     if (!canResolveTelegramPayload) {
       const pendingRequest = await updateStorageDeliveryRequest(activeRequest.id, {
         status: "pending_asset_mapping",
         failureCode: "delivery_source_unavailable",
-        failureMessage: "Asset найден, но storage runtime пока не может выдать fetchable source для Telegram.",
+        failureMessage: "Файл ещё не подтверждён в storage-сети и не может быть выдан через ноды Telegram.",
       });
 
       return {
         ok: true,
         request: pendingRequest ?? activeRequest,
-        message: "Запрос сохранён, но Telegram delivery станет доступен после настройки storage runtime bridge.",
+        message: "Запрос сохранён. Telegram delivery откроется после подтверждения файла в storage-сети.",
       };
     }
     const queuedRequest = await updateStorageDeliveryRequest(activeRequest.id, {
@@ -684,7 +716,7 @@ const requestDelivery = async (input: {
 
   const isReadyForChannel =
     input.channel === "desktop_download"
-      ? Boolean(resolved.deliveryUrl || resolved.storagePointer)
+      ? Boolean(resolved.storagePointer)
       : await canResolveStorageRuntimeFetchTarget({
           deliveryUrl: resolved.deliveryUrl,
           resolvedSourceUrl: resolved.asset?.sourceUrl,
@@ -692,6 +724,7 @@ const requestDelivery = async (input: {
           assetId: resolved.asset?.id,
           bagId: resolved.bag?.id,
           preferRuntimePointer: true,
+          storageOnly: true,
         });
 
   const readyRequest = await updateStorageDeliveryRequest(activeRequest.id, {
@@ -701,8 +734,8 @@ const requestDelivery = async (input: {
       isReadyForChannel
         ? ""
         : input.channel === "desktop_download"
-          ? "Asset найден, но desktop storage pointer ещё не готов."
-          : "Asset найден, но storage runtime пока не может выдать fetchable source для web download.",
+          ? "Файл ещё не подтверждён в storage-сети и пока не готов к раздаче через desktop-ноду."
+          : "Файл ещё не подтверждён в storage-сети и не может быть скачан вне node contour.",
   });
 
   return {
@@ -710,8 +743,8 @@ const requestDelivery = async (input: {
     request: readyRequest ?? activeRequest,
     message:
       input.channel === "desktop_download"
-        ? "Файл подготовлен для desktop client."
-        : "Файл подготовлен для скачивания.",
+        ? "Файл подготовлен для выдачи через desktop-ноду."
+        : "Файл подготовлен для получения из storage-сети.",
   };
 };
 
@@ -808,7 +841,7 @@ export const reconcileStorageDeliveryRequestsForRuntimeAsset = async (input: {
   for (const request of requests) {
     const isReadyForChannel =
       request.channel === "desktop_download"
-        ? Boolean(request.deliveryUrl || request.storagePointer)
+        ? Boolean(request.storagePointer)
         : await canResolveStorageRuntimeFetchTarget({
             deliveryUrl: request.deliveryUrl,
             resolvedSourceUrl: request.resolvedSourceUrl,
@@ -816,6 +849,7 @@ export const reconcileStorageDeliveryRequestsForRuntimeAsset = async (input: {
             assetId: request.resolvedAssetId,
             bagId: request.resolvedBagId,
             preferRuntimePointer: true,
+            storageOnly: true,
           });
 
     const nextStatus =

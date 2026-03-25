@@ -638,7 +638,7 @@ export default function StorageProgramPage() {
   };
 
   const openDelivery = (request: StorageDeliveryRequest) => {
-    if (request.channel === "desktop_download" && (request.storagePointer || request.deliveryUrl)) {
+    if (request.channel === "desktop_download" && request.storagePointer) {
       openStorageDeliveryInDesktop(request);
       return;
     }
@@ -1467,7 +1467,10 @@ export default function StorageProgramPage() {
                         {request.lastDeliveredVia ? <span>{formatDeliveryVia(request.lastDeliveredVia)}</span> : null}
                       </div>
                       {request.failureMessage ? <p className={styles.deliveryMessage}>{request.failureMessage}</p> : null}
-                      {request.status === "ready" && (request.deliveryUrl || request.storagePointer) ? (
+                      {request.status === "ready" &&
+                      (request.channel === "desktop_download"
+                        ? Boolean(request.storagePointer)
+                        : Boolean(request.deliveryUrl || request.storagePointer)) ? (
                         <div className={styles.deliveryActions}>
                           <button type="button" className={styles.primaryButton} onClick={() => openDelivery(request)}>
                             {request.channel === "desktop_download" ? "Открыть в Desktop" : "Открыть файл"}

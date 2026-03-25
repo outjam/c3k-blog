@@ -3,6 +3,8 @@ import {
   buildPreviewStorageResourceKey,
   buildReleaseDeliveryResourceKey,
   buildReleaseStorageAssetId,
+  buildTrackDeliveryResourceKey,
+  buildTrackStorageAssetId,
   inferAudioMimeType,
   inferStorageAudioFormatFromUrl,
   resolveStorageSourceUrlCandidate,
@@ -26,7 +28,11 @@ export interface StorageArtistTrackSyncSummary {
 }
 
 const isAutoManagedTrackAssetId = (trackId: string, assetId: string): boolean => {
-  return assetId.startsWith(`release-asset:${trackId}:`) || assetId === `preview-asset:${trackId}`;
+  return (
+    assetId.startsWith(`release-asset:${trackId}:`) ||
+    assetId.startsWith(`track-asset:${trackId}:`) ||
+    assetId === `preview-asset:${trackId}`
+  );
 };
 
 const inferReleaseFileName = (track: ArtistTrack, format: ArtistTrack["formats"][number]["format"]): string => {
@@ -38,6 +44,23 @@ const inferPreviewFileName = (
   format: ArtistTrack["formats"][number]["format"],
 ): string => {
   return `${track.slug}-preview.${format}`;
+};
+
+const inferTrackFileName = (
+  track: ArtistTrack,
+  item: ArtistTrack["releaseTracklist"][number],
+  format: ArtistTrack["formats"][number]["format"],
+): string => {
+  const safeTrackPart =
+    String(item.audioFileName ?? "")
+      .trim()
+      .replace(/\.[a-z0-9]+$/i, "")
+      .replace(/[^\p{L}\p{N}._ -]+/gu, "-")
+      .replace(/\s+/g, "-")
+      .slice(0, 120) ||
+    `${track.slug}-${item.id}`;
+
+  return `${safeTrackPart}.${format}`;
 };
 
 const buildDesiredAssets = (track: ArtistTrack): Array<{
@@ -99,7 +122,35 @@ const buildDesiredAssets = (track: ArtistTrack): Array<{
         ]
       : [];
 
-  return [...releaseAssets, ...previewAsset];
+  const trackAssets = track.releaseTracklist.flatMap((item) => {
+    const audioFileId = String(item.audioFileId ?? "").trim();
+    const audioFormat = item.audioFormat;
+
+    if (!audioFileId || !audioFormat) {
+      return [];
+    }
+
+    const sourceUrl = resolveStorageSourceUrlCandidate(audioFileId);
+
+    return [
+      {
+        id: buildTrackStorageAssetId(track.id, item.id, audioFormat),
+        releaseSlug: track.slug,
+        trackId: item.id,
+        artistTelegramUserId: track.artistTelegramUserId,
+        resourceKey: buildTrackDeliveryResourceKey(track.slug, item.id, audioFormat),
+        assetType: "audio_master" as const,
+        format: audioFormat,
+        sourceUrl,
+        audioFileId,
+        fileName: inferTrackFileName(track, item, audioFormat),
+        mimeType: inferAudioMimeType(audioFormat),
+        sizeBytes: 0,
+      },
+    ];
+  });
+
+  return [...releaseAssets, ...trackAssets, ...previewAsset];
 };
 
 export const syncStorageAssetsForArtistTrack = async (

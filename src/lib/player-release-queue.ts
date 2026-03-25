@@ -44,7 +44,9 @@ export const buildReleasePlaybackQueue = (product: ShopProduct): ReleasePlayback
     };
 
     if (typeof track.durationSec === "number") {
-      item.durationSec = track.durationSec;
+      item.durationSec = Math.min(30, Math.max(1, track.durationSec));
+    } else {
+      item.durationSec = 30;
     }
 
     acc.push(item);
@@ -68,6 +70,7 @@ export const buildReleasePlaybackQueue = (product: ShopProduct): ReleasePlayback
       coverUrl: product.image,
       sourceUrl: fallbackSource,
       releaseSlug,
+      durationSec: 30,
     },
   ];
 };

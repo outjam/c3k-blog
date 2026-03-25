@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -69,6 +70,49 @@ const formatDeliveryVia = (value: StorageDeliveryRequest["lastDeliveredVia"]): s
   }
 };
 
+const isRuntimeBackedRequest = (request: StorageDeliveryRequest): boolean => {
+  return (
+    request.lastDeliveredVia === "tonstorage_gateway" ||
+    request.lastDeliveredVia === "bag_http_pointer" ||
+    request.lastDeliveredVia === "bag_meta"
+  );
+};
+
+const formatRequestHint = (request: StorageDeliveryRequest): string => {
+  switch (request.status) {
+    case "delivered":
+      return request.channel === "telegram_bot"
+        ? "Файл уже отправлен в Telegram."
+        : request.channel === "desktop_download"
+          ? "Файл уже передан в C3K Desktop."
+          : "Файл уже был открыт или скачан.";
+    case "ready":
+      return request.channel === "desktop_download"
+        ? "Можно сразу открыть в desktop-нode."
+        : "Файл уже готов к открытию.";
+    case "pending_asset_mapping":
+      return "Storage runtime ещё сопоставляет нужный asset.";
+    case "processing":
+      return "Запрос уже обрабатывается worker-слоем.";
+    case "failed":
+      return "Нужно повторить выдачу или проверить route.";
+    default:
+      return "Запрос на выдачу уже создан.";
+  }
+};
+
+const formatActionLabel = (request: StorageDeliveryRequest): string => {
+  if (request.channel === "desktop_download") {
+    return "Открыть в Desktop";
+  }
+
+  if (request.channel === "telegram_bot") {
+    return request.status === "delivered" ? "Открыть в Telegram" : "Открыть файл";
+  }
+
+  return "Открыть файл";
+};
+
 const getDeliveryTone = (
   value: StorageDeliveryRequest["status"],
 ): "success" | "warning" | "danger" | "default" => {
@@ -128,6 +172,27 @@ const formatRequestTarget = (
     request.trackId;
 
   return trackTitle ? `Трек · ${trackTitle}` : "Трек";
+};
+
+const formatStorageReleaseHint = (release: ShopProduct | null): string => {
+  if (!release?.storageSummary) {
+    return "Релиз ещё может выдаваться через обычный route без archive-runtime слоя.";
+  }
+
+  switch (release.storageSummary.status) {
+    case "verified":
+      return "Архив релиза уже подтверждён в storage runtime.";
+    case "archived":
+      return "Релиз уже упакован в archive contour и ждёт дальнейшей раздачи.";
+    case "prepared":
+      return "Archive bag уже подготовлен, но часть выдач ещё может идти через fallback.";
+    case "syncing":
+      return "Storage pipeline ещё собирает archive и runtime mapping.";
+    case "attention":
+      return "У archive contour есть сигнал внимания, поэтому route может переключаться.";
+    default:
+      return "Storage archive для релиза ещё не синхронизирован.";
+  }
 };
 
 function DownloadsPageSkeleton() {
@@ -205,6 +270,10 @@ export default function DownloadsPage() {
       ready: deliveryHistory.filter((entry) => isReadyRequest(entry)).length,
       active: deliveryHistory.filter((entry) => isActiveRequest(entry)).length,
       failed: deliveryHistory.filter((entry) => entry.status === "failed").length,
+      runtime: deliveryHistory.filter((entry) => isRuntimeBackedRequest(entry)).length,
+      desktop: deliveryHistory.filter((entry) => entry.channel === "desktop_download").length,
+      telegram: deliveryHistory.filter((entry) => entry.channel === "telegram_bot").length,
+      web: deliveryHistory.filter((entry) => entry.channel === "web_download").length,
     }),
     [deliveryHistory],
   );
@@ -259,7 +328,7 @@ export default function DownloadsPage() {
   const openDelivery = (request: StorageDeliveryRequest) => {
     if (
       request.channel === "desktop_download" &&
-      (request.storagePointer || request.deliveryUrl)
+      request.storagePointer
     ) {
       openStorageDeliveryInDesktop(request);
       return;
@@ -318,7 +387,8 @@ export default function DownloadsPage() {
             <div className={styles.heroMeta}>
               <h1>Библиотека загрузок</h1>
               <p>
-                Здесь собраны ваши релизы, треки и все запросы на выдачу файлов.
+                Здесь собраны купленные релизы, треки и весь маршрут выдачи:
+                браузер, Telegram, Desktop и storage runtime.
               </p>
             </div>
 
@@ -335,6 +405,17 @@ export default function DownloadsPage() {
                 <span>Ошибки</span>
                 <strong>{summary.failed}</strong>
               </article>
+              <article>
+                <span>Через storage</span>
+                <strong>{summary.runtime}</strong>
+              </article>
+            </div>
+
+            <div className={styles.heroSignals}>
+              <span className={styles.signalPill}>{summary.runtime} через runtime</span>
+              <span className={styles.signalPill}>{summary.desktop} desktop</span>
+              <span className={styles.signalPill}>{summary.telegram} telegram</span>
+              <span className={styles.signalPill}>{summary.web} web</span>
             </div>
           </div>
         </section>
@@ -370,71 +451,133 @@ export default function DownloadsPage() {
 
             {filteredRequests.length > 0 ? (
               <section className={styles.list}>
+                <div className={styles.groupTopline}>
+                  <div className={styles.groupHeading}>
+                    <h2>Post-purchase выдача</h2>
+                    <p>
+                      Для каждого файла видно, готов ли он уже к открытию, через какой
+                      route был доставлен и нужен ли ещё retry.
+                    </p>
+                  </div>
+                  <span className={styles.heroChip}>
+                    {filteredRequests.length} {filteredRequests.length === 1 ? "запрос" : "запросов"}
+                  </span>
+                </div>
                 {filteredRequests.map((request) => {
                   const release = releaseBySlug.get(request.releaseSlug) ?? null;
+                  const routeLabel = request.lastDeliveredVia ? formatDeliveryVia(request.lastDeliveredVia) : null;
+                  const hasRuntimeRoute = isRuntimeBackedRequest(request);
+                  const routeSummary = routeLabel
+                    ? `Маршрут: ${routeLabel}`
+                    : request.storagePointer
+                      ? "Маршрут: storage pointer уже подготовлен"
+                      : "Маршрут: delivery ещё собирается";
 
                   return (
                     <article key={request.id} className={styles.card}>
-                      <div className={styles.cardTopline}>
-                        <div className={styles.cardHeading}>
-                          <strong>{release?.title || request.releaseSlug}</strong>
-                          <span>{formatRequestTarget(request, release)}</span>
+                      <div className={styles.cardShell}>
+                        <div className={styles.cardMediaWrap}>
+                          {release?.image ? (
+                            <Image
+                              src={release.image}
+                              alt={release.title}
+                              width={120}
+                              height={120}
+                              className={styles.cardMedia}
+                            />
+                          ) : (
+                            <div className={styles.cardMediaFallback}>
+                              <span>{request.targetType === "track" ? "TRACK" : "RELEASE"}</span>
+                            </div>
+                          )}
                         </div>
-                        <span
-                          className={`${styles.statusPill} ${toneClassName(styles, getDeliveryTone(request.status))}`}
-                        >
-                          {formatDeliveryStatus(request.status)}
-                        </span>
-                      </div>
 
-                      <div className={styles.cardPills}>
-                        <span className={styles.metaPill}>{formatDeliveryChannel(request.channel)}</span>
-                        <span className={styles.metaPill}>
-                          {request.resolvedFormat || request.requestedFormat || "Формат уточняется"}
-                        </span>
-                        <span className={styles.metaPill}>{request.fileName || "Файл готовится"}</span>
-                      </div>
+                        <div className={styles.cardContent}>
+                          <div className={styles.cardEyebrow}>
+                            <span>{release?.artistName || "C3K release"}</span>
+                            <span>{request.channel === "desktop_download" ? "Node handoff" : "Digital delivery"}</span>
+                          </div>
 
-                      <div className={styles.cardMeta}>
-                        <span>{new Date(request.updatedAt || request.createdAt).toLocaleString("ru-RU")}</span>
-                        {request.storagePointer ? <span>Storage pointer готов</span> : null}
-                        {request.deliveryUrl ? <span>Есть прямая выдача</span> : null}
-                        {request.lastDeliveredVia ? <span>{formatDeliveryVia(request.lastDeliveredVia)}</span> : null}
-                      </div>
+                          <div className={styles.cardTopline}>
+                            <div className={styles.cardHeading}>
+                              <strong>{release?.title || request.releaseSlug}</strong>
+                              <span>{formatRequestTarget(request, release)}</span>
+                            </div>
+                            <span
+                              className={`${styles.statusPill} ${toneClassName(styles, getDeliveryTone(request.status))}`}
+                            >
+                              {formatDeliveryStatus(request.status)}
+                            </span>
+                          </div>
 
-                      {request.failureMessage ? (
-                        <p className={styles.cardMessage}>{request.failureMessage}</p>
-                      ) : null}
+                          <div className={styles.cardPills}>
+                            <span className={styles.metaPill}>{formatDeliveryChannel(request.channel)}</span>
+                            <span className={styles.metaPill}>
+                              {request.resolvedFormat || request.requestedFormat || "Формат уточняется"}
+                            </span>
+                            <span className={styles.metaPill}>{request.fileName || "Файл готовится"}</span>
+                            {release?.storageSummary ? (
+                              <span className={styles.metaPill}>{release.storageSummary.label}</span>
+                            ) : null}
+                            {hasRuntimeRoute ? (
+                              <span className={`${styles.metaPill} ${styles.metaPillRuntime}`}>Storage runtime</span>
+                            ) : null}
+                          </div>
 
-                      <div className={styles.cardActions}>
-                        {isReadyRequest(request) &&
-                        (request.deliveryUrl || request.storagePointer) ? (
-                          <button
-                            type="button"
-                            className={styles.primaryButton}
-                            onClick={() => openDelivery(request)}
-                          >
-                            {request.channel === "desktop_download"
-                              ? "Открыть в Desktop"
-                              : "Открыть файл"}
-                          </button>
-                        ) : null}
-                        {(request.status === "failed" ||
-                          request.status === "pending_asset_mapping") ? (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={() => void retryRequest(request)}
-                            disabled={retryingRequestId === request.id}
-                          >
-                            {retryingRequestId === request.id ? "Повторяем..." : "Повторить"}
-                          </button>
-                        ) : null}
-                        {release ? (
-                          <Link href={`/shop/${release.slug}`} className={styles.secondaryLink}>
-                            К релизу
-                          </Link>
-                        ) : null}
+                          <div className={styles.cardMeta}>
+                            <span>{new Date(request.updatedAt || request.createdAt).toLocaleString("ru-RU")}</span>
+                            <span>{routeSummary}</span>
+                            {request.storagePointer ? <span>Storage pointer готов</span> : null}
+                            {request.deliveryUrl ? <span>Есть прямая выдача</span> : null}
+                          </div>
+
+                          <div className={styles.cardNarrative}>
+                            <strong>{formatRequestHint(request)}</strong>
+                            <span>
+                              {hasRuntimeRoute
+                                ? "Эта выдача уже использовала storage runtime contour."
+                                : request.storagePointer
+                                  ? "Pointer уже есть, но финальный route ещё может идти через fallback."
+                                  : "Если route ещё не готов, worker продолжит обработку автоматически."}
+                            </span>
+                            <span>{formatStorageReleaseHint(release)}</span>
+                          </div>
+
+                          {request.failureMessage ? (
+                            <p className={styles.cardMessage}>{request.failureMessage}</p>
+                          ) : null}
+
+                          <div className={styles.cardActions}>
+                            {isReadyRequest(request) &&
+                            (request.channel === "desktop_download"
+                              ? Boolean(request.storagePointer)
+                              : Boolean(request.deliveryUrl || request.storagePointer)) ? (
+                              <button
+                                type="button"
+                                className={styles.primaryButton}
+                                onClick={() => openDelivery(request)}
+                              >
+                                {formatActionLabel(request)}
+                              </button>
+                            ) : null}
+                            {(request.status === "failed" ||
+                              request.status === "pending_asset_mapping") ? (
+                              <button
+                                type="button"
+                                className={styles.secondaryButton}
+                                onClick={() => void retryRequest(request)}
+                                disabled={retryingRequestId === request.id}
+                              >
+                                {retryingRequestId === request.id ? "Повторяем..." : "Повторить"}
+                              </button>
+                            ) : null}
+                            {release ? (
+                              <Link href={`/shop/${release.slug}`} className={styles.secondaryLink}>
+                                К релизу
+                              </Link>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     </article>
                   );

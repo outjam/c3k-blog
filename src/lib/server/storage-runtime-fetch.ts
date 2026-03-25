@@ -101,6 +101,7 @@ export const resolveStorageRuntimeFetchTargetFromRegistry = (
     assetId?: string;
     bagId?: string;
     preferRuntimePointer?: boolean;
+    storageOnly?: boolean;
   },
   registry: { assets: StorageAsset[]; bags: StorageBag[]; bagFiles?: StorageBagFile[] },
 ): StorageRuntimeFetchResult => {
@@ -138,6 +139,25 @@ export const resolveStorageRuntimeFetchTargetFromRegistry = (
       via: "tonstorage_gateway",
       bag,
       asset,
+    };
+  }
+
+  if (input.storageOnly) {
+    if (tonstorageGatewayUrl && bag?.runtimeFetchStatus === "verified") {
+      return {
+        ok: true,
+        sourceUrl: tonstorageGatewayUrl,
+        via: "tonstorage_gateway",
+        bag,
+        asset,
+      };
+    }
+
+    return {
+      ok: false,
+      bag,
+      asset,
+      error: "Файл ещё не подтверждён в storage-сети и недоступен через ноды.",
     };
   }
 
@@ -215,6 +235,7 @@ export const resolveStorageRuntimeFetchTarget = async (input: {
   assetId?: string;
   bagId?: string;
   preferRuntimePointer?: boolean;
+  storageOnly?: boolean;
 }): Promise<StorageRuntimeFetchResult> => {
   const [assets, bags, bagFiles] = await Promise.all([listStorageAssets(), listStorageBags(), listStorageBagFiles()]);
   return resolveStorageRuntimeFetchTargetFromRegistry(input, { assets, bags, bagFiles });
@@ -227,6 +248,7 @@ export const canResolveStorageRuntimeFetchTarget = async (input: {
   assetId?: string;
   bagId?: string;
   preferRuntimePointer?: boolean;
+  storageOnly?: boolean;
 }): Promise<boolean> => {
   const resolved = await resolveStorageRuntimeFetchTarget(input);
   return resolved.ok;
@@ -239,6 +261,7 @@ export const fetchStorageRuntimeBinary = async (input: {
   assetId?: string;
   bagId?: string;
   preferRuntimePointer?: boolean;
+  storageOnly?: boolean;
 }): Promise<StorageRuntimeBinaryResult> => {
   const target = await resolveStorageRuntimeFetchTarget(input);
 

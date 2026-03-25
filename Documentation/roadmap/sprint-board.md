@@ -327,7 +327,7 @@ Status: current
 - перевести storage из network/readiness baseline к более автоматизированному runtime и более явной ценности для артистов и пользователей
 
 Что должно быть доставлено:
-- [ ] Ingest pipeline для реального release content, а не только preview/test assets
+- [x] Ingest pipeline для реального release content, а не только preview/test assets
 - [ ] Bag automation и replication management для выбранных assets
 - [x] Artist-facing archive/storage status на релизах и в студии
 - [x] Больше live runtime данных на user-facing storage screens вместо product-preview текста

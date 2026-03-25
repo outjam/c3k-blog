@@ -53,6 +53,7 @@ export async function GET(
     assetId: entry.resolvedAssetId,
     bagId: entry.resolvedBagId,
     preferRuntimePointer: true,
+    storageOnly: true,
   });
 
   if (!resolved.ok || !resolved.bytes) {
